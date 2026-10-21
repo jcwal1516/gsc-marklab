@@ -26,7 +26,8 @@ fn recipe() -> Value {
 #[test]
 fn composition_separates_density_from_fraction_and_conserves_partitions() {
     let result =
-        marklab::analyze_pathology_composition(&serde_json::to_vec(&recipe()).unwrap()).unwrap();
+        marklab::pathology::analyze_pathology_composition(&serde_json::to_vec(&recipe()).unwrap())
+            .unwrap();
     let value = serde_json::to_value(result).unwrap();
     let patients = value["patients"].as_array().unwrap();
     assert_eq!(patients[0]["densities_per_mm2"][0], 2.0);
@@ -56,7 +57,8 @@ fn composition_pools_exposure_keeps_zeros_and_respects_holes() {
     extra["window"] = json!({"type":"MultiPolygon","coordinates":[[[[0,0],[2000,0],[2000,1000],[0,1000],[0,0]]]]});
     input["study"]["slides"].as_array_mut().unwrap().push(extra);
     let result = serde_json::to_value(
-        marklab::analyze_pathology_composition(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_composition(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert!(
@@ -74,7 +76,8 @@ fn composition_pools_exposure_keeps_zeros_and_respects_holes() {
     }
     input["study"]["slides"][0]["window"] = json!({"type":"MultiPolygon","coordinates":[[[[0,0],[1000,0],[1000,1000],[0,1000],[0,0]],[[400,400],[400,600],[600,600],[600,400],[400,400]]]]});
     let result = serde_json::to_value(
-        marklab::analyze_pathology_composition(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_composition(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert!(result["patients"][0]["balances"][0]["value"].is_null());
@@ -84,17 +87,18 @@ fn composition_pools_exposure_keeps_zeros_and_respects_holes() {
         assert!((grid["area_mm2"].as_f64().unwrap() - 0.96).abs() < 1e-12);
     }
     input["limits"]["maximum_tiles"] = json!(1);
-    assert!(
-        marklab::analyze_pathology_composition(&serde_json::to_vec(&input).unwrap())
-            .unwrap_err()
-            .to_string()
-            .contains("tile")
-    );
+    assert!(marklab::pathology::analyze_pathology_composition(
+        &serde_json::to_vec(&input).unwrap()
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("tile"));
     let mut edge = recipe();
     edge["study"]["slides"][0]["cells"][0]["x_um"] = json!(1000);
     edge["study"]["slides"][0]["cells"][0]["y_um"] = json!(1000);
     let closed = serde_json::to_value(
-        marklab::analyze_pathology_composition(&serde_json::to_vec(&edge).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_composition(&serde_json::to_vec(&edge).unwrap())
+            .unwrap(),
     )
     .unwrap();
     for grid in closed["slides"][0]["grids"].as_array().unwrap() {
@@ -112,7 +116,8 @@ fn composition_balances_and_grid_offsets_have_independent_oracles() {
         slide["cells"][1]["x_um"] = json!(510.0);
     }
     let result = serde_json::to_value(
-        marklab::analyze_pathology_composition(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_composition(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     let p = &result["patients"][3];
@@ -128,7 +133,8 @@ fn composition_balances_and_grid_offsets_have_independent_oracles() {
         slide["cells"].as_array_mut().unwrap().reverse();
     }
     let reordered = serde_json::to_value(
-        marklab::analyze_pathology_composition(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_composition(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(result, reordered);
@@ -157,7 +163,8 @@ fn composition_cli_publishes_library_results_and_refuses_overwrite() {
     );
     let actual = std::fs::read(output.join("result.json")).unwrap();
     let expected = serde_json::to_vec_pretty(
-        &marklab::analyze_pathology_composition(&serde_json::to_vec(&recipe()).unwrap()).unwrap(),
+        &marklab::pathology::analyze_pathology_composition(&serde_json::to_vec(&recipe()).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(actual, expected);
@@ -200,12 +207,14 @@ fn spatial_recipe() -> Value {
 fn spatial_refits_preserve_observed_curves_and_actual_phenotype_identity() {
     let mut input = spatial_recipe();
     let refit = serde_json::to_value(
-        marklab::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     input["design"]["intensity"]["null_mode"] = json!("plugin");
     let plugin = serde_json::to_value(
-        marklab::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(refit["slides"][0]["values"], plugin["slides"][0]["values"]);
@@ -229,7 +238,8 @@ fn spatial_refits_preserve_observed_curves_and_actual_phenotype_identity() {
     input["design"]["target"] = json!("tumor");
     input["design"]["intensity"]["null_mode"] = json!("refit");
     let cross = serde_json::to_value(
-        marklab::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(cross["slides"][0]["mark_id"], "phenotype");
@@ -244,12 +254,14 @@ fn spatial_refits_preserve_observed_curves_and_actual_phenotype_identity() {
 fn spatial_selection_cross_fitting_compartments_and_unavailable_patients() {
     let mut input = spatial_recipe();
     input["design"]["intensity"]["bandwidth_candidates_um"] = json!([1e308]);
-    assert!(
-        marklab::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap()).is_err()
-    );
+    assert!(marklab::pathology::analyze_pathology_spatial_study(
+        &serde_json::to_vec(&input).unwrap()
+    )
+    .is_err());
     input["design"]["intensity"]["bandwidth_candidates_um"] = json!([150, 250]);
     let selected = serde_json::to_value(
-        marklab::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert!([150.0, 250.0].contains(
@@ -263,7 +275,8 @@ fn spatial_selection_cross_fitting_compartments_and_unavailable_patients() {
     input["design"]["radii_um"] = json!([150, 220]);
     input["design"]["pair_bandwidth_um"] = json!(60);
     let cross_fit = serde_json::to_value(
-        marklab::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert!(cross_fit["slides"][0]["values"]
@@ -283,7 +296,8 @@ fn spatial_selection_cross_fitting_compartments_and_unavailable_patients() {
     }).collect::<Vec<_>>();
     input["design"]["compartments"] = json!(partitions);
     let compartment = serde_json::to_value(
-        marklab::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert!(compartment["slides"][0]["null_model"]
@@ -296,16 +310,18 @@ fn spatial_selection_cross_fitting_compartments_and_unavailable_patients() {
         .unwrap()
         .truncate(1);
     let result = serde_json::to_value(
-        marklab::analyze_pathology_spatial_study(&serde_json::to_vec(&sparse).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(&sparse).unwrap())
+            .unwrap(),
     )
     .unwrap();
     assert_eq!(result["patients"].as_array().unwrap().len(), 4);
     assert!(result["patients"][0]["values"].is_null());
     assert!(result["inference"]["p_value"].is_null());
     sparse["limits"]["maximum_work"] = json!(1);
-    assert!(
-        marklab::analyze_pathology_spatial_study(&serde_json::to_vec(&sparse).unwrap()).is_err()
-    );
+    assert!(marklab::pathology::analyze_pathology_spatial_study(
+        &serde_json::to_vec(&sparse).unwrap()
+    )
+    .is_err());
 }
 
 #[test]
@@ -318,7 +334,7 @@ fn spatial_cli_matches_library_and_keeps_patient_units() {
     extra["window"] = json!({"type":"MultiPolygon","coordinates":[[[[0,0],[2000,0],[2000,1000],[0,1000],[0,0]]]]});
     input["study"]["slides"].as_array_mut().unwrap().push(extra);
     let bytes = serde_json::to_vec(&input).unwrap();
-    let native = marklab::analyze_pathology_spatial_study(&bytes).unwrap();
+    let native = marklab::pathology::analyze_pathology_spatial_study(&bytes).unwrap();
     let value = serde_json::to_value(&native).unwrap();
     let first = value["slides"][0]["values"][0].as_f64().unwrap();
     let second = value["slides"][1]["values"][0].as_f64().unwrap();
@@ -349,6 +365,29 @@ fn spatial_cli_matches_library_and_keeps_patient_units() {
         serde_json::to_vec_pretty(&native).unwrap()
     );
     assert!(output.join("curves.svg").is_file());
+    let curves: Value =
+        serde_json::from_slice(&std::fs::read(output.join("null-curves.json")).unwrap()).unwrap();
+    assert_eq!(curves["format"], "marklab.pathology_spatial_null_curves");
+    assert_eq!(curves["scale"], "l_minus_radius_um");
+    assert_eq!(curves["radii_um"], value["design"]["radii_um"]);
+    let exported = curves["slides"].as_array().unwrap();
+    assert_eq!(exported.len(), value["slides"].as_array().unwrap().len());
+    for (slide, reported) in exported.iter().zip(value["slides"].as_array().unwrap()) {
+        assert_eq!(slide["slide_id"], reported["slide_id"]);
+        assert_eq!(slide["observed"], reported["values"]);
+        let simulated = slide["simulated"].as_array().unwrap();
+        assert_eq!(simulated.len(), 19);
+        let eligible = slide["jointly_eligible"].as_array().unwrap();
+        for curve in simulated {
+            for (entry, eligible) in curve.as_array().unwrap().iter().zip(eligible) {
+                assert_eq!(entry.is_number(), eligible.as_bool().unwrap());
+            }
+        }
+        if reported["unavailable"].is_null() {
+            assert_eq!(slide["native_p_global"], reported["p_global"]);
+            assert!(eligible.iter().all(|value| value.as_bool().unwrap()));
+        }
+    }
     assert!(!run().status.success());
 }
 
@@ -381,7 +420,8 @@ fn bernoulli_scan_matches_enumerated_six_cell_null_and_inclusive_ties() {
             });
         }
         let result = serde_json::to_value(
-            marklab::analyze_pathology_scan(&serde_json::to_vec(&input).unwrap()).unwrap(),
+            marklab::pathology::analyze_pathology_scan(&serde_json::to_vec(&input).unwrap())
+                .unwrap(),
         )
         .unwrap();
         let cases = (mask & 7).count_ones().max((mask >> 3).count_ones()) as f64;
@@ -408,7 +448,7 @@ fn scan_strata_support_holes_resource_limits_and_cli() {
     input["design"]["radii_um"] = json!([15, 25]);
     input["study"]["slides"][0]["window"] = json!({"type":"MultiPolygon","coordinates":[[[[0,0],[1000,0],[1000,1000],[0,1000],[0,0]],[[100,505],[100,510],[110,510],[110,505],[100,505]]]]});
     let bytes = serde_json::to_vec(&input).unwrap();
-    let native = marklab::analyze_pathology_scan(&bytes).unwrap();
+    let native = marklab::pathology::analyze_pathology_scan(&bytes).unwrap();
     let result = serde_json::to_value(&native).unwrap();
     assert!(result["slides"][0]["p_global"].as_f64().unwrap() <= 0.05);
     assert!(
@@ -447,7 +487,7 @@ fn scan_strata_support_holes_resource_limits_and_cli() {
         c["stratum"] = c["phenotype"].clone();
     }
     let stratified = serde_json::to_value(
-        marklab::analyze_pathology_scan(&serde_json::to_vec(&input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_scan(&serde_json::to_vec(&input).unwrap()).unwrap(),
     )
     .unwrap();
     assert!(stratified["slides"][0]["p_global"].is_null());
@@ -461,12 +501,148 @@ fn scan_strata_support_holes_resource_limits_and_cli() {
             c["stratum"] = json!("all");
         }
         let constant = serde_json::to_value(
-            marklab::analyze_pathology_scan(&serde_json::to_vec(&input).unwrap()).unwrap(),
+            marklab::pathology::analyze_pathology_scan(&serde_json::to_vec(&input).unwrap())
+                .unwrap(),
         )
         .unwrap();
         assert!(constant["slides"][0]["p_global"].is_null());
     }
     let mut bounded = scan_recipe();
     bounded["limits"]["maximum_work"] = json!(100);
-    assert!(marklab::analyze_pathology_scan(&serde_json::to_vec(&bounded).unwrap()).is_err());
+    assert!(
+        marklab::pathology::analyze_pathology_scan(&serde_json::to_vec(&bounded).unwrap()).is_err()
+    );
+}
+
+#[test]
+fn shipped_example_recipes_run_with_reduced_resampling() {
+    let example = |name: &str| -> Value {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("examples/pathology-studies")
+            .join(name);
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+    };
+    let patient_count = |value: &Value| value["patients"].as_array().map(Vec::len);
+
+    let mut composition = example("composition.json");
+    composition["design"]["permutations"] = json!(19);
+    composition["design"]["bootstrap_replicates"] = json!(99);
+    let composition = serde_json::to_value(
+        marklab::pathology::analyze_pathology_composition(
+            &serde_json::to_vec(&composition).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(patient_count(&composition), Some(16));
+    assert_eq!(composition["slides"].as_array().unwrap().len(), 32);
+
+    let mut spatial = example("spatial-study.json");
+    spatial["design"]["permutations"] = json!(19);
+    let spatial = serde_json::to_value(
+        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(&spatial).unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(patient_count(&spatial), Some(16));
+
+    let mut scan = example("scan.json");
+    scan["design"]["permutations"] = json!(19);
+    let scan = serde_json::to_value(
+        marklab::pathology::analyze_pathology_scan(&serde_json::to_vec(&scan).unwrap()).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(scan["slides"].as_array().unwrap().len(), 32);
+}
+
+fn single_slide_spatial(cells: Vec<Value>, design: Value) -> Value {
+    let mut input = spatial_recipe();
+    let mut slide = input["study"]["slides"][0].clone();
+    slide["cells"] = json!(cells);
+    input["study"]["slides"] = json!([slide]);
+    for (key, value) in design.as_object().unwrap() {
+        input["design"][key] = value.clone();
+    }
+    input
+}
+
+fn spatial_slide(input: &Value) -> Value {
+    let result =
+        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(input).unwrap())
+            .unwrap();
+    serde_json::to_value(result).unwrap()["slides"][0].clone()
+}
+
+fn cell_at(index: usize, x: f64, y: f64, phenotype: &str) -> Value {
+    json!({"id":format!("c{index:03}"),"x_um":x,"y_um":y,"phenotype":phenotype,"stratum":"all"})
+}
+
+#[test]
+fn declared_support_rule_handles_sparse_centers_and_zero_pair_curves() {
+    let rule = json!({"kind":"expected_pair_count","minimum_expected_pairs":1.0,
+        "maximum_draws_per_simulation":50});
+    // Four sources among 36 targets: many simulated patterns have no source at least
+    // r + h = 240 um from the border, which leaves that radius without eligible centers.
+    let sparse = (0..40)
+        .map(|i| {
+            let (x, y) = if i < 4 {
+                [
+                    (500.0, 500.0),
+                    (150.0, 820.0),
+                    (870.0, 130.0),
+                    (300.0, 700.0),
+                ][i]
+            } else {
+                (
+                    20.0 + ((i * 271) % 960) as f64,
+                    20.0 + ((i * 613) % 960) as f64,
+                )
+            };
+            cell_at(i, x, y, if i < 4 { "immune" } else { "tumor" })
+        })
+        .collect::<Vec<_>>();
+    let cross = json!({"statistic":"cross_g_minus_one","phenotype":null,"source":"immune",
+        "target":"tumor","radii_um":[100,200],"pair_bandwidth_um":40});
+    let without = spatial_slide(&single_slide_spatial(sparse.clone(), cross.clone()));
+    assert!(without["unavailable"].is_string());
+    assert!(without.get("expected_pairs").is_none());
+    let mut with_rule = cross.clone();
+    with_rule["support_rule"] = rule.clone();
+    let supported = spatial_slide(&single_slide_spatial(sparse, with_rule));
+    assert!(supported["unavailable"].is_null(), "{supported}");
+    assert!(supported["p_global"].as_f64().is_some());
+    assert_eq!(supported["expected_pairs"].as_array().unwrap().len(), 2);
+    assert!(supported["support_redraws"].as_u64().is_some());
+
+    // Two tight clusters 566 um apart: no pairs lie 160-240 um apart, so g(200) is an estimate
+    // of zero with or without a declared support rule.
+    let clustered = (0..40)
+        .map(|i| {
+            let center = if i % 2 == 0 { 300.0 } else { 700.0 };
+            let offset = |k: usize| ((k * 37) % 50) as f64 - 25.0;
+            cell_at(i, center + offset(i), center + offset(i * 7 + 3), "immune")
+        })
+        .collect::<Vec<_>>();
+    let g = json!({"statistic":"g_minus_one","phenotype":null,"source":null,"target":null,
+        "radii_um":[100,200],"pair_bandwidth_um":40});
+    let without = spatial_slide(&single_slide_spatial(clustered.clone(), g.clone()));
+    assert!(without["unavailable"].is_null(), "{without}");
+    assert_eq!(without["values"][1].as_f64(), Some(-1.0));
+    assert!(without["p_global"].as_f64().is_some());
+    let mut with_rule = g.clone();
+    with_rule["support_rule"] = rule.clone();
+    let supported = spatial_slide(&single_slide_spatial(clustered.clone(), with_rule.clone()));
+    assert!(supported["unavailable"].is_null(), "{supported}");
+    assert_eq!(supported["values"][1].as_f64(), Some(-1.0));
+    assert!(supported["p_global"].as_f64().is_some());
+
+    // A rule the pattern cannot meet keeps every bin and reports the slide unavailable.
+    with_rule["support_rule"]["minimum_expected_pairs"] = json!(1e6);
+    let strict = spatial_slide(&single_slide_spatial(clustered, with_rule));
+    let reason = strict["unavailable"].as_str().unwrap();
+    assert!(
+        reason.contains("expected-pair support rule fails at radius 100"),
+        "{reason}"
+    );
+    assert!(strict["p_global"].is_null());
 }

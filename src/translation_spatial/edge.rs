@@ -1,4 +1,7 @@
-use crate::{ObservationWindow2D, TranslationSpatialError, TranslationSpatialLimits};
+use crate::{
+    spatial::{TranslationSpatialError, TranslationSpatialLimits},
+    ObservationWindow2D,
+};
 
 /// Shared exact polygon-translation work accounting for the immediate K/L and g callers.
 pub(crate) struct TranslationOverlapBudget {

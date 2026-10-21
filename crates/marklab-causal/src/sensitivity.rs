@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 use crate::CausalError;
+use marklab_core::backend::ClaimStatus;
 
 const MAXIMUM_SCENARIOS: usize = 1_000_000;
 
@@ -46,7 +47,7 @@ pub struct BiasSensitivityResult {
     pub region_upper: f64,
     pub region_includes_zero: bool,
     pub scenario_evaluations: usize,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -88,7 +89,7 @@ pub struct ManskiBoundedOutcomeResult {
     pub ate_upper: f64,
     pub ate_includes_zero: bool,
     pub sampling_uncertainty: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn binary_confounder_bias_sensitivity(
@@ -137,7 +138,7 @@ pub fn binary_confounder_bias_sensitivity(
         region_upper,
         region_includes_zero: region_lower <= 0.0 && region_upper >= 0.0,
         scenarios,
-        claim_status: "supplied_assumption_sensitivity_only",
+        claim_status: ClaimStatus::SuppliedAssumptionSensitivityOnly,
     })
 }
 
@@ -222,7 +223,7 @@ pub fn manski_bounded_outcome_ate(
         ate_upper,
         ate_includes_zero: ate_lower <= 0.0 && ate_upper >= 0.0,
         sampling_uncertainty: "not_requested_point_identification_bounds_only",
-        claim_status: "bounded_outcome_partial_identification_only",
+        claim_status: ClaimStatus::BoundedOutcomePartialIdentificationOnly,
     })
 }
 
@@ -313,7 +314,7 @@ pub struct RosenbaumSignSensitivityResult {
     pub curve: Vec<RosenbaumSensitivityPoint>,
     pub critical_gamma: Option<f64>,
     pub set_gamma_evaluations: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn rosenbaum_sign_sensitivity(
@@ -413,7 +414,7 @@ pub fn rosenbaum_sign_sensitivity(
         curve,
         critical_gamma,
         set_gamma_evaluations: work,
-        claim_status: "matched_pair_hidden_bias_sensitivity_only",
+        claim_status: ClaimStatus::MatchedPairHiddenBiasSensitivityOnly,
     })
 }
 

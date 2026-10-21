@@ -1,6 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::datatypes::Schema;
 use arrow_ipc::{Endianness, Precision, Type};
 
 use super::super::physical::validate_required_utf8_field;
@@ -10,7 +10,7 @@ use crate::{
         multiscale::{
             matrix_metadata, MatrixPhysicalProfile, MultiscaleMatrixTable, MATRIX_METADATA_KEYS,
         },
-        MultiscaleColumnarError, SpatialArrowFailure,
+        ArrowIpcFailure, ColumnarError,
     },
     EmbeddingEntityKind,
 };
@@ -21,25 +21,16 @@ pub(super) const COLUMN_COUNT: usize = 3;
 pub(super) const NODE_COUNT: usize = 4;
 pub(super) const BUFFER_COUNT: usize = 9;
 
-pub(super) fn arrow_failure(reason: SpatialArrowFailure) -> MultiscaleColumnarError {
-    MultiscaleColumnarError::Arrow { reason }
+pub(super) fn arrow_failure(reason: ArrowIpcFailure) -> ColumnarError {
+    ColumnarError::Arrow { reason }
 }
 
-pub(super) fn schema(table: &dyn MultiscaleMatrixTable) -> Result<Schema, MultiscaleColumnarError> {
-    let dimension =
-        i32::try_from(table.dimension()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
-    let fields = vec![
-        Field::new(id_column(table.profile()), DataType::Utf8, false),
-        Field::new(
-            "embedding",
-            DataType::FixedSizeList(
-                Arc::new(Field::new("item", DataType::Float32, false)),
-                dimension,
-            ),
-            false,
-        ),
-        Field::new("embedding_status", DataType::Utf8, false),
-    ];
+pub(super) fn schema(table: &dyn MultiscaleMatrixTable) -> Result<Schema, ColumnarError> {
+    let fields = crate::columnar::multiscale::matrix_schema_fields(
+        table.profile(),
+        table.dimension(),
+        crate::multiscale::physical::SpatialPhysicalEncoding::Arrow,
+    )?;
     let metadata = matrix_metadata(
         crate::multiscale::physical::SpatialPhysicalEncoding::Arrow,
         table,
@@ -52,24 +43,24 @@ pub(super) fn schema(table: &dyn MultiscaleMatrixTable) -> Result<Schema, Multis
 pub(super) fn validate_flatbuffer_schema(
     observed: arrow_ipc::Schema<'_>,
     table: &dyn MultiscaleMatrixTable,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     if observed.endianness() != Endianness::Little
         || observed
             .features()
             .is_some_and(|features| !features.is_empty())
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     validate_metadata(observed.custom_metadata(), table)?;
     let fields = observed
         .fields()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidSchema))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     if fields.len() != COLUMN_COUNT {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     validate_required_utf8_field(fields.get(0), id_column(table.profile()))?;
     let expected_dimension =
-        i32::try_from(table.dimension()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+        i32::try_from(table.dimension()).map_err(|_| ColumnarError::SizeOverflow)?;
     let embedding = fields.get(1);
     if embedding.name() != Some("embedding")
         || embedding.nullable()
@@ -82,13 +73,13 @@ pub(super) fn validate_flatbuffer_schema(
             .type_as_fixed_size_list()
             .is_none_or(|list| list.listSize() != expected_dimension)
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let children = embedding
         .children()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidSchema))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     if children.len() != 1 {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let item = children.get(0);
     if item.name() != Some("item")
@@ -103,7 +94,7 @@ pub(super) fn validate_flatbuffer_schema(
             .type_as_floating_point()
             .is_none_or(|floating| floating.precision() != Precision::SINGLE)
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     validate_required_utf8_field(fields.get(2), "embedding_status")
 }
@@ -113,40 +104,34 @@ fn validate_metadata(
         flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<arrow_ipc::KeyValue<'_>>>,
     >,
     table: &dyn MultiscaleMatrixTable,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let metadata =
-        metadata.ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+        metadata.ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
     let expected = matrix_metadata(
         crate::multiscale::physical::SpatialPhysicalEncoding::Arrow,
         table,
     )?;
     if metadata.len() != MATRIX_METADATA_KEYS.len() || expected.len() != metadata.len() {
-        return Err(arrow_failure(
-            SpatialArrowFailure::InvalidApplicationMetadata,
-        ));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
     }
     let mut total = 0_usize;
     for (entry, (expected_key, expected_value)) in metadata.iter().zip(expected) {
         let key = entry
             .key()
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
         let value = entry
             .value()
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
         total = total
             .checked_add(key.len())
             .and_then(|sum| sum.checked_add(value.len()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if key != expected_key || value != expected_value || value.is_empty() {
-            return Err(arrow_failure(
-                SpatialArrowFailure::InvalidApplicationMetadata,
-            ));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
         }
     }
     if total > METADATA_LIMIT {
-        return Err(arrow_failure(
-            SpatialArrowFailure::InvalidApplicationMetadata,
-        ));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
     }
     Ok(())
 }

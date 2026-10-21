@@ -8,7 +8,8 @@
 - Where are the local hotspots and outliers for a single marker such as Ki67?
 
 It works from cell measurements and annotations you provide. It does not segment tissue
-or predict IHC from H&E. This workflow is experimental.
+or predict IHC from H&E. This workflow is at the Research tier: it has hand-computed and
+synthetic checks but no public real-data demonstration (see [capabilities](capabilities.md#command-maturity)).
 
 ```sh
 cargo +1.99.0 run --locked --package marklab --no-default-features --features cli -- \
@@ -28,8 +29,8 @@ coordinate transform first.
 From Rust:
 
 ```rust,ignore
-let result = marklab::analyze_pathology_maps(&std::fs::read("recipe.json")?)?;
-marklab::publish_pathology_maps(&result, std::path::Path::new("maps"))?;
+let result = marklab::pathology::analyze_pathology_maps(&std::fs::read("recipe.json")?)?;
+marklab::pathology::publish_pathology_maps(&result, std::path::Path::new("maps"))?;
 ```
 
 ## Recipe

@@ -6,27 +6,28 @@ use marklab_bayes::{
 };
 use serde::Serialize;
 
-use super::{publish_json, BayesCliError};
+use super::cli_schema::StraussStatisticsArgs;
+use super::{publish_json, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    interaction_radius_um: f64,
-    proposal_x_um: f64,
-    proposal_y_um: f64,
-    beta_per_um2: f64,
-    gamma: f64,
-    maximum_pair_visits: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+pub(super) fn run(args: StraussStatisticsArgs) -> Result<(), CliError> {
+    let StraussStatisticsArgs {
+        input,
+        interaction_radius_um,
+        proposal_x_um,
+        proposal_y_um,
+        beta_per_um2,
+        gamma,
+        maximum_pair_visits,
+        out,
+    } = args;
+    let input_path = input;
+    let output_path = out;
+    let bytes = fs::read(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
     if bytes.len() > 16 * 1_048_576 {
-        return Err(BayesCliError::Input(
-            "Strauss point input exceeds 16 MiB".into(),
-        ));
+        return Err(CliError::Input("Strauss point input exceeds 16 MiB".into()));
     }
     let points = read_points(&bytes)?;
     let statistics = strauss_statistics(&points, interaction_radius_um, maximum_pair_visits)
@@ -62,13 +63,13 @@ pub(super) fn run(
     )
 }
 
-fn read_points(bytes: &[u8]) -> Result<Vec<StraussPoint>, BayesCliError> {
+fn read_points(bytes: &[u8]) -> Result<Vec<StraussPoint>, CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
         .from_reader(bytes);
     if reader.headers()?.iter().collect::<Vec<_>>() != ["point_id", "x_um", "y_um"] {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "Strauss point headers must be exactly: point_id,x_um,y_um".into(),
         ));
     }
@@ -76,7 +77,7 @@ fn read_points(bytes: &[u8]) -> Result<Vec<StraussPoint>, BayesCliError> {
     for row in reader.deserialize() {
         points.push(row?);
         if points.len() > 100_000 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "Strauss point input exceeds 100000 rows".into(),
             ));
         }
@@ -84,12 +85,12 @@ fn read_points(bytes: &[u8]) -> Result<Vec<StraussPoint>, BayesCliError> {
     Ok(points)
 }
 
-fn map_error(error: StraussError) -> BayesCliError {
+fn map_error(error: StraussError) -> CliError {
     match error {
         StraussError::InvalidSpec(message) | StraussError::Resource(message) => {
-            BayesCliError::Input(message)
+            CliError::Input(message)
         }
-        StraussError::Numerical(message) => BayesCliError::Backend(message),
+        StraussError::Numerical(message) => CliError::Backend(message),
     }
 }
 

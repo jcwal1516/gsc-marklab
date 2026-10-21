@@ -1,235 +1,111 @@
-use std::{fs, path::PathBuf};
-
-use clap::{Parser, Subcommand};
-use marklab::ArbitraryWindowIppWindowSummary;
-use marklab_bayes::{
-    sha256_hex, BackendContract, FitState, GriddedLgcpFitSpec, GriddedLgcpFitWorkerRequest,
-    GriddedLgcpPosterior, GriddedLgcpPosteriorPredictive, GriddedLgcpSpec,
-    InhomogeneousPoissonEvent, MidpointQuadratureValue, NormalMeanDiagnostics, NutsSamplingSpec,
-    RectangularWindow, SamplingSummary, SarScalarSummary, WorkerBackend,
-};
-use serde::{Deserialize, Serialize};
-
-use super::{
-    arbitrary_window_ipp, arbitrary_window_ipp_membership, posterior_validation::scalar_valid,
-    publish_json, run_worker, BayesCliError,
+pub(crate) use marklab_bayes::protocol::arbitrary_window_lgcp_fit::{
+    validate, FitResult, InputIdentity, PhysicalNode, WorkerRequest,
 };
 
-const PYMC_VERSION: &str = "6.3.0";
+use crate::input_file::read_file;
+use std::path::PathBuf;
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct FitCli {
-    #[command(subcommand)]
-    command: FitTopLevel,
-}
+use marklab_bayes::json_sha256;
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::GriddedLgcpFitSpec;
+use marklab_bayes::GriddedLgcpFitWorkerRequest;
+use marklab_bayes::GriddedLgcpSpec;
+use marklab_bayes::InhomogeneousPoissonEvent;
+use marklab_bayes::MidpointQuadratureValue;
+use marklab_bayes::NutsSamplingSpec;
+use marklab_bayes::RectangularWindow;
+use marklab_numerics::dense;
+use marklab_numerics::kernel::matern32;
 
-#[derive(Debug, Subcommand)]
-enum FitTopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: FitCommand,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum FitCommand {
-    FitArbitraryWindowLgcp(Box<Arguments>),
-}
+use super::arbitrary_window_ipp;
+use super::arbitrary_window_ipp_membership;
+use super::publish_json;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::PYMC_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
 
 #[derive(Debug, clap::Args)]
-struct Arguments {
+pub(crate) struct Arguments {
+    /// Observed point events with coordinates and model covariates.
     #[arg(long)]
-    events: PathBuf,
+    pub(crate) events: PathBuf,
+    /// Table binding observed events to their declared components or quadrature cells.
     #[arg(long)]
-    event_membership: PathBuf,
+    pub(crate) event_membership: PathBuf,
+    /// Quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
-    quadrature: PathBuf,
+    pub(crate) quadrature: PathBuf,
+    /// Observation-window geometry used for spatial integration or edge correction.
     #[arg(long)]
-    window: PathBuf,
+    pub(crate) window: PathBuf,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
-    intercept_prior_mean: f64,
+    pub(crate) intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
-    intercept_prior_sd: f64,
+    pub(crate) intercept_prior_sd: f64,
+    /// Prior mean for coefficient.
     #[arg(long, allow_hyphen_values = true)]
-    coefficient_prior_mean: f64,
+    pub(crate) coefficient_prior_mean: f64,
+    /// Prior scale for coefficient.
     #[arg(long)]
-    coefficient_prior_sd: f64,
+    pub(crate) coefficient_prior_sd: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
-    field_amplitude: f64,
+    pub(crate) field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
-    field_length_scale_um: f64,
+    pub(crate) field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
-    jitter: f64,
+    pub(crate) jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
-    chains: u32,
+    pub(crate) chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
-    tune: u32,
+    pub(crate) tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
-    draws: u32,
+    pub(crate) draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
-    target_accept: f64,
+    pub(crate) target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
-    seed: u64,
+    pub(crate) seed: u64,
+    /// Upper bound on events.
     #[arg(long)]
-    maximum_events: usize,
+    pub(crate) maximum_events: usize,
+    /// Upper bound on quadrature nodes.
     #[arg(long)]
-    maximum_quadrature_nodes: usize,
+    pub(crate) maximum_quadrature_nodes: usize,
+    /// Upper bound on draw node work.
     #[arg(long)]
-    maximum_draw_node_work: u64,
+    pub(crate) maximum_draw_node_work: u64,
+    /// Number of posterior predictive simulations.
     #[arg(long)]
-    prediction_replicates: u32,
+    pub(crate) prediction_replicates: u32,
+    /// Random seed for posterior predictive simulation.
     #[arg(long)]
-    prediction_seed: u64,
+    pub(crate) prediction_seed: u64,
+    /// Upper bound on predictive points.
     #[arg(long)]
-    maximum_predictive_points: u64,
+    pub(crate) maximum_predictive_points: u64,
+    /// Neighborhood radius in micrometers.
     #[arg(long)]
-    neighbor_radius_um: f64,
+    pub(crate) neighbor_radius_um: f64,
+    /// Upper bound on neighbor pairs.
     #[arg(long)]
-    maximum_neighbor_pairs: usize,
+    pub(crate) maximum_neighbor_pairs: usize,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
-    timeout_seconds: u64,
+    pub(crate) timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
-    out: PathBuf,
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct InputIdentity {
-    pub(crate) events_digest: String,
-    pub(crate) event_membership_digest: String,
-    pub(crate) quadrature_digest: String,
-    pub(crate) window_logical_digest: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct PhysicalNode {
-    pub(crate) node_id: String,
-    x_um: f64,
-    y_um: f64,
-    weight_um2: f64,
-    covariate: f64,
-    offset: f64,
-    pub(crate) count: u64,
-}
-
-#[derive(Debug, Serialize)]
-pub(crate) struct WorkerRequest {
-    format: &'static str,
-    version: u32,
-    pub(crate) backend: BackendContract,
-    pub(crate) source_request_sha256: String,
-    pub(crate) source_request: GriddedLgcpFitWorkerRequest,
-    pub(crate) input: InputIdentity,
-    window: ArbitraryWindowIppWindowSummary,
-    pub(crate) nodes: Vec<PhysicalNode>,
-    physical_covariance: Vec<f64>,
-    physical_cholesky: Vec<f64>,
-    neighbor_pairs: Vec<[usize; 2]>,
-    neighbor_radius_um: f64,
-    maximum_neighbor_pairs: usize,
-    maximum_events: usize,
-    maximum_quadrature_nodes: usize,
-    pub(crate) covariance_sha256: String,
-    maximum_draw_node_work: u64,
-    dense_factorization_work_units: u64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct ResultModel {
-    family: String,
-    coordinate_unit: String,
-    window: String,
-    quadrature: String,
-    covariates: String,
-    latent_field: String,
-    kernel: String,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_mean: f64,
-    coefficient_prior_sd: f64,
-    likelihood: String,
-    backend_adapter: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct ResultNode {
-    pub(crate) node_id: String,
-    x_um: f64,
-    y_um: f64,
-    weight_um2: f64,
-    covariate: f64,
-    offset: f64,
-    count: u64,
-    pub(crate) latent_effect: SarScalarSummary,
-    intensity_per_um2: SarScalarSummary,
-    pub(crate) expected_count: SarScalarSummary,
-    pearson_residual: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct SpatialPpcSummary {
-    observed: f64,
-    replicated_mean: f64,
-    replicated_sd: f64,
-    probability_replicated_at_least_observed: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct SpatialPpc {
-    replicate_count: u32,
-    prediction_seed: u64,
-    neighbor_radius_um: f64,
-    neighbor_pair_count: usize,
-    node_density_variance: SpatialPpcSummary,
-    neighbor_density_mean_absolute_difference: SpatialPpcSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct FitResult {
-    format: String,
-    version: u32,
-    pub(crate) backend: WorkerBackend,
-    pub(crate) source_backend: WorkerBackend,
-    model: ResultModel,
-    pub(crate) input: InputIdentity,
-    window: ArbitraryWindowIppWindowSummary,
-    observed_event_count: usize,
-    quadrature_node_count: usize,
-    quadrature_weight_um2: f64,
-    sampling: SamplingSummary,
-    pub(crate) fit_state: FitState,
-    pub(crate) posterior: GriddedLgcpPosterior,
-    pub(crate) nodes: Vec<ResultNode>,
-    pub(crate) diagnostics: NormalMeanDiagnostics,
-    posterior_predictive: GriddedLgcpPosteriorPredictive,
-    pub(crate) spatial_posterior_predictive: Option<SpatialPpc>,
-    seed: u64,
-    pub(crate) request_sha256: String,
-    source_request_sha256: String,
-    covariance_sha256: String,
-    draw_node_work: u64,
-    maximum_draw_node_work: u64,
-    maximum_events: usize,
-    maximum_quadrature_nodes: usize,
-    maximum_predictive_points: u64,
-    maximum_neighbor_pairs: usize,
-    dense_covariance_elements: usize,
-    dense_factorization_work_units: u64,
-    statistical_unit: String,
-    null_model: String,
-    assumptions: Vec<String>,
-    finite_result_policy: String,
-    claim_status: String,
+    pub(crate) out: PathBuf,
 }
 
 pub(crate) struct PreparedArbitraryWindowLgcpFit {
@@ -239,71 +115,13 @@ pub(crate) struct PreparedArbitraryWindowLgcpFit {
     pub(crate) timeout_seconds: u64,
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let FitTopLevel::Bayes { command } = FitCli::parse_from(std::env::args_os()).command;
-    let FitCommand::FitArbitraryWindowLgcp(arguments) = command;
+pub(super) fn run(arguments: Box<Arguments>) -> Result<(), CliError> {
     let output_path = arguments.out.clone();
-    let prepared = prepare_arguments(*arguments)?;
+    let prepared = prepare(*arguments)?;
     publish_json(&output_path, &execute(&prepared)?)
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare(
-    events: PathBuf,
-    event_membership: PathBuf,
-    quadrature: PathBuf,
-    window: PathBuf,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_mean: f64,
-    coefficient_prior_sd: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-    sampling: NutsSamplingSpec,
-    maximum_events: usize,
-    maximum_quadrature_nodes: usize,
-    maximum_draw_node_work: u64,
-    prediction_replicates: u32,
-    prediction_seed: u64,
-    maximum_predictive_points: u64,
-    neighbor_radius_um: f64,
-    maximum_neighbor_pairs: usize,
-    timeout_seconds: u64,
-) -> Result<PreparedArbitraryWindowLgcpFit, BayesCliError> {
-    prepare_arguments(Arguments {
-        events,
-        event_membership,
-        quadrature,
-        window,
-        intercept_prior_mean,
-        intercept_prior_sd,
-        coefficient_prior_mean,
-        coefficient_prior_sd,
-        field_amplitude,
-        field_length_scale_um,
-        jitter,
-        chains: sampling.chains,
-        tune: sampling.tune_per_chain,
-        draws: sampling.draws_per_chain,
-        target_accept: sampling.target_accept,
-        seed: sampling.seed,
-        maximum_events,
-        maximum_quadrature_nodes,
-        maximum_draw_node_work,
-        prediction_replicates,
-        prediction_seed,
-        maximum_predictive_points,
-        neighbor_radius_um,
-        maximum_neighbor_pairs,
-        timeout_seconds,
-        out: PathBuf::new(),
-    })
-}
-
-fn prepare_arguments(
-    arguments: Arguments,
-) -> Result<PreparedArbitraryWindowLgcpFit, BayesCliError> {
+pub(crate) fn prepare(arguments: Arguments) -> Result<PreparedArbitraryWindowLgcpFit, CliError> {
     if !(4..=36).contains(&arguments.maximum_quadrature_nodes)
         || arguments.maximum_draw_node_work == 0
         || arguments.maximum_draw_node_work > 1_000_000
@@ -312,24 +130,26 @@ fn prepare_arguments(
         || arguments.maximum_neighbor_pairs == 0
         || arguments.maximum_neighbor_pairs > 1_000_000
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "arbitrary-window LGCP requires 4..36 nodes and bounded positive draw-node work".into(),
         ));
     }
     let maximum_work = arguments
         .maximum_events
         .checked_add(arguments.maximum_quadrature_nodes)
-        .ok_or_else(|| BayesCliError::Input("arbitrary-window LGCP work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("arbitrary-window LGCP work overflows".into()))?;
     let mut prepared = arbitrary_window_ipp::prepare(
-        arguments.events,
-        arguments.quadrature,
-        arguments.window,
+        arguments.events.clone(),
+        arguments.quadrature.clone(),
+        arguments.window.clone(),
         0.0,
         0.0,
-        arguments.maximum_events,
-        arguments.maximum_quadrature_nodes,
-        maximum_work,
-        16 * 1024 * 1024,
+        marklab::spatial::ArbitraryWindowIppLimits {
+            maximum_events: arguments.maximum_events,
+            maximum_quadrature_nodes: arguments.maximum_quadrature_nodes,
+            maximum_work,
+            maximum_retained_bytes: 16 * 1024 * 1024,
+        },
     )?;
     prepared
         .spec
@@ -356,9 +176,9 @@ fn prepare_arguments(
     let draw_node_work = u64::from(arguments.chains)
         .checked_mul(u64::from(arguments.draws))
         .and_then(|draws| draws.checked_mul(nodes as u64))
-        .ok_or_else(|| BayesCliError::Input("arbitrary-window LGCP draw work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("arbitrary-window LGCP draw work overflows".into()))?;
     if draw_node_work > arguments.maximum_draw_node_work {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "arbitrary-window LGCP draw-node work exceeds maximum: {draw_node_work} > {}",
             arguments.maximum_draw_node_work
         )));
@@ -374,37 +194,27 @@ fn prepare_arguments(
         arguments.neighbor_radius_um,
     )?;
     if neighbor_pairs.is_empty() || neighbor_pairs.len() > arguments.maximum_neighbor_pairs {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "arbitrary-window LGCP neighbor pairs must be 1..={}: observed {}",
             arguments.maximum_neighbor_pairs,
             neighbor_pairs.len()
         )));
     }
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
     let source_worker_path = worker_directory.join("marklab_pymc_gridded_lgcp_worker.py");
     let worker_path = worker_directory.join("marklab_pymc_arbitrary_window_lgcp_worker.py");
-    let lock = read(&lock_path)?;
-    let source_worker = read(&source_worker_path)?;
-    let worker = read(&worker_path)?;
+    let lock = read_file(&lock_path)?;
+    let source_worker = read_file(&source_worker_path)?;
+    let worker = read_file(&worker_path)?;
     let source_request = source_request(
         &prepared.spec.quadrature,
         &membership.observed_node_counts,
-        arguments.intercept_prior_mean,
-        arguments.intercept_prior_sd,
-        arguments.coefficient_prior_mean,
-        arguments.coefficient_prior_sd,
-        arguments.field_amplitude,
-        arguments.field_length_scale_um,
-        arguments.jitter,
+        &arguments,
         sampling,
-        arguments.prediction_replicates,
-        arguments.prediction_seed,
-        arguments.maximum_predictive_points,
         sha256_hex(&lock),
         sha256_hex(&source_worker),
-        arguments.timeout_seconds,
     )?;
     let source_request_bytes = serde_json::to_vec(&source_request)?;
     let source_request_sha256 = sha256_hex(&source_request_bytes);
@@ -421,7 +231,7 @@ fn prepare_arguments(
         backend: BackendContract {
             name: "pymc",
             version: PYMC_VERSION,
-            python_version: "3.12",
+            python_version: PYTHON_VERSION,
             environment_lock_sha256: sha256_hex(&lock),
             worker_sha256: sha256_hex(&worker),
         },
@@ -444,7 +254,7 @@ fn prepare_arguments(
                 count,
             })
             .collect(),
-        covariance_sha256: sha256_hex(&serde_json::to_vec(&physical_covariance)?),
+        covariance_sha256: json_sha256(&physical_covariance)?,
         physical_covariance,
         physical_cholesky,
         neighbor_pairs,
@@ -465,10 +275,8 @@ fn prepare_arguments(
     })
 }
 
-pub(crate) fn execute(
-    prepared: &PreparedArbitraryWindowLgcpFit,
-) -> Result<FitResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+pub(crate) fn execute(prepared: &PreparedArbitraryWindowLgcpFit) -> Result<FitResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_arbitrary_window_lgcp_worker.py",
@@ -476,29 +284,31 @@ pub(crate) fn execute(
         prepared.timeout_seconds,
     )?;
     let result: FitResult = serde_json::from_slice(&bytes)?;
-    validate(&result, &prepared.request, &prepared.request_sha256)?;
+    validate(&result, &prepared.request, &prepared.request_sha256)
+        .map_err(super::protocol_error)?;
     Ok(result)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn source_request(
-    physical_nodes: &[marklab::ArbitraryWindowIppQuadratureNode],
+    physical_nodes: &[marklab::spatial::ArbitraryWindowIppQuadratureNode],
     counts: &[u64],
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_mean: f64,
-    coefficient_prior_sd: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
+    arguments: &Arguments,
     sampling: NutsSamplingSpec,
-    prediction_replicates: u32,
-    prediction_seed: u64,
-    maximum_predictive_points: u64,
     environment_digest: String,
     worker_digest: String,
-    timeout_seconds: u64,
-) -> Result<GriddedLgcpFitWorkerRequest, BayesCliError> {
+) -> Result<GriddedLgcpFitWorkerRequest, CliError> {
+    let intercept_prior_mean = arguments.intercept_prior_mean;
+    let intercept_prior_sd = arguments.intercept_prior_sd;
+    let coefficient_prior_mean = arguments.coefficient_prior_mean;
+    let coefficient_prior_sd = arguments.coefficient_prior_sd;
+    let field_amplitude = arguments.field_amplitude;
+    let field_length_scale_um = arguments.field_length_scale_um;
+    let jitter = arguments.jitter;
+    let prediction_replicates = arguments.prediction_replicates;
+    let prediction_seed = arguments.prediction_seed;
+    let maximum_predictive_points = arguments.maximum_predictive_points;
+    let timeout_seconds = arguments.timeout_seconds;
+
     let dimension = physical_nodes.len();
     let mut events = Vec::new();
     for (index, count) in counts.iter().enumerate() {
@@ -555,15 +365,15 @@ fn source_request(
             maximum_predictive_points,
         )
     })
-    .map_err(BayesCliError::Model)
+    .map_err(CliError::Model)
 }
 
 fn covariance_and_cholesky(
-    nodes: &[marklab::ArbitraryWindowIppQuadratureNode],
+    nodes: &[marklab::spatial::ArbitraryWindowIppQuadratureNode],
     amplitude: f64,
     length_scale_um: f64,
     jitter: f64,
-) -> Result<(Vec<f64>, Vec<f64>), BayesCliError> {
+) -> Result<(Vec<f64>, Vec<f64>), CliError> {
     if ![amplitude, length_scale_um, jitter]
         .into_iter()
         .all(f64::is_finite)
@@ -571,7 +381,7 @@ fn covariance_and_cholesky(
         || length_scale_um <= 0.0
         || jitter <= 0.0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "arbitrary-window LGCP field controls must be positive and finite".into(),
         ));
     }
@@ -581,267 +391,28 @@ fn covariance_and_cholesky(
         for column in 0..dimension {
             let distance =
                 (nodes[row].x_um - nodes[column].x_um).hypot(nodes[row].y_um - nodes[column].y_um);
-            let scaled = 3.0_f64.sqrt() * distance / length_scale_um;
-            let mut value = amplitude.powi(2) * (1.0 + scaled) * (-scaled).exp();
+            let mut value = matern32(distance, amplitude, length_scale_um);
             if row == column {
                 value += jitter;
             }
             if !value.is_finite() {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "arbitrary-window LGCP covariance is non-finite".into(),
                 ));
             }
             covariance[row * dimension + column] = value;
         }
     }
-    let mut lower = vec![0.0; covariance.len()];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let mut value = covariance[row * dimension + column];
-            for inner in 0..column {
-                value -= lower[row * dimension + inner] * lower[column * dimension + inner];
-            }
-            if row == column {
-                if !value.is_finite() || value <= 0.0 {
-                    return Err(BayesCliError::Input(
-                        "arbitrary-window LGCP covariance is not positive definite".into(),
-                    ));
-                }
-                lower[row * dimension + column] = value.sqrt();
-            } else {
-                lower[row * dimension + column] = value / lower[column * dimension + column];
-            }
-        }
-    }
+    let lower = dense::cholesky(&covariance, dimension).ok_or_else(|| {
+        CliError::Input("arbitrary-window LGCP covariance is not positive definite".into())
+    })?;
     Ok((covariance, lower))
 }
 
-fn validate(
-    result: &FitResult,
-    request: &WorkerRequest,
-    request_sha256: &str,
-) -> Result<(), BayesCliError> {
-    let draws = u64::from(request.source_request.sampling.chains)
-        * u64::from(request.source_request.sampling.draws_per_chain);
-    let nodes_valid = result
-        .nodes
-        .iter()
-        .zip(&request.nodes)
-        .all(|(result, input)| {
-            result.node_id == input.node_id
-                && equal(result.x_um, input.x_um)
-                && equal(result.y_um, input.y_um)
-                && equal(result.weight_um2, input.weight_um2)
-                && equal(result.covariate, input.covariate)
-                && equal(result.offset, input.offset)
-                && result.count == input.count
-                && scalar_valid(&result.latent_effect, false)
-                && scalar_valid(&result.intensity_per_um2, true)
-                && scalar_valid(&result.expected_count, true)
-                && scalar_valid(&result.pearson_residual, false)
-        });
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= request.source_request.diagnostic_policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= request.source_request.diagnostic_policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= request.source_request.diagnostic_policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi
-            >= request.source_request.diagnostic_policy.minimum_ebfmi
-        && result.diagnostics.divergences
-            <= request.source_request.diagnostic_policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits
-            <= request
-                .source_request
-                .diagnostic_policy
-                .maximum_tree_depth_hits;
-    let spatial_summary_valid = |summary: &SpatialPpcSummary| {
-        [
-            summary.observed,
-            summary.replicated_mean,
-            summary.replicated_sd,
-            summary.probability_replicated_at_least_observed,
-        ]
-        .into_iter()
-        .all(f64::is_finite)
-            && summary.observed >= 0.0
-            && summary.replicated_mean >= 0.0
-            && summary.replicated_sd >= 0.0
-            && (0.0..=1.0).contains(&summary.probability_replicated_at_least_observed)
-    };
-    let spatial_ppc_valid = result
-        .spatial_posterior_predictive
-        .as_ref()
-        .is_some_and(|spatial| {
-            spatial.replicate_count == request.source_request.prediction.replicates
-                && spatial.prediction_seed == request.source_request.prediction.seed
-                && equal(spatial.neighbor_radius_um, request.neighbor_radius_um)
-                && spatial.neighbor_pair_count == request.neighbor_pairs.len()
-                && spatial_summary_valid(&spatial.node_density_variance)
-                && spatial_summary_valid(&spatial.neighbor_density_mean_absolute_difference)
-        });
-    if result.format != "marklab.bayesian_arbitrary_window_lgcp_fit"
-        || result.version != 1
-        || result.backend.name != request.backend.name
-        || result.backend.version != request.backend.version
-        || result.backend.python_version != request.backend.python_version
-        || result.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-        || result.backend.worker_sha256 != request.backend.worker_sha256
-        || result.source_backend.name != request.source_request.backend.name
-        || result.source_backend.version != request.source_request.backend.version
-        || result.source_backend.python_version != request.source_request.backend.python_version
-        || result.source_backend.environment_lock_sha256
-            != request.source_request.backend.environment_lock_sha256
-        || result.source_backend.worker_sha256 != request.source_request.backend.worker_sha256
-        || result.input.events_digest != request.input.events_digest
-        || result.input.event_membership_digest != request.input.event_membership_digest
-        || result.input.quadrature_digest != request.input.quadrature_digest
-        || result.input.window_logical_digest != request.input.window_logical_digest
-        || result.window.logical_digest != request.window.logical_digest
-        || !equal(result.window.area_um2, request.window.area_um2)
-        || !equal(result.window.perimeter_um, request.window.perimeter_um)
-        || result.window.bounds_um != request.window.bounds_um
-        || result.window.component_count != request.window.component_count
-        || result.window.hole_count != request.window.hole_count
-        || result.window.ring_count != request.window.ring_count
-        || result.window.vertex_count != request.window.vertex_count
-        || result.observed_event_count
-            != request
-                .nodes
-                .iter()
-                .map(|node| node.count as usize)
-                .sum::<usize>()
-        || result.quadrature_node_count != request.nodes.len()
-        || result.nodes.len() != request.nodes.len()
-        || !equal(
-            result.quadrature_weight_um2,
-            request.nodes.iter().map(|node| node.weight_um2).sum(),
-        )
-        || result.sampling.chains != request.source_request.sampling.chains
-        || result.sampling.tune_per_chain != request.source_request.sampling.tune_per_chain
-        || result.sampling.draws_per_chain != request.source_request.sampling.draws_per_chain
-        || result.sampling.completed_draws != draws
-        || (result.fit_state == FitState::Complete) != diagnostics_pass
-        || !scalar_valid(&result.posterior.intercept, false)
-        || !scalar_valid(&result.posterior.coefficient, false)
-        || !nodes_valid
-        || result.posterior_predictive.observed_total_count as usize != result.observed_event_count
-        || ![
-            result.posterior_predictive.replicated_total_mean,
-            result.posterior_predictive.replicated_total_sd,
-            result.posterior_predictive.replicated_zero_cells_mean,
-        ]
-        .into_iter()
-        .all(f64::is_finite)
-        || result.posterior_predictive.replicated_total_mean < 0.0
-        || result.posterior_predictive.replicated_total_sd < 0.0
-        || result.posterior_predictive.replicated_zero_cells_mean < 0.0
-        || result.seed != request.source_request.sampling.seed
-        || result.request_sha256 != request_sha256
-        || result.source_request_sha256 != request.source_request_sha256
-        || result.covariance_sha256 != request.covariance_sha256
-        || result.draw_node_work != draws * request.nodes.len() as u64
-        || result.draw_node_work > result.maximum_draw_node_work
-        || result.maximum_draw_node_work != request.maximum_draw_node_work
-        || result.maximum_events != request.maximum_events
-        || result.maximum_quadrature_nodes != request.maximum_quadrature_nodes
-        || result.maximum_predictive_points
-            != request.source_request.prediction.maximum_total_points
-        || result.maximum_neighbor_pairs != request.maximum_neighbor_pairs
-        || result.dense_covariance_elements != request.nodes.len() * request.nodes.len()
-        || result.dense_factorization_work_units != request.dense_factorization_work_units
-        || result.statistical_unit != "one_observed_point_pattern"
-        || result.null_model != "none_descriptive_latent_intensity_model"
-        || result.assumptions
-            != [
-                "event_to_weighted_node_membership_is_exact_and_complete",
-                "quadrature_weights_partition_the_exact_window_area",
-                "matern_amplitude_and_length_scale_are_fixed_not_inferred",
-                "weighted_nodes_are_a_recorded_coarse_window_approximation",
-                "latent_intensity_is_not_point_interaction_or_attraction",
-            ]
-        || result.finite_result_policy != "nonconverged_is_diagnostic_only_reject_non_finite"
-        || result.model.window != "exact_multipolygon"
-        || result.model.kernel != "fixed_matern_3_2_on_physical_quadrature_representatives"
-        || !equal(
-            result.model.field_amplitude,
-            request.source_request.model.construction.field_amplitude,
-        )
-        || !equal(
-            result.model.field_length_scale_um,
-            request
-                .source_request
-                .model
-                .construction
-                .field_length_scale_um,
-        )
-        || !equal(
-            result.model.jitter,
-            request.source_request.model.construction.jitter,
-        )
-        || !equal(
-            result.model.intercept_prior_mean,
-            request
-                .source_request
-                .model
-                .construction
-                .intercept_prior_mean,
-        )
-        || !equal(
-            result.model.intercept_prior_sd,
-            request.source_request.model.construction.intercept_prior_sd,
-        )
-        || !equal(
-            result.model.coefficient_prior_mean,
-            request
-                .source_request
-                .model
-                .construction
-                .coefficient_prior_mean,
-        )
-        || !equal(
-            result.model.coefficient_prior_sd,
-            request
-                .source_request
-                .model
-                .construction
-                .coefficient_prior_sd,
-        )
-        || (result.fit_state == FitState::Complete) != spatial_ppc_valid
-        || (result.fit_state != FitState::Complete && result.spatial_posterior_predictive.is_some())
-        || (result.fit_state == FitState::Complete
-            && result.claim_status != "experimental_single_pattern_latent_field")
-        || (result.fit_state != FitState::Complete
-            && result.claim_status != "diagnostic_only_nonconverged")
-    {
-        return Err(BayesCliError::Backend(
-            "arbitrary-window LGCP identity, diagnostics, or physical result differs".into(),
-        ));
+impl PreparedArbitraryWindowLgcpFit {
+    pub(crate) fn validate_result(&self, result: &FitResult) -> Result<(), CliError> {
+        result
+            .validate_for(&self.request, &self.request_sha256)
+            .map_err(super::protocol_error)
     }
-    Ok(())
-}
-
-impl FitResult {
-    pub(crate) fn validate_for(
-        &self,
-        prepared: &PreparedArbitraryWindowLgcpFit,
-    ) -> Result<(), BayesCliError> {
-        validate(self, &prepared.request, &prepared.request_sha256)
-    }
-}
-
-fn read(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
-}
-
-fn equal(left: f64, right: f64) -> bool {
-    (left - right).abs() <= 1e-12 * left.abs().max(right.abs()).max(1.0)
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<FitCli>(|| run_cli().map_err(super::into_marklab_error))
 }

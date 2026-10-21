@@ -3,20 +3,26 @@ use std::mem::size_of;
 use super::declared_embedding_support as embedding_support;
 use super::*;
 use marklab::{
-    contained_cell_patch_embedding_dispersion, contained_patch_binary_nucleus_area_contrast,
-    declared_binary_group_nucleus_area_contrast, publish_cell_patch_assignment_table_arrow,
-    publish_cell_patch_edge_table_arrow, publish_patch_footprint_set_arrow,
-    verify_cell_patch_assignment_table_arrow_from_store,
-    verify_cell_patch_edge_table_arrow_from_store, ArtifactDraft, BinaryMarkDeclaration,
-    CellPatchAnchor, CellPatchContributor, CellPatchLink, CellPatchLinkBindings,
-    CellPatchLinkProducer, ContainedCellPatchEmbeddingDispersionError,
-    ContainedCellPatchEmbeddingDispersionStatus, ContainedPatchBinaryNucleusAreaContrastError,
-    ContainedPatchBinaryNucleusAreaContrastStatus, DeclaredBinaryGroupNucleusAreaContrastError,
-    DeclaredCellPatchAssignment, DeclaredScalarInputError, DeclaredScalarPatternInput,
-    EffectiveReceptiveField, ExpectedPatchSet, MarklabProject, MeasurementStatus,
-    NucleusAreaUm2MarkDeclaration, PatchEmbeddingContext, PatchFootprint, PatchFootprintSet,
-    PatchId, Pattern, PatternMeta, ScalarMarkId, VerifiedCellPatchInputArtifactGraph,
-    VerifiedCellPatchLinkArtifact,
+    embeddings::{
+        contained_cell_patch_embedding_dispersion, contained_patch_binary_nucleus_area_contrast,
+        declared_binary_group_nucleus_area_contrast, publish_cell_patch_assignment_table_arrow,
+        publish_cell_patch_edge_table_arrow, publish_patch_footprint_set_arrow,
+        verify_cell_patch_assignment_table_arrow_from_store,
+        verify_cell_patch_edge_table_arrow_from_store, CellPatchAnchor, CellPatchContributor,
+        CellPatchLink, CellPatchLinkBindings, CellPatchLinkProducer,
+        ContainedCellPatchEmbeddingDispersionError, ContainedCellPatchEmbeddingDispersionStatus,
+        ContainedPatchBinaryNucleusAreaContrastError,
+        ContainedPatchBinaryNucleusAreaContrastStatus, DeclaredBinaryGroupNucleusAreaContrastError,
+        DeclaredCellPatchAssignment, EffectiveReceptiveField, ExpectedPatchSet,
+        PatchEmbeddingContext, PatchFootprint, PatchFootprintSet,
+        VerifiedCellPatchInputArtifactGraph, VerifiedCellPatchLinkArtifact,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarInputError, DeclaredScalarPatternInput,
+        NucleusAreaUm2MarkDeclaration, ScalarMarkId,
+    },
+    workflow::{ArtifactDraft, MarklabProject},
+    MeasurementStatus, PatchId, Pattern,
 };
 
 const DIMENSION: u32 = 1_280;
@@ -99,7 +105,7 @@ fn publish_domain_record(
     schema: &str,
     kind: &str,
     bytes: &[u8],
-    dependencies: Vec<marklab::ArtifactId>,
+    dependencies: Vec<marklab::workflow::ArtifactId>,
 ) -> ArtifactRecord {
     let draft = ArtifactRecord::new(
         ArtifactRef::from_bytes(kind, bytes).expect("artifact content"),

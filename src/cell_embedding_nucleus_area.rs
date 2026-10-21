@@ -3,7 +3,7 @@ use std::io::Write;
 use marklab_embeddings::{
     CellEmbeddingArtifact, CellEmbeddingTable, EmbeddingQcSummary, EmbeddingStatus,
 };
-use marklab_workflow::{ArtifactId, ContentDigest, ContentDigestWriter, MarklabProject};
+use marklab_project::{ArtifactId, ContentDigest, ContentDigestWriter, MarklabProject};
 use thiserror::Error;
 
 use crate::{
@@ -133,7 +133,7 @@ impl DeclaredNucleusAreaCellEmbeddingCrossCovarianceEnergy {
 /// Invalid declaration/value/artifact binding, caller limit, or bounded allocation.
 #[derive(Debug, Error)]
 pub enum DeclaredNucleusAreaCellEmbeddingCrossCovarianceError {
-    /// Existing declared scalar input or exact nucleus-area provenance is invalid.
+    /// The declared scalar input or the nucleus-area provenance is invalid.
     #[error(transparent)]
     ScalarInput(#[from] DeclaredScalarInputError),
     /// The compatibility Pattern has no dense nucleus-area column.
@@ -142,7 +142,7 @@ pub enum DeclaredNucleusAreaCellEmbeddingCrossCovarianceError {
     /// The dense nucleus-area column has the wrong number of rows.
     #[error("nucleus-area column has {observed} rows; expected {expected}")]
     NucleusAreaLengthMismatch {
-        /// Exact compatibility Pattern row count.
+        /// Pattern row count.
         expected: usize,
         /// Observed nucleus-area row count.
         observed: usize,
@@ -165,7 +165,7 @@ pub enum DeclaredNucleusAreaCellEmbeddingCrossCovarianceError {
         /// First mismatched or absent row.
         row: usize,
     },
-    /// The admitted row traversal exceeds the caller maximum.
+    /// The validated row traversal exceeds the caller maximum.
     #[error(
         "declared nucleus-area cell-embedding rows {required} exceed caller maximum {maximum}"
     )]
@@ -227,7 +227,7 @@ impl From<ScalarEmbeddingCrossCovarianceError>
 /// Measure population cross-covariance energy for declared nucleus area and cell embeddings.
 ///
 /// The target project and exact fixed nucleus-area provenance are revalidated before the dense
-/// positive square-micrometre column is bound to every ordered CellId and to the existing verified
+/// positive square-micrometre column is bound to every ordered CellId and to the verified
 /// embedding artifact. Present rows alone enter a fixed-order two-pass `f64` population covariance;
 /// binary and optional probability rows are retained only as declared context. Runtime is
 /// `O(N*D)` when available with exactly two `D`-component `f64` accumulators. The result is

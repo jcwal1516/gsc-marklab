@@ -1,3 +1,5 @@
+use crate::declared_scalar_support::pattern_fixture::pattern_meta;
+
 use super::*;
 
 const UNEQUAL_LINK_EDGE_COUNT: usize = 5;
@@ -158,16 +160,12 @@ fn nucleus_area_scalar_fixture(
         vec![0.0, 1.0, 2.0],
         vec![0.0, 0.0, 0.0],
         marks.to_vec(),
-        PatternMeta {
-            case_id: "synthetic-nucleus-area-case".into(),
-            timepoint: "post".into(),
-            protein: "MSH6".into(),
-            slide_id: Some(slide_id.as_str().to_owned()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "synthetic-nucleus-area-case".into(),
+            "post".into(),
+            "MSH6".into(),
+            Some(slide_id.as_str().to_owned()),
+        ),
     )
     .expect("scalar pattern");
     pattern.nucleus_area_um2 = Some(areas.to_vec().into_boxed_slice());
@@ -210,7 +208,7 @@ fn run_nucleus_area(
     maximum_edges: usize,
     maximum_working_bytes: usize,
 ) -> Result<
-    marklab::ContainedPatchBinaryNucleusAreaContrast,
+    marklab::embeddings::ContainedPatchBinaryNucleusAreaContrast,
     ContainedPatchBinaryNucleusAreaContrastError,
 > {
     contained_patch_binary_nucleus_area_contrast(
@@ -231,7 +229,7 @@ fn run_nucleus_area_exact(
     scalar: &NucleusAreaScalarFixture,
     input: &DeclaredScalarPatternInput<'_>,
     links: &LinkFixture,
-) -> marklab::ContainedPatchBinaryNucleusAreaContrast {
+) -> marklab::embeddings::ContainedPatchBinaryNucleusAreaContrast {
     let edge_count = links.link.edge_count();
     run_nucleus_area(
         scalar,

@@ -1,14 +1,18 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
+use std::{collections::BTreeMap, fs};
 
 use marklab_bayes::{
-    beta_binomial_group_gender_slide_data_sha256, sha256_hex, BetaBinomialGroupGenderSlideData,
+    json_sha256, sha256_hex, BetaBinomialGroupGenderSlideData,
     BetaBinomialGroupGenderSlideHierarchyInputIdentity, BetaBinomialGroupGenderSlideHierarchySpec,
     BetaBinomialGroupGenderSlideHierarchyWorkerRequest,
-    BetaBinomialGroupGenderSlideHierarchyWorkerResult, NutsSamplingSpec,
+    BetaBinomialGroupGenderSlideHierarchyWorkerResult,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::{
+    BetaBinomialGroupGenderSlideHierarchyArgs, BetaBinomialGroupGenderSlideHierarchyModelArgs,
+};
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -21,38 +25,10 @@ struct SlideRow {
     trials: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    reference_gender: String,
-    comparison_gender: String,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    gender_effect_prior_sd: f64,
-    patient_log_odds_sd_prior_sd: f64,
-    slide_concentration_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let prepared = prepare(
-        input_path,
-        reference_group,
-        comparison_group,
-        reference_gender,
-        comparison_gender,
-        intercept_prior_mean,
-        intercept_prior_sd,
-        group_effect_prior_sd,
-        gender_effect_prior_sd,
-        patient_log_odds_sd_prior_sd,
-        slide_concentration_prior_sd,
-        sampling,
-        timeout_seconds,
-    )?;
+pub(super) fn run(args: BetaBinomialGroupGenderSlideHierarchyArgs) -> Result<(), CliError> {
+    let BetaBinomialGroupGenderSlideHierarchyArgs { model, out } = args;
+    let output_path = out;
+    let prepared = prepare(model)?;
     let result = execute(&prepared)?;
     publish_json(
         &output_path,
@@ -68,32 +44,35 @@ pub(crate) struct PreparedBetaBinomialGroupGenderSlideHierarchy {
     pub(crate) timeout_seconds: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    reference_gender: String,
-    comparison_gender: String,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    gender_effect_prior_sd: f64,
-    patient_log_odds_sd_prior_sd: f64,
-    slide_concentration_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-) -> Result<PreparedBetaBinomialGroupGenderSlideHierarchy, BayesCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| BayesCliError::Io {
+    model: BetaBinomialGroupGenderSlideHierarchyModelArgs,
+) -> Result<PreparedBetaBinomialGroupGenderSlideHierarchy, CliError> {
+    let BetaBinomialGroupGenderSlideHierarchyModelArgs {
+        input: input_path,
+        reference_group,
+        comparison_group,
+        reference_gender,
+        comparison_gender,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        gender_effect_prior_sd,
+        patient_log_odds_sd_prior_sd,
+        slide_concentration_prior_sd,
+        nuts,
+        timeout_seconds,
+    } = model;
+    let sampling = nuts.spec();
+    let metadata = fs::metadata(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
     if metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "beta-binomial group/gender slide input exceeds 16 MiB".into(),
         ));
     }
-    let input_bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+    let input_bytes = fs::read(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
@@ -114,23 +93,15 @@ pub(crate) fn prepare(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| {
-            BayesCliError::Input(format!(
+            CliError::Input(format!(
                 "invalid beta-binomial group/gender slide CSV: {error}"
             ))
         })?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path =
-        worker_directory.join("marklab_pymc_beta_binomial_group_gender_slide_hierarchy_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(
+        repository,
+        "marklab_pymc_beta_binomial_group_gender_slide_hierarchy_worker.py",
+    )?;
     let request = BetaBinomialGroupGenderSlideHierarchyWorkerRequest::new(
         BetaBinomialGroupGenderSlideHierarchySpec {
             reference_group,
@@ -146,8 +117,8 @@ pub(crate) fn prepare(
             slides,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let mut patient_slides = BTreeMap::<String, (String, String, usize)>::new();
@@ -167,7 +138,7 @@ pub(crate) fn prepare(
     }
     let input_identity = BetaBinomialGroupGenderSlideHierarchyInputIdentity {
         path: input_path.display().to_string(),
-        slide_data_sha256: beta_binomial_group_gender_slide_data_sha256(&request.slides)?,
+        slide_data_sha256: json_sha256(&request.slides)?,
         patients: patient_slides.len(),
         slides: request.slides.len(),
         repeated_patients: patient_slides
@@ -189,8 +160,8 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedBetaBinomialGroupGenderSlideHierarchy,
-) -> Result<BetaBinomialGroupGenderSlideHierarchyWorkerResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<BetaBinomialGroupGenderSlideHierarchyWorkerResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_beta_binomial_group_gender_slide_hierarchy_worker.py",

@@ -1,13 +1,10 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::common::summation::kahan_add;
+use marklab_numerics::summation::NeumaierSum;
 
-use crate::{
-    compartment_interface::analysis::measurement_status_name, DeclaredScalarPatternInput,
-    ScalarMarkId,
-};
+use crate::marks::{DeclaredScalarPatternInput, ScalarMarkId};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -61,7 +58,8 @@ pub struct SoftClassCompositionResult {
     pub case_id: String,
     pub timepoint: String,
     pub mark_id: String,
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     pub row_count: usize,
     pub class_count: usize,
     pub classes: Vec<SoftClassCompositionClass>,
@@ -133,10 +131,8 @@ pub fn soft_class_composition(
             maximum: limits.maximum_retained_bytes,
         });
     }
-    let mut sums = vec![0.0; classes];
-    let mut corrections = vec![0.0; classes];
-    let mut row_entropy_sum = 0.0;
-    let mut row_entropy_correction = 0.0;
+    let mut sums = vec![NeumaierSum::new(); classes];
+    let mut row_entropy_sum = NeumaierSum::new();
     let mut maximum_row_sum_absolute_error = 0.0_f64;
     for row in values.chunks_exact(classes) {
         let mut row_sum = 0.0;
@@ -144,18 +140,17 @@ pub fn soft_class_composition(
         for (class, value) in row.iter().copied().enumerate() {
             let value = f64::from(value);
             row_sum += value;
-            kahan_add(&mut sums[class], &mut corrections[class], value);
+            sums[class].add(value);
             if value > 0.0 {
                 entropy -= value * value.ln();
             }
         }
         maximum_row_sum_absolute_error = maximum_row_sum_absolute_error.max((row_sum - 1.0).abs());
-        kahan_add(&mut row_entropy_sum, &mut row_entropy_correction, entropy);
+        row_entropy_sum.add(entropy);
     }
     let means = sums
         .into_iter()
-        .zip(corrections)
-        .map(|(sum, correction)| (sum + correction) / rows as f64)
+        .map(|sum| sum.total() / rows as f64)
         .collect::<Vec<_>>();
     let aggregate_entropy = entropy(&means);
     let classes = levels
@@ -171,11 +166,11 @@ pub fn soft_class_composition(
         case_id: input.pattern().meta.case_id.clone(),
         timepoint: input.pattern().meta.timepoint.clone(),
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(status).into(),
+        measurement_status: status,
         row_count: rows,
         class_count: levels.len(),
         classes,
-        mean_row_entropy_nats: (row_entropy_sum + row_entropy_correction) / rows as f64,
+        mean_row_entropy_nats: row_entropy_sum.total() / rows as f64,
         aggregate_composition_entropy_nats: aggregate_entropy,
         effective_class_count: aggregate_entropy.exp(),
         maximum_row_sum_absolute_error,

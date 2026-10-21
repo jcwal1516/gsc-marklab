@@ -1,4 +1,8 @@
-use marklab_workflow::ContentDigest;
+use crate::result_vocabulary::{
+    FiniteResultPolicy, IppClaimStatus, IppStatisticalUnit, LikelihoodNullModel,
+};
+pub use marklab_data::{ArbitraryWindowIppQuadratureNode, ArbitraryWindowIppWindowSummary};
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -11,18 +15,6 @@ pub struct ArbitraryWindowIppEvent {
     pub event_id: String,
     pub x_um: f64,
     pub y_um: f64,
-    pub covariate: f64,
-    pub offset: f64,
-}
-
-/// One positive-area quadrature node in an exact observation window.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct ArbitraryWindowIppQuadratureNode {
-    pub node_id: String,
-    pub x_um: f64,
-    pub y_um: f64,
-    pub weight_um2: f64,
     pub covariate: f64,
     pub offset: f64,
 }
@@ -46,19 +38,6 @@ pub struct ArbitraryWindowIppSpec {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ArbitraryWindowIppWindowSummary {
-    pub area_um2: f64,
-    pub perimeter_um: f64,
-    pub bounds_um: [f64; 4],
-    pub component_count: usize,
-    pub hole_count: usize,
-    pub ring_count: usize,
-    pub vertex_count: usize,
-    pub logical_digest: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct ArbitraryWindowIppLikelihoodResult {
     pub format: String,
     pub version: u32,
@@ -76,11 +55,11 @@ pub struct ArbitraryWindowIppLikelihoodResult {
     pub log_likelihood: f64,
     pub declared_work: usize,
     pub retained_bytes: usize,
-    pub statistical_unit: String,
-    pub null_model: String,
+    pub statistical_unit: IppStatisticalUnit,
+    pub null_model: LikelihoodNullModel,
     pub assumptions: Vec<String>,
-    pub finite_result_policy: String,
-    pub claim_status: String,
+    pub finite_result_policy: FiniteResultPolicy,
+    pub claim_status: IppClaimStatus,
 }
 
 #[derive(Debug, Error)]
@@ -182,8 +161,8 @@ pub fn arbitrary_window_ipp_log_likelihood(
         log_likelihood,
         declared_work,
         retained_bytes,
-        statistical_unit: "one_observed_point_pattern".into(),
-        null_model: "none_fixed_parameter_likelihood_evaluation".into(),
+        statistical_unit: IppStatisticalUnit::OneObservedPointPattern,
+        null_model: LikelihoodNullModel::NoneFixedParameterLikelihoodEvaluation,
         assumptions: vec![
             "events_are_one_realization_in_the_exact_observation_window".into(),
             "supplied_covariate_and_offset_are_fixed_and_evaluated_at_events_and_quadrature_nodes"
@@ -192,8 +171,8 @@ pub fn arbitrary_window_ipp_log_likelihood(
             "conditional_on_the_fixed_intensity_events_follow_an_inhomogeneous_poisson_process"
                 .into(),
         ],
-        finite_result_policy: "reject_non_finite".into(),
-        claim_status: "experimental_fixed_likelihood_no_population_inference".into(),
+        finite_result_policy: FiniteResultPolicy::RejectNonFinite,
+        claim_status: IppClaimStatus::ExperimentalFixedLikelihoodNoPopulationInference,
     })
 }
 
@@ -236,10 +215,10 @@ impl ArbitraryWindowIppLikelihoodResult {
             || self.coefficient.to_bits() != spec.coefficient.to_bits()
             || self.declared_work != declared_work
             || self.retained_bytes != retained_bytes
-            || self.statistical_unit != "one_observed_point_pattern"
-            || self.null_model != "none_fixed_parameter_likelihood_evaluation"
-            || self.finite_result_policy != "reject_non_finite"
-            || self.claim_status != "experimental_fixed_likelihood_no_population_inference"
+            || self.statistical_unit != IppStatisticalUnit::OneObservedPointPattern
+            || self.null_model != LikelihoodNullModel::NoneFixedParameterLikelihoodEvaluation
+            || self.finite_result_policy != FiniteResultPolicy::RejectNonFinite
+            || self.claim_status != IppClaimStatus::ExperimentalFixedLikelihoodNoPopulationInference
             || ![
                 self.quadrature_weight_um2,
                 self.quadrature_area_absolute_error_um2,

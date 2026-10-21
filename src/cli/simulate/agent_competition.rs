@@ -22,23 +22,43 @@ struct Input {
     final_time: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn run(
+/// Arguments of `marklab simulate agent-competition`.
+#[derive(clap::Args, Debug)]
+pub struct AgentCompetitionArgs {
+    /// JSON with window, agents, species_a/species_b rates, competition and movement settings.
+    #[arg(long)]
     input: PathBuf,
+    /// Random seed; the same seed gives the same result.
+    #[arg(long)]
     seed: u64,
+    /// Upper bound on events.
+    #[arg(long)]
     maximum_events: u32,
+    /// Upper bound on agents.
+    #[arg(long)]
     maximum_agents: u32,
+    /// Maximum number of cell pairs visited.
+    #[arg(long)]
     maximum_pair_visits: u64,
+    /// Maximum event-log entries retained in the simulation result.
+    #[arg(long)]
     retain_events: u32,
+    /// File to write the result to.
+    #[arg(long)]
     out: PathBuf,
-) -> Result<()> {
-    let metadata = fs::metadata(&input).map_err(|source| MarklabError::io(&input, source))?;
-    if metadata.len() > 16 * 1024 * 1024 {
-        return Err(MarklabError::Validation(
-            "agent-competition input exceeds 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| MarklabError::io(&input, source))?;
+}
+
+pub(crate) fn run(args: AgentCompetitionArgs) -> Result<()> {
+    let AgentCompetitionArgs {
+        input,
+        seed,
+        maximum_events,
+        maximum_agents,
+        maximum_pair_visits,
+        retain_events,
+        out,
+    } = args;
+    let bytes = super::read_input(&input, "agent-competition")?;
     let input: Input = serde_json::from_slice(&bytes)?;
     let result = simulate_agent_competition(AgentCompetitionSpec {
         window: input.window,

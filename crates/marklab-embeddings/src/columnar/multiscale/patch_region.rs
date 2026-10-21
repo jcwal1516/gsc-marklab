@@ -10,7 +10,7 @@ use crate::{
     PatchRegionDeclaration, PatchRegionLink, PatchRegionRelation,
 };
 
-use super::MultiscaleColumnarError;
+use super::ColumnarError;
 
 pub(crate) const PATCH_REGION_METADATA_KEYS: [&str; 13] = [
     "marklab.assessed_pair_count",
@@ -69,13 +69,10 @@ pub(crate) fn patch_region_metadata(
     })
 }
 
-pub(crate) fn validate_patch_region_domain(
-    link: &PatchRegionLink,
-) -> Result<(), MultiscaleColumnarError> {
+pub(crate) fn validate_patch_region_domain(link: &PatchRegionLink) -> Result<(), ColumnarError> {
     let dependencies = patch_region_dependencies(link);
     if dependencies.windows(2).any(|pair| pair[0] == pair[1])
-        || u64::try_from(link.nonzero_relation_count())
-            .map_err(|_| MultiscaleColumnarError::SizeOverflow)?
+        || u64::try_from(link.nonzero_relation_count()).map_err(|_| ColumnarError::SizeOverflow)?
             > link.assessed_pair_count()
         || link.nonzero_relations().windows(2).any(|pair| {
             (pair[0].patch_id(), pair[0].region_id()) >= (pair[1].patch_id(), pair[1].region_id())
@@ -94,40 +91,51 @@ pub(crate) fn validate_patch_region_domain(
                 }
             })
     {
-        return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
 
 pub(crate) fn patch_region_decoded_bytes(
     rows: &[PatchRegionDeclaration],
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
     let text = rows.iter().try_fold(0_usize, |total, row| {
         total
             .checked_add(row.patch_id().as_str().len())
             .and_then(|value| value.checked_add(row.region_id().as_str().len()))
             .and_then(|value| value.checked_add(row.relation().wire_name().len()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     let validity = rows
         .len()
         .checked_add(7)
         .map(|value| value / 8)
         .and_then(|value| value.checked_mul(5))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let offsets = rows
         .len()
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
         .and_then(|value| value.checked_mul(3))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let values = rows
         .len()
         .checked_mul(2 * size_of::<u64>())
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     validity
         .checked_add(offsets)
         .and_then(|value| value.checked_add(text))
         .and_then(|value| value.checked_add(values))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
+}
+
+pub(crate) fn patch_region_fields() -> Vec<arrow::datatypes::Field> {
+    use arrow::datatypes::{DataType, Field};
+    vec![
+        Field::new("patch_id", DataType::Utf8, false),
+        Field::new("region_id", DataType::Utf8, false),
+        Field::new("relation", DataType::Utf8, false),
+        Field::new("overlap_numerator", DataType::UInt64, false),
+        Field::new("overlap_denominator", DataType::UInt64, false),
+    ]
 }

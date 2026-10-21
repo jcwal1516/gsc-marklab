@@ -1,9 +1,10 @@
+use crate::result_vocabulary::{EdgeCorrection, MarkNullModel, MarkPermutationUnit};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    CategoricalPairLimits, ClassicalWindowSummary, PairCorrelationKernel,
-    PairCorrelationPointStatus,
+    marks::CategoricalPairLimits,
+    spatial::{ClassicalWindowSummary, PairCorrelationKernel, PairCorrelationPointStatus},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -135,8 +136,8 @@ pub struct CategoricalCrossPairCorrelationPoint {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CategoricalCrossPairCorrelationInference {
-    pub null_model: String,
-    pub permutation_unit: String,
+    pub null_model: MarkNullModel,
+    pub permutation_unit: MarkPermutationUnit,
     pub p_global: Option<f64>,
     pub erl_depth: Option<f64>,
     pub critical_depth: Option<f64>,
@@ -151,7 +152,8 @@ pub struct CategoricalCrossPairCorrelationInference {
 #[serde(deny_unknown_fields)]
 pub struct CategoricalCrossPairCorrelationResult {
     pub mark_id: String,
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     pub coordinate_frame_id: String,
     pub window: ClassicalWindowSummary,
     pub source_level: String,
@@ -160,11 +162,10 @@ pub struct CategoricalCrossPairCorrelationResult {
     pub target_count: usize,
     pub kernel: PairCorrelationKernel,
     pub bandwidth_um: f64,
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     pub geometry_digest: String,
     pub pair_plan_digest: String,
     pub directed_pair_count: usize,
-    pub geometry_build_count: usize,
     pub estimated_storage_bytes: usize,
     pub configuration_digest: String,
     pub curve: Vec<CategoricalCrossPairCorrelationPoint>,

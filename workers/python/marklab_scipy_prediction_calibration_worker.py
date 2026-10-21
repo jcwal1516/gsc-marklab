@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Pinned SciPy worker for patient-level probability calibration."""
+"""SciPy worker for patient-level probability calibration (Platt scaling)."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -15,22 +14,32 @@ import scipy
 from scipy.optimize import minimize
 from scipy.special import expit
 
+sys.path.append(str(Path(__file__).resolve().parent))
 
-SCIPY_VERSION = "1.18.1"
+from marklab_worker_support import versions
+from marklab_worker_support.logistic_calibration import clipped_logit, platt_targets
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
-
-class ContractError(ValueError):
-    pass
-
-
-def exact_object(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        raise ContractError(f"{path} fields differ")
-    return value
+# Rust re-serializes one CSV file of at most 16 MiB with at most 100,000 patient rows. Each CSV
+# byte becomes at most 6 JSON bytes (\u00XX escapes; numbers grow less), and each row adds at
+# most 256 bytes of keys: 96 MiB + 24.4 MiB + fixed fields, rounded up.
+MAXIMUM_REQUEST_BYTES = 122 * MIB
+OPTIMIZER_OPTIONS = {"maxiter": 1_000, "ftol": 1e-14, "gtol": 1e-10}
 
 
 def validate_request(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
-    request = exact_object(
+    request = obj(
         request,
         {"format", "version", "backend", "method", "rows", "bins", "resources"},
         "request",
@@ -41,25 +50,19 @@ def validate_request(request: Any, lock_digest: str, worker_digest: str) -> dict
         or request["method"] != "platt_logistic"
     ):
         raise ContractError("request identity differs")
-    backend = exact_object(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "request.backend",
+        name="scipy",
+        version=versions.SCIPY,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    if (
-        backend["name"] != "scipy"
-        or backend["version"] != SCIPY_VERSION
-        or backend["python_version"] != "3.12"
-        or backend["environment_lock_sha256"] != lock_digest
-        or backend["worker_sha256"] != worker_digest
-        or scipy.__version__ != SCIPY_VERSION
-    ):
-        raise ContractError("backend identity differs")
     rows = request["rows"]
     if not isinstance(rows, list) or not 16 <= len(rows) <= 100_000:
         raise ContractError("row count differs")
     for index, raw in enumerate(rows):
-        row = exact_object(raw, {"patient_id", "split", "score", "label"}, f"rows[{index}]")
+        row = obj(raw, {"patient_id", "split", "score", "label"}, f"rows[{index}]")
         if (
             not isinstance(row["patient_id"], str)
             or not row["patient_id"]
@@ -70,7 +73,7 @@ def validate_request(request: Any, lock_digest: str, worker_digest: str) -> dict
             raise ContractError("row differs")
     if not isinstance(request["bins"], int) or not 2 <= request["bins"] <= 20:
         raise ContractError("bin count differs")
-    exact_object(
+    obj(
         request["resources"],
         {"maximum_patients", "maximum_bins", "maximum_output_bytes", "timeout_seconds"},
         "request.resources",
@@ -78,7 +81,10 @@ def validate_request(request: Any, lock_digest: str, worker_digest: str) -> dict
     return request
 
 
-def logistic_objective(parameters: np.ndarray, x: np.ndarray, targets: np.ndarray) -> tuple[float, np.ndarray]:
+def logistic_objective(
+    parameters: np.ndarray, x: np.ndarray, targets: np.ndarray
+) -> tuple[float, np.ndarray]:
+    """Bernoulli cross-entropy of ``expit(a + b * x)`` against ``targets`` and its gradient."""
     z = parameters[0] + parameters[1] * x
     objective = float(np.sum(np.logaddexp(0.0, z) - targets * z))
     residual = expit(z) - targets
@@ -87,16 +93,19 @@ def logistic_objective(parameters: np.ndarray, x: np.ndarray, targets: np.ndarra
 
 
 def fit_platt(scores: np.ndarray, labels: np.ndarray) -> np.ndarray:
+    """Platt scaling ``P(y = 1) = expit(a + b * score)`` fitted to the smoothed targets by
+    L-BFGS-B from the smoothed prior log-odds and zero slope."""
     positives = int(np.sum(labels))
     negatives = len(labels) - positives
-    targets = np.where(labels == 1, (positives + 1.0) / (positives + 2.0), 1.0 / (negatives + 2.0))
+    targets = platt_targets(labels)
     start = np.asarray([math.log((positives + 1.0) / (negatives + 1.0)), 0.0])
     fitted = minimize(
-        lambda parameters: logistic_objective(parameters, scores, targets),
+        logistic_objective,
         start,
+        args=(scores, targets),
         method="L-BFGS-B",
         jac=True,
-        options={"maxiter": 1_000, "ftol": 1e-14, "gtol": 1e-10},
+        options=OPTIMIZER_OPTIONS,
     )
     if not fitted.success or not np.all(np.isfinite(fitted.x)):
         raise ContractError(f"Platt optimizer failed: {fitted.message}")
@@ -104,7 +113,13 @@ def fit_platt(scores: np.ndarray, labels: np.ndarray) -> np.ndarray:
 
 
 def calibration_diagnostics(probabilities: np.ndarray, labels: np.ndarray) -> tuple[float, float]:
-    logits = np.log(np.clip(probabilities, 1e-12, 1.0 - 1e-12) / np.clip(1.0 - probabilities, 1e-12, 1.0))
+    """Calibration-in-the-large and calibration slope of test probabilities.
+
+    The intercept is fitted with the logit of the probabilities as an offset; the slope comes
+    from regressing the labels on that logit with a free intercept. Both fits add a ``1e-8``
+    ridge for stability.
+    """
+    logits = clipped_logit(probabilities)
     ridge = 1e-8
 
     def intercept_objective(parameter: np.ndarray) -> tuple[float, np.ndarray]:
@@ -114,37 +129,40 @@ def calibration_diagnostics(probabilities: np.ndarray, labels: np.ndarray) -> tu
         return value, gradient
 
     intercept_fit = minimize(
-        lambda parameter: intercept_objective(parameter),
+        intercept_objective,
         np.asarray([0.0]),
         method="L-BFGS-B",
         jac=True,
-        options={"maxiter": 1_000, "ftol": 1e-14, "gtol": 1e-10},
+        options=OPTIMIZER_OPTIONS,
     )
     if not intercept_fit.success or not np.all(np.isfinite(intercept_fit.x)):
         raise ContractError(f"calibration intercept failed: {intercept_fit.message}")
 
     def objective(parameters: np.ndarray) -> tuple[float, np.ndarray]:
         z = parameters[0] + parameters[1] * logits
-        value = float(np.sum(np.logaddexp(0.0, z) - labels * z) + ridge * np.dot(parameters, parameters))
+        penalty = ridge * np.dot(parameters, parameters)
+        value = float(np.sum(np.logaddexp(0.0, z) - labels * z) + penalty)
         residual = expit(z) - labels
-        gradient = np.asarray(
-            [np.sum(residual), np.dot(residual, logits)], dtype=np.float64
-        ) + 2.0 * ridge * parameters
-        return value, gradient
+        score = np.asarray([np.sum(residual), np.dot(residual, logits)], dtype=np.float64)
+        return value, score + 2.0 * ridge * parameters
 
     fitted = minimize(
-        lambda parameters: objective(parameters),
+        objective,
         np.asarray([0.0, 1.0]),
         method="L-BFGS-B",
         jac=True,
-        options={"maxiter": 1_000, "ftol": 1e-14, "gtol": 1e-10},
+        options=OPTIMIZER_OPTIONS,
     )
     if not fitted.success or not np.all(np.isfinite(fitted.x)):
         raise ContractError(f"calibration regression failed: {fitted.message}")
     return float(intercept_fit.x[0]), float(fitted.x[1])
 
 
-def reliability(probabilities: np.ndarray, labels: np.ndarray, bins: int) -> tuple[list[dict[str, Any]], float]:
+def reliability(
+    probabilities: np.ndarray, labels: np.ndarray, bins: int
+) -> tuple[list[dict[str, Any]], float]:
+    """Equal-width reliability bins with Wilson 95% intervals, and the expected calibration
+    error (the count-weighted mean absolute gap between mean probability and observed rate)."""
     assignments = np.minimum(np.floor(probabilities * bins).astype(np.int64), bins - 1)
     rows: list[dict[str, Any]] = []
     ece = 0.0
@@ -158,7 +176,8 @@ def reliability(probabilities: np.ndarray, labels: np.ndarray, bins: int) -> tup
         rate = float(np.mean(labels[selected]))
         denominator = 1.0 + z * z / count
         center = (rate + z * z / (2.0 * count)) / denominator
-        half = z * math.sqrt(rate * (1.0 - rate) / count + z * z / (4.0 * count * count)) / denominator
+        spread = math.sqrt(rate * (1.0 - rate) / count + z * z / (4.0 * count * count))
+        half = z * spread / denominator
         rows.append(
             {
                 "lower": index / bins,
@@ -174,13 +193,8 @@ def reliability(probabilities: np.ndarray, labels: np.ndarray, bins: int) -> tup
     return rows, ece
 
 
-def run(raw: bytes) -> dict[str, Any]:
-    worker_path = Path(__file__)
-    request = validate_request(
-        json.loads(raw),
-        hashlib.sha256(worker_path.with_name("uv.lock").read_bytes()).hexdigest(),
-        hashlib.sha256(worker_path.read_bytes()).hexdigest(),
-    )
+def run(raw: bytes, lock_digest: str, worker_digest: str) -> dict[str, Any]:
+    request = validate_request(json.loads(raw), lock_digest, worker_digest)
     training = [row for row in request["rows"] if row["split"] == "training_oof"]
     test = [row for row in request["rows"] if row["split"] == "test"]
     training_scores = np.asarray([row["score"] for row in training], dtype=np.float64)
@@ -195,7 +209,7 @@ def run(raw: bytes) -> dict[str, Any]:
         "format": "marklab.scipy_prediction_calibration_worker_result",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(raw).hexdigest(),
+        "request_sha256": sha256_hex(raw),
         "calibrator": {
             "intercept": float(parameters[0]),
             "slope": float(parameters[1]),
@@ -221,14 +235,12 @@ def run(raw: bytes) -> dict[str, Any]:
 
 
 def main() -> None:
-    raw = sys.stdin.buffer.read()
-    try:
-        output = json.dumps(run(raw), allow_nan=False, separators=(",", ":")).encode()
-    except Exception as error:
-        print(f"prediction calibration worker failed: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
-    sys.stdout.buffer.write(output)
+    require_versions(scipy=scipy.__version__)
+    lock_digest, worker_digest = worker_digests(__file__)
+    raw = read_request(MAXIMUM_REQUEST_BYTES)
+    result = run(raw, lock_digest, worker_digest)
+    write_result(result, sort_keys=False, newline=False)
 
 
 if __name__ == "__main__":
-    main()
+    run_worker(main, "prediction calibration worker failed")

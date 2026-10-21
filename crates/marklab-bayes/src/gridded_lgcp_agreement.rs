@@ -1,7 +1,13 @@
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
 use serde::{Deserialize, Serialize};
 
+use crate::agreement_metric::AgreementVerdict;
+use crate::agreement_metric::{
+    compare_elements, compare_parameter, ElementwiseAgreement, ParameterAgreement,
+};
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::is_sha256;
+use crate::AgreementStatus;
+use crate::ClaimStatus;
 use crate::{
     gridded_lgcp_fit::{
         GriddedLgcpCellPosterior, GriddedLgcpFitInputIdentity, GriddedLgcpFitModelIr,
@@ -9,8 +15,8 @@ use crate::{
         GriddedLgcpPosteriorPredictive,
     },
     hierarchical_agreement::{JAX_VERSION, NUMPYRO_VERSION},
-    sha256_hex, BackendContract, BayesError, FitState, NormalMeanDiagnostics, SamplingSummary,
-    WorkerBackend,
+    json_sha256, BackendContract, BayesError, FitState, McseScalarSummary, PosteriorDiagnostics,
+    SamplingSummary, WorkerBackend,
 };
 
 const REQUEST_FORMAT: &str = "marklab.numpyro_gridded_lgcp_worker_request";
@@ -37,14 +43,14 @@ impl NumpyroGriddedLgcpWorkerRequest {
                 "NumPyro LGCP environment and worker identities must be SHA-256 digests".into(),
             ));
         }
-        let source_request_sha256 = sha256_hex(&serde_json::to_vec(&source_request)?);
+        let source_request_sha256 = json_sha256(&source_request)?;
         Ok(Self {
             format: REQUEST_FORMAT,
             version: 1,
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -68,7 +74,7 @@ pub struct NumpyroGriddedLgcpWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: GriddedLgcpPosterior,
     pub cells: Vec<GriddedLgcpCellPosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GriddedLgcpPosteriorPredictive,
     patterns: Vec<crate::GriddedLgcpPredictivePattern>,
 }
@@ -136,32 +142,11 @@ impl GriddedLgcpAgreementPolicy {
 }
 
 #[derive(Debug, Serialize)]
-pub struct LgcpScalarAgreement {
-    pub pymc_mean: f64,
-    pub numpyro_mean: f64,
-    pub absolute_difference: f64,
-    pub combined_mcse: f64,
-    pub standardized_difference: f64,
-    pub tolerance: f64,
-    pub intervals_overlap: bool,
-    pub passes: bool,
-}
-
-#[derive(Debug, Serialize)]
-pub struct LgcpFieldAgreement {
-    pub root_mean_square_difference: f64,
-    pub maximum_absolute_difference: f64,
-    pub maximum_standardized_difference: f64,
-    pub all_intervals_overlap: bool,
-    pub passes: bool,
-}
-
-#[derive(Debug, Serialize)]
 pub struct GriddedLgcpAgreementComparison {
-    pub intercept: LgcpScalarAgreement,
-    pub coefficient: LgcpScalarAgreement,
-    pub latent_effect: LgcpFieldAgreement,
-    pub expected_count: LgcpFieldAgreement,
+    pub intercept: ParameterAgreement,
+    pub coefficient: ParameterAgreement,
+    pub latent_effect: ElementwiseAgreement,
+    pub expected_count: ElementwiseAgreement,
     pub cell_count: usize,
     pub maximum_standardized_difference: f64,
     pub minimum_parameter_tolerance: f64,
@@ -176,7 +161,7 @@ pub struct GriddedLgcpBackendSummary {
     pub sampling: SamplingSummary,
     pub posterior: GriddedLgcpPosterior,
     pub cells: Vec<GriddedLgcpCellPosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GriddedLgcpPosteriorPredictive,
 }
 
@@ -188,12 +173,12 @@ pub struct GriddedLgcpAgreementResult {
     pub input: GriddedLgcpFitInputIdentity,
     pub covariance_sha256: String,
     pub fit_state: FitState,
-    pub agreement_status: &'static str,
+    pub agreement_status: AgreementStatus,
     pub pymc: GriddedLgcpBackendSummary,
     pub numpyro: GriddedLgcpBackendSummary,
     pub comparison: GriddedLgcpAgreementComparison,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl GriddedLgcpAgreementResult {
@@ -211,61 +196,41 @@ impl GriddedLgcpAgreementResult {
                 "gridded LGCP backend cell dimensions differ".into(),
             ));
         }
-        let intercept = compare_scalar(
+        let intercept = compare_parameter(
             &pymc.posterior.intercept,
-            pymc.diagnostics.mcse_mean,
             &numpyro.posterior.intercept,
-            numpyro.diagnostics.mcse_mean,
             policy.maximum_standardized_difference,
             policy.minimum_parameter_tolerance,
         );
-        let coefficient = compare_scalar(
+        let coefficient = compare_parameter(
             &pymc.posterior.coefficient,
-            pymc.diagnostics.mcse_mean,
             &numpyro.posterior.coefficient,
-            numpyro.diagnostics.mcse_mean,
             policy.maximum_standardized_difference,
             policy.minimum_parameter_tolerance,
         );
         let latent_effect = compare_field(
             &pymc.cells,
             &numpyro.cells,
-            |cell| &cell.latent_effect,
-            pymc.diagnostics.ess_bulk,
-            numpyro.diagnostics.ess_bulk,
+            |cell| cell.latent_effect,
             policy,
         );
         let expected_count = compare_field(
             &pymc.cells,
             &numpyro.cells,
-            |cell| &cell.expected_count,
-            pymc.diagnostics.ess_bulk,
-            numpyro.diagnostics.ess_bulk,
+            |cell| cell.expected_count,
             policy,
         );
-        let fits_complete =
-            pymc.fit_state == FitState::Complete && numpyro.fit_state == FitState::Complete;
         let agrees =
             intercept.passes && coefficient.passes && latent_effect.passes && expected_count.passes;
-        let available = fits_complete && agrees;
+        let verdict = AgreementVerdict::new(pymc.fit_state, numpyro.fit_state, agrees);
         Ok(Self {
             format: "marklab.bayesian_gridded_lgcp_cross_backend_agreement",
             version: 1,
             model: source_request.model,
             input,
             covariance_sha256: source_request.covariance_sha256,
-            fit_state: if fits_complete {
-                FitState::Complete
-            } else {
-                FitState::Nonconverged
-            },
-            agreement_status: if available {
-                "agree_within_monte_carlo_error"
-            } else if fits_complete {
-                "diagnostic_only_backend_disagreement"
-            } else {
-                "diagnostic_only_nonconverged"
-            },
+            fit_state: verdict.fit_state,
+            agreement_status: verdict.agreement_status,
             comparison: GriddedLgcpAgreementComparison {
                 intercept,
                 coefficient,
@@ -279,11 +244,7 @@ impl GriddedLgcpAgreementResult {
             pymc: summarize(pymc),
             numpyro: summarize(numpyro),
             seed: source_request.sampling.seed,
-            claim_status: if available {
-                "experimental_cross_backend_validation"
-            } else {
-                "diagnostic_only_cross_backend_validation"
-            },
+            claim_status: verdict.claim_status,
         })
     }
 }
@@ -301,74 +262,17 @@ fn summarize(result: GriddedLgcpFitWorkerResult) -> GriddedLgcpBackendSummary {
     }
 }
 
-fn compare_scalar(
-    pymc: &crate::SarScalarSummary,
-    pymc_mcse: f64,
-    numpyro: &crate::SarScalarSummary,
-    numpyro_mcse: f64,
-    maximum_standardized_difference: f64,
-    minimum_tolerance: f64,
-) -> LgcpScalarAgreement {
-    let absolute_difference = (pymc.mean - numpyro.mean).abs();
-    let combined_mcse = pymc_mcse.hypot(numpyro_mcse);
-    let standardized_difference = standardized(absolute_difference, combined_mcse);
-    let tolerance = minimum_tolerance.max(maximum_standardized_difference * combined_mcse);
-    let intervals_overlap = overlap(pymc, numpyro);
-    LgcpScalarAgreement {
-        pymc_mean: pymc.mean,
-        numpyro_mean: numpyro.mean,
-        absolute_difference,
-        combined_mcse,
-        standardized_difference,
-        tolerance,
-        intervals_overlap,
-        passes: intervals_overlap && absolute_difference <= tolerance,
-    }
-}
-
-fn compare_field<F>(
+fn compare_field(
     pymc: &[GriddedLgcpCellPosterior],
     numpyro: &[GriddedLgcpCellPosterior],
-    select: F,
-    pymc_ess: f64,
-    numpyro_ess: f64,
+    select: fn(&GriddedLgcpCellPosterior) -> McseScalarSummary,
     policy: GriddedLgcpAgreementPolicy,
-) -> LgcpFieldAgreement
-where
-    F: Fn(&GriddedLgcpCellPosterior) -> &crate::SarScalarSummary,
-{
-    let mut squared = 0.0;
-    let mut maximum_absolute: f64 = 0.0;
-    let mut maximum_standardized: f64 = 0.0;
-    let mut all_intervals_overlap = true;
-    let mut passes = true;
-    for (pymc_cell, numpyro_cell) in pymc.iter().zip(numpyro) {
-        let pymc_summary = select(pymc_cell);
-        let numpyro_summary = select(numpyro_cell);
-        let difference = (pymc_summary.mean - numpyro_summary.mean).abs();
-        let combined_mcse =
-            (pymc_summary.sd / pymc_ess.sqrt()).hypot(numpyro_summary.sd / numpyro_ess.sqrt());
-        let standardized_difference = standardized(difference, combined_mcse);
-        let tolerance = policy
-            .minimum_field_tolerance
-            .max(policy.maximum_standardized_difference * combined_mcse);
-        let intervals_overlap = overlap(pymc_summary, numpyro_summary);
-        squared += difference * difference;
-        maximum_absolute = maximum_absolute.max(difference);
-        maximum_standardized = maximum_standardized.max(standardized_difference);
-        all_intervals_overlap &= intervals_overlap;
-        passes &= intervals_overlap && difference <= tolerance;
-    }
-    LgcpFieldAgreement {
-        root_mean_square_difference: (squared / pymc.len() as f64).sqrt(),
-        maximum_absolute_difference: maximum_absolute,
-        maximum_standardized_difference: maximum_standardized,
-        all_intervals_overlap,
-        passes,
-    }
+) -> ElementwiseAgreement {
+    compare_elements(
+        pymc.iter()
+            .zip(numpyro)
+            .map(|(left, right)| (select(left), select(right))),
+        policy.maximum_standardized_difference,
+        policy.minimum_field_tolerance,
+    )
 }
-
-fn overlap(left: &crate::SarScalarSummary, right: &crate::SarScalarSummary) -> bool {
-    left.interval_lower <= right.interval_upper && right.interval_lower <= left.interval_upper
-}
-use crate::agreement_metric::standardized_mcse_difference as standardized;

@@ -1,19 +1,34 @@
 #!/usr/bin/env python3
+"""SciPy worker for a domain-prototype spatial atlas with leave-one-patient-out validation."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import scipy
 
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def fit_atlas(samples, domains, ridge):
+    """Fit domain prototypes with a shared covariance.
+
+    Each domain is a Gaussian centred on its sample mean feature vector; all domains share the
+    pooled within-domain (maximum-likelihood) covariance plus ``ridge`` on the diagonal.
+    """
     features = np.asarray([sample["features"] for sample in samples], dtype=float)
     prototypes = {
         domain: features[[sample["domain"] == domain for sample in samples]].mean(axis=0)
@@ -38,6 +53,7 @@ def distances(features, domains, prototypes, inverse):
 
 
 def probabilities_from_distances(squared_distances):
+    """Domain posterior probabilities under equal priors from squared Mahalanobis distances."""
     logits = -0.5 * squared_distances
     logits -= logits.max()
     scores = np.exp(logits)
@@ -45,9 +61,8 @@ def probabilities_from_distances(squared_distances):
 
 
 def main():
-    if np.__version__ != "2.4.6" or scipy.__version__ != "1.18.1" or sys.version_info[:2] != (3, 12):
-        raise ContractError("atlas backend version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
+    require_versions(numpy=np.__version__, scipy=scipy.__version__)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
     if request["format"] != "marklab.scipy_atlas_request" or request["version"] != 1:
         raise ContractError("request identity mismatch")
@@ -55,25 +70,32 @@ def main():
     domains = sorted({sample["domain"] for sample in samples})
     patients = sorted({sample["patient_id"] for sample in samples})
     sites = sorted({sample["site_id"] for sample in samples})
-    feature_count = len(request["representation"]["feature_names"])
+    # The representation must list its feature names; the atlas echoes the representation.
+    len(request["representation"]["feature_names"])
     prototypes, covariance, inverse = fit_atlas(samples, domains, request["covariance_ridge"])
     patient_domain_means = {}
     for domain in domains:
         means = []
         for patient in patients:
-            rows = [sample["features"] for sample in samples if sample["patient_id"] == patient and sample["domain"] == domain]
+            rows = [
+                sample["features"]
+                for sample in samples
+                if sample["patient_id"] == patient and sample["domain"] == domain
+            ]
             if rows:
                 means.append(np.mean(rows, axis=0))
         patient_domain_means[domain] = np.asarray(means, dtype=float)
     prototype_payload = []
     for domain in domains:
         between = patient_domain_means[domain]
-        prototype_payload.append({
-            "domain": domain,
-            "mean": prototypes[domain].tolist(),
-            "between_patient_standard_deviation": between.std(axis=0, ddof=1).tolist(),
-            "patient_count": len(between),
-        })
+        prototype_payload.append(
+            {
+                "domain": domain,
+                "mean": prototypes[domain].tolist(),
+                "between_patient_standard_deviation": between.std(axis=0, ddof=1).tolist(),
+                "patient_count": len(between),
+            }
+        )
     fold_records = []
     correct = 0
     brier_sum = 0.0
@@ -82,19 +104,26 @@ def main():
         heldout = [sample for sample in samples if sample["patient_id"] == patient]
         fold_prototypes, _, fold_inverse = fit_atlas(training, domains, request["covariance_ridge"])
         for sample in heldout:
-            squared = distances(np.asarray(sample["features"]), domains, fold_prototypes, fold_inverse)
+            squared = distances(
+                np.asarray(sample["features"]), domains, fold_prototypes, fold_inverse
+            )
             probability = probabilities_from_distances(squared)
             prediction = domains[int(np.argmax(probability))]
             correct += prediction == sample["domain"]
             truth = np.asarray([domain == sample["domain"] for domain in domains], dtype=float)
             brier_sum += float(np.mean((probability - truth) ** 2))
-            fold_records.append({
-                "patient_id": patient,
-                "sample_id": sample["sample_id"],
-                "observed_domain": sample["domain"],
-                "predicted_domain": prediction,
-                "domain_probabilities": {domain: float(value) for domain, value in zip(domains, probability)},
-            })
+            fold_records.append(
+                {
+                    "patient_id": patient,
+                    "sample_id": sample["sample_id"],
+                    "observed_domain": sample["domain"],
+                    "predicted_domain": prediction,
+                    "domain_probabilities": {
+                        domain: float(value)
+                        for domain, value in zip(domains, probability, strict=True)
+                    },
+                }
+            )
     perturbation_results = []
     rng = np.random.default_rng(request["seed"])
     for perturbation in request["perturbations"]:
@@ -107,17 +136,21 @@ def main():
             if index not in selected:
                 continue
             training = [other for other in samples if other["patient_id"] != sample["patient_id"]]
-            fold_prototypes, _, fold_inverse = fit_atlas(training, domains, request["covariance_ridge"])
+            fold_prototypes, _, fold_inverse = fit_atlas(
+                training, domains, request["covariance_ridge"]
+            )
             shifted = np.asarray(sample["features"]) + np.asarray(perturbation["feature_shift"])
             squared = distances(shifted, domains, fold_prototypes, fold_inverse)
             perturbation_correct += domains[int(np.argmin(squared))] == sample["domain"]
-        perturbation_results.append({
-            "perturbation_id": perturbation["perturbation_id"],
-            "feature_shift": perturbation["feature_shift"],
-            "subsample_fraction": perturbation["subsample_fraction"],
-            "evaluated_sample_count": retained_count,
-            "accuracy": perturbation_correct / retained_count,
-        })
+        perturbation_results.append(
+            {
+                "perturbation_id": perturbation["perturbation_id"],
+                "feature_shift": perturbation["feature_shift"],
+                "subsample_fraction": perturbation["subsample_fraction"],
+                "evaluated_sample_count": retained_count,
+                "accuracy": perturbation_correct / retained_count,
+            }
+        )
     query_mappings = []
     expected_correct = 0
     expected_count = 0
@@ -133,16 +166,20 @@ def main():
             expected_correct += prediction == query["expected_domain"]
         joint = np.concatenate([(1.0 - unmatched) * conditional, [unmatched]])
         entropy = float(-np.sum(joint * np.log(np.maximum(joint, 1e-300))))
-        query_mappings.append({
-            "query_id": query["query_id"],
-            "predicted_domain": prediction,
-            "domain_probabilities": {domain: float(value) for domain, value in zip(domains, conditional)},
-            "minimum_mahalanobis_distance": minimum_distance,
-            "unmatched_probability": unmatched,
-            "mapping_entropy": entropy,
-            "expected_domain": query["expected_domain"],
-        })
-    request_sha = hashlib.sha256(request_bytes).hexdigest()
+        query_mappings.append(
+            {
+                "query_id": query["query_id"],
+                "predicted_domain": prediction,
+                "domain_probabilities": {
+                    domain: float(value) for domain, value in zip(domains, conditional, strict=True)
+                },
+                "minimum_mahalanobis_distance": minimum_distance,
+                "unmatched_probability": unmatched,
+                "mapping_entropy": entropy,
+                "expected_domain": query["expected_domain"],
+            }
+        )
+    request_sha = sha256_hex(request_bytes)
     result = {
         "format": "marklab.spatial_atlas_mapping_and_validation",
         "version": 1,
@@ -160,8 +197,16 @@ def main():
             "domains": domains,
             "prototypes": prototype_payload,
             "pooled_within_domain_covariance": covariance.tolist(),
-            "training_population": {"patient_ids": patients, "site_ids": sites, "sample_count": len(samples)},
-            "support_limitations": ["biological_similarity_only", "measured_region_features_only", "synthetic_validation_only"],
+            "training_population": {
+                "patient_ids": patients,
+                "site_ids": sites,
+                "sample_count": len(samples),
+            },
+            "support_limitations": [
+                "biological_similarity_only",
+                "measured_region_features_only",
+                "synthetic_validation_only",
+            ],
         },
         "query_mappings": query_mappings,
         "validation": {
@@ -175,13 +220,8 @@ def main():
         },
         "claim_status": "experimental_synthetic_biological_similarity_atlas",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"atlas worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "atlas worker contract error", errors=CONTRACT_ERRORS)

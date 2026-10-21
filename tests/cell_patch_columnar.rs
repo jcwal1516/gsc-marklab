@@ -6,22 +6,27 @@ mod support;
 use std::{fs, io, io::Write, process::Command};
 
 use marklab::{
-    preflight_cell_patch_assignment_table_arrow_bytes,
-    preflight_cell_patch_assignment_table_parquet_bytes,
-    preflight_cell_patch_edge_table_arrow_bytes, preflight_cell_patch_edge_table_parquet_bytes,
-    publish_cell_patch_assignment_table_arrow, publish_cell_patch_assignment_table_parquet,
-    publish_cell_patch_edge_table_arrow, publish_cell_patch_edge_table_parquet,
-    validate_cell_patch_assignment_table_arrow_bytes,
-    validate_cell_patch_assignment_table_arrow_from_store,
-    validate_cell_patch_assignment_table_parquet_bytes,
-    validate_cell_patch_assignment_table_parquet_from_store,
-    validate_cell_patch_edge_table_arrow_bytes, validate_cell_patch_edge_table_arrow_from_store,
-    validate_cell_patch_edge_table_parquet_bytes,
-    validate_cell_patch_edge_table_parquet_from_store, write_cell_patch_assignment_table_arrow,
-    write_cell_patch_assignment_table_parquet, write_cell_patch_edge_table_arrow,
-    write_cell_patch_edge_table_parquet, ArtifactRecord, ContentDigest, EmbeddingColumnarBudgets,
-    LocalArtifactStore, PublicationDisposition, StoreId, TableColumnType, TableFormat,
-    TableScalarType,
+    embeddings::{
+        preflight_cell_patch_assignment_table_arrow_bytes,
+        preflight_cell_patch_assignment_table_parquet_bytes,
+        preflight_cell_patch_edge_table_arrow_bytes, preflight_cell_patch_edge_table_parquet_bytes,
+        publish_cell_patch_assignment_table_arrow, publish_cell_patch_assignment_table_parquet,
+        publish_cell_patch_edge_table_arrow, publish_cell_patch_edge_table_parquet,
+        validate_cell_patch_assignment_table_arrow_bytes,
+        validate_cell_patch_assignment_table_arrow_from_store,
+        validate_cell_patch_assignment_table_parquet_bytes,
+        validate_cell_patch_assignment_table_parquet_from_store,
+        validate_cell_patch_edge_table_arrow_bytes,
+        validate_cell_patch_edge_table_arrow_from_store,
+        validate_cell_patch_edge_table_parquet_bytes,
+        validate_cell_patch_edge_table_parquet_from_store, write_cell_patch_assignment_table_arrow,
+        write_cell_patch_assignment_table_parquet, write_cell_patch_edge_table_arrow,
+        write_cell_patch_edge_table_parquet, EmbeddingColumnarBudgets,
+    },
+    workflow::{
+        ArtifactRecord, ContentDigest, LocalArtifactStore, PublicationDisposition, StoreId,
+        TableColumnType, TableFormat, TableScalarType,
+    },
 };
 use support::{cell_patch_fixture, CellPatchFixtureMode};
 use tempfile::TempDir;

@@ -1,55 +1,50 @@
 #!/usr/bin/env python3
-"""Static PyMC worker for an exact 1-D spatially varying coefficient."""
+"""PyMC worker for an exact one-dimensional spatially varying coefficient model."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
-import numpy as np
 sys.path.append(str(Path(__file__).resolve().parent))
-import marklab_pytensor_config  # noqa: E402,F401
+
+# Configure PyTensor before PyMC is imported.
+from marklab_worker_support import pytensor_config  # noqa: F401
+
+# isort: split
+import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-PYMC_VERSION = "6.3.0"
-
-
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low}, {high}]")
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
+from marklab_worker_support import areal, pymc_nuts, versions
+from marklab_worker_support.nuts_contract import (
+    convergence_passes,
+    nuts_policy,
+    nuts_sampling,
+    pymc_nuts_diagnostics,
+    sampling_record,
+)
+from marklab_worker_support.posterior import summary
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
 
 def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
@@ -70,16 +65,14 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     )
     exact(request["format"], "marklab.pymc_worker_request", "request.format")
     integer(request["version"], "request.version", 1, 1)
-    backend = obj(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "backend",
+        name="pymc",
+        version=versions.PYMC,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    exact(backend["name"], "pymc", "backend.name")
-    exact(backend["version"], PYMC_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_digest, "backend.lock")
-    exact(backend["worker_sha256"], worker_digest, "backend.worker")
     model = obj(
         request["model"],
         {
@@ -134,14 +127,17 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     length_prior_sd = number(model["length_scale_prior_sd_um"], "model.length sd")
     known_noise_sd = number(model["known_noise_sd"], "model.noise")
     jitter = number(model["jitter"], "model.jitter")
-    if min(
-        intercept_prior_sd,
-        coefficient_prior_sd,
-        amplitude_prior_sd,
-        length_prior_sd,
-        known_noise_sd,
-        jitter,
-    ) <= 0.0:
+    if (
+        min(
+            intercept_prior_sd,
+            coefficient_prior_sd,
+            amplitude_prior_sd,
+            length_prior_sd,
+            known_noise_sd,
+            jitter,
+        )
+        <= 0.0
+    ):
         raise ContractError("all spatial coefficient scales must be positive")
 
     observations = request["observations"]
@@ -179,9 +175,7 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
             number(observation["spatial_predictor"], "observation.spatial_predictor")
         )
     dimension = len(ids)
-    fixed_design = np.column_stack(
-        [np.ones(dimension), global_predictor, spatial_predictor]
-    )
+    fixed_design = np.column_stack([np.ones(dimension), global_predictor, spatial_predictor])
     if np.linalg.matrix_rank(fixed_design) != 3:
         raise ContractError("fixed design including intercept must be full rank")
     basis_raw = request["centering_basis"]
@@ -196,53 +190,22 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     ):
         raise ContractError("centering basis is not orthonormal and sum-zero")
 
-    sampling = obj(
-        request["sampling"],
-        {"chains", "tune_per_chain", "draws_per_chain", "target_accept", "seed"},
-        "sampling",
+    sampling = nuts_sampling(request["sampling"], "sampling")
+    chains, draws = sampling["chains"], sampling["draws"]
+    output_limit = areal.dense_resources(
+        request["resources"], "resources", dimension, chains * (sampling["tune"] + draws)
     )
-    chains = integer(sampling["chains"], "sampling.chains", 2, 8)
-    tune = integer(sampling["tune_per_chain"], "sampling.tune", 100, 100_000)
-    draws = integer(sampling["draws_per_chain"], "sampling.draws", 100, 100_000)
-    target_accept = number(sampling["target_accept"], "sampling.target_accept")
-    if not 0.5 <= target_accept < 1.0:
-        raise ContractError("target acceptance must be in [0.5,1)")
-    seed = integer(sampling["seed"], "sampling.seed", 0, 2**64 - 1)
-    resources = obj(
-        request["resources"],
-        {"maximum_observations", "maximum_total_iterations", "maximum_output_bytes", "timeout_seconds"},
-        "resources",
-    )
-    if dimension > integer(resources["maximum_observations"], "resources.observations", 1, 64):
-        raise ContractError("observation count exceeds resource limit")
-    max_iterations = integer(resources["maximum_total_iterations"], "resources.iterations", 1, 400_000)
-    integer(resources["maximum_output_bytes"], "resources.output", 1, 1_048_576)
-    integer(resources["timeout_seconds"], "resources.timeout", 1, 3_600)
-    if chains * (tune + draws) > max_iterations:
-        raise ContractError("iterations exceed resource limit")
-    policy = obj(
+    policy = nuts_policy(
         request["diagnostic_policy"],
-        {
-            "prior_predictive_draws",
-            "maximum_r_hat",
-            "minimum_bulk_ess",
-            "minimum_tail_ess",
-            "minimum_ebfmi",
-            "maximum_divergences",
-            "maximum_tree_depth_hits",
-            "maximum_tree_depth",
-        },
         "policy",
+        prior_draw_range=(100, 10_000),
+        count_ceiling=chains * draws,
+        check_thresholds=False,
     )
     return {
-        "prior_draws": integer(policy["prior_predictive_draws"], "policy.prior", 100, 10_000),
-        "maximum_r_hat": number(policy["maximum_r_hat"], "policy.rhat"),
-        "minimum_bulk_ess": number(policy["minimum_bulk_ess"], "policy.bulk"),
-        "minimum_tail_ess": number(policy["minimum_tail_ess"], "policy.tail"),
-        "minimum_ebfmi": number(policy["minimum_ebfmi"], "policy.ebfmi"),
-        "maximum_divergences": integer(policy["maximum_divergences"], "policy.divergences", 0, chains * draws),
-        "maximum_tree_depth_hits": integer(policy["maximum_tree_depth_hits"], "policy.depth hits", 0, chains * draws),
-        "maximum_tree_depth": integer(policy["maximum_tree_depth"], "policy.depth", 1, 32),
+        **policy,
+        **sampling,
+        "output_limit": output_limit,
         "intercept_prior_mean": intercept_prior_mean,
         "intercept_prior_sd": intercept_prior_sd,
         "coefficient_prior_sd": coefficient_prior_sd,
@@ -256,42 +219,33 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         "global": np.asarray(global_predictor),
         "spatial": np.asarray(spatial_predictor),
         "basis": basis,
-        "chains": chains,
-        "tune": tune,
-        "draws": draws,
-        "target_accept": target_accept,
-        "seed": seed,
     }
 
 
 def seed_for(seed: int, purpose: str, index: int = 0) -> int:
-    digest = hashlib.sha256(f"marklab-pymc-svc-v1\0{seed}\0{purpose}\0{index}".encode()).digest()
-    return int.from_bytes(digest[:4], "little")
-
-
-def summary(draws: np.ndarray) -> dict[str, float]:
-    return {
-        "mean": float(draws.mean()),
-        "sd": float(draws.std(ddof=1)),
-        "interval_lower": float(np.quantile(draws, 0.025)),
-        "interval_upper": float(np.quantile(draws, 0.975)),
-    }
-
-
-def stats(tree: Any, names: list[str]) -> np.ndarray:
-    return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
+    return derive_seed("marklab-pymc-svc-v1", seed, purpose, index)
 
 
 def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
+    """Fit the Gaussian spatially varying coefficient model by NUTS.
+
+    Likelihood: ``y_i ~ Normal(alpha + gamma g_i + s_i beta(x_i), known_noise_sd)`` for the
+    global predictor ``g`` and the spatial predictor ``s``. The coefficient field is
+    ``beta(x) = beta_0 + d(x)``, where the deviation ``d`` is a Matern-3/2 Gaussian process
+    (amplitude ``a``, length scale ``l``, plus ``jitter`` on the diagonal) restricted to the
+    sum-to-zero subspace: ``d = B L z`` with ``B`` the request's orthonormal sum-zero basis,
+    ``L`` the Cholesky factor of ``B' K B``, and ``z ~ Normal(0, 1)`` (non-centred). Priors:
+    ``alpha ~ Normal(intercept_prior_mean, intercept_prior_sd)``, ``gamma, beta_0 ~
+    Normal(0, coefficient_prior_sd)``, ``a ~ HalfNormal(amplitude_prior_sd)``,
+    ``l ~ HalfNormal(length_scale_prior_sd_um)``.
+    """
     dimension = len(config["ids"])
     distances = np.abs(config["x"][:, None] - config["x"][None, :])
     with pm.Model(coords={"coordinate": config["ids"]}):
         intercept = pm.Normal(
             "intercept", config["intercept_prior_mean"], config["intercept_prior_sd"]
         )
-        global_coefficient = pm.Normal(
-            "global_coefficient", 0.0, config["coefficient_prior_sd"]
-        )
+        global_coefficient = pm.Normal("global_coefficient", 0.0, config["coefficient_prior_sd"])
         spatial_mean_coefficient = pm.Normal(
             "spatial_mean_coefficient", 0.0, config["coefficient_prior_sd"]
         )
@@ -323,29 +277,9 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
             observed=config["outcome"],
             dims="coordinate",
         )
-        prior = pm.sample_prior_predictive(
-            draws=config["prior_draws"], random_seed=seed_for(config["seed"], "prior")
-        )
-        posterior = pm.sample(
-            draws=config["draws"],
-            tune=config["tune"],
-            chains=config["chains"],
-            cores=1,
-            blas_cores=1,
-            random_seed=[seed_for(config["seed"], "chain", i) for i in range(config["chains"])],
-            target_accept=config["target_accept"],
-            nuts_sampler="pymc",
-            nuts={"max_treedepth": config["maximum_tree_depth"]},
-            progressbar=False,
-            quiet=True,
-            compute_convergence_checks=False,
-        )
-        predictive = pm.sample_posterior_predictive(
-            posterior,
-            var_names=["observed_outcome"],
-            random_seed=seed_for(config["seed"], "predictive"),
-            progressbar=False,
-        )
+        prior = pymc_nuts.prior_predictive(config, seed_for)
+        posterior = pymc_nuts.nuts(config, seed_for)
+        predictive = pymc_nuts.posterior_predictive(posterior, "observed_outcome", config, seed_for)
 
     names = [
         "intercept",
@@ -370,15 +304,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         all(np.isfinite(value).all() for value in arrays.values())
         and np.isfinite(predictive_draws).all()
     )
-    r_hat = float(stats(pm.stats.rhat(posterior, var_names=names, method="rank"), names).max())
-    bulk = float(stats(pm.stats.ess(posterior, var_names=names, method="bulk"), names).min())
-    tail = float(stats(pm.stats.ess(posterior, var_names=names, method="tail"), names).min())
-    mcse_mean = float(stats(pm.stats.mcse(posterior, var_names=names, method="mean"), names).max())
-    mcse_sd = float(stats(pm.stats.mcse(posterior, var_names=names, method="sd"), names).max())
-    energy = np.asarray(posterior["sample_stats"]["energy"].values)
-    ebfmi = float(np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1)))
-    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
-    depth_hits = int(np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum())
+    diagnostics = pymc_nuts_diagnostics(posterior, names)
     flat_deviation = arrays["deviation"].reshape(-1, dimension)
     constraints_valid = bool(
         np.all(arrays["amplitude"] > 0.0)
@@ -389,12 +315,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         prior_finite
         and posterior_finite
         and constraints_valid
-        and r_hat <= config["maximum_r_hat"]
-        and bulk >= config["minimum_bulk_ess"]
-        and tail >= config["minimum_tail_ess"]
-        and ebfmi >= config["minimum_ebfmi"]
-        and divergences <= config["maximum_divergences"]
-        and depth_hits <= config["maximum_tree_depth_hits"]
+        and convergence_passes(config, diagnostics)
     )
     flat_varying = arrays["varying_coefficient"].reshape(-1, dimension)
     field = [
@@ -411,42 +332,25 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     return {
         "format": "marklab.pymc_spatial_varying_coefficient_worker_result",
         "version": 1,
-        "backend": {
-            "name": "pymc",
-            "version": pm.__version__,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("pymc", pm.__version__, lock_sha, worker_sha),
         "request_sha256": request_sha,
         "fit_state": "complete" if complete else "nonconverged",
-        "sampling": {
-            "chains": config["chains"],
-            "tune_per_chain": config["tune"],
-            "draws_per_chain": config["draws"],
-            "completed_draws": config["chains"] * config["draws"],
-        },
+        "sampling": sampling_record(config),
         "posterior": {
-            "intercept": summary(arrays["intercept"].reshape(-1)),
-            "global_coefficient": summary(arrays["global_coefficient"].reshape(-1)),
-            "spatial_mean_coefficient": summary(
-                arrays["spatial_mean_coefficient"].reshape(-1)
-            ),
-            "amplitude": summary(arrays["amplitude"].reshape(-1)),
-            "length_scale_um": summary(arrays["length_scale_um"].reshape(-1)),
+            name: summary(arrays[name])
+            for name in [
+                "intercept",
+                "global_coefficient",
+                "spatial_mean_coefficient",
+                "amplitude",
+                "length_scale_um",
+            ]
         },
         "coefficient_field": field,
         "diagnostics": {
             "prior_predictive_finite": prior_finite,
             "posterior_finite": posterior_finite,
-            "r_hat": r_hat,
-            "ess_bulk": bulk,
-            "ess_tail": tail,
-            "mcse_mean": mcse_mean,
-            "mcse_sd": mcse_sd,
-            "minimum_ebfmi": ebfmi,
-            "divergences": divergences,
-            "max_tree_depth_hits": depth_hits,
+            **diagnostics,
             "constraints_valid": constraints_valid,
             "identifiability_checks_passed": True,
         },
@@ -461,23 +365,13 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
 
 
 def main() -> None:
-    if pm.__version__ != PYMC_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("PyMC or Python version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha = hashlib.sha256(raw).hexdigest()
-    result = fit(validate(json.loads(raw), lock_sha, worker_sha), request_sha, lock_sha, worker_sha)
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    require_versions(pymc=pm.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(16 * MIB)
+    config = validate(json.loads(raw), lock_sha, worker_sha)
+    result = fit(config, sha256_hex(raw), lock_sha, worker_sha)
+    write_result(result, max_bytes=config["output_limit"])
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(f"marklab PyMC worker failed: {type(error).__name__}: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
+    run_worker(main, "marklab PyMC worker failed")

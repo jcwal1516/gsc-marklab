@@ -3,11 +3,12 @@ use rand_chacha::ChaCha20Rng;
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::ClaimStatus;
 use crate::{
     strauss::{neighbor_delta, papangelou_from_delta},
-    thomas::derive_seed,
     RectangularWindow, StraussPoint,
 };
+use marklab_core::derive_simulation_seed as derive_seed;
 
 #[derive(Clone, Debug)]
 pub struct StraussBirthDeathSpec {
@@ -73,7 +74,7 @@ pub struct StraussBirthDeathResult {
     pub diagnostics: StraussBirthDeathDiagnostics,
     pub count_trace: Vec<u32>,
     pub final_pattern: Vec<StraussPoint>,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn simulate_strauss_birth_death(
@@ -213,7 +214,7 @@ pub fn simulate_strauss_birth_death(
         },
         count_trace: trace,
         final_pattern,
-        claim_status: "experimental_finite_chain_simulation",
+        claim_status: ClaimStatus::ExperimentalFiniteChainSimulation,
     })
 }
 

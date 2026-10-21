@@ -70,5 +70,5 @@ p-4,B,9\n",
             .abs()
             < 1e-12
     );
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }

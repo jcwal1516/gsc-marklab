@@ -10,7 +10,7 @@ pub(super) fn validate_metadata_tree<F>(
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
     mut page_validator: F,
-) -> Result<(), EmbeddingColumnarError>
+) -> Result<(), ColumnarError>
 where
     F: FnMut(
         usize,
@@ -19,7 +19,7 @@ where
         usize,
         usize,
         &CellEmbeddingRowLink,
-    ) -> Result<usize, EmbeddingColumnarError>,
+    ) -> Result<usize, ColumnarError>,
 {
     let expected_rows = row_link.entries().len();
     if metadata.version != 2
@@ -47,7 +47,7 @@ where
     for (group_index, group) in metadata.row_groups.iter().enumerate() {
         let rows = expected_rows
             .checked_sub(aggregate_rows)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?
+            .ok_or(ColumnarError::SizeOverflow)?
             .min(ROW_GROUP_ROWS);
         if usize::try_from(group.num_rows).ok() != Some(rows)
             || group.columns.len() != 3
@@ -130,7 +130,7 @@ where
             }
             next_offset = start
                 .checked_add(length)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             if next_offset > footer_start {
                 return Err(parquet_failure(ParquetFailure::InvalidColumnChunk));
             }
@@ -151,7 +151,7 @@ where
             }
             group_bytes = group_bytes
                 .checked_add(length)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
         }
         if usize::try_from(group.total_byte_size).ok() != Some(group_bytes)
             || group
@@ -164,7 +164,7 @@ where
         enforce_row_group_budget(group_bytes, budgets)?;
         aggregate_rows = aggregate_rows
             .checked_add(rows)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     if aggregate_rows != expected.cells().len() || next_offset != footer_start {
         return Err(parquet_failure(ParquetFailure::InvalidRowCount));

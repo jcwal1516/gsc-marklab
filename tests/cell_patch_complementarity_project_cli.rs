@@ -3,7 +3,8 @@
 use std::{fmt::Write as _, fs, path::Path};
 
 use assert_cmd::Command;
-use marklab_workflow::{ContentDigest, NodeId, NodeSpec};
+use marklab_project::ContentDigest;
+use marklab_workflow::{NodeId, NodeSpec};
 
 fn fixture(path: &Path) {
     let mut csv = String::from(
@@ -155,7 +156,11 @@ fn complementarity_is_admitted_then_replays_without_a_second_scipy_process() {
         "marklab.cell_patch_complementarity"
     );
     assert_eq!(identity["result_schema"]["version"], 1);
-    assert_eq!(identity["inputs"].as_array().expect("inputs").len(), 3);
+    assert_eq!(identity["inputs"].as_array().expect("inputs").len(), 4);
+    assert_eq!(
+        identity["inputs"][3]["kind"],
+        "application/vnd.marklab.python-worker-support+source;version=1"
+    );
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
     let lock = repository.join("workers/python/uv.lock");
     let worker =

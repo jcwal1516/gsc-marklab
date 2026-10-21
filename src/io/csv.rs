@@ -16,15 +16,7 @@ pub fn load_pattern_csv_with_diagnostics(
     load_pattern_csv_with_builder(path.as_ref(), PatternBuilder::new(mask, "CSV"))
 }
 
-#[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
-pub(crate) fn load_classical_pattern_csv_with_diagnostics(
-    path: impl AsRef<Path>,
-    mask: &TumorMask,
-) -> Result<PatternLoadResult> {
-    load_pattern_csv_with_builder(path.as_ref(), PatternBuilder::new_classical(mask, "CSV"))
-}
-
-fn load_pattern_csv_with_builder(
+pub(crate) fn load_pattern_csv_with_builder(
     path: &Path,
     mut builder: PatternBuilder<'_>,
 ) -> Result<PatternLoadResult> {

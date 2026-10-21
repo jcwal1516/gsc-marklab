@@ -1,20 +1,26 @@
 use std::str::FromStr;
 
 use marklab::{
-    patch_overlap_embedding_dispersion, ArtifactId, ContentDigest, EmbeddingStatus,
-    MeasurementStatus, MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
-    MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingDerivationContract,
-    MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
-    MultiscaleEmbeddingProvenanceVariant, MultiscaleEmbeddingSupport, PatchEmbeddingRow,
-    PatchEmbeddingTable, PatchOverlapEmbeddingDispersionError,
-    PatchOverlapEmbeddingDispersionStatus, PatchOverlapGraph, SlideId,
+    embeddings::{
+        patch_overlap_embedding_dispersion, EmbeddingStatus, MultiscaleArtifactBinding,
+        MultiscaleDirectPatchInputArtifacts, MultiscaleDirectPatchModelProvenance,
+        MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingExecutionProvenance,
+        MultiscaleEmbeddingProvenance, MultiscaleEmbeddingProvenanceVariant,
+        MultiscaleEmbeddingSupport, PatchEmbeddingRow, PatchEmbeddingTable,
+        PatchOverlapEmbeddingDispersionError, PatchOverlapEmbeddingDispersionStatus,
+        PatchOverlapGraph,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    MeasurementStatus, SlideId,
 };
 
 #[cfg(feature = "parquet")]
 use marklab::{
-    publish_patch_embedding_table_arrow, read_patch_embedding_table_arrow_from_store,
-    EmbeddingColumnarBudgets, ExpectedPatchSet, LocalArtifactStore,
-    PatchEmbeddingTableReadBindings, StoreId,
+    embeddings::{
+        publish_patch_embedding_table_arrow, read_patch_embedding_table_arrow_from_store,
+        EmbeddingColumnarBudgets, ExpectedPatchSet, MultiscaleEmbeddingTableReadBindings,
+    },
+    workflow::{LocalArtifactStore, StoreId},
 };
 
 #[allow(dead_code)]
@@ -257,7 +263,7 @@ fn canonical_arrow_patch_table_materializes_into_the_dispersion_caller() {
     let record = publish_patch_embedding_table_arrow(&store, &fixture.table, budgets)
         .expect("published Arrow table")
         .into_record();
-    let bindings = PatchEmbeddingTableReadBindings::new(
+    let bindings = MultiscaleEmbeddingTableReadBindings::new(
         MultiscaleArtifactBinding::new(
             fixture.table.expected_entities_artifact_id(),
             fixture.expected.logical_digest(),
@@ -308,7 +314,7 @@ fn canonical_arrow_patch_materialization_rejects_a_false_support_identity() {
     let record = publish_patch_embedding_table_arrow(&store, &fixture.table, budgets)
         .expect("published Arrow table")
         .into_record();
-    let bindings = PatchEmbeddingTableReadBindings::new(
+    let bindings = MultiscaleEmbeddingTableReadBindings::new(
         MultiscaleArtifactBinding::new(
             fixture.table.expected_entities_artifact_id(),
             fixture.expected.logical_digest(),
@@ -338,7 +344,10 @@ fn compute(
     fixture: &FlowFixture,
     status: MeasurementStatus,
     maximum_component_operations: u64,
-) -> Result<marklab::PatchOverlapEmbeddingDispersion, PatchOverlapEmbeddingDispersionError> {
+) -> Result<
+    marklab::embeddings::PatchOverlapEmbeddingDispersion,
+    PatchOverlapEmbeddingDispersionError,
+> {
     patch_overlap_embedding_dispersion(
         &fixture.table,
         &fixture.support,

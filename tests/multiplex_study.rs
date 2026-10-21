@@ -1,7 +1,7 @@
 #[path = "support/multiplex_study.rs"]
 mod support;
 
-use marklab::analyze_multiplex_study;
+use marklab::pathology::analyze_multiplex_study;
 use marklab_cohort::{
     max_t_multiple_endpoint_permutation, MaxTPermutationSpec, PatientEndpointVector,
 };
@@ -93,6 +93,95 @@ fn one_unavailable_slide_prevents_silent_patient_or_endpoint_selection() {
 }
 
 #[test]
+fn explicit_binary_weights_keep_isolated_cells_in_the_patient_study() {
+    let mut recipe = support::recipe();
+    let slide = &mut recipe["slides"][0];
+    slide["cell_ids"].as_array_mut().unwrap().truncate(5);
+    for observations in slide["observations"].as_object_mut().unwrap().values_mut() {
+        observations.as_array_mut().unwrap().truncate(5);
+    }
+    // A four-cell path plus an isolate. Its end cells have one neighbor and its inner
+    // cells two, so row standardization would change both statistics.
+    slide["coordinates_um"] = serde_json::json!([[0, 0], [1, 0], [2, 0], [3, 0], [10, 0]]);
+    slide["window"] = serde_json::json!({"type":"MultiPolygon", "coordinates":[[[[-1,-1],[11,-1],[11,1],[-1,1],[-1,-1]]]]});
+    slide["observations"]["CD3"] = serde_json::json!([1, 2, 4, 8, 16]);
+
+    // Existing policies remain strict; the opt-in must never drop the isolated fifth cell.
+    let strict = analyze_multiplex_study(&serde_json::to_vec(&recipe).unwrap()).unwrap();
+    let strict = serde_json::to_value(strict).unwrap();
+    assert_eq!(strict["inference"]["status"], "unavailable");
+    assert_eq!(
+        strict["slides"][0]["channels"][0]["reason"],
+        "isolated_observed_point"
+    );
+
+    recipe["design"]["weight_policy"] = "binary_symmetric_including_isolates".into();
+    let inclusive = analyze_multiplex_study(&serde_json::to_vec(&recipe).unwrap()).unwrap();
+    let inclusive = serde_json::to_value(inclusive).unwrap();
+    assert_eq!(inclusive["inference"]["status"], "available");
+    assert_eq!(inclusive["patients"].as_array().unwrap().len(), 6);
+    assert_eq!(inclusive["patients"][0]["slide_count"], 2);
+    let channel = &inclusive["slides"][0]["channels"][0];
+    assert_eq!(channel["observed_rows"], 5);
+    assert_eq!(channel["directed_edges"], 6);
+    // Binary weights over all five rows: I = 113/372, C = 35/372. Row-standardized
+    // weights would give 601/1984 and 295/2976; dropping the isolate, 29/115 and 42/115.
+    assert!((channel["moran_i"].as_f64().unwrap() - 113.0 / 372.0).abs() < 1e-14);
+    assert!((channel["geary_c"].as_f64().unwrap() - 35.0 / 372.0).abs() < 1e-14);
+
+    recipe["slides"][0]["coordinates_um"] =
+        serde_json::json!([[0, 0], [2, 0], [4, 0], [6, 0], [10, 0]]);
+    let empty = analyze_multiplex_study(&serde_json::to_vec(&recipe).unwrap()).unwrap();
+    let empty = serde_json::to_value(empty).unwrap();
+    assert_eq!(empty["inference"]["status"], "unavailable");
+    assert_eq!(
+        empty["slides"][0]["channels"][0]["reason"],
+        "no_spatial_edges"
+    );
+    assert!(empty["slides"][0]["channels"][0]["moran_i"].is_null());
+
+    // Scientific unavailability must survive durable execution and restoration.
+    use marklab::pathology::{execute_multiplex_study, MultiplexStudyTarget};
+    let root = tempfile::tempdir().unwrap();
+    let bytes = serde_json::to_vec(&recipe).unwrap();
+    for restored in [0, 12] {
+        let run = execute_multiplex_study(
+            root.path(),
+            &bytes,
+            MultiplexStudyTarget::Complete,
+            runtime(),
+        )
+        .unwrap();
+        assert_eq!(run.restored_slides, restored);
+        assert_eq!(serde_json::to_value(run.result.unwrap()).unwrap(), empty);
+    }
+}
+
+#[test]
+fn shipped_example_recipe_matches_its_grid_oracle() {
+    // examples/multiplex-study/generate.py writes a 2 x 3 grid per slide; at radius 1.1 that
+    // grid has 4 * 6 - 2 * 2 - 2 * 3 = 14 directed rook-neighbour edges.
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/examples/multiplex-study/recipe.json"
+    );
+    let result = analyze_multiplex_study(&std::fs::read(path).unwrap()).unwrap();
+    let document = serde_json::to_value(&result).unwrap();
+    assert_eq!(document["inference"]["status"], "available");
+    assert_eq!(document["patients"].as_array().unwrap().len(), 6);
+    let slides = document["slides"].as_array().unwrap();
+    assert_eq!(slides.len(), 12);
+    for slide in slides {
+        assert_eq!(slide["cell_count"], 6);
+        for channel in slide["channels"].as_array().unwrap() {
+            assert_eq!(channel["status"], "available");
+            assert_eq!(channel["directed_edges"], 14);
+            assert_eq!(channel["observed_rows"], 6);
+        }
+    }
+}
+
+#[test]
 fn malformed_and_unbounded_recipes_fail_before_analysis() {
     for change in [
         "unknown",
@@ -123,14 +212,14 @@ fn malformed_and_unbounded_recipes_fail_before_analysis() {
     }
 }
 
-fn runtime() -> marklab::NativeRuntimeProvenance {
-    marklab::NativeRuntimeProvenance::new(
+fn runtime() -> marklab::workflow::NativeRuntimeProvenance {
+    marklab::workflow::NativeRuntimeProvenance::new(
         "0.1.0",
         None,
         None,
         "test-rustc",
         vec!["test".into()],
-        marklab::ArtifactRef::from_bytes(
+        marklab::workflow::ArtifactRef::from_bytes(
             "application/vnd.marklab.executable",
             b"multiplex-test-client",
         )
@@ -141,7 +230,7 @@ fn runtime() -> marklab::NativeRuntimeProvenance {
 
 #[test]
 fn a_partial_study_resumes_without_reexecuting_completed_slide_nodes() {
-    use marklab::{execute_multiplex_study, MultiplexStudyTarget};
+    use marklab::pathology::{execute_multiplex_study, MultiplexStudyTarget};
     let root = tempfile::tempdir().unwrap();
     let bytes = serde_json::to_vec(&support::recipe()).unwrap();
     let partial = execute_multiplex_study(
@@ -187,7 +276,7 @@ fn a_partial_study_resumes_without_reexecuting_completed_slide_nodes() {
 
 #[test]
 fn changed_slide_content_invalidates_only_that_slide_and_patient_inference() {
-    use marklab::{execute_multiplex_study, MultiplexStudyTarget};
+    use marklab::pathology::{execute_multiplex_study, MultiplexStudyTarget};
     let root = tempfile::tempdir().unwrap();
     let mut recipe = support::recipe();
     execute_multiplex_study(
@@ -212,7 +301,7 @@ fn changed_slide_content_invalidates_only_that_slide_and_patient_inference() {
 
 #[test]
 fn a_study_with_more_than_sixty_four_slides_uses_bounded_dependency_collections() {
-    use marklab::{execute_multiplex_study, MultiplexStudyTarget};
+    use marklab::pathology::{execute_multiplex_study, MultiplexStudyTarget};
     let root = tempfile::tempdir().unwrap();
     let mut recipe = support::recipe();
     let originals = recipe["slides"].as_array().unwrap().clone();
@@ -256,14 +345,14 @@ fn a_claim_bounded_report_is_published_atomically_without_overwriting_user_files
     let root = tempfile::tempdir().unwrap();
     let out = root.path().join("report");
     let result = analyze_multiplex_study(&serde_json::to_vec(&support::recipe()).unwrap()).unwrap();
-    marklab::publish_multiplex_study(&result, &out).unwrap();
+    marklab::pathology::publish_multiplex_study(&result, &out).unwrap();
     assert!(out.join("result.json").is_file());
     let report = std::fs::read_to_string(out.join("report.md")).unwrap();
     assert!(report.contains("6 independent patients"));
     assert!(report.contains("experimental"));
     assert!(report.contains("Missingness"));
     let before = std::fs::read(out.join("result.json")).unwrap();
-    assert!(marklab::publish_multiplex_study(&result, &out).is_err());
+    assert!(marklab::pathology::publish_multiplex_study(&result, &out).is_err());
     assert_eq!(std::fs::read(out.join("result.json")).unwrap(), before);
 }
 
@@ -273,8 +362,11 @@ fn a_deserialized_result_cannot_publish_an_inference_with_missing_statistics() {
     let result = analyze_multiplex_study(&serde_json::to_vec(&support::recipe()).unwrap()).unwrap();
     let mut wire = serde_json::to_value(result).unwrap();
     wire["inference"]["endpoints"][0]["adjusted_p_value"] = (-0.1).into();
-    let invalid: marklab::MultiplexStudyResult = serde_json::from_value(wire).unwrap();
-    assert!(marklab::publish_multiplex_study(&invalid, &root.path().join("invalid")).is_err());
+    let invalid: marklab::pathology::MultiplexStudyResult = serde_json::from_value(wire).unwrap();
+    assert!(
+        marklab::pathology::publish_multiplex_study(&invalid, &root.path().join("invalid"))
+            .is_err()
+    );
     assert!(!root.path().join("invalid").exists());
 }
 

@@ -1,9 +1,14 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
-use crate::common::{finite::canonical_zero, summation::kahan_add};
-pub(crate) use crate::measurement_status_wire::name as measurement_status_name;
+use marklab_numerics::summation::NeumaierSum;
 
-use crate::{BinaryCompartmentPartition2D, DeclaredScalarPatternInput, ScalarMarkId};
+use crate::common::finite::canonical_zero;
+
+use crate::{
+    compartments::BinaryCompartmentPartition2D,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    scalar_mark::COMPARTMENT_MARK_ID,
+};
 
 use super::types::*;
 
@@ -12,8 +17,7 @@ struct SummaryAccumulator {
     count: usize,
     minimum: f64,
     maximum: f64,
-    absolute_sum: f64,
-    correction: f64,
+    absolute_sum: NeumaierSum,
 }
 
 impl SummaryAccumulator {
@@ -23,8 +27,7 @@ impl SummaryAccumulator {
             count: 0,
             minimum: f64::INFINITY,
             maximum: f64::NEG_INFINITY,
-            absolute_sum: 0.0,
-            correction: 0.0,
+            absolute_sum: NeumaierSum::new(),
         }
     }
 
@@ -35,7 +38,7 @@ impl SummaryAccumulator {
             .ok_or(CompartmentInterfaceError::SizeOverflow)?;
         self.minimum = self.minimum.min(distance);
         self.maximum = self.maximum.max(distance);
-        kahan_add(&mut self.absolute_sum, &mut self.correction, distance.abs());
+        self.absolute_sum.add(distance.abs());
         Ok(())
     }
 
@@ -45,7 +48,7 @@ impl SummaryAccumulator {
                 compartment_id: self.compartment_id,
             });
         }
-        let mean = (self.absolute_sum + self.correction) / self.count as f64;
+        let mean = self.absolute_sum.total() / self.count as f64;
         if !mean.is_finite() {
             return Err(CompartmentInterfaceError::SizeOverflow);
         }
@@ -73,7 +76,7 @@ pub fn analyze_compartment_interface_profile(
     let table = input
         .mark_table()
         .ok_or(CompartmentInterfaceError::MissingCompartmentMark)?;
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(|error| {
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(|error| {
         CompartmentInterfaceError::InvalidDeclaredInput {
             reason: error.to_string(),
         }
@@ -171,7 +174,7 @@ pub fn analyze_compartment_interface_profile(
         case_id: pattern.meta.case_id.clone(),
         timepoint: pattern.meta.timepoint.clone(),
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(measurement_status).into(),
+        measurement_status,
         negative_compartment_id: descriptor.negative_compartment_id.clone(),
         positive_compartment_id: descriptor.positive_compartment_id.clone(),
         coordinate_frame_id: descriptor.coordinate_frame_id.as_str().into(),

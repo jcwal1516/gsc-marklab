@@ -240,26 +240,17 @@ impl Matrix {
     }
 
     pub(crate) fn cholesky(&self, name: &str) -> Result<Cholesky, LongitudinalError> {
-        let mut lower = Self::zeros(self.rows, self.rows);
-        for row in 0..self.rows {
-            for col in 0..=row {
-                let cross: f64 = (0..col)
-                    .map(|inner| lower.get(row, inner) * lower.get(col, inner))
-                    .sum();
-                if row == col {
-                    let diagonal = self.get(row, row) - cross;
-                    if !diagonal.is_finite() || diagonal <= 0.0 {
-                        return Err(LongitudinalError::Numerical(format!(
-                            "{name} is not positive definite"
-                        )));
-                    }
-                    lower.set(row, col, diagonal.sqrt());
-                } else {
-                    lower.set(row, col, (self.get(row, col) - cross) / lower.get(col, col));
-                }
-            }
-        }
-        Ok(Cholesky { lower })
+        let values =
+            marklab_numerics::dense::cholesky(&self.values, self.rows).ok_or_else(|| {
+                LongitudinalError::Numerical(format!("{name} is not positive definite"))
+            })?;
+        Ok(Cholesky {
+            lower: Matrix {
+                rows: self.rows,
+                cols: self.rows,
+                values,
+            },
+        })
     }
 }
 
@@ -269,22 +260,7 @@ pub(crate) struct Cholesky {
 
 impl Cholesky {
     pub(crate) fn solve_vector(&self, right: &[f64]) -> Vec<f64> {
-        let size = self.lower.rows;
-        let mut forward = vec![0.0; size];
-        for row in 0..size {
-            let cross: f64 = (0..row)
-                .map(|col| self.lower.get(row, col) * forward[col])
-                .sum();
-            forward[row] = (right[row] - cross) / self.lower.get(row, row);
-        }
-        let mut result = vec![0.0; size];
-        for row in (0..size).rev() {
-            let cross: f64 = ((row + 1)..size)
-                .map(|col| self.lower.get(col, row) * result[col])
-                .sum();
-            result[row] = (forward[row] - cross) / self.lower.get(row, row);
-        }
-        result
+        marklab_numerics::dense::cholesky_solve(&self.lower.values, self.lower.rows, right)
     }
 
     pub(crate) fn solve_matrix(&self, right: &Matrix) -> Matrix {

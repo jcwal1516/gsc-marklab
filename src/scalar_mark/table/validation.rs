@@ -1,7 +1,8 @@
 use super::*;
+use crate::scalar_mark::COMPARTMENT_MARK_ID;
 
 impl MarkTable {
-    fn validate_legacy_column_counts(&self) -> Result<(), DeclaredScalarInputError> {
+    fn validate_pattern_column_counts(&self) -> Result<(), DeclaredScalarInputError> {
         let binary_count = self
             .columns
             .iter()
@@ -75,7 +76,7 @@ impl MarkTable {
         &self,
         pattern: &Pattern,
     ) -> Result<(), DeclaredScalarInputError> {
-        self.validate_legacy_column_counts()?;
+        self.validate_pattern_column_counts()?;
         if self
             .columns
             .iter()
@@ -83,8 +84,7 @@ impl MarkTable {
         {
             return Err(DeclaredScalarInputError::analysis(
                 crate::MarklabError::Validation(
-                    "legacy Pattern projection requires explicitly selected compatibility columns"
-                        .into(),
+                    "a Pattern projection cannot include assay columns".into(),
                 ),
             ));
         }
@@ -185,17 +185,14 @@ impl MarkTable {
             categorical.first(),
             pattern
                 .categorical_strata
-                .get("histologic_compartment")
+                .get(COMPARTMENT_MARK_ID)
                 .map(Box::as_ref),
         ) {
             (None, None) => {}
             (Some(values), Some(pattern_values)) if *values == pattern_values => {}
             _ => return Err(DeclaredScalarInputError::CategoricalDeclarationMismatch),
         }
-        if let Some(levels) = pattern
-            .categorical_stratum_levels
-            .get("histologic_compartment")
-        {
+        if let Some(levels) = pattern.categorical_stratum_levels.get(COMPARTMENT_MARK_ID) {
             let declared = self.columns.iter().find_map(|column| match &column.values {
                 ScalarMarkColumnValues::Categorical { declaration, .. } => {
                     Some(declaration.levels())

@@ -8,10 +8,12 @@ fn curated_python_startup_honors_the_seed_and_keeps_import_isolation() {
 print(json.dumps({"hash":hash("marklab-reproducibility"),"safe_path":sys.flags.safe_path,"no_user_site":sys.flags.no_user_site,"write_bytecode":not sys.dont_write_bytecode,"seed":os.environ.get("PYTHONHASHSEED"),"pythonpath":os.environ.get("PYTHONPATH"),"path":sys.path,"user_site":site.getusersitepackages()}))
 "#).unwrap();
     let interpreter =
-        marklab::python_backend_interpreter(Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap();
+        marklab::backend::python_backend_interpreter(Path::new(env!("CARGO_MANIFEST_DIR")))
+            .unwrap();
     let mut outputs = Vec::new();
     for _ in 0..2 {
-        let output = marklab::python_backend_command(&interpreter, &worker)
+        let output = marklab::backend::python_backend_command(&interpreter, &worker)
+            .expect("worker command")
             .current_dir(directory.path())
             .output()
             .unwrap();

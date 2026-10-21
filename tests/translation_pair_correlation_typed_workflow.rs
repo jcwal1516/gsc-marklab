@@ -1,8 +1,15 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_translation_pair_correlation, ObservationWindow2D, ObservationWindowLimits,
-    PairCorrelationPointStatus, Pattern, PatternMeta, TranslationPairCorrelationConfig,
-    TranslationSpatialError, TranslationSpatialLimits,
+    spatial::{
+        analyze_translation_pair_correlation, PairCorrelationPointStatus,
+        TranslationPairCorrelationConfig, TranslationPairCorrelationResultDocument,
+        TranslationSpatialError, TranslationSpatialLimits,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn pattern(x: Vec<f64>, y: Vec<f64>) -> Pattern {
@@ -10,16 +17,12 @@ fn pattern(x: Vec<f64>, y: Vec<f64>) -> Pattern {
         x.clone(),
         y,
         vec![0; x.len()],
-        PatternMeta {
-            case_id: "translation-g-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("translation-g-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "translation-g-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("translation-g-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -79,7 +82,10 @@ fn rectangle_translation_g_matches_the_exact_overlap_hand_oracle() {
     let result = analyze_translation_pair_correlation(&pattern, &rectangle(), &config)
         .expect("translation-corrected g");
 
-    assert_eq!(result.correction, "translation");
+    assert_eq!(
+        result.correction,
+        marklab::spatial::EdgeCorrection::Translation
+    );
     assert_eq!(result.bandwidth_um, 0.5);
     assert_eq!(result.curve.len(), 1);
     let point = &result.curve[0];
@@ -93,6 +99,14 @@ fn rectangle_translation_g_matches_the_exact_overlap_hand_oracle() {
         epsilon = 1e-12
     );
     assert_eq!(point.theoretical_g, 1.0);
+    let document = TranslationPairCorrelationResultDocument::new(result.clone()).expect("document");
+    let encoded = document.to_json_pretty().expect("JSON");
+    assert_eq!(
+        TranslationPairCorrelationResultDocument::from_json(&encoded)
+            .expect("translation g result must survive JSON")
+            .analysis(),
+        &result
+    );
 }
 
 #[derive(serde::Deserialize)]
@@ -153,8 +167,25 @@ fn compact_support_and_exact_work_memory_boundaries_are_explicit() {
         endpoint.curve[0].status,
         PairCorrelationPointStatus::NoPairsInKernelSupport
     );
-    assert_eq!(endpoint.curve[0].g, None);
+    assert_eq!(endpoint.curve[0].g, Some(0.0));
+    assert!(endpoint.curve[0].inference_eligible);
+    assert!(endpoint.inference.is_some());
     assert_eq!(endpoint.geometry.observed_overlap_evaluations, 0);
+    let document = TranslationPairCorrelationResultDocument::new(endpoint.clone()).unwrap();
+    assert_eq!(
+        TranslationPairCorrelationResultDocument::from_json(&document.to_json_pretty().unwrap())
+            .unwrap()
+            .analysis(),
+        &endpoint
+    );
+    let mut legacy = endpoint.clone();
+    legacy.curve[0].g = None;
+    legacy.curve[0].inference_eligible = false;
+    legacy.curve[0].lower_g = None;
+    legacy.curve[0].upper_g = None;
+    legacy.inference = None;
+    TranslationPairCorrelationResultDocument::new(legacy)
+        .expect("legacy unavailable zero remains readable");
 
     let all_support =
         config_with_limits(vec![20.0], 19.999, bounded_limits(20, 20, 320, 24, 1 << 20));

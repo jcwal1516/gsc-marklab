@@ -1,3 +1,4 @@
+use marklab_core::backend::ClaimStatus;
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
 
@@ -91,7 +92,16 @@ pub struct ExposureMeanEstimate {
     pub ht_mean: Option<f64>,
     pub hajek_mean: Option<f64>,
     pub exact_fixed_outcome_ht_sd: Option<f64>,
-    pub status: &'static str,
+    pub status: ExposureMeanStatus,
+}
+
+marklab_core::vocabulary_enum! {
+    /// Whether an exposure mean could be estimated.
+    pub enum ExposureMeanStatus {
+        Estimated => "estimated",
+        HtOnlyNoObservedHajekDenominator => "ht_only_no_observed_hajek_denominator",
+        UnavailableNoPositivity => "unavailable_no_positivity",
+    }
 }
 
 impl<'de> Deserialize<'de> for ExposureMeanEstimate {
@@ -112,9 +122,11 @@ impl<'de> Deserialize<'de> for ExposureMeanEstimate {
         }
         let owned = Owned::deserialize(deserializer)?;
         let status = match owned.status.as_str() {
-            "estimated" => "estimated",
-            "unavailable_no_positivity" => "unavailable_no_positivity",
-            "ht_only_no_observed_hajek_denominator" => "ht_only_no_observed_hajek_denominator",
+            "estimated" => ExposureMeanStatus::Estimated,
+            "unavailable_no_positivity" => ExposureMeanStatus::UnavailableNoPositivity,
+            "ht_only_no_observed_hajek_denominator" => {
+                ExposureMeanStatus::HtOnlyNoObservedHajekDenominator
+            }
             _ => return Err(serde::de::Error::custom("unexpected exposure-mean status")),
         };
         Ok(Self {
@@ -135,7 +147,15 @@ pub struct ExposureContrast {
     pub high: JointBinaryExposure,
     pub low: JointBinaryExposure,
     pub estimate: Option<f64>,
-    pub status: &'static str,
+    pub status: ExposureContrastStatus,
+}
+
+marklab_core::vocabulary_enum! {
+    /// Whether an exposure contrast could be estimated.
+    pub enum ExposureContrastStatus {
+        Estimated => "estimated",
+        UnavailableObservedExposureDenominator => "unavailable_observed_exposure_denominator",
+    }
 }
 
 impl<'de> Deserialize<'de> for ExposureContrast {
@@ -166,9 +186,9 @@ impl<'de> Deserialize<'de> for ExposureContrast {
             }
         };
         let status = match owned.status.as_str() {
-            "estimated" => "estimated",
+            "estimated" => ExposureContrastStatus::Estimated,
             "unavailable_observed_exposure_denominator" => {
-                "unavailable_observed_exposure_denominator"
+                ExposureContrastStatus::UnavailableObservedExposureDenominator
             }
             _ => {
                 return Err(serde::de::Error::custom(
@@ -258,7 +278,7 @@ pub struct RandomizedInterferenceResult {
     pub randomization_test: InterferenceRandomizationResult,
     pub unit_assignment_evaluations: u64,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl<'de> Deserialize<'de> for RandomizedInterferenceResult {
@@ -308,7 +328,7 @@ impl<'de> Deserialize<'de> for RandomizedInterferenceResult {
             || owned.exposure_mapping != "binary_any_treated_neighbor"
             || owned.compiled_assumptions != assumptions
             || owned.random_seed_namespace != "randomized_binary_interference_v1_chacha20"
-            || owned.claim_status != "randomized_design_mechanics_only"
+            || owned.claim_status != ClaimStatus::RandomizedDesignMechanicsOnly.as_str()
         {
             return Err(serde::de::Error::custom(
                 "unexpected randomized-interference result identity",
@@ -335,7 +355,7 @@ impl<'de> Deserialize<'de> for RandomizedInterferenceResult {
             randomization_test: owned.randomization_test,
             unit_assignment_evaluations: owned.unit_assignment_evaluations,
             random_seed_namespace: "randomized_binary_interference_v1_chacha20",
-            claim_status: "randomized_design_mechanics_only",
+            claim_status: ClaimStatus::RandomizedDesignMechanicsOnly,
         })
     }
 }

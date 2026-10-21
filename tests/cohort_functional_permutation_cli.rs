@@ -64,7 +64,7 @@ b-2,B,2,1\n",
         serde_json::json!([2.5, 2.5, 2.5])
     );
     assert_eq!(result["observed_statistic"], 12.5);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }
 
 #[test]
@@ -127,7 +127,7 @@ b-4,B,1,3,south\n",
     assert_eq!(result["design"]["block_count"], 2);
     assert_eq!(result["groups"]["group_a_patients"], 4);
     assert_eq!(result["groups"]["group_b_patients"], 4);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }
 
 #[test]

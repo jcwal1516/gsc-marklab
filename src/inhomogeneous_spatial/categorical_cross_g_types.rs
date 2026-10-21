@@ -1,7 +1,8 @@
+use crate::result_vocabulary::EdgeCorrection;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{
+use crate::spatial::{
     ClassicalWindowSummary, InhomogeneousIntensitySummary, InhomogeneousSpatialConfig,
     InhomogeneousSpatialError, InhomogeneousSpatialInference, InhomogeneousSpatialLimits,
     IsotropicSpatialLimits, PairCorrelationKernel, PairCorrelationPointStatus,
@@ -161,7 +162,7 @@ pub struct InhomogeneousCategoricalCrossPairCorrelationPoint {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct InhomogeneousCategoricalCrossEdgeWork {
-    pub correction: String,
+    pub correction: EdgeCorrection,
     pub pair_visits: usize,
     pub geometry_evaluations: usize,
     pub geometry_candidate_work: usize,
@@ -173,7 +174,8 @@ pub struct InhomogeneousCategoricalCrossEdgeWork {
 #[serde(deny_unknown_fields)]
 pub struct InhomogeneousCategoricalCrossPairCorrelationResult {
     pub mark_id: String,
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     pub coordinate_frame_id: String,
     pub window: ClassicalWindowSummary,
     pub source_level: String,
@@ -187,7 +189,7 @@ pub struct InhomogeneousCategoricalCrossPairCorrelationResult {
     pub kernel: PairCorrelationKernel,
     pub pair_bandwidth_um: f64,
     pub intensity_bandwidth_um: f64,
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     pub configuration_digest: String,
     pub observed_pair_visits: usize,
     pub total_pair_visits: usize,

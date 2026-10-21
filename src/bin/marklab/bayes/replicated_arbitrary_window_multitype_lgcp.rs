@@ -1,94 +1,116 @@
-use std::{collections::BTreeMap, fs, path::PathBuf};
-
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    sha256_hex, BackendContract, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+pub(crate) use marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp::{
+    validate_result, Node, NodeTypeCount, Output, Patient, Pattern, Priors, Resources,
+    WorkerRequest, WorkerResult,
 };
-use serde::{Deserialize, Serialize};
 
-pub(crate) use super::posterior_validation::summary_valid;
-use super::{publish_json, run_worker, BayesCliError};
+use marklab_numerics::dense;
+use marklab_numerics::kernel::matern32;
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
 
-const PYMC_VERSION: &str = "6.3.0";
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
+use marklab_bayes::DiagnosticPolicy;
+use marklab_bayes::FitState;
+use marklab_bayes::NutsSamplingSpec;
+use serde::Deserialize;
+
+use super::publish_json;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::PYMC_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::NullHypothesis;
+use marklab_core::vocabulary::StatisticalUnit;
+
 const MAXIMUM_INPUT_BYTES: u64 = 64 * 1_048_576;
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    FitReplicatedArbitraryWindowMultitypeLgcp(Box<Args>),
-}
 
 #[derive(Clone, Debug, clap::Args)]
 pub(crate) struct Args {
+    /// Per-node, per-type quadrature CSV (pattern_id, patient_id, group, type_id, count, ...).
     #[arg(long)]
     pub(crate) input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     pub(crate) reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
     pub(crate) comparison_group: String,
+    /// Point-type label used as the model reference.
     #[arg(long)]
     pub(crate) reference_type: String,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     pub(crate) intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     pub(crate) intercept_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
     pub(crate) group_effect_prior_sd: f64,
+    /// Prior scale for covariate effect.
     #[arg(long)]
     pub(crate) covariate_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
     pub(crate) patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
     pub(crate) pattern_sd_prior_scale: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
     pub(crate) field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
     pub(crate) field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     pub(crate) jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     pub(crate) chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     pub(crate) tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     pub(crate) draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     pub(crate) target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     pub(crate) seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     pub(crate) maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     pub(crate) maximum_patterns: usize,
+    /// Upper bound on types.
     #[arg(long)]
     pub(crate) maximum_types: usize,
+    /// Upper bound on nodes per pattern.
     #[arg(long)]
     pub(crate) maximum_nodes_per_pattern: usize,
+    /// Upper bound on total nodes.
     #[arg(long)]
     pub(crate) maximum_total_nodes: usize,
+    /// Upper bound on total node type rows.
     #[arg(long)]
     pub(crate) maximum_total_node_type_rows: usize,
+    /// Upper bound on total events.
     #[arg(long)]
     pub(crate) maximum_total_events: u64,
+    /// Upper bound on draw node type work.
     #[arg(long)]
     pub(crate) maximum_draw_node_type_work: u64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     pub(crate) timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     pub(crate) out: PathBuf,
 }
@@ -110,205 +132,6 @@ struct CsvRow {
     count: u64,
     window_sha256: String,
     event_sha256: String,
-}
-
-#[derive(Debug, Serialize)]
-struct Patient {
-    patient_id: String,
-    group: String,
-    group_index: u8,
-}
-
-#[derive(Debug, Serialize)]
-struct Pattern {
-    pattern_id: String,
-    patient_id: String,
-    patient_index: usize,
-    cohort: String,
-    window_sha256: String,
-    window_area_um2: f64,
-    event_sha256: String,
-    event_count: u64,
-    node_count: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct Node {
-    pattern_id: String,
-    pattern_index: usize,
-    patient_index: usize,
-    node_id: String,
-    x_um: f64,
-    y_um: f64,
-    weight_um2: f64,
-    covariate: f64,
-}
-
-#[derive(Debug, Serialize)]
-struct NodeTypeCount {
-    node_index: usize,
-    type_index: usize,
-    count: u64,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Priors {
-    intercept_mean: f64,
-    intercept_sd: f64,
-    group_effect_sd: f64,
-    covariate_effect_sd: f64,
-    patient_sd_scale: f64,
-    pattern_sd_scale: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-struct Resources {
-    maximum_patients: usize,
-    maximum_patterns: usize,
-    maximum_types: usize,
-    maximum_nodes_per_pattern: usize,
-    maximum_total_nodes: usize,
-    maximum_total_node_type_rows: usize,
-    maximum_total_events: u64,
-    maximum_draw_node_type_work: u64,
-    draw_node_type_work: u64,
-    timeout_seconds: u64,
-}
-
-#[derive(Debug, Serialize)]
-struct WorkerRequest {
-    format: &'static str,
-    version: u32,
-    backend: BackendContract,
-    input_sha256: String,
-    reference_group: String,
-    comparison_group: String,
-    type_ids: Vec<String>,
-    reference_type: String,
-    patients: Vec<Patient>,
-    patterns: Vec<Pattern>,
-    nodes: Vec<Node>,
-    node_type_counts: Vec<NodeTypeCount>,
-    cholesky: Vec<f64>,
-    priors: Priors,
-    sampling: NutsSamplingSpec,
-    diagnostic_policy: DiagnosticPolicy,
-    resources: Resources,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct TypePosterior {
-    pub(crate) type_id: String,
-    pub(crate) intercept: SarScalarSummary,
-    pub(crate) group_effect: SarScalarSummary,
-    pub(crate) covariate_effect: SarScalarSummary,
-    pub(crate) patient_sd: SarScalarSummary,
-    pub(crate) pattern_sd: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct PairDifference {
-    pub(crate) type_a: String,
-    pub(crate) type_b: String,
-    pub(crate) difference: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct HierarchyEffect {
-    pub(crate) owner_id: String,
-    pub(crate) type_id: String,
-    pub(crate) effect: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct NodeTypePosterior {
-    pub(crate) pattern_id: String,
-    pub(crate) node_id: String,
-    pub(crate) type_id: String,
-    pub(crate) latent_effect: SarScalarSummary,
-    pub(crate) expected_count: SarScalarSummary,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct PatternTypePredictive {
-    pub(crate) pattern_id: String,
-    pub(crate) type_id: String,
-    pub(crate) observed_total_count: u64,
-    pub(crate) replicate_count: u64,
-    pub(crate) replicated_total_count_mean: f64,
-    pub(crate) replicated_total_count_sd: f64,
-    pub(crate) replicated_total_count_interval_lower: f64,
-    pub(crate) replicated_total_count_interval_upper: f64,
-    pub(crate) total_count_two_sided_tail_probability: f64,
-    pub(crate) observed_node_count_variance: f64,
-    pub(crate) replicated_node_count_variance_mean: f64,
-    pub(crate) node_variance_two_sided_tail_probability: f64,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    input_sha256: String,
-    request_sha256: String,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    type_posteriors: Vec<TypePosterior>,
-    group_effect_differences: Vec<PairDifference>,
-    patient_type_effects: Vec<HierarchyEffect>,
-    pattern_type_effects: Vec<HierarchyEffect>,
-    node_type_posteriors: Vec<NodeTypePosterior>,
-    pattern_type_posterior_predictive: Vec<PatternTypePredictive>,
-    diagnostics: NormalMeanDiagnostics,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Output {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    input_sha256: String,
-    request_sha256: String,
-    fit_state: FitState,
-    sampling: SamplingSummary,
-    type_posteriors: Vec<TypePosterior>,
-    group_effect_differences: Vec<PairDifference>,
-    patient_type_effects: Vec<HierarchyEffect>,
-    pattern_type_effects: Vec<HierarchyEffect>,
-    node_type_posteriors: Vec<NodeTypePosterior>,
-    pattern_type_posterior_predictive: Vec<PatternTypePredictive>,
-    diagnostics: NormalMeanDiagnostics,
-    patient_count: usize,
-    pattern_count: usize,
-    type_count: usize,
-    total_node_count: usize,
-    total_node_type_row_count: usize,
-    total_event_count: u64,
-    groups: [String; 2],
-    reference_type: String,
-    cohort_count: usize,
-    priors: Priors,
-    resources: Resources,
-    statistical_unit: String,
-    pattern_unit: String,
-    likelihood: String,
-    null_model: String,
-    assumptions: [String; 7],
-    finite_result_policy: String,
-    claim_status: String,
 }
 
 pub(crate) struct Prepared {
@@ -336,18 +159,16 @@ impl Prepared {
     }
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::FitReplicatedArbitraryWindowMultitypeLgcp(args) = command;
+pub(super) fn run(args: Box<Args>) -> Result<(), CliError> {
     let out = args.out.clone();
     publish_json(&out, &execute(*args)?)
 }
 
-pub(crate) fn execute(args: Args) -> Result<Output, BayesCliError> {
+pub(crate) fn execute(args: Args) -> Result<Output, CliError> {
     execute_prepared(&prepare(args)?)
 }
 
-pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
+pub(crate) fn prepare(args: Args) -> Result<Prepared, CliError> {
     let timeout_seconds = args.timeout_seconds;
     let request = prepare_request(args)?;
     let request_bytes = serde_json::to_vec(&request)?;
@@ -360,8 +181,8 @@ pub(crate) fn prepare(args: Args) -> Result<Prepared, BayesCliError> {
     })
 }
 
-pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let bytes = run_worker(
         repository,
         "marklab_pymc_replicated_arbitrary_window_multitype_lgcp_worker.py",
@@ -369,7 +190,8 @@ pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliEr
         prepared.timeout_seconds,
     )?;
     let result: WorkerResult = serde_json::from_slice(&bytes)?;
-    validate_result(&result, &prepared.request, &prepared.request_sha256)?;
+    validate_result(&result, &prepared.request, &prepared.request_sha256)
+        .map_err(super::protocol_error)?;
     let request = &prepared.request;
     let cohort_count = request
         .patterns
@@ -406,11 +228,11 @@ pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliEr
         cohort_count,
         priors: request.priors.clone(),
         resources: request.resources.clone(),
-        statistical_unit: "patient".into(),
+        statistical_unit: StatisticalUnit::Patient,
         pattern_unit: "slide_pattern_nested_in_patient".into(),
         likelihood: "independent_type_specific_poisson_intensities_over_one_shared_exact_window"
             .into(),
-        null_model: "all_type_specific_comparison_group_log_intensity_effects_equal_zero".into(),
+        null_model: NullHypothesis::AllTypeSpecificComparisonGroupLogIntensityEffectsEqualZero,
         assumptions: [
             "patients_are_independent_population_units".into(),
             "slide_patterns_are_repeated_measurements_not_population_replicates".into(),
@@ -422,118 +244,25 @@ pub(crate) fn execute_prepared(prepared: &Prepared) -> Result<Output, BayesCliEr
         ],
         finite_result_policy: "nonconverged_is_diagnostic_only_reject_non_finite".into(),
         claim_status: if result.fit_state == FitState::Complete {
-            "experimental_replicated_multitype_point_process"
+            ClaimStatus::ExperimentalReplicatedMultitypePointProcess
         } else {
-            "diagnostic_only_nonconverged"
-        }
-        .into(),
+            ClaimStatus::DiagnosticOnlyNonconverged
+        },
     })
 }
 
-impl Output {
-    pub(crate) fn validate_for(&self, prepared: &Prepared) -> Result<(), BayesCliError> {
-        let request = &prepared.request;
-        let policy = &request.diagnostic_policy;
-        let diagnostics_pass = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= policy.maximum_r_hat
-            && self.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-            && self.diagnostics.ess_tail >= policy.minimum_tail_ess
-            && self.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-            && self.diagnostics.divergences <= policy.maximum_divergences
-            && self.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
-        let type_rows_valid = type_posteriors_valid(&self.type_posteriors, &request.type_ids);
-        let pairs_valid = pair_differences_valid(&self.group_effect_differences, &request.type_ids);
-        let hierarchy_valid = hierarchy_effects_valid(
-            &self.patient_type_effects,
-            request.patients.iter().map(|row| row.patient_id.as_str()),
-            &request.type_ids,
-        ) && hierarchy_effects_valid(
-            &self.pattern_type_effects,
-            request.patterns.iter().map(|row| row.pattern_id.as_str()),
-            &request.type_ids,
-        );
-        let nodes_valid = self.node_type_posteriors.len() == request.node_type_counts.len()
-            && self
-                .node_type_posteriors
-                .iter()
-                .zip(&request.node_type_counts)
-                .all(|(row, count)| {
-                    let node = &request.nodes[count.node_index];
-                    row.pattern_id == node.pattern_id
-                        && row.node_id == node.node_id
-                        && row.type_id == request.type_ids[count.type_index]
-                        && summary_valid(&row.latent_effect)
-                        && summary_valid(&row.expected_count)
-                        && row.expected_count.mean > 0.0
-                });
-        if self.format != "marklab.bayesian_replicated_arbitrary_window_multitype_lgcp_fit"
-            || self.version != 1
-            || self.backend.name != request.backend.name
-            || self.backend.version != request.backend.version
-            || self.backend.python_version != request.backend.python_version
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
-            || self.input_sha256 != request.input_sha256
-            || self.request_sha256 != prepared.request_sha256
-            || self.patient_count != request.patients.len()
-            || self.pattern_count != request.patterns.len()
-            || self.type_count != request.type_ids.len()
-            || self.total_node_count != request.nodes.len()
-            || self.total_node_type_row_count != request.node_type_counts.len()
-            || self.total_event_count
-                != request
-                    .node_type_counts
-                    .iter()
-                    .map(|row| row.count)
-                    .sum::<u64>()
-            || self.groups
-                != [
-                    request.reference_group.clone(),
-                    request.comparison_group.clone(),
-                ]
-            || self.reference_type != request.reference_type
-            || self.priors != request.priors
-            || self.resources != request.resources
-            || self.sampling.completed_draws
-                != u64::from(request.sampling.chains) * u64::from(request.sampling.draws_per_chain)
-            || self.statistical_unit != "patient"
-            || self.pattern_unit != "slide_pattern_nested_in_patient"
-            || self.likelihood
-                != "independent_type_specific_poisson_intensities_over_one_shared_exact_window"
-            || !type_rows_valid
-            || !pairs_valid
-            || !hierarchy_valid
-            || !nodes_valid
-            || !predictive_valid(
-                &self.pattern_type_posterior_predictive,
-                request,
-                self.sampling.completed_draws,
-            )
-            || (self.fit_state == FitState::Complete) != diagnostics_pass
-        {
-            return Err(BayesCliError::Backend(
-                "durable replicated multitype LGCP result differs".into(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
+fn prepare_request(args: Args) -> Result<WorkerRequest, CliError> {
     validate_controls(&args)?;
-    let metadata = fs::metadata(&args.input).map_err(|source| BayesCliError::Io {
+    let metadata = fs::metadata(&args.input).map_err(|source| CliError::Io {
         path: args.input.clone(),
         source,
     })?;
     if !metadata.is_file() || metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP input file or size is invalid".into(),
         ));
     }
-    let bytes = fs::read(&args.input).map_err(|source| BayesCliError::Io {
+    let bytes = fs::read(&args.input).map_err(|source| CliError::Io {
         path: args.input.clone(),
         source,
     })?;
@@ -557,7 +286,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
         "event_sha256",
     ];
     if reader.headers()?.iter().ne(expected) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated exact-window multitype LGCP headers differ".into(),
         ));
     }
@@ -577,14 +306,14 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
     type_ids.sort();
     type_ids.dedup();
     if !(3..=args.maximum_types).contains(&type_ids.len()) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP type count is invalid".into(),
         ));
     }
     let reference = type_ids
         .iter()
         .position(|identity| identity == &args.reference_type)
-        .ok_or_else(|| BayesCliError::Input("reference type is absent".into()))?;
+        .ok_or_else(|| CliError::Input("reference type is absent".into()))?;
     let reference_type = type_ids.remove(reference);
     type_ids.insert(0, reference_type);
     let type_indices = type_ids
@@ -600,7 +329,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
                 entry.insert(row.group.clone());
             }
             std::collections::btree_map::Entry::Occupied(entry) if entry.get() != &row.group => {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "replicated multitype LGCP patient group changes".into(),
                 ));
             }
@@ -608,7 +337,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
         }
     }
     if patient_groups.len() > args.maximum_patients {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP patient ceiling exceeded".into(),
         ));
     }
@@ -620,7 +349,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
             } else if group == &args.comparison_group {
                 1
             } else {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "replicated multitype LGCP has a foreign group".into(),
                 ));
             };
@@ -644,7 +373,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
             .push(row);
     }
     if !(16..=args.maximum_patterns).contains(&by_pattern.len()) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP pattern count is invalid".into(),
         ));
     }
@@ -658,7 +387,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
         let first = &pattern_rows[0];
         let patient_index = *patient_indices
             .get(first.patient_id.as_str())
-            .ok_or_else(|| BayesCliError::Input("pattern patient is absent".into()))?;
+            .ok_or_else(|| CliError::Input("pattern patient is absent".into()))?;
         pattern_counts[patient_index] += 1;
         if pattern_rows.iter().any(|row| {
             row.patient_id != first.patient_id
@@ -668,7 +397,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
                 || row.window_area_um2 != first.window_area_um2
                 || row.event_sha256 != first.event_sha256
         }) {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "replicated multitype LGCP pattern identity changes".into(),
             ));
         }
@@ -682,7 +411,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
             by_node.entry(row.node_id.clone()).or_default().push(row);
         }
         if !(4..=args.maximum_nodes_per_pattern).contains(&by_node.len()) {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "replicated multitype LGCP node count is invalid".into(),
             ));
         }
@@ -698,7 +427,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
                     .zip(&type_ids)
                     .any(|(row, identity)| &row.type_id != identity)
             {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "every replicated multitype LGCP node requires every type exactly once".into(),
                 ));
             }
@@ -709,7 +438,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
                     || row.weight_um2 != node_first.weight_um2
                     || row.covariate != node_first.covariate
             }) {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "typed node geometry or covariate changes across types".into(),
                 ));
             }
@@ -727,9 +456,9 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
             });
             block_rows.push((node_first.x_um, node_first.y_um));
             for row in typed_rows {
-                event_count = event_count.checked_add(row.count).ok_or_else(|| {
-                    BayesCliError::Input("multitype event count overflows".into())
-                })?;
+                event_count = event_count
+                    .checked_add(row.count)
+                    .ok_or_else(|| CliError::Input("multitype event count overflows".into()))?;
                 node_type_counts.push(NodeTypeCount {
                     node_index,
                     type_index: type_indices[row.type_id.as_str()],
@@ -738,7 +467,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
             }
         }
         if (area - window_area_um2).abs() > 1e-10 * window_area_um2.abs().max(1.0) {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "replicated multitype LGCP node weights do not conserve exact window area".into(),
             ));
         }
@@ -785,8 +514,8 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
     let draw_work = u64::from(args.chains)
         .checked_mul(u64::from(args.draws))
         .and_then(|value| value.checked_mul(node_type_counts.len() as u64))
-        .ok_or_else(|| BayesCliError::Input("multitype draw work overflows".into()))?;
-    let directory = marklab::python_backend_assets_root()?.join("workers/python");
+        .ok_or_else(|| CliError::Input("multitype draw work overflows".into()))?;
+    let directory = marklab::backend::python_backend_assets_root()?.join("workers/python");
     let worker_name = "marklab_pymc_replicated_arbitrary_window_multitype_lgcp_worker.py";
     Ok(WorkerRequest {
         format: "marklab.pymc_replicated_arbitrary_window_multitype_lgcp_request",
@@ -794,7 +523,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
         backend: BackendContract {
             name: "pymc",
             version: PYMC_VERSION,
-            python_version: "3.12",
+            python_version: PYTHON_VERSION,
             environment_lock_sha256: sha256_hex(&read_bounded(&directory.join("uv.lock"))?),
             worker_sha256: sha256_hex(&read_bounded(&directory.join(worker_name))?),
         },
@@ -836,7 +565,7 @@ fn prepare_request(args: Args) -> Result<WorkerRequest, BayesCliError> {
     })
 }
 
-fn validate_controls(args: &Args) -> Result<(), BayesCliError> {
+fn validate_controls(args: &Args) -> Result<(), CliError> {
     let scales = [
         args.intercept_prior_mean,
         args.intercept_prior_sd,
@@ -864,16 +593,16 @@ fn validate_controls(args: &Args) -> Result<(), BayesCliError> {
         || args.timeout_seconds == 0
         || args.timeout_seconds > 3600
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP controls are invalid".into(),
         ));
     }
     Ok(())
 }
 
-fn validate_rows(rows: &[CsvRow]) -> Result<(), BayesCliError> {
+fn validate_rows(rows: &[CsvRow]) -> Result<(), CliError> {
     if rows.is_empty() {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP rows are empty".into(),
         ));
     }
@@ -902,7 +631,7 @@ fn validate_rows(rows: &[CsvRow]) -> Result<(), BayesCliError> {
                 && rows[index - 1].node_id == row.node_id
                 && rows[index - 1].type_id == row.type_id)
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "replicated multitype LGCP row is invalid".into(),
             ));
         }
@@ -916,7 +645,7 @@ fn validate_hierarchy_and_work(
     patterns: &[Pattern],
     nodes: &[Node],
     rows: &[NodeTypeCount],
-) -> Result<(), BayesCliError> {
+) -> Result<(), CliError> {
     let mut pattern_counts = vec![0_usize; patients.len()];
     for pattern in patterns {
         pattern_counts[pattern.patient_index] += 1;
@@ -943,7 +672,7 @@ fn validate_hierarchy_and_work(
         || events.is_none_or(|value| value > args.maximum_total_events)
         || work.is_none_or(|value| value > args.maximum_draw_node_type_work)
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP hierarchy or work ceiling differs".into(),
         ));
     }
@@ -955,200 +684,19 @@ fn cholesky_block(
     amplitude: f64,
     length: f64,
     jitter: f64,
-) -> Result<Vec<f64>, BayesCliError> {
+) -> Result<Vec<f64>, CliError> {
     let dimension = coordinates.len();
     let mut covariance = vec![0.0; dimension * dimension];
     for row in 0..dimension {
         for column in 0..dimension {
-            let scaled = 3.0_f64.sqrt()
-                * (coordinates[row].0 - coordinates[column].0)
-                    .hypot(coordinates[row].1 - coordinates[column].1)
-                / length;
+            let distance = (coordinates[row].0 - coordinates[column].0)
+                .hypot(coordinates[row].1 - coordinates[column].1);
             covariance[row * dimension + column] =
-                amplitude.powi(2) * (1.0 + scaled) * (-scaled).exp()
-                    + if row == column { jitter } else { 0.0 };
+                matern32(distance, amplitude, length) + if row == column { jitter } else { 0.0 };
         }
     }
-    let mut lower = vec![0.0; dimension * dimension];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let mut value = covariance[row * dimension + column];
-            for inner in 0..column {
-                value -= lower[row * dimension + inner] * lower[column * dimension + inner];
-            }
-            if row == column {
-                if value <= 0.0 || !value.is_finite() {
-                    return Err(BayesCliError::Input(
-                        "replicated multitype LGCP covariance is invalid".into(),
-                    ));
-                }
-                lower[row * dimension + column] = value.sqrt();
-            } else {
-                lower[row * dimension + column] = value / lower[column * dimension + column];
-            }
-        }
-    }
-    Ok(lower)
-}
-
-fn validate_result(
-    result: &WorkerResult,
-    request: &WorkerRequest,
-    request_sha256: &str,
-) -> Result<(), BayesCliError> {
-    let policy = &request.diagnostic_policy;
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && result.diagnostics.divergences <= policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
-    let types_valid = type_posteriors_valid(&result.type_posteriors, &request.type_ids);
-    let pairs_valid = pair_differences_valid(&result.group_effect_differences, &request.type_ids);
-    let hierarchy_valid = hierarchy_effects_valid(
-        &result.patient_type_effects,
-        request.patients.iter().map(|row| row.patient_id.as_str()),
-        &request.type_ids,
-    ) && hierarchy_effects_valid(
-        &result.pattern_type_effects,
-        request.patterns.iter().map(|row| row.pattern_id.as_str()),
-        &request.type_ids,
-    );
-    let nodes_valid = result.node_type_posteriors.len() == request.node_type_counts.len()
-        && result
-            .node_type_posteriors
-            .iter()
-            .zip(&request.node_type_counts)
-            .all(|(row, count)| {
-                let node = &request.nodes[count.node_index];
-                row.pattern_id == node.pattern_id
-                    && row.node_id == node.node_id
-                    && row.type_id == request.type_ids[count.type_index]
-                    && summary_valid(&row.latent_effect)
-                    && summary_valid(&row.expected_count)
-                    && row.expected_count.mean > 0.0
-            });
-    let predictive_valid = predictive_valid(
-        &result.pattern_type_posterior_predictive,
-        request,
-        result.sampling.completed_draws,
-    );
-    if result.format != "marklab.bayesian_replicated_arbitrary_window_multitype_lgcp_fit"
-        || result.version != 1
-        || result.backend.name != request.backend.name
-        || result.backend.version != request.backend.version
-        || result.backend.python_version != request.backend.python_version
-        || result.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-        || result.backend.worker_sha256 != request.backend.worker_sha256
-        || result.input_sha256 != request.input_sha256
-        || result.request_sha256 != request_sha256
-        || result.sampling.completed_draws
-            != u64::from(request.sampling.chains) * u64::from(request.sampling.draws_per_chain)
-        || !types_valid
-        || !pairs_valid
-        || !hierarchy_valid
-        || !nodes_valid
-        || !predictive_valid
-        || (result.fit_state == FitState::Complete) != diagnostics_pass
-    {
-        return Err(BayesCliError::Backend(
-            "replicated multitype LGCP result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-pub(crate) fn type_posteriors_valid(rows: &[TypePosterior], types: &[String]) -> bool {
-    rows.len() == types.len()
-        && rows.iter().zip(types).all(|(row, identity)| {
-            row.type_id == *identity
-                && [
-                    &row.intercept,
-                    &row.group_effect,
-                    &row.covariate_effect,
-                    &row.patient_sd,
-                    &row.pattern_sd,
-                ]
-                .into_iter()
-                .all(summary_valid)
-        })
-}
-
-pub(crate) fn pair_differences_valid(rows: &[PairDifference], types: &[String]) -> bool {
-    let expected = (0..types.len())
-        .flat_map(|left| {
-            (left + 1..types.len()).map(move |right| (types[left].as_str(), types[right].as_str()))
-        })
-        .collect::<Vec<_>>();
-    rows.len() == expected.len()
-        && rows.iter().zip(expected).all(|(row, (left, right))| {
-            row.type_a == left && row.type_b == right && summary_valid(&row.difference)
-        })
-}
-
-pub(crate) fn hierarchy_effects_valid<'a>(
-    rows: &[HierarchyEffect],
-    owners: impl Iterator<Item = &'a str>,
-    types: &[String],
-) -> bool {
-    let expected = owners
-        .flat_map(|owner| types.iter().map(move |identity| (owner, identity.as_str())))
-        .collect::<Vec<_>>();
-    rows.len() == expected.len()
-        && rows.iter().zip(expected).all(|(row, (owner, identity))| {
-            row.owner_id == owner && row.type_id == identity && summary_valid(&row.effect)
-        })
-}
-
-fn predictive_valid(
-    rows: &[PatternTypePredictive],
-    request: &WorkerRequest,
-    completed_draws: u64,
-) -> bool {
-    if rows.len() != request.patterns.len() * request.type_ids.len() {
-        return false;
-    }
-    rows.iter().enumerate().all(|(index, row)| {
-        let pattern_index = index / request.type_ids.len();
-        let type_index = index % request.type_ids.len();
-        let observed = request
-            .node_type_counts
-            .iter()
-            .filter(|count| {
-                request.nodes[count.node_index].pattern_index == pattern_index
-                    && count.type_index == type_index
-            })
-            .map(|count| count.count)
-            .sum::<u64>();
-        let finite = [
-            row.replicated_total_count_mean,
-            row.replicated_total_count_sd,
-            row.replicated_total_count_interval_lower,
-            row.replicated_total_count_interval_upper,
-            row.total_count_two_sided_tail_probability,
-            row.observed_node_count_variance,
-            row.replicated_node_count_variance_mean,
-            row.node_variance_two_sided_tail_probability,
-        ]
-        .into_iter()
-        .all(f64::is_finite);
-        row.pattern_id == request.patterns[pattern_index].pattern_id
-            && row.type_id == request.type_ids[type_index]
-            && row.observed_total_count == observed
-            && row.replicate_count == completed_draws
-            && finite
-            && row.replicated_total_count_sd >= 0.0
-            && row.replicated_total_count_interval_lower
-                <= row.replicated_total_count_interval_upper
-            && row.observed_node_count_variance >= 0.0
-            && row.replicated_node_count_variance_mean >= 0.0
-            && (0.0..=1.0).contains(&row.total_count_two_sided_tail_probability)
-            && (0.0..=1.0).contains(&row.node_variance_two_sided_tail_probability)
-    })
+    dense::cholesky(&covariance, dimension)
+        .ok_or_else(|| CliError::Input("replicated multitype LGCP covariance is invalid".into()))
 }
 
 fn is_digest(value: &str) -> bool {
@@ -1158,14 +706,18 @@ fn is_digest(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    super::input_file::read_regular_file(
+fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, CliError> {
+    crate::input_file::read_regular_file(
         path,
         8 * 1_048_576,
         "replicated multitype LGCP backend source is absent or oversized",
     )
 }
 
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
+impl Prepared {
+    pub(crate) fn validate_result(&self, result: &Output) -> Result<(), CliError> {
+        result
+            .validate_for(&self.request, &self.request_sha256)
+            .map_err(super::protocol_error)
+    }
 }

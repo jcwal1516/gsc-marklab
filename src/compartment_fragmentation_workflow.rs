@@ -1,13 +1,15 @@
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 
 use crate::{
-    compartment_fragmentation, compartment_interface_workflow::partition_artifact,
-    BinaryCompartmentPartition2D, CompartmentFragmentationResult, CompartmentFragmentationSummary,
+    compartment_interface_workflow::partition_artifact,
+    compartments::{
+        compartment_fragmentation, BinaryCompartmentPartition2D, CompartmentFragmentationResult,
+        CompartmentFragmentationSummary,
+    },
 };
 
 const NODE_KIND: &str = "compartment_fragmentation";
@@ -17,11 +19,11 @@ const POLICY: &[u8] =
 
 /// Cache-addressed exact binary compartment fragmentation node.
 pub struct CompartmentFragmentationAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<CompartmentFragmentationAnalysis<'a>>,
+}
+
+struct CompartmentFragmentationAnalysis<'a> {
     partition: &'a BinaryCompartmentPartition2D,
-    inputs: [ArtifactRef; 1],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> CompartmentFragmentationAnalysisNode<'a> {
@@ -35,47 +37,37 @@ impl<'a> CompartmentFragmentationAnalysisNode<'a> {
         project
             .register_reference(partition_ref.clone())
             .map_err(NodeError::input)?;
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_inputs = [partition_ref];
+        let node_configuration_digest = partition.descriptor().logical_digest;
+        let node_implementation_identity = format!(
+            "marklab/{};adapter=compartment-fragmentation-node-v1",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            partition,
-            inputs: [partition_ref],
-            configuration_digest: partition.descriptor().logical_digest,
-            implementation_identity: format!(
-                "marklab/{};adapter=compartment-fragmentation-node-v1",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: CompartmentFragmentationAnalysis { partition },
+                inputs: node_inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for CompartmentFragmentationAnalysisNode<'_> {
+impl NodeAnalysis for CompartmentFragmentationAnalysis<'_> {
     type Output = CompartmentFragmentationResult;
+    type Inputs = [ArtifactRef; 1];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let current = partition_artifact(self.partition)?;
-        self.inputs[0]
-            .verify_identity(current.digest(), current.byte_len())
-            .map_err(NodeError::input)
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_input(inputs, 0, &current)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
@@ -99,6 +91,8 @@ impl WorkflowNode for CompartmentFragmentationAnalysisNode<'_> {
         RESULT_KIND
     }
 }
+
+crate::workflow_node::impl_workflow_node!(CompartmentFragmentationAnalysisNode<'_> => CompartmentFragmentationResult);
 
 fn validate(
     result: &CompartmentFragmentationResult,

@@ -1,6 +1,177 @@
 use super::*;
 
 #[test]
+#[ignore = "requires the preserved public STHELAR subset and a new external output directory"]
+fn public_sthelar_vectors_round_trip_through_native_npy_arrow_and_parquet() {
+    use marklab::embeddings::{CellVitNpyMatrix, SourceBundleBudgets};
+
+    #[derive(serde::Deserialize)]
+    struct OracleRow {
+        cell_id: String,
+        values: Vec<f32>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Oracle {
+        dtype: String,
+        dimension: u32,
+        rows: Vec<OracleRow>,
+    }
+
+    let input = std::path::PathBuf::from(
+        std::env::var_os("MARKLAB_PUBLIC_STHELAR_INPUT").expect("public subset directory"),
+    );
+    let output = std::path::PathBuf::from(
+        std::env::var_os("MARKLAB_PUBLIC_EMBEDDING_OUTPUT").expect("new output directory"),
+    );
+    assert!(output.is_absolute());
+    assert!(!output.starts_with(env!("CARGO_MANIFEST_DIR")));
+    fs::create_dir(&output).expect("output directory must be new");
+    let oracle: Oracle = serde_json::from_slice(
+        &fs::read(input.join("sthelar-heart-s0-first-128-expected.json")).expect("Zarr oracle"),
+    )
+    .expect("independent NumPy values derived directly from published Zarr");
+    assert_eq!(oracle.dtype, "float32");
+    assert_eq!(oracle.dimension, 1_280);
+    assert_eq!(oracle.rows.len(), 128);
+    let bytes =
+        fs::read(input.join("sthelar-heart-s0-first-128-cellvit.npy")).expect("derived public NPY");
+    let matrix = CellVitNpyMatrix::from_bytes(
+        &bytes,
+        SourceBundleBudgets::new(
+            bytes.len() as u64,
+            1024 * 1024,
+            64 * 1024,
+            8 * 1024 * 1024,
+            128 * 1_280 * 4,
+        ),
+    )
+    .expect("native NPY reader");
+    assert_eq!(matrix.row_count(), 128);
+    assert_eq!(matrix.dimension(), 1_280);
+    let mut vectors = BTreeMap::new();
+    for (row_index, row) in oracle.rows.into_iter().enumerate() {
+        assert_eq!(row.values.len(), 1_280);
+        let values = (0..matrix.dimension())
+            .map(|column| {
+                matrix
+                    .value(row_index as u64, column)
+                    .expect("finite value")
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(values, row.values, "source row {row_index}");
+        assert!(vectors.insert(cell(&row.cell_id), values).is_none());
+    }
+
+    // Reuse the ordinary synthetic provenance fixture solely to exercise file codecs.
+    // STHELAR does not publish an exact checkpoint identity; this is not a verified
+    // checkpoint/provenance claim or admission through the fixed-calibration v1 bundle.
+    let fixture = build_fixture_with_rows(
+        "marklab.model_checkpoint",
+        LicenseAvailability::Managed,
+        1_280,
+        vectors
+            .keys()
+            .cloned()
+            .map(|id| (id, FixtureEmbeddingStatus::Present))
+            .collect(),
+    );
+    let rows = vectors
+        .iter()
+        .map(|(id, values)| CellEmbeddingRow::present(id.clone(), values.clone()))
+        .collect::<Vec<_>>();
+    let file_budgets = EmbeddingColumnarBudgets::new(
+        8 * 1024 * 1024,
+        16 * 1024 * 1024,
+        8 * 1024 * 1024,
+        8 * 1024 * 1024,
+    );
+    let (domain, arrow, arrow_record) =
+        write_embedding_rows_arrow(&fixture, rows.clone(), file_budgets);
+    let (_, parquet, parquet_record) = write_embedding_rows_parquet(&fixture, rows, file_budgets);
+    let arrow_path = output.join("codec-only.arrow");
+    let parquet_path = output.join("codec-only.parquet");
+    fs::write(&arrow_path, arrow).expect("write actual Arrow file");
+    fs::write(&parquet_path, parquet).expect("write actual Parquet file");
+    let graph = verified_graph(&fixture);
+    let from_arrow = read_cell_embedding_table_arrow_bytes(
+        &fs::read(arrow_path).unwrap(),
+        &arrow_record,
+        &fixture.expected,
+        &fixture.row_link,
+        graph,
+        file_budgets,
+    )
+    .expect("native Arrow file reader");
+    let from_parquet = read_cell_embedding_table_parquet_bytes(
+        &fs::read(parquet_path).unwrap(),
+        &parquet_record,
+        &fixture.expected,
+        &fixture.row_link,
+        graph,
+        file_budgets,
+    )
+    .expect("native Parquet file reader");
+    for table in [&domain, &from_arrow, &from_parquet] {
+        assert_eq!(table.row_count(), 128);
+        for (index, (id, expected)) in vectors.iter().enumerate() {
+            let row = table.row(index).expect("canonical cell row");
+            assert_eq!(row.cell_id(), id);
+            assert_eq!(row.vector().unwrap(), expected);
+        }
+    }
+    eprintln!(
+        "128 published cells, 1280 components: NPY/Arrow/Parquet exact numeric and ID agreement; synthetic codec provenance only"
+    );
+}
+
+#[test]
+fn declared_model_vectors_round_trip_through_verified_columnar_storage() {
+    for dimension in [3, 2_560] {
+        let fixture = build_fixture_with_rows(
+            "marklab.model_checkpoint",
+            LicenseAvailability::Managed,
+            dimension,
+            vec![(cell("cell-a"), FixtureEmbeddingStatus::Present)],
+        );
+        assert_eq!(fixture.provenance.format_version(), 2);
+        let graph = verified_graph(&fixture);
+        let values = (0..dimension)
+            .map(|index| index as f32 / 4.0)
+            .collect::<Vec<_>>();
+        let (_, arrow, arrow_record) = write_embedding_table(
+            &fixture,
+            CellEmbeddingRow::present(cell("cell-a"), values.clone()),
+        );
+        let (_, parquet, parquet_record) = write_embedding_table_parquet_fixture(
+            &fixture,
+            CellEmbeddingRow::present(cell("cell-a"), values.clone()),
+        );
+        let arrow_table = read_cell_embedding_table_arrow_bytes(
+            &arrow,
+            &arrow_record,
+            &fixture.expected,
+            &fixture.row_link,
+            graph,
+            embedding_budgets(),
+        )
+        .unwrap();
+        let parquet_table = read_cell_embedding_table_parquet_bytes(
+            &parquet,
+            &parquet_record,
+            &fixture.expected,
+            &fixture.row_link,
+            graph,
+            embedding_budgets(),
+        )
+        .unwrap();
+        for table in [arrow_table, parquet_table] {
+            assert_eq!(table.dimension(), dimension);
+            assert_eq!(table.row(0).unwrap().vector().unwrap(), values);
+        }
+    }
+}
+
+#[test]
 fn compact_embedding_artifact_binds_records_shape_dtype_digest_and_qc() {
     let fixture = build_fixture("marklab.model_checkpoint", LicenseAvailability::Managed);
     let verified = verified_graph(&fixture);
@@ -76,7 +247,7 @@ fn compact_embedding_artifact_binds_records_shape_dtype_digest_and_qc() {
             embedding_budgets(),
         ),
         Err(VerifiedReaderError::Callback(
-            EmbeddingColumnarError::ArtifactBindingMismatch
+            ColumnarError::ArtifactBindingMismatch
         ))
     ));
 
@@ -96,7 +267,7 @@ fn compact_embedding_artifact_binds_records_shape_dtype_digest_and_qc() {
     .expect("unrelated verified row-link receipt");
     assert_eq!(
         CellEmbeddingArtifact::new(embedding_receipt, unrelated_receipt, verified),
-        Err(marklab::EmbeddingError::ArtifactBindingMismatch)
+        Err(marklab::embeddings::EmbeddingError::ArtifactBindingMismatch)
     );
 }
 
@@ -148,7 +319,7 @@ fn verified_graph_rejects_embedding_dimension_drift_from_provenance() {
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::ArtifactBindingMismatch)
+        Err(ColumnarError::ArtifactBindingMismatch)
     );
 }
 
@@ -267,6 +438,68 @@ fn managed_embedding_scans_report_store_integrity_before_columnar_callbacks() {
             ArtifactStoreError::ContentIntegrity { .. }
         ))
     ));
+}
+
+#[test]
+fn managed_embedding_scans_enforce_the_file_budget_before_store_access() {
+    let fixture = build_fixture("marklab.model_checkpoint", LicenseAvailability::Managed);
+    let graph = verified_graph(&fixture);
+    let row = || CellEmbeddingRow::present(cell("cell-a"), vec![0.25; 1_280]);
+    let (_, arrow_bytes, arrow_draft) = write_embedding_table(&fixture, row());
+    let arrow_record = fixture
+        .store
+        .publish(&arrow_draft, |writer| writer.write_all(&arrow_bytes))
+        .expect("publish Arrow table")
+        .into_record();
+    let (_, parquet_bytes, parquet_draft) = write_embedding_table_parquet_fixture(&fixture, row());
+    let parquet_record = fixture
+        .store
+        .publish(&parquet_draft, |writer| writer.write_all(&parquet_bytes))
+        .expect("publish Parquet table")
+        .into_record();
+    // A missing managed object proves the budget is checked before the store is read.
+    fs::remove_file(managed_path(&fixture._root, &arrow_record)).expect("remove Arrow object");
+    fs::remove_file(managed_path(&fixture._root, &parquet_record)).expect("remove Parquet object");
+    let one_byte_short = |record: &ArtifactRecord| {
+        let maximum = record.content().byte_len() - 1;
+        (
+            EmbeddingColumnarBudgets::new(
+                maximum,
+                8 * 1024 * 1024,
+                8 * 1024 * 1024,
+                8 * 1024 * 1024,
+            ),
+            ColumnarError::FileByteBudgetExceeded {
+                observed: record.content().byte_len(),
+                maximum,
+            },
+        )
+    };
+
+    let (budgets, expected_error) = one_byte_short(&arrow_record);
+    match scan_cell_embedding_table_arrow_from_store(
+        &fixture.store,
+        &arrow_record,
+        &fixture.expected,
+        &fixture.row_link,
+        graph,
+        budgets,
+    ) {
+        Err(VerifiedReaderError::Callback(error)) => assert_eq!(error, expected_error),
+        result => panic!("expected Arrow budget rejection, observed {result:?}"),
+    }
+    let (budgets, expected_error) = one_byte_short(&parquet_record);
+    match scan_cell_embedding_table_parquet_from_store(
+        &fixture.store,
+        &parquet_record,
+        &fixture.expected,
+        &fixture.row_link,
+        graph,
+        budgets,
+    ) {
+        Err(VerifiedReaderError::Callback(error)) => assert_eq!(error, expected_error),
+        result => panic!("expected Parquet budget rejection, observed {result:?}"),
+    }
 }
 
 #[test]
@@ -678,7 +911,7 @@ fn multi_group_scans_succeed_at_a_retained_limit_that_rejects_materialization() 
     ] {
         assert!(matches!(
             result,
-            Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum })
+            Err(ColumnarError::RetainedByteBudgetExceeded { required, maximum })
                 if maximum == retained && required > maximum
         ));
     }

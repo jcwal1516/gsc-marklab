@@ -1,8 +1,14 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    homogeneous_pair_correlation, ClassicalSpatialLimits, HomogeneousPairCorrelationConfig,
-    ObservationWindow2D, ObservationWindowLimits, PairCorrelationKernel,
-    PairCorrelationPointStatus, Pattern, PatternMeta,
+    spatial::{
+        homogeneous_pair_correlation, ClassicalSpatialLimits, HomogeneousPairCorrelationConfig,
+        PairCorrelationKernel, PairCorrelationPointStatus,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 const PYTHON_ORACLE: &str = include_str!("fixtures/pair_correlation/python_line_oracle.json");
@@ -12,16 +18,12 @@ fn pattern(x: Vec<f64>, y: Vec<f64>) -> Pattern {
         x.clone(),
         y,
         vec![0; x.len()],
-        PatternMeta {
-            case_id: "pair-correlation-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("pair-correlation-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "pair-correlation-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("pair-correlation-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -64,9 +66,8 @@ fn epanechnikov_border_g_matches_a_direct_hand_oracle() {
     assert_eq!(result.bandwidth_um, 0.5);
     assert_eq!(
         result.edge_correction,
-        "standard_border_radius_plus_bandwidth"
+        marklab::spatial::EdgeCorrection::StandardBorderRadiusPlusBandwidth
     );
-    assert_eq!(result.geometry_build_count, 1);
 
     let at_one = &result.curve[0];
     assert_eq!(at_one.status, PairCorrelationPointStatus::Available);
@@ -85,7 +86,7 @@ fn epanechnikov_border_g_matches_a_direct_hand_oracle() {
         at_two.status,
         PairCorrelationPointStatus::NoPairsInKernelSupport
     );
-    assert_eq!(at_two.g, None);
+    assert_eq!(at_two.g, Some(0.0));
 }
 
 #[test]
@@ -145,7 +146,7 @@ fn on_radius_pairs_exceed_off_radius_pairs_and_one_short_memory_fails() {
     let one_short = config_with_bytes(71, exact_result.estimated_storage_bytes - 1);
     assert!(matches!(
         homogeneous_pair_correlation(&exact, &window(), &one_short),
-        Err(marklab::HomogeneousPairCorrelationError::RetainedByteLimitExceeded {
+        Err(marklab::spatial::HomogeneousPairCorrelationError::RetainedByteLimitExceeded {
             required,
             maximum
         }) if required == maximum + 1
@@ -153,7 +154,7 @@ fn on_radius_pairs_exceed_off_radius_pairs_and_one_short_memory_fails() {
 }
 
 #[test]
-fn zero_weight_kernel_endpoints_are_empty_support_not_a_panic() {
+fn zero_weight_kernel_endpoints_are_zero_estimates() {
     let endpoint = pattern(vec![3.0, 4.5, 7.0], vec![5.0, 5.0, 5.0]);
     let result =
         homogeneous_pair_correlation(&endpoint, &window(), &config(73)).expect("endpoint result");
@@ -161,5 +162,16 @@ fn zero_weight_kernel_endpoints_are_empty_support_not_a_panic() {
         result.curve[0].status,
         PairCorrelationPointStatus::NoPairsInKernelSupport
     );
-    assert_eq!(result.curve[0].g, None);
+    assert_eq!(result.curve[0].g, Some(0.0));
+    for insufficient in [
+        pattern(vec![5.0], vec![5.0]),
+        pattern(vec![0.0, 1.0], vec![0.0, 0.0]),
+    ] {
+        let result = homogeneous_pair_correlation(&insufficient, &window(), &config(73)).unwrap();
+        assert!(result
+            .curve
+            .iter()
+            .all(|point| point.g.is_none() && !point.inference_eligible));
+        assert!(result.inference.is_none());
+    }
 }

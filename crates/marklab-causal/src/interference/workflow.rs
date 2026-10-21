@@ -13,6 +13,7 @@ use super::{
     RandomizedInterferenceResult, RandomizedInterferenceSpec, UnitExposureProbabilities,
     MAXIMUM_ASSIGNMENT_STATES,
 };
+use marklab_core::backend::ClaimStatus;
 
 pub fn randomized_binary_interference(
     mut spec: RandomizedInterferenceSpec,
@@ -183,6 +184,6 @@ pub fn randomized_binary_interference(
         },
         unit_assignment_evaluations: evaluations,
         random_seed_namespace: "randomized_binary_interference_v1_chacha20",
-        claim_status: "randomized_design_mechanics_only",
+        claim_status: ClaimStatus::RandomizedDesignMechanicsOnly,
     })
 }

@@ -1,3 +1,4 @@
+use marklab_core::backend::ClaimStatus;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize)]
@@ -129,5 +130,5 @@ pub struct VascularTransportResult {
     pub trajectory: Vec<VascularTransportSnapshot>,
     pub solver: VascularTransportSolverDiagnostics,
     pub observation_model: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }

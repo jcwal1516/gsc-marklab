@@ -1,7 +1,6 @@
 use marklab_data::MeasurementStatus;
 
-pub(super) use crate::measurement_status_wire::name as measurement_status_name;
-use marklab_workflow::ArtifactId;
+use marklab_project::ArtifactId;
 
 use super::DeclaredScalarInputError;
 
@@ -9,6 +8,9 @@ const MARK_ID_MAX_BYTES: usize = 128;
 const MARK_LABEL_MAX_BYTES: usize = 256;
 
 /// Stable identifier for one declared scalar mark.
+/// Mark ID of the histologic compartment column that the categorical workflows read.
+pub(crate) const COMPARTMENT_MARK_ID: &str = "histologic_compartment";
+
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ScalarMarkId(String);
 
@@ -456,7 +458,7 @@ impl HistologicCompartmentMarkDeclaration {
             return Err(DeclaredScalarInputError::InvalidCategoricalLevels);
         }
         Ok(Self {
-            mark_id: ScalarMarkId::new("histologic_compartment")?,
+            mark_id: ScalarMarkId::new(COMPARTMENT_MARK_ID)?,
             label: "Histologic compartment".to_owned(),
             levels: levels.into_boxed_slice(),
             measurement_status,

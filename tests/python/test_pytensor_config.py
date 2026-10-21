@@ -1,12 +1,9 @@
-#!/usr/bin/env python3
-
-from pathlib import Path
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
-
+from pathlib import Path
 
 WORKER_DIRECTORY = Path(__file__).resolve().parents[2] / "workers" / "python"
 
@@ -14,7 +11,7 @@ WORKER_DIRECTORY = Path(__file__).resolve().parents[2] / "workers" / "python"
 SEEDED_FIT = f"""
 import sys
 sys.path.append({str(WORKER_DIRECTORY)!r})
-import marklab_pytensor_config
+from marklab_worker_support import pytensor_config
 import numpy as np
 import pymc as pm
 
@@ -37,7 +34,7 @@ class PytensorConfigTest(unittest.TestCase):
     def test_compile_flags_request_ld64_only_when_the_toolchain_links_with_it(self):
         sys.path.insert(0, str(WORKER_DIRECTORY))
         try:
-            import marklab_pytensor_config  # noqa: F401
+            from marklab_worker_support import pytensor_config  # noqa: F401
         finally:
             sys.path.pop(0)
         from pytensor.link.c.cmodule import GCC_compiler
@@ -51,7 +48,10 @@ class PytensorConfigTest(unittest.TestCase):
             draws = [
                 subprocess.run(
                     [sys.executable, "-P", "-s", "-B", "-c", SEEDED_FIT],
-                    env=environment, capture_output=True, text=True, check=True,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=True,
                 ).stdout
                 for _ in ("cold", "warm")
             ]

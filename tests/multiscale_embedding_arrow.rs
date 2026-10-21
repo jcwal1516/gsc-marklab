@@ -6,13 +6,15 @@ mod support;
 use std::{fs, process::Command};
 
 use marklab::{
-    preflight_patch_footprint_set_arrow_bytes, preflight_patch_overlap_graph_arrow_bytes,
-    publish_patch_footprint_set_arrow, publish_patch_overlap_graph_arrow,
-    validate_patch_footprint_set_arrow_bytes, validate_patch_footprint_set_arrow_from_store,
-    validate_patch_overlap_graph_arrow_bytes, validate_patch_overlap_graph_arrow_from_store,
-    write_patch_footprint_set_arrow, write_patch_overlap_graph_arrow, ContentDigest,
-    EmbeddingColumnarBudgets, LocalArtifactStore, MultiscaleColumnarError, PatchOverlapGraph,
-    PublicationDisposition, SpatialArrowFailure, StoreId, TableFormat,
+    embeddings::{
+        preflight_patch_footprint_set_arrow_bytes, preflight_patch_overlap_graph_arrow_bytes,
+        publish_patch_footprint_set_arrow, publish_patch_overlap_graph_arrow,
+        validate_patch_footprint_set_arrow_bytes, validate_patch_footprint_set_arrow_from_store,
+        validate_patch_overlap_graph_arrow_bytes, validate_patch_overlap_graph_arrow_from_store,
+        write_patch_footprint_set_arrow, write_patch_overlap_graph_arrow, ArrowIpcFailure,
+        ColumnarError, EmbeddingColumnarBudgets, PatchOverlapGraph,
+    },
+    workflow::{ContentDigest, LocalArtifactStore, PublicationDisposition, StoreId, TableFormat},
 };
 use tempfile::TempDir;
 
@@ -557,8 +559,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidMagic,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidMagic,
         })
     ));
 
@@ -574,8 +576,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidFooterLength,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidFooterLength,
         })
     ));
 
@@ -600,8 +602,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidApplicationMetadata,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidApplicationMetadata,
         })
     ));
 
@@ -616,8 +618,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidBuffers,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidBuffers,
         })
     ));
 
@@ -632,8 +634,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidBlock,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidBlock,
         })
     ));
     let mut misaligned_block = canonical.clone();
@@ -647,8 +649,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidBlock,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidBlock,
         })
     ));
 
@@ -664,8 +666,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidFieldNodes,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidFieldNodes,
         })
     ));
     let mut negative_buffer = canonical.clone();
@@ -678,8 +680,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidBuffers,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidBuffers,
         })
     ));
 
@@ -700,8 +702,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidCanonicalRows,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidCanonicalRows,
         })
     ));
 
@@ -730,8 +732,8 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
             &fixture.overlap,
             limits,
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidCanonicalRows,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidCanonicalRows,
         })
     ));
 }
@@ -748,7 +750,7 @@ fn spatial_arrow_decoded_row_group_and_retained_budgets_have_exact_edges() {
         &fixture.footprints,
         discover,
     ) {
-        Err(MultiscaleColumnarError::DecodedByteBudgetExceeded {
+        Err(ColumnarError::DecodedByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -783,7 +785,7 @@ fn spatial_arrow_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.footprints,
             decoded_short,
         ),
-        Err(MultiscaleColumnarError::DecodedByteBudgetExceeded { .. })
+        Err(ColumnarError::DecodedByteBudgetExceeded { .. })
     ));
 
     let no_group = EmbeddingColumnarBudgets::new(
@@ -799,7 +801,7 @@ fn spatial_arrow_decoded_row_group_and_retained_budgets_have_exact_edges() {
         &fixture.footprints,
         no_group,
     ) {
-        Err(MultiscaleColumnarError::RowGroupByteBudgetExceeded {
+        Err(ColumnarError::RowGroupByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -818,7 +820,7 @@ fn spatial_arrow_decoded_row_group_and_retained_budgets_have_exact_edges() {
         &fixture.footprints,
         no_retained,
     ) {
-        Err(MultiscaleColumnarError::RetainedByteBudgetExceeded {
+        Err(ColumnarError::RetainedByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -852,7 +854,7 @@ fn spatial_arrow_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.footprints,
             group_short,
         ),
-        Err(MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. })
+        Err(ColumnarError::RowGroupByteBudgetExceeded { .. })
     ));
     let retained_short = EmbeddingColumnarBudgets::new(
         generous.maximum_file_bytes(),
@@ -868,7 +870,7 @@ fn spatial_arrow_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.footprints,
             retained_short,
         ),
-        Err(MultiscaleColumnarError::RetainedByteBudgetExceeded { .. })
+        Err(ColumnarError::RetainedByteBudgetExceeded { .. })
     ));
 
     let mut overlap_bytes = Vec::new();
@@ -912,7 +914,7 @@ fn spatial_arrow_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.overlap,
             overlap_short,
         ),
-        Err(MultiscaleColumnarError::DecodedByteBudgetExceeded { .. })
+        Err(ColumnarError::DecodedByteBudgetExceeded { .. })
     ));
 
     let mut footprint_bytes = Vec::new();
@@ -956,7 +958,7 @@ fn spatial_arrow_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.footprints,
             reader_group_short,
         ),
-        Err(MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. })
+        Err(ColumnarError::RowGroupByteBudgetExceeded { .. })
     ));
     let reader_retained_short = EmbeddingColumnarBudgets::new(
         generous.maximum_file_bytes(),
@@ -972,7 +974,7 @@ fn spatial_arrow_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.footprints,
             reader_retained_short,
         ),
-        Err(MultiscaleColumnarError::RetainedByteBudgetExceeded { .. })
+        Err(ColumnarError::RetainedByteBudgetExceeded { .. })
     ));
 }
 
@@ -1053,13 +1055,8 @@ fn spatial_arrow_full_readers_have_exact_group_and_retained_edges() {
         assert!(
             matches!(
                 (&error, expected_error),
-                (
-                    MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. },
-                    "group"
-                ) | (
-                    MultiscaleColumnarError::RetainedByteBudgetExceeded { .. },
-                    "retained"
-                )
+                (ColumnarError::RowGroupByteBudgetExceeded { .. }, "group")
+                    | (ColumnarError::RetainedByteBudgetExceeded { .. }, "retained")
             ),
             "unexpected {expected_error} error: {error:?}"
         );
@@ -1144,13 +1141,8 @@ fn spatial_arrow_full_readers_have_exact_group_and_retained_edges() {
         assert!(
             matches!(
                 (&error, expected_error),
-                (
-                    MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. },
-                    "group"
-                ) | (
-                    MultiscaleColumnarError::RetainedByteBudgetExceeded { .. },
-                    "retained"
-                )
+                (ColumnarError::RowGroupByteBudgetExceeded { .. }, "group")
+                    | (ColumnarError::RetainedByteBudgetExceeded { .. }, "retained")
             ),
             "unexpected {expected_error} error: {error:?}"
         );

@@ -1,16 +1,17 @@
 use std::path::Path;
 
+use marklab_project::{
+    ArtifactSchema, DurableProject, DurableProjectLimits, MarklabProject, NativeRuntimeProvenance,
+};
 use marklab_workflow::{
-    execute_algorithm, ArtifactSchema, CacheStatus, DurableProject, DurableProjectLimits,
-    LocalScheduler, MarklabProject, NativeRuntimeProvenance, SchedulerLimits, WorkflowGraph,
-    WorkflowNode,
+    execute_algorithm, CacheStatus, LocalScheduler, SchedulerLimits, WorkflowGraph, WorkflowNode,
 };
 
 use super::{
-    admission::PreparedStudy,
     invalid,
     model::{MultiplexStudyResult, SlideResult},
     nodes::{CohortNode, SlideBatchNode, SlideNode},
+    preparation::PreparedStudy,
 };
 use crate::Result;
 
@@ -37,10 +38,10 @@ pub struct MultiplexStudyRun {
     pub durable_execution_count: usize,
 }
 
-/// Execute a recipe through the existing durable scheduler and exact-float codecs.
+/// Execute a recipe through the durable scheduler and exact-float codecs.
 ///
 /// The root is one local project; no new worktree or external runtime is created. Sources and
-/// design are admitted before project mutation. Work is serial. Up to 1,024 slides are reduced
+/// design are validated before project mutation. Work is serial. Up to 1,024 slides are reduced
 /// through concrete batches of at most 64 dependencies, preserving the durable input bound.
 /// Resume verifies all inputs and dependency outputs; completed statistics and Max-T are restored,
 /// not refitted. Publication is a separate operation so partial runs never masquerade as reports.

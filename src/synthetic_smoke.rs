@@ -7,7 +7,6 @@ mod policy;
 mod statistics;
 
 #[cfg(test)]
-#[path = "synthetic_smoke/tests.rs"]
 mod tests;
 
 pub use marked::run_synthetic_smoke;

@@ -6,6 +6,7 @@ use rand_distr::StandardNormal;
 use serde::{Deserialize, Serialize};
 
 use super::SimulationError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -87,6 +88,39 @@ pub struct AgentCompetitionEventCounts {
     pub switch: u32,
 }
 
+impl AgentCompetitionEventCounts {
+    fn record(&mut self, event: AgentEvent) {
+        match event {
+            AgentEvent::Birth => self.birth += 1,
+            AgentEvent::Death => self.death += 1,
+            AgentEvent::Move => self.move_event += 1,
+            AgentEvent::Switch => self.switch += 1,
+        }
+    }
+}
+
+/// The events each agent can undergo, in the order `rates` lists their rates.
+#[derive(Clone, Copy, Debug)]
+enum AgentEvent {
+    Birth,
+    Death,
+    Move,
+    Switch,
+}
+
+impl AgentEvent {
+    const ALL: [Self; 4] = [Self::Birth, Self::Death, Self::Move, Self::Switch];
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Birth => "birth",
+            Self::Death => "death",
+            Self::Move => "move",
+            Self::Switch => "switch",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct AgentCompetitionResult {
     pub format: &'static str,
@@ -115,7 +149,7 @@ pub struct AgentCompetitionResult {
     pub termination: &'static str,
     pub neighborhood_algorithm: &'static str,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn simulate_agent_competition(
@@ -159,23 +193,30 @@ pub fn simulate_agent_competition(
         }
         time += wait;
         let selection = rng.gen::<f64>() * total_rate;
-        let (agent_index, event_kind) = select_event(&rates, selection).ok_or_else(|| {
+        let (agent_index, event) = select_event(&rates, selection).ok_or_else(|| {
             SimulationError::Numerical("failed to select a positive-rate event".into())
         })?;
         completed_events += 1;
-        let record = apply_event(
+        let before = agents[agent_index].clone();
+        let (related_agent_id, species_after) = apply_event(
             &mut agents,
             agent_index,
-            event_kind,
-            time,
-            completed_events,
+            event,
             &spec,
             &mut rng,
             &mut next_birth_id,
-            &mut event_counts,
         )?;
+        event_counts.record(event);
         if event_log.len() < spec.retain_events as usize {
-            event_log.push(record);
+            event_log.push(AgentCompetitionEvent {
+                event_index: completed_events,
+                time,
+                event: event.name(),
+                agent_id: before.agent_id,
+                related_agent_id,
+                species_before: before.species,
+                species_after,
+            });
         }
         maximum_agents_observed = maximum_agents_observed.max(agents.len() as u32);
     };
@@ -213,7 +254,7 @@ pub fn simulate_agent_competition(
         termination,
         neighborhood_algorithm: "bounded_exact_pair_scan_recomputed_each_event",
         random_seed_namespace: "agent_competition_v1_chacha20",
-        claim_status: "experimental_agent_simulation_not_evolutionary_or_treatment_truth",
+        claim_status: ClaimStatus::ExperimentalAgentSimulationNotEvolutionaryOrTreatmentTruth,
     })
 }
 
@@ -266,12 +307,12 @@ fn rates(
     Ok((rates, total, visits))
 }
 
-fn select_event(rates: &[[f64; 4]], mut selection: f64) -> Option<(usize, usize)> {
+fn select_event(rates: &[[f64; 4]], mut selection: f64) -> Option<(usize, AgentEvent)> {
     let mut last_positive = None;
     for (agent_index, agent_rates) in rates.iter().enumerate() {
-        for (event_kind, rate) in agent_rates.iter().enumerate() {
+        for (event, rate) in AgentEvent::ALL.into_iter().zip(agent_rates) {
             if *rate > 0.0 {
-                last_positive = Some((agent_index, event_kind));
+                last_positive = Some((agent_index, event));
                 if selection < *rate {
                     return last_positive;
                 }
@@ -282,33 +323,30 @@ fn select_event(rates: &[[f64; 4]], mut selection: f64) -> Option<(usize, usize)
     last_positive
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Apply `event` to the agent at `index`. Returns the newborn's ID for a birth and the
+/// agent's species afterwards, which is `None` after a death.
 fn apply_event(
     agents: &mut Vec<Agent>,
     index: usize,
-    event_kind: usize,
-    time: f64,
-    event_index: u32,
+    event: AgentEvent,
     spec: &AgentCompetitionSpec,
     rng: &mut ChaCha20Rng,
     next_birth_id: &mut u64,
-    counts: &mut AgentCompetitionEventCounts,
-) -> Result<AgentCompetitionEvent, SimulationError> {
-    let before = agents[index].clone();
-    match event_kind {
-        0 => {
-            counts.birth += 1;
+) -> Result<(Option<String>, Option<AgentSpecies>), SimulationError> {
+    let species = agents[index].species;
+    match event {
+        AgentEvent::Birth => {
             let id = format!("sim-{}", *next_birth_id);
             *next_birth_id = next_birth_id
                 .checked_add(1)
                 .ok_or_else(|| SimulationError::Numerical("birth ID overflowed".into()))?;
             let x = reflect(
-                before.x_um + normal(rng) * spec.birth_jitter_sd_um,
+                agents[index].x_um + normal(rng) * spec.birth_jitter_sd_um,
                 spec.window.xmin_um,
                 spec.window.xmax_um,
             );
             let y = reflect(
-                before.y_um + normal(rng) * spec.birth_jitter_sd_um,
+                agents[index].y_um + normal(rng) * spec.birth_jitter_sd_um,
                 spec.window.ymin_um,
                 spec.window.ymax_um,
             );
@@ -316,90 +354,32 @@ fn apply_event(
                 agent_id: id.clone(),
                 x_um: x,
                 y_um: y,
-                species: before.species,
+                species,
             });
-            Ok(event_record(
-                event_index,
-                time,
-                "birth",
-                before.agent_id,
-                Some(id),
-                before.species,
-                Some(before.species),
-            ))
+            Ok((Some(id), Some(species)))
         }
-        1 => {
-            counts.death += 1;
+        AgentEvent::Death => {
             agents.remove(index);
-            Ok(event_record(
-                event_index,
-                time,
-                "death",
-                before.agent_id,
-                None,
-                before.species,
-                None,
-            ))
+            Ok((None, None))
         }
-        2 => {
-            counts.move_event += 1;
-            agents[index].x_um = reflect(
-                before.x_um + normal(rng) * spec.move_sd_um,
+        AgentEvent::Move => {
+            let agent = &mut agents[index];
+            agent.x_um = reflect(
+                agent.x_um + normal(rng) * spec.move_sd_um,
                 spec.window.xmin_um,
                 spec.window.xmax_um,
             );
-            agents[index].y_um = reflect(
-                before.y_um + normal(rng) * spec.move_sd_um,
+            agent.y_um = reflect(
+                agent.y_um + normal(rng) * spec.move_sd_um,
                 spec.window.ymin_um,
                 spec.window.ymax_um,
             );
-            Ok(event_record(
-                event_index,
-                time,
-                "move",
-                before.agent_id,
-                None,
-                before.species,
-                Some(before.species),
-            ))
+            Ok((None, Some(species)))
         }
-        3 => {
-            counts.switch += 1;
-            agents[index].species = before.species.other();
-            Ok(event_record(
-                event_index,
-                time,
-                "switch",
-                before.agent_id,
-                None,
-                before.species,
-                Some(agents[index].species),
-            ))
+        AgentEvent::Switch => {
+            agents[index].species = species.other();
+            Ok((None, Some(species.other())))
         }
-        _ => Err(SimulationError::Numerical(
-            "agent event kind is invalid".into(),
-        )),
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn event_record(
-    event_index: u32,
-    time: f64,
-    event: &'static str,
-    agent_id: String,
-    related_agent_id: Option<String>,
-    species_before: AgentSpecies,
-    species_after: Option<AgentSpecies>,
-) -> AgentCompetitionEvent {
-    AgentCompetitionEvent {
-        event_index,
-        time,
-        event,
-        agent_id,
-        related_agent_id,
-        species_before,
-        species_after,
     }
 }
 
@@ -472,4 +452,81 @@ fn validate(spec: &AgentCompetitionSpec) -> Result<(), SimulationError> {
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mixed_spec(seed: u64) -> AgentCompetitionSpec {
+        let rates = SpeciesRates {
+            birth_rate: 0.4,
+            death_rate: 0.2,
+            move_rate: 0.6,
+            switch_rate: 0.3,
+        };
+        let agent = |id: &str, x_um: f64, species| Agent {
+            agent_id: id.into(),
+            x_um,
+            y_um: 5.0,
+            species,
+        };
+        AgentCompetitionSpec {
+            window: RectangularAgentWindow {
+                xmin_um: 0.0,
+                ymin_um: 0.0,
+                xmax_um: 10.0,
+                ymax_um: 10.0,
+            },
+            agents: vec![
+                agent("a1", 4.0, AgentSpecies::A),
+                agent("b1", 6.0, AgentSpecies::B),
+            ],
+            species_a: rates,
+            species_b: rates,
+            competition_radius_um: 3.0,
+            competition_death_per_opposite_neighbor: 0.1,
+            birth_jitter_sd_um: 0.5,
+            move_sd_um: 0.5,
+            final_time: 1_000.0,
+            seed,
+            maximum_events: 60,
+            maximum_agents: 20,
+            maximum_pair_visits: 1_000_000,
+            retain_events: 60,
+        }
+    }
+
+    #[test]
+    fn mixed_events_follow_their_rules_and_replay_from_the_seed() {
+        let result = simulate_agent_competition(mixed_spec(7)).unwrap();
+        let replay = simulate_agent_competition(mixed_spec(7)).unwrap();
+        assert_eq!(format!("{result:?}"), format!("{replay:?}"));
+
+        let counts = &result.event_counts;
+        assert!(counts.birth > 0 && counts.death > 0 && counts.move_event > 0 && counts.switch > 0);
+        assert_eq!(
+            counts.birth + counts.death + counts.move_event + counts.switch,
+            result.completed_events
+        );
+        assert!(!result.events_truncated);
+        let mut births = 0;
+        for event in &result.event_log {
+            match event.event {
+                "birth" => {
+                    births += 1;
+                    assert_eq!(event.related_agent_id, Some(format!("sim-{births}")));
+                    assert_eq!(event.species_after, Some(event.species_before));
+                }
+                "death" => assert_eq!(event.species_after, None),
+                "move" => assert_eq!(event.species_after, Some(event.species_before)),
+                "switch" => assert_eq!(event.species_after, Some(event.species_before.other())),
+                other => panic!("unexpected event {other}"),
+            }
+        }
+        assert_eq!(births, counts.birth);
+        assert!(result.final_agents.iter().all(|agent| {
+            (0.0..=10.0).contains(&agent.x_um) && (0.0..=10.0).contains(&agent.y_um)
+        }));
+    }
 }

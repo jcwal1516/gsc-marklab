@@ -77,5 +77,5 @@ fn covariate_matrix_cli_adjusts_an_exact_named_nuisance_matrix() {
             .abs()
             < 1e-12
     );
-    assert_eq!(result["permutations"]["completed"], 199);
+    assert_eq!(result["permutations"]["requested"], 199);
 }

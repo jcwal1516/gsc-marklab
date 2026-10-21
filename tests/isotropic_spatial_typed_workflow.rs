@@ -1,8 +1,14 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_isotropic_spatial_pattern, IsotropicSpatialConfig, IsotropicSpatialError,
-    IsotropicSpatialLimits, IsotropicSpatialStatus, ObservationWindow2D, ObservationWindowLimits,
-    Pattern, PatternMeta,
+    spatial::{
+        analyze_isotropic_spatial_pattern, IsotropicSpatialConfig, IsotropicSpatialError,
+        IsotropicSpatialLimits, IsotropicSpatialStatus,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn window(geojson: &str) -> ObservationWindow2D {
@@ -18,16 +24,12 @@ fn pattern(x: [f64; 2], y: [f64; 2]) -> Pattern {
         x.to_vec(),
         y.to_vec(),
         vec![0, 0],
-        PatternMeta {
-            case_id: "isotropic-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("isotropic-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "isotropic-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("isotropic-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -77,7 +79,10 @@ fn rectangle_and_hole_visible_arc_fractions_match_analytic_oracles() {
     .expect("rectangle isotropic K/L");
 
     assert_eq!(rectangle_result.status, IsotropicSpatialStatus::Available);
-    assert_eq!(rectangle_result.correction, "isotropic");
+    assert_eq!(
+        rectangle_result.correction,
+        marklab::spatial::EdgeCorrection::Isotropic
+    );
     assert_eq!(rectangle_result.curve[0].directed_pairs, 2);
     assert_eq!(rectangle_result.curve[0].visible_arc_evaluations, 2);
     assert_abs_diff_eq!(
@@ -124,7 +129,7 @@ fn rectangle_and_hole_visible_arc_fractions_match_analytic_oracles() {
     );
     assert_eq!(
         donut_result.geometry.visible_arc_owner,
-        "observation_window_2d_segment_circle_partition"
+        marklab::spatial::ArcMeasureOwner::ObservationWindow2dSegmentCirclePartition
     );
 }
 

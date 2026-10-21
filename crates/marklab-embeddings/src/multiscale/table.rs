@@ -165,6 +165,118 @@ impl<I> fmt::Debug for MatrixCore<I> {
 }
 
 impl<I: EntitySpec> MatrixCore<I> {
+    #[cfg(feature = "parquet")]
+    #[allow(clippy::too_many_arguments)]
+    fn from_physical_values(
+        dimension: u32,
+        owning_slide_id: &SlideId,
+        expected_ids: &[I],
+        expected_entities_artifact_id: ArtifactId,
+        expected_entities_logical_digest: ContentDigest,
+        support_artifact_id: ArtifactId,
+        support_logical_digest: ContentDigest,
+        provenance_artifact_id: ArtifactId,
+        provenance_logical_digest: ContentDigest,
+        values: Vec<f32>,
+        statuses: Vec<EmbeddingStatus>,
+        maximum_retained_bytes: usize,
+    ) -> Result<Self, MultiscaleEmbeddingError> {
+        validate_shape(dimension, expected_ids.len())?;
+        if expected_entities_artifact_id == support_artifact_id
+            || expected_entities_artifact_id == provenance_artifact_id
+            || support_artifact_id == provenance_artifact_id
+        {
+            return Err(MultiscaleEmbeddingError::DuplicateMultiscaleTableArtifactDependency);
+        }
+        let dimension_usize =
+            usize::try_from(dimension).map_err(|_| MultiscaleEmbeddingError::SizeOverflow)?;
+        let components = expected_ids
+            .len()
+            .checked_mul(dimension_usize)
+            .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
+        if statuses.len() != expected_ids.len() || values.len() != components {
+            return Err(MultiscaleEmbeddingError::RowSetMismatch);
+        }
+        let extra_capacity = values
+            .capacity()
+            .saturating_sub(values.len())
+            .checked_mul(size_of::<f32>())
+            .and_then(|bytes| {
+                statuses
+                    .capacity()
+                    .saturating_sub(statuses.len())
+                    .checked_mul(size_of::<EmbeddingStatus>())
+                    .and_then(|status_bytes| bytes.checked_add(status_bytes))
+            })
+            .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
+        let required = predicted_final_retained_bytes(dimension, owning_slide_id, expected_ids)?
+            .checked_add(extra_capacity)
+            .ok_or(MultiscaleEmbeddingError::SizeOverflow)?;
+        if required > maximum_retained_bytes {
+            return Err(MultiscaleEmbeddingError::RetainedByteBudgetExceeded {
+                required,
+                maximum: maximum_retained_bytes,
+            });
+        }
+        let mut accumulator = MatrixSummaryAccumulator::new(
+            I::KIND,
+            I::TABLE_DOMAIN,
+            owning_slide_id,
+            expected_entities_artifact_id,
+            expected_entities_logical_digest,
+            support_artifact_id,
+            support_logical_digest,
+            provenance_artifact_id,
+            provenance_logical_digest,
+            dimension,
+            expected_ids.len(),
+        )?;
+        for (row, ((id, status), vector)) in expected_ids
+            .iter()
+            .zip(statuses.iter().copied())
+            .zip(values.chunks_exact(dimension_usize))
+            .enumerate()
+        {
+            for (column, value) in vector.iter().enumerate() {
+                if !value.is_finite() {
+                    return Err(MultiscaleEmbeddingError::NonFiniteComponent { row, column });
+                }
+                if (*value == 0.0 && value.to_bits() != 0)
+                    || (status != EmbeddingStatus::Present && value.to_bits() != 0)
+                {
+                    return Err(MultiscaleEmbeddingError::StatusVectorMismatch);
+                }
+            }
+            accumulator.push(
+                id.as_str(),
+                status,
+                (status == EmbeddingStatus::Present).then_some(vector),
+            )?;
+        }
+        let qc_summary = accumulator.finish()?;
+        let mut ids = Vec::new();
+        ids.try_reserve_exact(expected_ids.len()).map_err(|_| {
+            MultiscaleEmbeddingError::AllocationFailed {
+                requested: expected_ids.len().saturating_mul(size_of::<I>()),
+            }
+        })?;
+        ids.extend_from_slice(expected_ids);
+        Ok(Self {
+            owning_slide_id: owning_slide_id.clone(),
+            ids: ids.into_boxed_slice(),
+            statuses: statuses.into_boxed_slice(),
+            values,
+            dimension,
+            qc_summary,
+            expected_entities_artifact_id,
+            expected_entities_logical_digest,
+            support_artifact_id,
+            support_logical_digest,
+            provenance_artifact_id,
+            provenance_logical_digest,
+        })
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn from_rows<R: OwnedRow<I>>(
         dimension: u32,

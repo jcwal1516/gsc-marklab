@@ -17,19 +17,44 @@ struct InputRow {
     value: f64,
 }
 
+#[derive(Debug, clap::Args)]
 pub(crate) struct RunArgs {
-    pub input: PathBuf,
-    pub group_a: String,
-    pub group_b: String,
-    pub permutations: usize,
-    pub seed: u64,
-    pub alpha: f64,
-    pub maximum_patients: usize,
-    pub maximum_specimens: usize,
-    pub maximum_endpoints: usize,
-    pub maximum_permutation_endpoint_evaluations: u64,
-    pub memory_budget_mib: usize,
-    pub out: PathBuf,
+    /// CSV with patient_id, specimen_id, group, endpoint and value columns.
+    #[arg(long)]
+    pub(super) input: PathBuf,
+    /// Label of the first group in the contrast.
+    #[arg(long)]
+    pub(super) group_a: String,
+    /// Label of the second group in the contrast.
+    #[arg(long)]
+    pub(super) group_b: String,
+    /// Number of randomized label or residual assignments.
+    #[arg(long)]
+    pub(super) permutations: usize,
+    /// Random seed for reproducible simulation or inference.
+    #[arg(long)]
+    pub(super) seed: u64,
+    /// Significance level or excluded tail probability for the reported inference.
+    #[arg(long)]
+    pub(super) alpha: f64,
+    /// Upper bound on patients.
+    #[arg(long)]
+    pub(super) maximum_patients: usize,
+    /// Upper bound on specimens.
+    #[arg(long)]
+    pub(super) maximum_specimens: usize,
+    /// Upper bound on endpoints.
+    #[arg(long)]
+    pub(super) maximum_endpoints: usize,
+    /// Upper bound on permutation endpoint evaluations.
+    #[arg(long)]
+    pub(super) maximum_permutation_endpoint_evaluations: u64,
+    /// Maximum working memory in mebibytes.
+    #[arg(long)]
+    pub(super) memory_budget_mib: usize,
+    /// Destination for the analysis output.
+    #[arg(long)]
+    pub(super) out: PathBuf,
 }
 
 pub(crate) fn run(args: RunArgs) -> Result<(), CohortError> {
@@ -181,8 +206,6 @@ impl PatientNestedFieldsOutput {
                 critical_value: population.critical_value,
                 alpha: population.alpha,
                 permutations_requested: population.permutations_requested,
-                permutations_attempted: population.permutations_attempted,
-                permutations_completed: population.permutations_completed,
                 seed: population.seed,
                 endpoints: population
                     .endpoints
@@ -224,8 +247,6 @@ impl PatientNestedFieldsOutput {
             && self.population_inference.permutation_unit == "whole_patient_label"
             && self.population_inference.correction == "step_down_max_t"
             && self.population_inference.permutations_requested == spec.permutations
-            && self.population_inference.permutations_attempted == spec.permutations
-            && self.population_inference.permutations_completed == spec.permutations
             && self.population_inference.seed == spec.seed
             && self.population_inference.alpha.to_bits() == spec.alpha.to_bits()
             && self.population_inference.endpoints.len() == prepared.endpoint_count()
@@ -283,8 +304,6 @@ struct PopulationInferenceOutput {
     critical_value: f64,
     alpha: f64,
     permutations_requested: usize,
-    permutations_attempted: usize,
-    permutations_completed: usize,
     seed: u64,
     endpoints: Vec<PopulationEndpointOutput>,
 }

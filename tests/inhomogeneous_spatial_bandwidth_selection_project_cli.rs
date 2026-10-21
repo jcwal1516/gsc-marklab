@@ -83,7 +83,7 @@ slide-1:000000003,9,7,0,case-1,baseline,unmarked,true,true,slide-1\n",
         .success()
         .stderr(predicates::str::contains("cache_status=hit"));
     assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
-    let result: marklab::SelectedInhomogeneousSpatialResult =
+    let result: marklab::spatial::SelectedInhomogeneousSpatialResult =
         marklab::exact_float_json::decode(&fs::read(first).unwrap()).expect("typed result");
     assert_eq!(result.selection.selected_bandwidth_um, 1.0);
     assert_eq!(result.analysis.intensity.bandwidth_um, 1.0);

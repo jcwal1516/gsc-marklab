@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+"""Topology and morphology stability of a binary mask under declared pixel perturbations."""
 
-import hashlib
 import json
 import math
 import random
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import gudhi
 import numpy as np
@@ -14,12 +17,20 @@ from scipy import ndimage
 from skimage.measure import euler_number, perimeter_crofton
 from skimage.morphology import binary_dilation, disk
 
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def cubical_diagram(mask, pixel_size):
+    """Finite H0/H1 persistence of the signed distance transform of ``mask`` (in um)."""
     signed = (
         ndimage.distance_transform_edt(~mask) - ndimage.distance_transform_edt(mask)
     ) * pixel_size
@@ -64,6 +75,7 @@ def euler_curve(mask, pixel_size, scales):
 
 
 def critical_radius(mask, pixel_size):
+    """Longest edge of the Euclidean minimum spanning tree of the foreground pixels (Prim)."""
     points = np.argwhere(mask)
     if len(points) <= 1:
         return 0.0
@@ -86,20 +98,16 @@ def critical_radius(mask, pixel_size):
 
 def relative_error(baseline, candidate):
     errors = []
-    for reference, changed in zip(baseline, candidate):
+    for reference, changed in zip(baseline, candidate, strict=True):
         errors.append(abs(changed - reference) / max(abs(reference), 1.0))
     return max(errors)
 
 
 def main():
-    if (
-        gudhi.__version__ != "3.13.0"
-        or scipy.__version__ != "1.18.1"
-        or skimage.__version__ != "0.26.0"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("backend version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
+    require_versions(
+        gudhi=gudhi.__version__, scipy=scipy.__version__, scikit_image=skimage.__version__
+    )
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
     if request["format"] != "marklab.topology_stability_request" or request["version"] != 1:
         raise ContractError("request identity mismatch")
@@ -136,21 +144,30 @@ def main():
             for dimension in range(2)
         )
         landscape_l2 = math.sqrt(
-            sum((left - right) ** 2 for left, right in zip(baseline_landscape, changed_landscape))
+            sum(
+                (left - right) ** 2
+                for left, right in zip(baseline_landscape, changed_landscape, strict=True)
+            )
         )
+        euler_curve_linf = float(
+            max(abs(a - b) for a, b in zip(baseline_euler, changed_euler, strict=True))
+        )
+        minkowski_error = relative_error(baseline_morphology, morphology(perturbed, pixel_size))
+        critical_shift = critical_radius(perturbed, pixel_size) - baseline_critical
         results.append(
             {
                 "repetition": repetition,
                 "toggled_pixels": [list(pair) for pair in selected],
                 "diagram_bottleneck": diagram_bottleneck,
                 "landscape_l2": landscape_l2,
-                "euler_curve_linf": float(max(abs(a - b) for a, b in zip(baseline_euler, changed_euler))),
-                "minkowski_relative_error": relative_error(baseline_morphology, morphology(perturbed, pixel_size)),
-                "critical_radius_shift_um": critical_radius(perturbed, pixel_size) - baseline_critical,
+                "euler_curve_linf": euler_curve_linf,
+                "minkowski_relative_error": minkowski_error,
+                "critical_radius_shift_um": critical_shift,
             }
         )
     maximums = {
-        key: max(result[key] for result in results)
+        # Radius shifts retain their sign per repetition; sensitivity is a magnitude.
+        key: max(abs(result[key]) for result in results)
         for key in [
             "diagram_bottleneck",
             "landscape_l2",
@@ -163,7 +180,7 @@ def main():
         "format": "marklab.topology_stability",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "seed": request["seed"],
         "repetitions": request["repetitions"],
         "scales_um": scales,
@@ -173,13 +190,8 @@ def main():
         "sensitivity_flags": [],
         "claim_status": "experimental_declared_segmentation_perturbations",
     }
-    json.dump(output, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(output)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-        print(f"stability worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "stability worker contract error", errors=CONTRACT_ERRORS)

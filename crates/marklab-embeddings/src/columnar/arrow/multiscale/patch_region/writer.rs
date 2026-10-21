@@ -1,3 +1,4 @@
+use crate::columnar::arrow::multiscale::writer::enforce_footer_bound;
 use std::{io::Write, sync::Arc};
 
 use crate::PatchRegionLink;
@@ -9,12 +10,10 @@ use arrow::{
 
 use super::super::physical::{enforce_writer_budgets, write_record_batches};
 use super::profile::schema;
-use crate::columnar::arrow::profile::{
-    ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
-};
+use crate::columnar::arrow::profile::{ALIGNMENT, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS};
 use crate::columnar::{
     multiscale::{patch_region_decoded_bytes, validate_patch_region_domain},
-    EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialColumnarWriteSummary,
+    ColumnarError, EmbeddingColumnarBudgets, SpatialColumnarWriteSummary,
 };
 
 /// Write the exact deterministic Arrow IPC patch-region-link profile.
@@ -22,7 +21,7 @@ pub fn write_patch_region_link_arrow(
     output: &mut dyn Write,
     link: &PatchRegionLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError> {
+) -> Result<SpatialColumnarWriteSummary, ColumnarError> {
     validate_patch_region_domain(link)?;
     let row_count = link.nonzero_relation_count();
     enforce_footer_bound(row_count)?;
@@ -50,27 +49,27 @@ fn build_batch(
     link: &PatchRegionLink,
     start: usize,
     end: usize,
-) -> Result<RecordBatch, MultiscaleColumnarError> {
+) -> Result<RecordBatch, ColumnarError> {
     let rows = link
         .nonzero_relations()
         .get(start..end)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let (patch_bytes, region_bytes, relation_bytes) =
         rows.iter()
             .try_fold((0_usize, 0_usize, 0_usize), |totals, row| {
-                Ok::<_, MultiscaleColumnarError>((
+                Ok::<_, ColumnarError>((
                     totals
                         .0
                         .checked_add(row.patch_id().as_str().len())
-                        .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                        .ok_or(ColumnarError::SizeOverflow)?,
                     totals
                         .1
                         .checked_add(row.region_id().as_str().len())
-                        .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                        .ok_or(ColumnarError::SizeOverflow)?,
                     totals
                         .2
                         .checked_add(row.relation().wire_name().len())
-                        .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                        .ok_or(ColumnarError::SizeOverflow)?,
                 ))
             })?;
     let mut patches = StringBuilder::with_capacity(rows.len(), patch_bytes);
@@ -92,8 +91,7 @@ fn build_batch(
         Arc::new(numerators.finish()),
         Arc::new(denominators.finish()),
     ];
-    RecordBatch::try_new(Arc::new(schema.clone()), columns)
-        .map_err(|_| MultiscaleColumnarError::ArrowWriter)
+    RecordBatch::try_new(Arc::new(schema.clone()), columns).map_err(|_| ColumnarError::ArrowWriter)
 }
 
 #[derive(Clone, Copy)]
@@ -102,39 +100,23 @@ struct Estimates {
     maximum_batch: usize,
 }
 
-fn estimates(link: &PatchRegionLink) -> Result<Estimates, MultiscaleColumnarError> {
+fn estimates(link: &PatchRegionLink) -> Result<Estimates, ColumnarError> {
     let mut decoded = 0_u64;
     let mut maximum_batch = 0_usize;
     for rows in link.nonzero_relations().chunks(RECORD_BATCH_ROWS) {
         let bytes = patch_region_decoded_bytes(rows)?;
         decoded = decoded
-            .checked_add(u64::try_from(bytes).map_err(|_| MultiscaleColumnarError::SizeOverflow)?)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .checked_add(u64::try_from(bytes).map_err(|_| ColumnarError::SizeOverflow)?)
+            .ok_or(ColumnarError::SizeOverflow)?;
         maximum_batch = maximum_batch.max(
             bytes
                 .checked_add(13 * (ALIGNMENT - 1))
                 .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                .ok_or(ColumnarError::SizeOverflow)?,
         );
     }
     Ok(Estimates {
         decoded,
         maximum_batch,
     })
-}
-
-fn enforce_footer_bound(row_count: usize) -> Result<(), MultiscaleColumnarError> {
-    const FOOTER_BASE_BYTES: usize = 64 * 1024;
-    let footer = FOOTER_BASE_BYTES
-        .checked_add(
-            row_count
-                .div_ceil(RECORD_BATCH_ROWS)
-                .checked_mul(size_of::<arrow_ipc::Block>())
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?,
-        )
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    if footer > MAXIMUM_FOOTER_BYTES {
-        return Err(MultiscaleColumnarError::ArrowWriter);
-    }
-    Ok(())
 }

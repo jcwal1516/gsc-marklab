@@ -1,14 +1,20 @@
-use crate::validation::all_finite as finite;
+use crate::is_worker_timeout;
+use crate::validation::{all_finite as finite, validate_mcse_summary, SummarySupport};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{
         BackendContract, DiagnosticPolicy, WorkerResourceLimits, MODEL_FORMAT, MODEL_VERSION,
         PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
-    BayesError, FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary, WorkerBackend,
+    BayesError, FitState, McseScalarSummary, NutsSamplingSpec, PosteriorDiagnostics,
+    SamplingSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct HierarchicalPatientData {
@@ -16,6 +22,14 @@ pub struct HierarchicalPatientData {
     pub observations: Vec<f64>,
 }
 
+/// Gaussian observations nested in patients with a shared, known observation SD.
+///
+/// The likelihood is `y_ij ~ Normal(mu_j, known_sigma)`, with non-centered patient
+/// means `mu_j = mu + tau * z_j` and independent `z_j ~ Normal(0, 1)`. Priors are
+/// `mu ~ Normal(global_prior_mean, global_prior_sd)` and
+/// `tau ~ HalfNormal(between_patient_sd_prior)`. Normal scales are standard
+/// deviations; the half-normal argument is the SD of its underlying zero-mean
+/// normal distribution. PyMC and NumPyro use this same parameterization.
 #[derive(Clone, Debug)]
 pub struct GaussianHierarchySpec {
     pub global_prior_mean: f64,
@@ -106,8 +120,8 @@ pub struct GaussianHierarchyModelIr {
     pub spatial_component: &'static str,
     pub generated_quantities: [&'static str; 3],
     pub posterior_predictive_statistics: [&'static str; 2],
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -155,7 +169,7 @@ impl GaussianHierarchyWorkerRequest {
     ) -> Result<Self, BayesError> {
         let spec = spec.validate_and_sort()?;
         sampling.validate()?;
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -174,7 +188,7 @@ impl GaussianHierarchyWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -210,8 +224,8 @@ impl GaussianHierarchyWorkerRequest {
                     "posterior_predictive_observation",
                 ],
                 posterior_predictive_statistics: ["global_mean", "patient_mean_sd"],
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             patients: spec.patients,
             sampling,
@@ -235,18 +249,9 @@ impl GaussianHierarchyWorkerRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ScalarPosteriorSummary {
-    pub mean: f64,
-    pub sd: f64,
-    pub interval_lower: f64,
-    pub interval_upper: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct GaussianHierarchyPosterior {
-    pub global_mean: ScalarPosteriorSummary,
-    pub between_patient_sd: ScalarPosteriorSummary,
+    pub global_mean: McseScalarSummary,
+    pub between_patient_sd: McseScalarSummary,
     pub variance_partition_mean: f64,
 }
 
@@ -260,8 +265,22 @@ pub struct PartialPoolingSummary {
     pub posterior_sd: f64,
     pub interval_lower: f64,
     pub interval_upper: f64,
+    pub mcse_mean: f64,
     pub shrinkage: f64,
     pub warning: String,
+}
+
+impl PartialPoolingSummary {
+    /// The patient's posterior mean as a summary with its Monte Carlo standard error.
+    pub fn posterior(&self) -> McseScalarSummary {
+        McseScalarSummary {
+            mean: self.posterior_mean,
+            sd: self.posterior_sd,
+            interval_lower: self.interval_lower,
+            interval_upper: self.interval_upper,
+            mcse_mean: self.mcse_mean,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -286,7 +305,7 @@ pub struct HierarchicalWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: GaussianHierarchyPosterior,
     pub partial_pooling: Vec<PartialPoolingSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: HierarchicalPosteriorPredictive,
 }
 
@@ -306,12 +325,7 @@ impl HierarchicalWorkerResult {
                 "unsupported hierarchical worker result".into(),
             ));
         }
-        if self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
-            || self.request_sha256 != expected_request_sha256
+        if !self.backend.matches(&request.backend) || self.request_sha256 != expected_request_sha256
         {
             return Err(BayesError::WorkerContract(
                 "hierarchical backend or request identity mismatch".into(),
@@ -333,12 +347,9 @@ impl HierarchicalWorkerResult {
                 "partial-pooling patient count mismatch".into(),
             ));
         }
-        validate_scalar(&self.posterior.global_mean)?;
-        validate_scalar(&self.posterior.between_patient_sd)?;
-        if self.posterior.between_patient_sd.mean <= 0.0
-            || self.posterior.between_patient_sd.interval_lower < 0.0
-            || !(0.0..=1.0).contains(&self.posterior.variance_partition_mean)
-        {
+        validate_scalar(&self.posterior.global_mean, SummarySupport::Real)?;
+        validate_scalar(&self.posterior.between_patient_sd, SummarySupport::Positive)?;
+        if !(0.0..=1.0).contains(&self.posterior.variance_partition_mean) {
             return Err(BayesError::WorkerContract(
                 "invalid hierarchical variance summary".into(),
             ));
@@ -353,11 +364,13 @@ impl HierarchicalWorkerResult {
                     summary.raw_mean,
                     summary.posterior_mean,
                     summary.posterior_sd,
+                    summary.mcse_mean,
                     summary.interval_lower,
                     summary.interval_upper,
                     summary.shrinkage,
                 ])
                 || summary.posterior_sd <= 0.0
+                || summary.mcse_mean < 0.0
                 || summary.interval_lower > summary.interval_upper
                 || (summary.raw_mean - raw_mean).abs() > 1e-12 * raw_mean.abs().max(1.0)
             {
@@ -460,9 +473,9 @@ impl HierarchicalWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -475,20 +488,8 @@ impl HierarchicalWorkerResult {
     }
 }
 
-fn validate_scalar(summary: &ScalarPosteriorSummary) -> Result<(), BayesError> {
-    if !finite(&[
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]) || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-    {
-        return Err(BayesError::WorkerContract(
-            "invalid scalar posterior summary".into(),
-        ));
-    }
-    Ok(())
+fn validate_scalar(summary: &McseScalarSummary, support: SummarySupport) -> Result<(), BayesError> {
+    validate_mcse_summary(summary, support, "invalid scalar posterior summary")
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -507,11 +508,11 @@ pub struct GaussianHierarchyFit {
     pub model: GaussianHierarchyModelIr,
     pub input: GaussianHierarchyInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: GaussianHierarchyPosterior,
     pub partial_pooling: Vec<PartialPoolingSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: HierarchicalPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,

@@ -12,8 +12,8 @@ use marklab_project::ContentDigest;
 use crate::ExpectedCellSet;
 
 use super::super::{
-    enforce_file_budget, ArrowIpcFailure, CellEmbeddingTablePhysicalBindings,
-    EmbeddingColumnarBudgets, EmbeddingColumnarError,
+    enforce_file_budget, ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, ColumnarError,
+    EmbeddingColumnarBudgets,
 };
 use super::{
     preflight::{validate_record_batch_message, CellEmbeddingArrowPreflight},
@@ -33,13 +33,12 @@ pub(super) fn preflight_cell_embedding_table_arrow_reader<R: Read + Seek + ?Size
     expected: &ExpectedCellSet,
     bindings: CellEmbeddingTablePhysicalBindings,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingArrowPreflight, EmbeddingColumnarError> {
+) -> Result<CellEmbeddingArrowPreflight, ColumnarError> {
     let encoded_byte_len = reader
         .seek(SeekFrom::End(0))
         .map_err(|_| arrow_failure(ArrowIpcFailure::ArtifactRead))?;
     enforce_file_budget(encoded_byte_len, budgets)?;
-    let file_len =
-        usize::try_from(encoded_byte_len).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+    let file_len = usize::try_from(encoded_byte_len).map_err(|_| ColumnarError::SizeOverflow)?;
     let (footer_start, footer_length, footer_bytes) = read_footer(reader, file_len, budgets)?;
     let footer = root_as_footer_with_opts(&footer_verifier_options(), &footer_bytes)
         .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidFooter))?;
@@ -82,7 +81,7 @@ pub(super) fn preflight_cell_embedding_table_arrow_reader<R: Read + Seek + ?Size
     let footer_retained = footer_length
         .checked_mul(2)
         .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let mut retained_required = footer_retained;
     let mut next_offset = schema_end;
     let mut aggregate_rows = 0_usize;
@@ -109,7 +108,7 @@ pub(super) fn preflight_cell_embedding_table_arrow_reader<R: Read + Seek + ?Size
             .checked_mul(2)
             .and_then(|value| value.checked_add(block_bytes))
             .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         retained_required = retained_required.max(block_retained);
         enforce_retained_budget(retained_required, budgets)?;
         let block_end = offset
@@ -128,7 +127,7 @@ pub(super) fn preflight_cell_embedding_table_arrow_reader<R: Read + Seek + ?Size
         let (message_bytes, body_bytes) = physical_block.split_at(metadata_length);
         let batch_start = batch_index
             .checked_mul(RECORD_BATCH_ROWS)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let expected_rows = expected
             .cells()
             .len()
@@ -136,7 +135,7 @@ pub(super) fn preflight_cell_embedding_table_arrow_reader<R: Read + Seek + ?Size
             .min(RECORD_BATCH_ROWS);
         let batch_end = batch_start
             .checked_add(expected_rows)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let expected_cells = expected
             .cells()
             .get(batch_start..batch_end)
@@ -154,50 +153,48 @@ pub(super) fn preflight_cell_embedding_table_arrow_reader<R: Read + Seek + ?Size
         maximum_batch_decoded_bytes = maximum_batch_decoded_bytes.max(
             decoded_bytes
                 .checked_sub(decoded_before)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?,
+                .ok_or(ColumnarError::SizeOverflow)?,
         );
         aggregate_rows = aggregate_rows
             .checked_add(expected_rows)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         next_offset = block_end;
     }
     if next_offset != footer_start - EOS_BYTES || aggregate_rows != expected.cells().len() {
         return Err(arrow_failure(ArrowIpcFailure::InvalidRowCount));
     }
     if decoded_bytes > budgets.maximum_decoded_bytes() {
-        return Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
+        return Err(ColumnarError::DecodedByteBudgetExceeded {
             required: decoded_bytes,
             maximum: budgets.maximum_decoded_bytes(),
         });
     }
 
     Ok(CellEmbeddingArrowPreflight::new(
-        u64::try_from(aggregate_rows).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        u64::try_from(aggregate_rows).map_err(|_| ColumnarError::SizeOverflow)?,
         dimension,
-        u32::try_from(record_batch_count).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        u32::try_from(record_batch_count).map_err(|_| ColumnarError::SizeOverflow)?,
         encoded_byte_len,
         content_digest,
         retained_required,
-        usize::try_from(maximum_batch_decoded_bytes)
-            .map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        usize::try_from(maximum_batch_decoded_bytes).map_err(|_| ColumnarError::SizeOverflow)?,
     ))
 }
 
 pub(super) fn declared_table_logical_digest_reader<R: Read + Seek + ?Sized>(
     reader: &mut R,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<ContentDigest, EmbeddingColumnarError> {
+) -> Result<ContentDigest, ColumnarError> {
     let encoded_byte_len = reader
         .seek(SeekFrom::End(0))
         .map_err(|_| arrow_failure(ArrowIpcFailure::ArtifactRead))?;
     if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed: encoded_byte_len,
             maximum: budgets.maximum_file_bytes(),
         });
     }
-    let file_len =
-        usize::try_from(encoded_byte_len).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+    let file_len = usize::try_from(encoded_byte_len).map_err(|_| ColumnarError::SizeOverflow)?;
     let (_, _, footer_bytes) = read_footer(reader, file_len, budgets)?;
     let footer = root_as_footer_with_opts(&footer_verifier_options(), &footer_bytes)
         .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidFooter))?;
@@ -226,7 +223,7 @@ pub(super) fn read_footer<R: Read + Seek + ?Sized>(
     reader: &mut R,
     file_len: usize,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<(usize, usize, Vec<u8>), EmbeddingColumnarError> {
+) -> Result<(usize, usize, Vec<u8>), ColumnarError> {
     if file_len < HEADER_BYTES + EOS_BYTES + TRAILER_BYTES {
         return Err(arrow_failure(ArrowIpcFailure::InvalidMagic));
     }
@@ -290,7 +287,7 @@ pub(super) fn read_footer<R: Read + Seek + ?Sized>(
     let retained_required = footer_length
         .checked_mul(2)
         .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(retained_required, budgets)?;
     let footer_bytes = read_vec_at(
         reader,
@@ -308,7 +305,7 @@ fn validate_initial_schema_message<R: Read + Seek + ?Sized>(
     footer_start: usize,
     dimension: u32,
     bindings: CellEmbeddingTablePhysicalBindings,
-) -> Result<usize, EmbeddingColumnarError> {
+) -> Result<usize, ColumnarError> {
     let mut prefix = [0_u8; 8];
     read_exact_at(
         reader,
@@ -375,7 +372,7 @@ pub(super) fn read_exact_at<R: Read + Seek + ?Sized>(
     offset: usize,
     buffer: &mut [u8],
     range_failure: ArrowIpcFailure,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if offset
         .checked_add(buffer.len())
         .is_none_or(|end| end > file_len)
@@ -384,7 +381,7 @@ pub(super) fn read_exact_at<R: Read + Seek + ?Sized>(
     }
     reader
         .seek(SeekFrom::Start(
-            u64::try_from(offset).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+            u64::try_from(offset).map_err(|_| ColumnarError::SizeOverflow)?,
         ))
         .map_err(|_| arrow_failure(ArrowIpcFailure::ArtifactRead))?;
     reader
@@ -398,11 +395,11 @@ pub(super) fn read_vec_at<R: Read + Seek + ?Sized>(
     offset: usize,
     length: usize,
     range_failure: ArrowIpcFailure,
-) -> Result<Vec<u8>, EmbeddingColumnarError> {
+) -> Result<Vec<u8>, ColumnarError> {
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(length)
-        .map_err(|_| EmbeddingColumnarError::AllocationFailed { requested: length })?;
+        .map_err(|_| ColumnarError::AllocationFailed { requested: length })?;
     bytes.resize(length, 0);
     read_exact_at(reader, file_len, offset, &mut bytes, range_failure)?;
     Ok(bytes)

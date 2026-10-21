@@ -6,13 +6,13 @@ use crate::{
         length_scales::{analysis_effective_length_um, maximum_interpretable_scale_for_points_um},
         spatial_index::SpatialIndex2D,
     },
+    memory_budget::enforce_storage_budget,
     multiscale_residual::energy::relative_scale_energies_from_field,
     multiscale_residual::territories::ResidualTerritoryPlan,
     output::{
         AnalysisSection, FunctionalSummary, MarkPairCovariancePoint, MultiscaleResidualSummary,
         ResidualTerritory, ScaleEnergyPoint, TimingStage,
     },
-    perf::counters::enforce_storage_budget,
     periodogram::{
         comparison::{matched_periodogram_diagnostic, PeriodogramDiagnostic},
         raster::RasterAssignmentPlan,

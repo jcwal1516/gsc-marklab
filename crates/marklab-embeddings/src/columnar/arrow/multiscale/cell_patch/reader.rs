@@ -7,7 +7,7 @@ use marklab_project::{ArtifactRecord, LocalArtifactStore, VerifiedReaderError};
 use crate::{
     columnar::{
         multiscale::{cell_patch_dependencies, enforce_file_budget, enforce_retained_budget},
-        EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialArrowFailure,
+        ArrowIpcFailure, ColumnarError, EmbeddingColumnarBudgets,
     },
     multiscale::physical::{record_matches_encoding, SpatialPhysicalEncoding},
     CellPatchAssignmentMode, CellPatchLink, VerifiedCellPatchAssignmentArtifact,
@@ -29,9 +29,8 @@ pub fn validate_cell_patch_assignment_table_arrow_bytes(
     record: &ArtifactRecord,
     link: &CellPatchLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellPatchAssignmentArrowPreflight, MultiscaleColumnarError> {
-    let encoded_len =
-        u64::try_from(bytes.len()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<CellPatchAssignmentArrowPreflight, ColumnarError> {
+    let encoded_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     enforce_file_budget(encoded_len, budgets)?;
     validate_record(record, encoded_len, CellPatchArrowProfile::Assignment, link)?;
     let preflight = preflight_cell_patch_assignment_table_arrow_bytes(bytes, link, budgets)?;
@@ -57,9 +56,8 @@ pub fn validate_cell_patch_edge_table_arrow_bytes(
     record: &ArtifactRecord,
     link: &CellPatchLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellPatchEdgeArrowPreflight, MultiscaleColumnarError> {
-    let encoded_len =
-        u64::try_from(bytes.len()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<CellPatchEdgeArrowPreflight, ColumnarError> {
+    let encoded_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     enforce_file_budget(encoded_len, budgets)?;
     validate_record(record, encoded_len, CellPatchArrowProfile::Edge, link)?;
     let preflight = preflight_cell_patch_edge_table_arrow_bytes(bytes, link, budgets)?;
@@ -85,7 +83,7 @@ pub fn validate_cell_patch_assignment_table_arrow_from_store(
     record: &ArtifactRecord,
     link: &CellPatchLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellPatchAssignmentArrowPreflight, VerifiedReaderError<MultiscaleColumnarError>> {
+) -> Result<CellPatchAssignmentArrowPreflight, VerifiedReaderError<ColumnarError>> {
     store.with_verified_reader(record, |reader| {
         validate_managed(
             reader,
@@ -104,7 +102,7 @@ pub fn validate_cell_patch_edge_table_arrow_from_store(
     record: &ArtifactRecord,
     link: &CellPatchLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellPatchEdgeArrowPreflight, VerifiedReaderError<MultiscaleColumnarError>> {
+) -> Result<CellPatchEdgeArrowPreflight, VerifiedReaderError<ColumnarError>> {
     store.with_verified_reader(record, |reader| {
         validate_managed(reader, record, CellPatchArrowProfile::Edge, link, budgets)
             .map(CellPatchEdgeArrowPreflight::from_common)
@@ -118,9 +116,13 @@ pub fn verify_cell_patch_assignment_table_arrow_bytes(
     link: &CellPatchLink,
     graph: VerifiedCellPatchInputArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellPatchAssignmentArtifact, MultiscaleColumnarError> {
-    validate_cell_patch_assignment_table_arrow_bytes(bytes, record, link, budgets)?;
-    VerifiedCellPatchAssignmentArtifact::new(record.id(), link, graph)
+) -> Result<VerifiedCellPatchAssignmentArtifact, ColumnarError> {
+    crate::columnar::verify::<crate::columnar::ArrowIpc, crate::columnar::CellPatchAssignmentEntity>(
+        Cursor::new(bytes),
+        record,
+        &crate::columnar::CellPatchVerifyContext { link, graph },
+        budgets,
+    )
 }
 
 /// Verify a managed assignment Arrow artifact and mint a graph-bound runtime receipt.
@@ -130,10 +132,12 @@ pub fn verify_cell_patch_assignment_table_arrow_from_store(
     link: &CellPatchLink,
     graph: VerifiedCellPatchInputArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellPatchAssignmentArtifact, VerifiedReaderError<MultiscaleColumnarError>> {
-    validate_cell_patch_assignment_table_arrow_from_store(store, record, link, budgets)?;
-    VerifiedCellPatchAssignmentArtifact::new(record.id(), link, graph)
-        .map_err(VerifiedReaderError::Callback)
+) -> Result<VerifiedCellPatchAssignmentArtifact, VerifiedReaderError<ColumnarError>> {
+    crate::columnar::with_verified_columnar_reader(store, record, budgets, |reader| {
+        reader.verify::<crate::columnar::ArrowIpc, crate::columnar::CellPatchAssignmentEntity>(
+            &crate::columnar::CellPatchVerifyContext { link, graph },
+        )
+    })
 }
 
 /// Verify borrowed edge Arrow bytes and mint a graph-bound runtime receipt.
@@ -143,9 +147,13 @@ pub fn verify_cell_patch_edge_table_arrow_bytes(
     link: &CellPatchLink,
     graph: VerifiedCellPatchInputArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellPatchEdgeArtifact, MultiscaleColumnarError> {
-    validate_cell_patch_edge_table_arrow_bytes(bytes, record, link, budgets)?;
-    VerifiedCellPatchEdgeArtifact::new(record.id(), link, graph)
+) -> Result<VerifiedCellPatchEdgeArtifact, ColumnarError> {
+    crate::columnar::verify::<crate::columnar::ArrowIpc, crate::columnar::CellPatchEdgeEntity>(
+        Cursor::new(bytes),
+        record,
+        &crate::columnar::CellPatchVerifyContext { link, graph },
+        budgets,
+    )
 }
 
 /// Verify a managed edge Arrow artifact and mint a graph-bound runtime receipt.
@@ -155,22 +163,24 @@ pub fn verify_cell_patch_edge_table_arrow_from_store(
     link: &CellPatchLink,
     graph: VerifiedCellPatchInputArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedCellPatchEdgeArtifact, VerifiedReaderError<MultiscaleColumnarError>> {
-    validate_cell_patch_edge_table_arrow_from_store(store, record, link, budgets)?;
-    VerifiedCellPatchEdgeArtifact::new(record.id(), link, graph)
-        .map_err(VerifiedReaderError::Callback)
+) -> Result<VerifiedCellPatchEdgeArtifact, VerifiedReaderError<ColumnarError>> {
+    crate::columnar::with_verified_columnar_reader(store, record, budgets, |reader| {
+        reader.verify::<crate::columnar::ArrowIpc, crate::columnar::CellPatchEdgeEntity>(
+            &crate::columnar::CellPatchVerifyContext { link, graph },
+        )
+    })
 }
 
-fn validate_managed<R: Read + Seek + ?Sized>(
+pub(crate) fn validate_managed<R: Read + Seek + ?Sized>(
     reader: &mut R,
     record: &ArtifactRecord,
     profile: CellPatchArrowProfile,
     link: &CellPatchLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CommonArrowPreflight, MultiscaleColumnarError> {
+) -> Result<CommonArrowPreflight, ColumnarError> {
     let encoded_len = reader
         .seek(std::io::SeekFrom::End(0))
-        .map_err(|_| arrow_failure(SpatialArrowFailure::ArtifactRead))?;
+        .map_err(|_| arrow_failure(ArrowIpcFailure::ArtifactRead))?;
     enforce_file_budget(encoded_len, budgets)?;
     validate_record(record, encoded_len, profile, link)?;
     let common = preflight_reader(reader, record.content().digest(), profile, link, budgets)?;
@@ -193,32 +203,32 @@ fn decode_arrow<R: Read + Seek>(
     retained_preflight_bytes: usize,
     maximum_batch_decoded_bytes: usize,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let retained = retained_preflight_bytes
         .checked_add(maximum_batch_decoded_bytes)
         .and_then(|value| value.checked_add(64 * 1024))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(retained, budgets)?;
     let schema = expected_schema(profile, link)?;
     let mut reader = FileReaderBuilder::new()
         .with_max_footer_fb_depth(8)
         .with_max_footer_fb_tables(32)
         .build(source)
-        .map_err(|_| arrow_failure(SpatialArrowFailure::StockDecode))?;
+        .map_err(|_| arrow_failure(ArrowIpcFailure::StockDecode))?;
     if reader.schema().as_ref() != &schema || !reader.custom_metadata().is_empty() {
-        return Err(arrow_failure(SpatialArrowFailure::StockDecode));
+        return Err(arrow_failure(ArrowIpcFailure::StockDecode));
     }
     let mut global_row = 0_usize;
     for decoded in &mut reader {
-        let batch = decoded.map_err(|_| arrow_failure(SpatialArrowFailure::StockDecode))?;
+        let batch = decoded.map_err(|_| arrow_failure(ArrowIpcFailure::StockDecode))?;
         if batch.num_columns() != profile.field_count() {
-            return Err(arrow_failure(SpatialArrowFailure::StockDecode));
+            return Err(arrow_failure(ArrowIpcFailure::StockDecode));
         }
         for column in batch.columns() {
             column
                 .to_data()
                 .validate_full()
-                .map_err(|_| arrow_failure(SpatialArrowFailure::StockDecode))?;
+                .map_err(|_| arrow_failure(ArrowIpcFailure::StockDecode))?;
         }
         match profile {
             CellPatchArrowProfile::Assignment => {
@@ -228,7 +238,7 @@ fn decode_arrow<R: Read + Seek>(
         }
     }
     if global_row != profile.row_count(link) {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidRowCount));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidRowCount));
     }
     Ok(())
 }
@@ -237,7 +247,7 @@ fn decode_assignment_batch(
     batch: &arrow::record_batch::RecordBatch,
     link: &CellPatchLink,
     global_row: &mut usize,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let cells = string_column(batch, 0)?;
     let statuses = string_column(batch, 1)?;
     let x = u64_column(batch, 2)?;
@@ -255,13 +265,13 @@ fn decode_assignment_batch(
     .iter()
     .any(|count| *count != 0)
     {
-        return Err(arrow_failure(SpatialArrowFailure::StockDecode));
+        return Err(arrow_failure(ArrowIpcFailure::StockDecode));
     }
     for local in 0..batch.num_rows() {
         let row = link
             .assignments()
             .get(*global_row)
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidRowCount))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidRowCount))?;
         if cells.value(local) != row.cell_id().as_str()
             || statuses.value(local) != row.status().wire_name()
             || x.value(local) != row.anchor_px()[0].to_bits()
@@ -269,11 +279,11 @@ fn decode_assignment_batch(
             || starts.value(local) != row.edge_start()
             || counts.value(local) != row.edge_count()
         {
-            return Err(arrow_failure(SpatialArrowFailure::InvalidCanonicalRows));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidCanonicalRows));
         }
         *global_row = global_row
             .checked_add(1)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     Ok(())
 }
@@ -282,26 +292,26 @@ fn decode_edge_batch(
     batch: &arrow::record_batch::RecordBatch,
     link: &CellPatchLink,
     global_row: &mut usize,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let assignment_rows = u64_column(batch, 0)?;
     let patches = string_column(batch, 1)?;
     let numerators = u64_column(batch, 2)?;
     let denominators = u64_column(batch, 3)?;
     if assignment_rows.null_count() != 0 || patches.null_count() != 0 {
-        return Err(arrow_failure(SpatialArrowFailure::StockDecode));
+        return Err(arrow_failure(ArrowIpcFailure::StockDecode));
     }
     let expected_nulls = match link.mode() {
         CellPatchAssignmentMode::ContainedShared => batch.num_rows(),
         CellPatchAssignmentMode::DeclaredWeightedInterpolation => 0,
     };
     if numerators.null_count() != expected_nulls || denominators.null_count() != expected_nulls {
-        return Err(arrow_failure(SpatialArrowFailure::StockDecode));
+        return Err(arrow_failure(ArrowIpcFailure::StockDecode));
     }
     for local in 0..batch.num_rows() {
         let row = link
             .edges()
             .get(*global_row)
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidRowCount))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidRowCount))?;
         let numerator = row.weight().map_or(0, |weight| weight.numerator());
         let denominator = row.weight().map_or(0, |weight| weight.denominator());
         if assignment_rows.value(local) != row.assignment_row()
@@ -311,11 +321,11 @@ fn decode_edge_batch(
             || numerators.is_null(local) != row.weight().is_none()
             || denominators.is_null(local) != row.weight().is_none()
         {
-            return Err(arrow_failure(SpatialArrowFailure::InvalidCanonicalRows));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidCanonicalRows));
         }
         *global_row = global_row
             .checked_add(1)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     Ok(())
 }
@@ -325,9 +335,9 @@ fn validate_record(
     encoded_len: u64,
     profile: CellPatchArrowProfile,
     link: &CellPatchLink,
-) -> Result<(), MultiscaleColumnarError> {
-    let row_count = u64::try_from(profile.row_count(link))
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<(), ColumnarError> {
+    let row_count =
+        u64::try_from(profile.row_count(link)).map_err(|_| ColumnarError::SizeOverflow)?;
     if !record_matches_encoding(
         record,
         profile.role(),
@@ -336,7 +346,7 @@ fn validate_record(
     ) || record.dependencies() != cell_patch_dependencies(link)
         || record.content().byte_len() != encoded_len
     {
-        return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
@@ -345,9 +355,9 @@ fn validate_identity(
     digest: marklab_project::ContentDigest,
     encoded_len: u64,
     record: &ArtifactRecord,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     if digest != record.content().digest() || encoded_len != record.content().byte_len() {
-        return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
@@ -355,21 +365,21 @@ fn validate_identity(
 fn string_column(
     batch: &arrow::record_batch::RecordBatch,
     index: usize,
-) -> Result<&StringArray, MultiscaleColumnarError> {
+) -> Result<&StringArray, ColumnarError> {
     batch
         .column(index)
         .as_any()
         .downcast_ref::<StringArray>()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::StockDecode))
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::StockDecode))
 }
 
 fn u64_column(
     batch: &arrow::record_batch::RecordBatch,
     index: usize,
-) -> Result<&UInt64Array, MultiscaleColumnarError> {
+) -> Result<&UInt64Array, ColumnarError> {
     batch
         .column(index)
         .as_any()
         .downcast_ref::<UInt64Array>()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::StockDecode))
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::StockDecode))
 }

@@ -1,124 +1,89 @@
+pub(crate) use marklab_bayes::protocol::arbitrary_window_ipp_quadrature_sensitivity::{
+    QuadratureSensitivityResult, ResolutionResult,
+};
+
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary, WorkerBackend,
-};
-use serde::Serialize;
+use marklab_bayes::FitState;
+use marklab_bayes::NutsSamplingSpec;
 
-use super::{
-    arbitrary_window_ipp_fit::{
-        self, ArbitraryWindowIppFitInputIdentity, ArbitraryWindowIppFitPosterior,
-    },
-    publish_json, BayesCliError,
-};
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct QuadratureSensitivityCli {
-    #[command(subcommand)]
-    command: QuadratureSensitivityTopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum QuadratureSensitivityTopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: QuadratureSensitivityCommand,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum QuadratureSensitivityCommand {
-    ArbitraryWindowIppQuadratureSensitivity(Box<Arguments>),
-}
+use super::arbitrary_window_ipp_fit;
+use super::publish_json;
+use super::CliError;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct Arguments {
+pub(crate) struct Arguments {
+    /// Observed point events with coordinates and model covariates.
     #[arg(long)]
     events: PathBuf,
+    /// Observation-window geometry used for spatial integration or edge correction.
     #[arg(long)]
     window: PathBuf,
+    /// Coarse version of: quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
     coarse_quadrature: PathBuf,
+    /// Baseline version of: quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
     baseline_quadrature: PathBuf,
+    /// Fine version of: quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
     fine_quadrature: PathBuf,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior mean for coefficient.
     #[arg(long, allow_hyphen_values = true)]
     coefficient_prior_mean: f64,
+    /// Prior scale for coefficient.
     #[arg(long)]
     coefficient_prior_sd: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on events.
     #[arg(long)]
     maximum_events: usize,
+    /// Upper bound on quadrature nodes.
     #[arg(long)]
     maximum_quadrature_nodes: usize,
+    /// Upper bound on total draw node work.
     #[arg(long)]
     maximum_total_draw_node_work: u64,
+    /// Smallest standardized posterior change considered material.
     #[arg(long)]
     material_standardized_shift: f64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Debug, Serialize)]
-struct ResolutionResult {
-    name: String,
-    quadrature_node_count: usize,
-    backend: WorkerBackend,
-    input: ArbitraryWindowIppFitInputIdentity,
-    request_sha256: String,
-    sampling: SamplingSummary,
-    fit_state: FitState,
-    posterior: ArbitraryWindowIppFitPosterior,
-    diagnostics: NormalMeanDiagnostics,
-    total_expected_count_mean: f64,
-    intercept_standardized_shift: f64,
-    coefficient_standardized_shift: f64,
-    total_count_relative_shift: f64,
-    maximum_standardized_shift: f64,
-}
-
-#[derive(Debug, Serialize)]
-struct QuadratureSensitivityResult {
-    format: String,
-    version: u32,
-    resolutions: Vec<ResolutionResult>,
-    all_fits_complete: bool,
-    maximum_standardized_shift: f64,
-    material_standardized_shift: f64,
-    material_change: bool,
-    total_draw_node_work: u64,
-    statistical_unit: String,
-    claim_status: String,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let QuadratureSensitivityTopLevel::Bayes { command } =
-        QuadratureSensitivityCli::parse_from(std::env::args_os()).command;
-    let QuadratureSensitivityCommand::ArbitraryWindowIppQuadratureSensitivity(arguments) = command;
+pub(super) fn run(arguments: Box<Arguments>) -> Result<(), CliError> {
     if !arguments.material_standardized_shift.is_finite()
         || arguments.material_standardized_shift <= 0.0
         || arguments.maximum_total_draw_node_work == 0
         || arguments.maximum_total_draw_node_work > 100_000_000
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "quadrature sensitivity threshold or total work bound is invalid".into(),
         ));
     }
@@ -138,20 +103,20 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
     for (name, quadrature) in definitions {
         prepared.push((
             name,
-            arbitrary_window_ipp_fit::prepare(
-                arguments.events.clone(),
-                quadrature,
-                arguments.window.clone(),
-                arguments.intercept_prior_mean,
-                arguments.intercept_prior_sd,
-                arguments.coefficient_prior_mean,
-                arguments.coefficient_prior_sd,
-                sampling.clone(),
-                arguments.maximum_events,
-                arguments.maximum_quadrature_nodes,
-                arguments.maximum_total_draw_node_work,
-                arguments.timeout_seconds,
-            )?,
+            arbitrary_window_ipp_fit::prepare(crate::bayes::ArbitraryWindowIppFitParameters {
+                events_path: arguments.events.clone(),
+                quadrature_path: quadrature,
+                window_path: arguments.window.clone(),
+                intercept_prior_mean: arguments.intercept_prior_mean,
+                intercept_prior_sd: arguments.intercept_prior_sd,
+                coefficient_prior_mean: arguments.coefficient_prior_mean,
+                coefficient_prior_sd: arguments.coefficient_prior_sd,
+                sampling: sampling.clone(),
+                maximum_events: arguments.maximum_events,
+                maximum_quadrature_nodes: arguments.maximum_quadrature_nodes,
+                maximum_draw_node_work: arguments.maximum_total_draw_node_work,
+                timeout_seconds: arguments.timeout_seconds,
+            })?,
         ));
     }
     let completed_draws = u64::from(arguments.chains) * u64::from(arguments.draws);
@@ -159,9 +124,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         work.checked_add(completed_draws * fit.input.spec.quadrature.len() as u64)
     });
     let total_draw_node_work = total_draw_node_work
-        .ok_or_else(|| BayesCliError::Input("quadrature sensitivity work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("quadrature sensitivity work overflows".into()))?;
     if total_draw_node_work > arguments.maximum_total_draw_node_work {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "quadrature sensitivity work exceeds maximum: {total_draw_node_work} > {}",
             arguments.maximum_total_draw_node_work
         )));
@@ -222,14 +187,8 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             material_standardized_shift: arguments.material_standardized_shift,
             material_change: maximum_standardized_shift >= arguments.material_standardized_shift,
             total_draw_node_work,
-            statistical_unit: "one_observed_point_pattern".into(),
-            claim_status: "experimental_quadrature_sensitivity".into(),
+            statistical_unit: StatisticalUnit::OneObservedPointPattern,
+            claim_status: ClaimStatus::ExperimentalQuadratureSensitivity,
         },
     )
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<QuadratureSensitivityCli>(|| {
-        run_cli().map_err(super::into_marklab_error)
-    })
 }

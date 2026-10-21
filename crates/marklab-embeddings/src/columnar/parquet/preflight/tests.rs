@@ -201,7 +201,7 @@ fn preflight_rejects_corrupted_fixed_list_level_streams() {
             bindings,
             budgets,
         ),
-        Err(EmbeddingColumnarError::Parquet {
+        Err(ColumnarError::Parquet {
             reason: ParquetFailure::InvalidPage,
         })
     ));
@@ -219,7 +219,7 @@ fn preflight_rejects_schema_metadata_auxiliary_and_chunk_range_drift() {
                 bindings,
                 budgets,
             ),
-            Err(EmbeddingColumnarError::Parquet { reason: observed }) if observed == reason
+            Err(ColumnarError::Parquet { reason: observed }) if observed == reason
         ));
     };
 
@@ -280,7 +280,7 @@ fn preflight_rejects_hostile_plain_lengths_and_page_declarations() {
             bindings,
             budgets,
         ),
-        Err(EmbeddingColumnarError::Parquet {
+        Err(ColumnarError::Parquet {
             reason: ParquetFailure::InvalidPage,
         })
     ));
@@ -307,7 +307,7 @@ fn preflight_rejects_hostile_plain_lengths_and_page_declarations() {
             bindings,
             budgets,
         ),
-        Err(EmbeddingColumnarError::Parquet {
+        Err(ColumnarError::Parquet {
             reason: ParquetFailure::InvalidPage,
         })
     ));

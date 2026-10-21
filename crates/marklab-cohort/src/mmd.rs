@@ -1,12 +1,12 @@
 use std::collections::HashSet;
 
 use super::{
-    compensated_sum,
     inference_design::{
         compile_blocked_population_independence, validate_permutation_count,
         validate_two_group_labels,
     },
-    CohortInferenceError, InferenceDesign, PatientExchangeabilityBlock, MAXIMUM_PATIENTS,
+    neumaier_sum, CohortInferenceError, InferenceDesign, PatientExchangeabilityBlock,
+    MAXIMUM_PATIENTS,
 };
 
 const MMD_NAMESPACE: u64 = 0x6d6d_645f_7065_726d;
@@ -80,10 +80,6 @@ pub struct MmdPermutationResult {
     pub p_value: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Completed replicate count.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
 }
@@ -215,8 +211,6 @@ fn execute_mmd(
         mmd_squared: observed,
         p_value: (exceedances as f64 + 1.0) / (spec.permutations + 1) as f64,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
     })
 }
@@ -311,7 +305,7 @@ fn build_kernel_matrix(
     for left in 0..n {
         for right in left..n {
             let value = match kernel {
-                MmdKernel::Linear => compensated_sum(
+                MmdKernel::Linear => neumaier_sum(
                     fingerprints[left]
                         .values
                         .iter()
@@ -384,7 +378,7 @@ fn mmd_squared(
         .collect::<Vec<_>>();
     let within_a = within_mean(kernel, n, &group_a, estimator);
     let within_b = within_mean(kernel, n, &group_b, estimator);
-    let cross = compensated_sum(
+    let cross = neumaier_sum(
         group_a
             .iter()
             .flat_map(|left| group_b.iter().map(move |right| kernel[left * n + right])),
@@ -400,7 +394,7 @@ fn mmd_squared(
 
 fn within_mean(kernel: &[f64], n: usize, indices: &[usize], estimator: MmdEstimator) -> f64 {
     let include_diagonal = estimator == MmdEstimator::Biased;
-    let sum = compensated_sum(indices.iter().flat_map(|left| {
+    let sum = neumaier_sum(indices.iter().flat_map(|left| {
         indices.iter().filter_map(move |right| {
             (include_diagonal || left != right).then_some(kernel[left * n + right])
         })

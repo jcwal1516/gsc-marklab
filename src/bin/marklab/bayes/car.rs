@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use clap::ValueEnum;
 use marklab_bayes::{
     car_density, validate_spatial_weights, CarDensityError, CarMode, CarSpec, DiagonalPolicy,
@@ -8,7 +6,8 @@ use marklab_bayes::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::CarDensityArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub(super) enum CliCarMode {
@@ -43,18 +42,22 @@ struct FieldRow {
     value: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    region_path: PathBuf,
-    edge_path: PathBuf,
-    field_path: PathBuf,
-    mode: CliCarMode,
-    tau: f64,
-    rho: f64,
-    constraint_tolerance: f64,
-    island_policy: CliIslandPolicy,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: CarDensityArgs) -> Result<(), CliError> {
+    let CarDensityArgs {
+        regions,
+        edges,
+        field,
+        mode,
+        tau,
+        rho,
+        constraint_tolerance,
+        island_policy,
+        out,
+    } = args;
+    let region_path = regions;
+    let edge_path = edges;
+    let field_path = field;
+    let output_path = out;
     let weights = validate_spatial_weights(
         read_regions(&region_path)?,
         read_edges(&edge_path)?,
@@ -64,7 +67,7 @@ pub(super) fn run(
             normalization: NormalizationPolicy::Preserve,
         },
     )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    .map_err(|error| CliError::Input(error.to_string()))?;
     let weights_digest = weights.digest_sha256.clone();
     let region_ids = weights.region_ids.clone();
     let result = car_density(CarSpec {
@@ -125,21 +128,21 @@ pub(super) fn run(
     publish_json(&output_path, &output)
 }
 
-fn read_regions(path: &std::path::Path) -> Result<Vec<String>, BayesCliError> {
+fn read_regions(path: &std::path::Path) -> Result<Vec<String>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["region_id"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "CAR region headers must be exactly: region_id".into(),
         ));
     }
     reader
         .deserialize::<RegionRow>()
-        .map(|row| row.map(|row| row.region_id).map_err(BayesCliError::from))
+        .map(|row| row.map(|row| row.region_id).map_err(CliError::from))
         .collect()
 }
 
-fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError> {
+fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -147,7 +150,7 @@ fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError>
         .iter()
         .eq(["source_region", "target_region", "weight"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "CAR edge headers must be exactly: source_region,target_region,weight".into(),
         ));
     }
@@ -159,16 +162,16 @@ fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError>
                 target_region: row.target_region,
                 weight: row.weight,
             })
-            .map_err(BayesCliError::from)
+            .map_err(CliError::from)
         })
         .collect()
 }
 
-fn read_field(path: &std::path::Path) -> Result<Vec<RegionFieldValue>, BayesCliError> {
+fn read_field(path: &std::path::Path) -> Result<Vec<RegionFieldValue>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["region_id", "value"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "CAR field headers must be exactly: region_id,value".into(),
         ));
     }
@@ -179,23 +182,23 @@ fn read_field(path: &std::path::Path) -> Result<Vec<RegionFieldValue>, BayesCliE
                 region_id: row.region_id,
                 value: row.value,
             })
-            .map_err(BayesCliError::from)
+            .map_err(CliError::from)
         })
         .collect()
 }
 
-fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &std::path::Path) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "CAR input must be a regular file within the 16 MiB limit",
     )
 }
 
-fn map_error(error: CarDensityError) -> BayesCliError {
+fn map_error(error: CarDensityError) -> CliError {
     match error {
-        CarDensityError::InvalidInput(message) => BayesCliError::Input(message),
-        CarDensityError::Numerical(message) => BayesCliError::Backend(message),
+        CarDensityError::InvalidInput(message) => CliError::Input(message),
+        CarDensityError::Numerical(message) => CliError::Backend(message),
     }
 }
 

@@ -80,7 +80,7 @@ b-6,B,11.0,5\n",
             .abs()
             < 1e-12
     );
-    assert_eq!(result["permutations"]["completed"], 199);
+    assert_eq!(result["permutations"]["requested"], 199);
 }
 
 #[test]
@@ -134,5 +134,5 @@ b-6,B,11.0,5,south\n",
     assert_eq!(result["design"]["blocked"], true);
     assert_eq!(result["design"]["block_count"], 2);
     assert_eq!(result["design"]["randomization_unit"], "patient_residual");
-    assert_eq!(result["permutations"]["completed"], 199);
+    assert_eq!(result["permutations"]["requested"], 199);
 }

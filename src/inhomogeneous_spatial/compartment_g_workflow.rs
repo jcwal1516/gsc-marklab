@@ -1,13 +1,14 @@
+use crate::result_vocabulary::{EdgeCorrection, InhomogeneousNullModel, SpatialRandomizationUnit};
+use crate::workflow_codec::invalid;
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 use serde::Serialize;
 
 use crate::{
-    workflow::pattern_artifact, BinaryCompartmentPartition2D, PairCorrelationKernel, Pattern,
+    compartments::BinaryCompartmentPartition2D, marked_workflow::pattern_artifact,
+    spatial::PairCorrelationKernel, Pattern,
 };
 
 use super::{
@@ -62,7 +63,7 @@ impl<'a> PiecewiseCompartmentPairCorrelationAnalysisNode<'a> {
             inputs,
             configuration_digest: config_ref.digest(),
             implementation_identity: format!(
-                "marklab/{};adapter=piecewise-compartment-pair-correlation-node-v2",
+                "marklab/{};adapter=piecewise-compartment-pair-correlation-node-v3",
                 env!("CARGO_PKG_VERSION")
             ),
         })
@@ -190,7 +191,7 @@ fn validate(
         || result.kernel != PairCorrelationKernel::Epanechnikov
         || result.pair_bandwidth_um.to_bits() != config.pair_bandwidth_um().to_bits()
         || result.edge_correction
-            != "standard_border_radius_plus_pair_bandwidth_inverse_intensity_ratio"
+            != EdgeCorrection::StandardBorderRadiusPlusPairBandwidthInverseIntensityRatio
         || result.configuration_digest != piecewise_g_configuration_digest(config).to_string()
         || result.limits != base.limits()
         || result.estimated_storage_bytes > base.limits().maximum_retained_bytes
@@ -200,9 +201,9 @@ fn validate(
         || result.total_pair_visits > base.limits().maximum_pair_visits
         || result.curve.len() != base.radii_um().len()
         || result.inference.null_model
-            != "fixed_binary_compartment_counts_uniform_within_exact_partition"
+            != InhomogeneousNullModel::FixedBinaryCompartmentCountsUniformWithinExactPartition
         || result.inference.randomization_unit
-            != "whole_location_pattern_conditioned_on_binary_compartment_counts"
+            != SpatialRandomizationUnit::WholeLocationPatternConditionedOnBinaryCompartmentCounts
         || result.inference.simulations_completed != base.simulations()
         || result.inference.seed != base.seed()
         || result.inference.alpha.to_bits() != base.alpha().to_bits()
@@ -212,8 +213,4 @@ fn validate(
     }
     validate_piecewise_intensity(&result.intensity, pattern, partition)?;
     validate_g_curve(&result.curve, &result.inference, base.radii_um())
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }

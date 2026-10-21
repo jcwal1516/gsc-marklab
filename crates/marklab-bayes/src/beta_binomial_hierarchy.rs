@@ -1,14 +1,21 @@
-use crate::validation::{diagnostics_satisfy_policy, is_lower_hex_sha256 as is_sha256};
+use crate::is_worker_timeout;
+use crate::validation::{
+    diagnostics_satisfy_policy, is_exact_name, is_sha256, validate_mcse_summary, SummarySupport,
+};
 
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
-    sha256_hex, BackendContract, BayesError, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+    BackendContract, BayesError, DiagnosticPolicy, FitState, McseScalarSummary, NutsSamplingSpec,
+    PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct BetaBinomialPatientData {
@@ -17,6 +24,14 @@ pub struct BetaBinomialPatientData {
     pub trials: u64,
 }
 
+/// Binomial patient counts with beta-distributed patient probabilities.
+///
+/// The likelihood is `successes_i ~ Binomial(trials_i, p_i)`, with
+/// `p_i ~ Beta(mu * phi, (1 - mu) * phi)`. The population probability has prior
+/// `mu ~ Beta(population_alpha, population_beta)` and concentration has prior
+/// `phi ~ HalfNormal(concentration_prior_sd)`. Beta arguments are shape
+/// parameters; the half-normal argument is its underlying normal SD.
+/// Both workers sample patient probabilities explicitly.
 #[derive(Clone, Debug)]
 pub struct BetaBinomialHierarchySpec {
     pub population_alpha: f64,
@@ -39,8 +54,8 @@ pub struct BetaBinomialHierarchyModelIr {
     pub likelihood: &'static str,
     pub overdispersion: &'static str,
     pub biological_unit: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -82,7 +97,7 @@ impl BetaBinomialHierarchyWorkerRequest {
             || !(3..=512).contains(&spec.patients.len())
             || !is_sha256(&environment_lock_sha256)
             || !is_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "beta-binomial hierarchy priors, patients, identities, or timeout are invalid"
@@ -94,9 +109,7 @@ impl BetaBinomialHierarchyWorkerRequest {
         let mut ids = BTreeSet::new();
         let mut total_trials = 0_u64;
         for patient in &patients {
-            if patient.patient_id.is_empty()
-                || patient.patient_id.trim() != patient.patient_id
-                || patient.patient_id.len() > 128
+            if !is_exact_name(&patient.patient_id)
                 || !ids.insert(patient.patient_id.as_str())
                 || patient.trials == 0
                 || patient.successes > patient.trials
@@ -129,7 +142,7 @@ impl BetaBinomialHierarchyWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -146,8 +159,8 @@ impl BetaBinomialHierarchyWorkerRequest {
                 likelihood: "binomial_successes_given_patient_trials",
                 overdispersion: "one_over_concentration_plus_one",
                 biological_unit: "patient",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             patients,
             sampling,
@@ -166,8 +179,8 @@ impl BetaBinomialHierarchyWorkerRequest {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BetaBinomialHierarchyPosterior {
-    pub population_probability: SarScalarSummary,
-    pub concentration: SarScalarSummary,
+    pub population_probability: McseScalarSummary,
+    pub concentration: McseScalarSummary,
     pub overdispersion_mean: f64,
 }
 
@@ -178,7 +191,7 @@ pub struct BetaBinomialPatientPosterior {
     pub successes: u64,
     pub trials: u64,
     pub observed_proportion: f64,
-    pub posterior_probability: SarScalarSummary,
+    pub posterior_probability: McseScalarSummary,
     pub shrinkage_toward_population: f64,
 }
 
@@ -203,7 +216,7 @@ pub struct BetaBinomialHierarchyWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: BetaBinomialHierarchyPosterior,
     pub patients: Vec<BetaBinomialPatientPosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: BetaBinomialPosteriorPredictive,
 }
 
@@ -230,11 +243,7 @@ impl BetaBinomialHierarchyWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != result_format
             || self.version != 1
-            || self.backend.name != backend.name
-            || self.backend.version != backend.version
-            || self.backend.python_version != backend.python_version
-            || self.backend.environment_lock_sha256 != backend.environment_lock_sha256
-            || self.backend.worker_sha256 != backend.worker_sha256
+            || !self.backend.matches(backend)
             || self.request_sha256 != request_sha256
             || self.patients.len() != request.patients.len()
         {
@@ -253,15 +262,15 @@ impl BetaBinomialHierarchyWorkerResult {
                 "beta-binomial hierarchy sampling counts mismatch".into(),
             ));
         }
-        validate_summary(&self.posterior.population_probability, true)?;
-        validate_summary(&self.posterior.concentration, false)?;
+        validate_summary(&self.posterior.population_probability, SummarySupport::Unit)?;
+        validate_summary(&self.posterior.concentration, SummarySupport::Positive)?;
         if !(0.0..1.0).contains(&self.posterior.overdispersion_mean) {
             return Err(BayesError::WorkerContract(
                 "beta-binomial overdispersion is invalid".into(),
             ));
         }
         for (actual, expected) in self.patients.iter().zip(&request.patients) {
-            validate_summary(&actual.posterior_probability, true)?;
+            validate_summary(&actual.posterior_probability, SummarySupport::Unit)?;
             let observed = expected.successes as f64 / expected.trials as f64;
             if actual.patient_id != expected.patient_id
                 || actual.successes != expected.successes
@@ -338,37 +347,24 @@ impl BetaBinomialHierarchyWorkerResult {
             posterior_predictive: self.posterior_predictive,
             seed: request.sampling.seed,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_non_gaussian_hierarchy"
+                ClaimStatus::ExperimentalNonGaussianHierarchy
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             request_sha256: self.request_sha256,
         }
     }
 }
 
-fn validate_summary(summary: &SarScalarSummary, unit_interval: bool) -> Result<(), BayesError> {
-    if ![
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]
-    .iter()
-    .all(|value| value.is_finite())
-        || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-        || (unit_interval
-            && (!(0.0..=1.0).contains(&summary.mean)
-                || !(0.0..=1.0).contains(&summary.interval_lower)
-                || !(0.0..=1.0).contains(&summary.interval_upper)))
-        || (!unit_interval && (summary.mean <= 0.0 || summary.interval_lower < 0.0))
-    {
-        return Err(BayesError::WorkerContract(
-            "beta-binomial posterior summary is invalid".into(),
-        ));
-    }
-    Ok(())
+fn validate_summary(
+    summary: &McseScalarSummary,
+    support: SummarySupport,
+) -> Result<(), BayesError> {
+    validate_mcse_summary(
+        summary,
+        support,
+        "beta-binomial posterior summary is invalid",
+    )
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -388,15 +384,11 @@ pub struct BetaBinomialHierarchyResult {
     pub fit_state: FitState,
     pub posterior: BetaBinomialHierarchyPosterior,
     pub patients: Vec<BetaBinomialPatientPosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: BetaBinomialPosteriorPredictive,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
-}
-
-pub fn patient_data_sha256(patients: &[BetaBinomialPatientData]) -> Result<String, BayesError> {
-    Ok(sha256_hex(&serde_json::to_vec(patients)?))
 }
 
 #[cfg(test)]

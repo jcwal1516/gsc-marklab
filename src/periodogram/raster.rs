@@ -136,21 +136,3 @@ fn axis_bin(coordinate: f64, origin: f64, cell_size: f64) -> Option<usize> {
     };
     Some(position.floor() as usize)
 }
-
-pub fn centered_mark_raster(
-    pattern: &Pattern,
-    cell_size_um: f64,
-) -> Option<(RasterSpec, Vec<f32>)> {
-    centered_mark_raster_for_marks(pattern, &pattern.mark, cell_size_um)
-}
-
-pub fn centered_mark_raster_for_marks(
-    pattern: &Pattern,
-    marks: &[u8],
-    cell_size_um: f64,
-) -> Option<(RasterSpec, Vec<f32>)> {
-    let plan = RasterAssignmentPlan::new(pattern, cell_size_um)?;
-    let mut raster = Vec::with_capacity(plan.pixel_count());
-    plan.fill_centered_binary_marks(marks, &mut raster)?;
-    Some((plan.spec, raster))
-}

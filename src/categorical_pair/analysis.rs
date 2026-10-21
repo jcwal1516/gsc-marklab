@@ -1,13 +1,18 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection,
+};
 use marklab_cohort::{InferenceAlternative, InferenceDesign};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 use crate::common::finite::canonical_zero;
 
 use crate::{
     classical::window_summary,
     mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes, MarkPairPlan, MarkPairPlanError},
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
     permutation::envelopes::GlobalEnvelope,
-    DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
+    scalar_mark::COMPARTMENT_MARK_ID,
+    ObservationWindow2D,
 };
 
 use super::types::*;
@@ -20,7 +25,7 @@ struct Evaluation {
     cross_k_eligible: Vec<bool>,
 }
 
-/// Estimate directed categorical mark connection and standard-border cross-K with random labeling.
+/// Estimate directed categorical mark connection and standard-border cross-K/L with random labeling.
 pub fn categorical_mark_connection_cross_k(
     input: &DeclaredScalarPatternInput<'_>,
     window: &ObservationWindow2D,
@@ -32,7 +37,7 @@ pub fn categorical_mark_connection_cross_k(
     if frame != input.coordinate_frame_id() {
         return Err(CategoricalPairError::CoordinateFrameMismatch);
     }
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(dependency)?;
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(dependency)?;
     let table = input
         .mark_table()
         .ok_or(CategoricalPairError::MissingCategoricalMark)?;
@@ -214,25 +219,22 @@ pub fn categorical_mark_connection_cross_k(
         geometry: CategoricalPairGeometrySummary {
             point_count: codes.len(),
             directed_pair_count: plan.pairs.len(),
-            geometry_build_count: 1,
             geometry_digest: plan.geometry.logical_digest(),
             pair_plan_digest: plan.digest,
-            edge_correction: "standard_border_reduced_sample".into(),
+            edge_correction: EdgeCorrection::StandardBorderReducedSample,
             estimated_storage_bytes: retained_bytes,
         },
         configuration_digest: configuration_digest(config),
         limits: config.limits,
         curve: observed.points,
         inference: CategoricalPairInferenceSummary {
-            null_model: "random_labeling".into(),
-            permutation_unit: "complete_categorical_row".into(),
-            alternative: "two_sided".into(),
-            multiplicity: "separate_componentwise_erl_families".into(),
+            null_model: MarkNullModel::RandomLabeling,
+            permutation_unit: MarkPermutationUnit::CompleteCategoricalRow,
+            alternative: marklab_cohort::InferenceAlternative::TwoSided,
+            multiplicity: MultiplicityCorrection::SeparateComponentwiseErlFamilies,
             connection,
             cross_k,
             permutations_requested: config.permutations,
-            permutations_attempted: config.permutations,
-            permutations_completed: config.permutations,
             seed: config.seed,
             alpha: config.alpha,
             permutation_pair_evaluations: required_evaluations,
@@ -323,6 +325,7 @@ fn evaluate(
                 area_um2 * active_cross_pairs as f64 / (eligible_sources * target_count) as f64,
             )
         });
+        let cross_l = cross_k.map(|value| canonical_zero((value / std::f64::consts::PI).sqrt()));
         connection_values.push(connection.unwrap_or(0.0));
         cross_k_values.push(cross_k.unwrap_or(0.0));
         connection_eligible.push(connection.is_some());
@@ -341,13 +344,17 @@ fn evaluate(
             source_target_pairs_in_shell: shell_match[index],
             connection_probability: connection,
             cross_k,
+            cross_l,
             theoretical_cross_k: std::f64::consts::PI * radius_um * radius_um,
+            theoretical_cross_l: radius_um,
             connection_inference_eligible: false,
             lower_connection: None,
             upper_connection: None,
             cross_k_inference_eligible: false,
             lower_cross_k: None,
             upper_cross_k: None,
+            lower_cross_l: None,
+            upper_cross_l: None,
         });
     }
     Ok(Evaluation {
@@ -395,6 +402,8 @@ fn attach_envelope(
                 point.cross_k_inference_eligible = true;
                 point.lower_cross_k = Some(lower);
                 point.upper_cross_k = Some(upper);
+                point.lower_cross_l = Some(canonical_zero((lower / std::f64::consts::PI).sqrt()));
+                point.upper_cross_l = Some(canonical_zero((upper / std::f64::consts::PI).sqrt()));
             }
         }
     }

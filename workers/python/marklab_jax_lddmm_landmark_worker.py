@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
+"""JAX worker for Gaussian-kernel LDDMM landmark registration by geodesic shooting."""
 
-import hashlib
 import json
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import jax
 import jax.numpy as jnp
@@ -10,24 +13,28 @@ import numpy as np
 import scipy
 from scipy.optimize import minimize
 
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
+from marklab_worker_support.registration import scipy_objective
 
-class ContractError(Exception):
-    pass
 
+def register(request, request_sha256):
+    """Fit the initial momentum of a landmark geodesic and report the deformation.
 
-def main():
-    if (
-        jax.__version__ != "0.11.1"
-        or np.__version__ != "2.4.6"
-        or scipy.__version__ != "1.18.1"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("LDDMM backend version drift")
-    jax.config.update("jax_enable_x64", True)
-    request_bytes = sys.stdin.buffer.read(4 * 1024 * 1024 + 1)
-    request = json.loads(request_bytes)
-    if request["format"] != "marklab.jax_lddmm_landmark_request" or request["version"] != 1:
-        raise ContractError("request identity mismatch")
+    Landmarks ``q`` with momenta ``p`` follow Hamiltonian geodesics of the Gaussian kernel
+    ``K(x, y) = exp(-|x - y|^2 / (2 s^2))``, integrated by fixed-step RK4 over unit time. The
+    objective is the kinetic energy ``0.5 * sum_ij (p_i . p_j) K(q_i, q_j)`` at the source plus
+    ``data_weight`` times the mean squared endpoint landmark error, minimized by L-BFGS-B from
+    the kernel-smoothed mean displacement.
+    """
     source = jnp.asarray(request["source_landmarks"], dtype=jnp.float64)
     target = jnp.asarray(request["target_landmarks"], dtype=jnp.float64)
     count = source.shape[0]
@@ -57,7 +64,9 @@ def main():
         return (next_position, next_momentum), (next_position, next_momentum)
 
     def shoot(initial_momentum):
-        (_, _), trajectory = jax.lax.scan(step, (source, initial_momentum), xs=None, length=time_steps)
+        (_, _), trajectory = jax.lax.scan(
+            step, (source, initial_momentum), xs=None, length=time_steps
+        )
         return trajectory
 
     def kinetic_energy(position, momentum):
@@ -75,17 +84,15 @@ def main():
     source_array = np.asarray(source)
     differences = source_array[:, None, :] - source_array[None, :, :]
     kernel = np.exp(-np.sum(differences * differences, axis=2) / (2.0 * scale_squared))
-    initial_momentum = np.linalg.solve(kernel + 1e-6 * np.eye(count), np.broadcast_to(displacement, (count, 2)))
-    value_and_gradient = jax.jit(jax.value_and_grad(objective))
-
-    def scipy_objective(parameters):
-        value, gradient = value_and_gradient(jnp.asarray(parameters))
-        return float(value), np.asarray(gradient, dtype=float)
+    initial_momentum = np.linalg.solve(
+        kernel + 1e-6 * np.eye(count), np.broadcast_to(displacement, (count, 2))
+    )
+    fit_objective = scipy_objective(jax.jit(jax.value_and_grad(objective)))
 
     initial = initial_momentum.ravel()
-    initial_objective = scipy_objective(initial)[0]
+    initial_objective = fit_objective(initial)[0]
     fit = minimize(
-        scipy_objective,
+        fit_objective,
         initial,
         jac=True,
         method="L-BFGS-B",
@@ -96,16 +103,23 @@ def main():
     fitted_momentum = jnp.asarray(fit.x.reshape(count, 2))
     positions_tail, momenta_tail = shoot(fitted_momentum)
     positions = np.concatenate([np.asarray(source)[None, ...], np.asarray(positions_tail)], axis=0)
-    momenta = np.concatenate([np.asarray(fitted_momentum)[None, ...], np.asarray(momenta_tail)], axis=0)
-    energies = np.asarray(
-        [float(kinetic_energy(jnp.asarray(q), jnp.asarray(p))) for q, p in zip(positions, momenta)]
+    momenta = np.concatenate(
+        [np.asarray(fitted_momentum)[None, ...], np.asarray(momenta_tail)], axis=0
     )
+    energies = np.asarray(
+        [
+            float(kinetic_energy(jnp.asarray(q), jnp.asarray(p)))
+            for q, p in zip(positions, momenta, strict=True)
+        ]
+    )
+    energy_drift = np.max(np.abs(energies - energies[0])) / max(abs(energies[0]), 1e-12)
     residuals = positions[-1] - np.asarray(target)
-    result = {
+    landmark_errors = np.sqrt(np.sum(residuals * residuals, axis=1))
+    return {
         "format": "marklab.lddmm_landmark_registration",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": request_sha256,
         "source_frame": request["source_frame"],
         "target_frame": request["target_frame"],
         "kernel": {"family": "gaussian", "scale_um": request["kernel_scale_um"]},
@@ -117,12 +131,12 @@ def main():
             "initial_momentum": np.asarray(fitted_momentum).tolist(),
             "kinetic_energy_initial": float(energies[0]),
             "kinetic_energy_final": float(energies[-1]),
-            "maximum_relative_energy_drift": float(np.max(np.abs(energies - energies[0])) / max(abs(energies[0]), 1e-12)),
+            "maximum_relative_energy_drift": float(energy_drift),
         },
         "transformed_source_landmarks": positions[-1].tolist(),
         "quality": {
             "landmark_rmse_um": float(np.sqrt(np.mean(np.sum(residuals * residuals, axis=1)))),
-            "maximum_landmark_error_um": float(np.sqrt(np.sum(residuals * residuals, axis=1)).max()),
+            "maximum_landmark_error_um": float(landmark_errors.max()),
         },
         "diagnostics": {
             "objective_initial": initial_objective,
@@ -133,13 +147,17 @@ def main():
         "fit_state": "complete",
         "claim_status": "experimental_synthetic_landmark_lddmm",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+
+
+def main():
+    require_versions(jax=jax.__version__, numpy=np.__version__, scipy=scipy.__version__)
+    jax.config.update("jax_enable_x64", True)
+    request_bytes = read_request(4 * MIB)
+    request = json.loads(request_bytes)
+    if request["format"] != "marklab.jax_lddmm_landmark_request" or request["version"] != 1:
+        raise ContractError("request identity mismatch")
+    write_result(register(request, sha256_hex(request_bytes)))
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"LDDMM landmark worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "LDDMM landmark worker contract error", errors=CONTRACT_ERRORS)

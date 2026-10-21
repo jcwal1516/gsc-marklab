@@ -1,144 +1,122 @@
+pub(crate) use marklab_bayes::protocol::arbitrary_window_lgcp_quadrature_sensitivity::{
+    Resolution, SensitivityResult,
+};
+
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    FitState, GriddedLgcpPosterior, NormalMeanDiagnostics, NutsSamplingSpec, WorkerBackend,
-};
-use serde::Serialize;
+use marklab_bayes::FitState;
+use marklab_bayes::NutsSamplingSpec;
 
-use super::{
-    arbitrary_window_lgcp_fit::{self, InputIdentity, SpatialPpc},
-    publish_json, BayesCliError,
-};
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct SensitivityCli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum TopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    ArbitraryWindowLgcpQuadratureSensitivity(Box<Arguments>),
-}
+use super::arbitrary_window_lgcp_fit;
+use super::publish_json;
+use super::CliError;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct Arguments {
+pub(crate) struct Arguments {
+    /// Observed point events with coordinates and model covariates.
     #[arg(long)]
     events: PathBuf,
+    /// Observation-window geometry used for spatial integration or edge correction.
     #[arg(long)]
     window: PathBuf,
+    /// Coarse version of: table binding observed events to their declared components or quadrature cells.
     #[arg(long)]
     coarse_event_membership: PathBuf,
+    /// Coarse version of: quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
     coarse_quadrature: PathBuf,
+    /// Intermediate version of: table binding observed events to their declared components or quadrature cells.
     #[arg(long)]
     intermediate_event_membership: PathBuf,
+    /// Intermediate version of: quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
     intermediate_quadrature: PathBuf,
+    /// Baseline version of: table binding observed events to their declared components or quadrature cells.
     #[arg(long)]
     baseline_event_membership: PathBuf,
+    /// Baseline version of: quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
     baseline_quadrature: PathBuf,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior mean for coefficient.
     #[arg(long, allow_hyphen_values = true)]
     coefficient_prior_mean: f64,
+    /// Prior scale for coefficient.
     #[arg(long)]
     coefficient_prior_sd: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
     field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
     field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on events.
     #[arg(long)]
     maximum_events: usize,
+    /// Upper bound on quadrature nodes.
     #[arg(long)]
     maximum_quadrature_nodes: usize,
+    /// Upper bound on total draw node work.
     #[arg(long)]
     maximum_total_draw_node_work: u64,
+    /// Number of posterior predictive simulations.
     #[arg(long)]
     prediction_replicates: u32,
+    /// Random seed for posterior predictive simulation.
     #[arg(long)]
     prediction_seed: u64,
+    /// Upper bound on predictive points.
     #[arg(long)]
     maximum_predictive_points: u64,
+    /// Neighborhood radius in micrometers.
     #[arg(long)]
     neighbor_radius_um: f64,
+    /// Upper bound on neighbor pairs.
     #[arg(long)]
     maximum_neighbor_pairs: usize,
+    /// Smallest standardized posterior change considered material.
     #[arg(long)]
     material_standardized_shift: f64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Debug, Serialize)]
-struct Resolution {
-    name: String,
-    quadrature_node_count: usize,
-    backend: WorkerBackend,
-    source_backend: WorkerBackend,
-    input: InputIdentity,
-    request_sha256: String,
-    fit_state: FitState,
-    posterior: GriddedLgcpPosterior,
-    diagnostics: NormalMeanDiagnostics,
-    spatial_posterior_predictive: Option<SpatialPpc>,
-    total_expected_count_mean: f64,
-    intercept_standardized_shift: f64,
-    coefficient_standardized_shift: f64,
-    total_count_relative_shift: f64,
-    maximum_standardized_shift: f64,
-}
-
-#[derive(Debug, Serialize)]
-struct SensitivityResult {
-    format: String,
-    version: u32,
-    resolutions: Vec<Resolution>,
-    all_fits_complete: bool,
-    maximum_standardized_shift: f64,
-    material_standardized_shift: f64,
-    material_change: bool,
-    total_draw_node_work: u64,
-    statistical_unit: String,
-    claim_status: String,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let TopLevel::Bayes { command } = SensitivityCli::parse_from(std::env::args_os()).command;
-    let Command::ArbitraryWindowLgcpQuadratureSensitivity(arguments) = command;
+pub(super) fn run(arguments: Box<Arguments>) -> Result<(), CliError> {
     if !arguments.material_standardized_shift.is_finite()
         || arguments.material_standardized_shift <= 0.0
         || arguments.maximum_total_draw_node_work == 0
         || arguments.maximum_total_draw_node_work > 100_000_000
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "arbitrary-window LGCP quadrature sensitivity controls are invalid".into(),
         ));
     }
@@ -170,29 +148,34 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
     for (name, membership, quadrature) in definitions {
         prepared.push((
             name,
-            arbitrary_window_lgcp_fit::prepare(
-                arguments.events.clone(),
-                membership,
+            arbitrary_window_lgcp_fit::prepare(crate::bayes::ArbitraryWindowLgcpFitArgs {
+                events: arguments.events.clone(),
+                event_membership: membership,
                 quadrature,
-                arguments.window.clone(),
-                arguments.intercept_prior_mean,
-                arguments.intercept_prior_sd,
-                arguments.coefficient_prior_mean,
-                arguments.coefficient_prior_sd,
-                arguments.field_amplitude,
-                arguments.field_length_scale_um,
-                arguments.jitter,
-                sampling.clone(),
-                arguments.maximum_events,
-                arguments.maximum_quadrature_nodes,
-                arguments.maximum_total_draw_node_work,
-                arguments.prediction_replicates,
-                arguments.prediction_seed,
-                arguments.maximum_predictive_points,
-                arguments.neighbor_radius_um,
-                arguments.maximum_neighbor_pairs,
-                arguments.timeout_seconds,
-            )?,
+                window: arguments.window.clone(),
+                intercept_prior_mean: arguments.intercept_prior_mean,
+                intercept_prior_sd: arguments.intercept_prior_sd,
+                coefficient_prior_mean: arguments.coefficient_prior_mean,
+                coefficient_prior_sd: arguments.coefficient_prior_sd,
+                field_amplitude: arguments.field_amplitude,
+                field_length_scale_um: arguments.field_length_scale_um,
+                jitter: arguments.jitter,
+                chains: sampling.chains,
+                tune: sampling.tune_per_chain,
+                draws: sampling.draws_per_chain,
+                target_accept: sampling.target_accept,
+                seed: sampling.seed,
+                maximum_events: arguments.maximum_events,
+                maximum_quadrature_nodes: arguments.maximum_quadrature_nodes,
+                maximum_draw_node_work: arguments.maximum_total_draw_node_work,
+                prediction_replicates: arguments.prediction_replicates,
+                prediction_seed: arguments.prediction_seed,
+                maximum_predictive_points: arguments.maximum_predictive_points,
+                neighbor_radius_um: arguments.neighbor_radius_um,
+                maximum_neighbor_pairs: arguments.maximum_neighbor_pairs,
+                timeout_seconds: arguments.timeout_seconds,
+                out: std::path::PathBuf::new(),
+            })?,
         ));
     }
     let first = &prepared[0].1.request.input;
@@ -200,7 +183,7 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         prepared.request.input.events_digest != first.events_digest
             || prepared.request.input.window_logical_digest != first.window_logical_digest
     }) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "LGCP quadrature sensitivity events or exact window changed across resolutions".into(),
         ));
     }
@@ -209,9 +192,9 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         work.checked_add(completed_draws * prepared.request.nodes.len() as u64)
     });
     let total_draw_node_work = total_draw_node_work
-        .ok_or_else(|| BayesCliError::Input("LGCP quadrature work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("LGCP quadrature work overflows".into()))?;
     if total_draw_node_work > arguments.maximum_total_draw_node_work {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "LGCP quadrature work exceeds maximum: {total_draw_node_work} > {}",
             arguments.maximum_total_draw_node_work
         )));
@@ -279,14 +262,8 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             material_standardized_shift: arguments.material_standardized_shift,
             material_change: maximum_standardized_shift >= arguments.material_standardized_shift,
             total_draw_node_work,
-            statistical_unit: "one_observed_point_pattern".into(),
-            claim_status: "experimental_quadrature_sensitivity".into(),
+            statistical_unit: StatisticalUnit::OneObservedPointPattern,
+            claim_status: ClaimStatus::ExperimentalQuadratureSensitivity,
         },
     )
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<SensitivityCli>(|| {
-        run_cli().map_err(super::into_marklab_error)
-    })
 }

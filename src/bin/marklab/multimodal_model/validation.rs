@@ -1,17 +1,22 @@
+use marklab_bayes::is_worker_timeout;
 use std::path::PathBuf;
 
 use marklab_topology::sha256_hex;
 
-use super::super::topology::{publish_json, run_worker, TopologyCliError};
+use super::super::topology::{publish_json, run_worker};
 use super::worker_assets;
+use crate::cli_error::CliError;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
 pub(super) fn run_validation_suite(
     seed: u64,
     timeout_seconds: u64,
     out: PathBuf,
-) -> Result<(), TopologyCliError> {
-    if !(1..=3_600).contains(&timeout_seconds) {
-        return Err(TopologyCliError::Input(
+) -> Result<(), CliError> {
+    if !is_worker_timeout(timeout_seconds) {
+        return Err(CliError::Input(
             "multimodal validation timeout must be between 1 and 3600 seconds".into(),
         ));
     }
@@ -21,9 +26,9 @@ pub(super) fn run_validation_suite(
         "version": 1,
         "backend": {
             "name": "numpy_scipy_exact_synthetic_controls",
-            "numpy_version": "2.4.6",
-            "scipy_version": "1.18.1",
-            "python_version": "3.12",
+            "numpy_version": NUMPY_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "BSD-3-Clause",
             "environment_lock_sha256": assets.lock_sha256,
             "worker_sha256": assets.worker_sha256
@@ -47,7 +52,7 @@ pub(super) fn run_validation_suite(
         )
         || result["claim_status"] != "synthetic_validation_ledger_with_explicit_gaps"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "multimodal validation result identity mismatch".into(),
         ));
     }

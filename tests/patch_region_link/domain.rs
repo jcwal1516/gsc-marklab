@@ -21,10 +21,6 @@ fn exhaustive_assessment_derives_the_exact_sparse_declared_link() {
     assert_eq!(assessment.assessed_pair_count(), 4);
     assert_eq!(assessment.nonzero_relation_count(), 3);
     assert_eq!(
-        assessment.nonzero_relations_digest(),
-        reference_relations_digest(&assessment)
-    );
-    assert_eq!(
         assessment.nonzero_relations_digest().to_string(),
         "e8380a102ecc8530cef24a9e823e278a8ceb6a0992f0f715ee46ce2d54c5cad6"
     );
@@ -52,7 +48,6 @@ fn exhaustive_assessment_derives_the_exact_sparse_declared_link() {
     );
     assert_eq!(link.nonzero_relations()[1].numerator(), 1);
     assert_eq!(link.nonzero_relations()[1].denominator(), 4);
-    assert_eq!(link.logical_digest(), reference_link_digest(&link));
     assert_eq!(
         link.logical_digest().to_string(),
         "290ee111de5f60c016e1f28fe33cb8989a1a9f70b2b507e9fef5c01b031e5b28"

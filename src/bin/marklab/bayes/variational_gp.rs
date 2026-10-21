@@ -1,12 +1,12 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, GpObservation, GpPredictionCoordinate, VariationalGpInputIdentity,
+    json_sha256, sha256_hex, GpObservation, GpPredictionCoordinate, VariationalGpInputIdentity,
     VariationalGpSpec, VariationalGpWorkerRequest, VariationalGpWorkerResult,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::VariationalGpArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -23,39 +23,32 @@ struct PredictionRow {
     x_um: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    observation_path: PathBuf,
-    prediction_path: PathBuf,
-    mean_prior_mean: f64,
-    mean_prior_sd: f64,
-    amplitude_prior_sd: f64,
-    length_scale_prior_sd_um: f64,
-    noise_prior_sd: f64,
-    jitter: f64,
-    inducing_points: u32,
-    starts: u32,
-    iterations: u32,
-    learning_rate: f64,
-    posterior_draws: u32,
-    seed: u64,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: VariationalGpArgs) -> Result<(), CliError> {
+    let VariationalGpArgs {
+        input,
+        predict,
+        mean_prior_mean,
+        mean_prior_sd,
+        amplitude_prior_sd,
+        length_scale_prior_sd_um,
+        noise_prior_sd,
+        jitter,
+        inducing_points,
+        starts,
+        iterations,
+        learning_rate,
+        posterior_draws,
+        seed,
+        timeout_seconds,
+        out,
+    } = args;
+    let observation_path = input;
+    let prediction_path = predict;
+    let output_path = out;
     let observations = read_observations(&observation_path)?;
     let predictions = read_predictions(&prediction_path)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_variational_gp_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_pymc_variational_gp_worker.py")?;
     let request = VariationalGpWorkerRequest::new(
         VariationalGpSpec {
             mean_prior_mean,
@@ -73,14 +66,14 @@ pub(super) fn run(
             observations,
             predictions,
         },
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
-    let data_sha256 = sha256_hex(&serde_json::to_vec(&serde_json::json!({
+    let data_sha256 = json_sha256(&serde_json::json!({
         "observations": &request.observations,
         "predictions": &request.predictions,
-    }))?);
+    }))?;
     let input = VariationalGpInputIdentity {
         observation_path: observation_path.display().to_string(),
         prediction_path: prediction_path.display().to_string(),
@@ -101,7 +94,7 @@ pub(super) fn run(
     publish_json(&output_path, &result.into_fit(request, input))
 }
 
-fn read_observations(path: &std::path::Path) -> Result<Vec<GpObservation>, BayesCliError> {
+fn read_observations(path: &std::path::Path) -> Result<Vec<GpObservation>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -109,7 +102,7 @@ fn read_observations(path: &std::path::Path) -> Result<Vec<GpObservation>, Bayes
         .iter()
         .eq(["observation_id", "x_um", "value"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "variational GP headers must be exactly: observation_id,x_um,value".into(),
         ));
     }
@@ -122,7 +115,7 @@ fn read_observations(path: &std::path::Path) -> Result<Vec<GpObservation>, Bayes
             value: row.value,
         });
         if rows.len() > 2_000 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "variational GP observation count exceeds 2000".into(),
             ));
         }
@@ -130,11 +123,11 @@ fn read_observations(path: &std::path::Path) -> Result<Vec<GpObservation>, Bayes
     Ok(rows)
 }
 
-fn read_predictions(path: &std::path::Path) -> Result<Vec<GpPredictionCoordinate>, BayesCliError> {
+fn read_predictions(path: &std::path::Path) -> Result<Vec<GpPredictionCoordinate>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["prediction_id", "x_um"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "variational GP prediction headers must be exactly: prediction_id,x_um".into(),
         ));
     }
@@ -146,7 +139,7 @@ fn read_predictions(path: &std::path::Path) -> Result<Vec<GpPredictionCoordinate
             x_um: row.x_um,
         });
         if rows.len() > 2_048 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "variational GP prediction count exceeds 2048".into(),
             ));
         }
@@ -154,8 +147,8 @@ fn read_predictions(path: &std::path::Path) -> Result<Vec<GpPredictionCoordinate
     Ok(rows)
 }
 
-fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &std::path::Path) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "variational GP input must be a regular file within the 16 MiB limit",

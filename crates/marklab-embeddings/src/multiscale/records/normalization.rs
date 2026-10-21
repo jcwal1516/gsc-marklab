@@ -71,7 +71,7 @@ impl fmt::Debug for PatchEmbeddingInputNormalization {
 }
 
 impl PatchEmbeddingInputNormalization {
-    /// Construct the only admitted version-one H&E brightfield sRGB profile.
+    /// Construct the only supported version-one H&E brightfield sRGB profile.
     pub fn he_srgb(
         channel_mean: [PatchNormalizationDecimal; 3],
         channel_std: [PatchNormalizationDecimal; 3],

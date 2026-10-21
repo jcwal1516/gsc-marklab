@@ -1,17 +1,21 @@
-#![allow(dead_code)]
-
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 
 use marklab::{
-    execute_algorithm_with_store, top1_pair_mixing_bounds, ArtifactRef, ArtifactSchema,
-    BinaryMarkDeclaration, CacheStatus, DeclaredScalarPatternInput, DurableProject,
-    DurableProjectLimits, HistologicCompartmentMarkDeclaration, LocalScheduler, MarkTable,
-    MeasurementStatus, MissingnessPolicy, NativeRuntimeProvenance, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, ProbabilityMarkDeclaration, ScalarMarkColumn, ScalarMarkId,
-    ScalarMarkModality, ScalarMarkUnit, SchedulerLimits, Top1PairMixingBoundsAnalysisNode,
-    Top1PairMixingBoundsConfig, Top1PairMixingBoundsError, Top1PairMixingBoundsLimits,
-    WorkflowGraph,
+    marks::{
+        top1_pair_mixing_bounds, BinaryMarkDeclaration, DeclaredScalarPatternInput,
+        HistologicCompartmentMarkDeclaration, MarkTable, MissingnessPolicy,
+        ProbabilityMarkDeclaration, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+        ScalarMarkUnit, Top1PairMixingBoundsAnalysisNode, Top1PairMixingBoundsConfig,
+        Top1PairMixingBoundsError, Top1PairMixingBoundsLimits,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 use support::{
     binary_metadata, cell_id_text_bytes, fixture, histologic_compartment_metadata,

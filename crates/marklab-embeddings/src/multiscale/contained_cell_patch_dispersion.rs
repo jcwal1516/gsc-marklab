@@ -157,17 +157,12 @@ impl ContainedCellPatchEmbeddingDispersion {
     pub fn patch_footprints_artifact_id(self) -> ArtifactId {
         self.patch_footprints_artifact_id
     }
-
-    /// Exact contained-link producer artifact identity.
-    pub fn cell_patch_producer_artifact_id(self) -> ArtifactId {
-        self.cell_patch_producer_artifact_id
-    }
 }
 
 /// Invalid joined input binding, unsupported mode, caller limit, or allocation.
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum ContainedCellPatchEmbeddingDispersionError {
-    /// Declared weighted interpolation is not an admitted local-dispersion weight.
+    /// Declared weighted interpolation is not a supported local-dispersion weight.
     #[error("contained cell-patch embedding dispersion requires contained-shared assignments")]
     UnsupportedAssignmentMode,
     /// The materialized embedding table and its verified artifact disagree.
@@ -228,7 +223,7 @@ pub enum ContainedCellPatchEmbeddingDispersionError {
     /// One exact bounded working allocation failed.
     #[error("contained cell-patch dispersion allocation failed for {requested} bytes")]
     AllocationFailed {
-        /// Exact admitted total working bytes.
+        /// Exact accepted total working bytes.
         requested: usize,
     },
 }

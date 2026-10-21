@@ -1,18 +1,32 @@
-use crate::validation::all_finite as finite;
+use crate::is_worker_timeout;
+use crate::validation::{all_finite as finite, validate_mcse_summary, SummarySupport};
+use marklab_numerics::relative_eq;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
-    build_gridded_lgcp,
+    build_gridded_lgcp, json_sha256,
     model::{
         BackendContract, DiagnosticPolicy, PYMC_VERSION, WORKER_REQUEST_FORMAT,
         WORKER_REQUEST_VERSION,
     },
-    sha256_hex, BayesError, FitState, GriddedLgcpCell, GriddedLgcpModelIr, GriddedLgcpSpec,
-    NormalMeanDiagnostics, NutsSamplingSpec, RectangularWindow, SamplingSummary, SarScalarSummary,
-    WorkerBackend,
+    BayesError, FitState, GriddedLgcpCell, GriddedLgcpModelIr, GriddedLgcpSpec, McseScalarSummary,
+    NutsSamplingSpec, PosteriorDiagnostics, RectangularWindow, SamplingSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
+const RELATIVE_TOLERANCE: f64 = 1e-10;
+/// Fit the gridded Poisson log-Gaussian Cox process by NUTS.
+///
+/// The construction fixes the cell areas, covariates, offsets, and Matérn-3/2 covariance `K`.
+/// The worker uses `count_k ~ Poisson(A * exp(alpha + beta * x_k + offset_k + u_k))`,
+/// independent normal priors on `alpha` and `beta` with the construction's means and SDs, and
+/// the non-centred field `u = chol(K) z`, `z ~ Normal(0, I)`. Kernel amplitude, length scale,
+/// and jitter remain fixed at their construction values.
+///
 #[derive(Clone, Debug)]
 pub struct GriddedLgcpFitSpec {
     pub construction: GriddedLgcpSpec,
@@ -22,8 +36,8 @@ pub struct GriddedLgcpFitSpec {
 pub struct GriddedLgcpFitModelIr {
     pub construction: GriddedLgcpModelIr,
     pub field_parameterization: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -74,7 +88,7 @@ impl GriddedLgcpFitWorkerRequest {
         timeout_seconds: u64,
     ) -> Result<Self, BayesError> {
         sampling.validate()?;
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "gridded LGCP timeout must be in 1-3600 seconds".into(),
             ));
@@ -119,22 +133,22 @@ impl GriddedLgcpFitWorkerRequest {
                 "gridded LGCP posterior cell work exceeds 1000000".into(),
             ));
         }
-        let covariance_sha256 = sha256_hex(&serde_json::to_vec(&built.field_covariance)?);
+        let covariance_sha256 = json_sha256(&built.field_covariance)?;
         Ok(Self {
             format: WORKER_REQUEST_FORMAT,
             version: WORKER_REQUEST_VERSION,
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
             model: GriddedLgcpFitModelIr {
                 construction: built.model,
                 field_parameterization: "noncentered_fixed_cholesky_times_standard_normal",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             window: built.window,
             grid_x: built.grid_x,
@@ -190,8 +204,8 @@ impl GriddedLgcpFitWorkerRequest {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GriddedLgcpPosterior {
-    pub intercept: SarScalarSummary,
-    pub coefficient: SarScalarSummary,
+    pub intercept: McseScalarSummary,
+    pub coefficient: McseScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -200,10 +214,10 @@ pub struct GriddedLgcpCellPosterior {
     pub ix: u32,
     pub iy: u32,
     pub count: u64,
-    pub latent_effect: SarScalarSummary,
-    pub intensity: SarScalarSummary,
-    pub expected_count: SarScalarSummary,
-    pub pearson_residual: SarScalarSummary,
+    pub latent_effect: McseScalarSummary,
+    pub intensity: McseScalarSummary,
+    pub expected_count: McseScalarSummary,
+    pub pearson_residual: McseScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -259,7 +273,7 @@ pub struct GriddedLgcpFitWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: GriddedLgcpPosterior,
     pub cells: Vec<GriddedLgcpCellPosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GriddedLgcpPosteriorPredictive,
     pub patterns: Vec<GriddedLgcpPredictivePattern>,
 }
@@ -288,11 +302,7 @@ impl GriddedLgcpFitWorkerResult {
         if self.fit_state == FitState::ApproximateOnly
             || self.format != result_format
             || self.version != 1
-            || self.backend.name != backend.name
-            || self.backend.version != backend.version
-            || self.backend.python_version != backend.python_version
-            || self.backend.environment_lock_sha256 != backend.environment_lock_sha256
-            || self.backend.worker_sha256 != backend.worker_sha256
+            || !self.backend.matches(backend)
             || self.request_sha256 != request_sha256
             || self.cells.len() != request.cells.len()
         {
@@ -311,8 +321,8 @@ impl GriddedLgcpFitWorkerResult {
                 "gridded LGCP sampling counts mismatch".into(),
             ));
         }
-        validate_scalar(&self.posterior.intercept, false)?;
-        validate_scalar(&self.posterior.coefficient, false)?;
+        validate_scalar(&self.posterior.intercept, SummarySupport::Real)?;
+        validate_scalar(&self.posterior.coefficient, SummarySupport::Real)?;
         for (actual, expected) in self.cells.iter().zip(&request.cells) {
             if actual.ix != expected.ix
                 || actual.iy != expected.iy
@@ -322,10 +332,10 @@ impl GriddedLgcpFitWorkerResult {
                     "gridded LGCP cell identity mismatch".into(),
                 ));
             }
-            validate_scalar(&actual.latent_effect, false)?;
-            validate_scalar(&actual.intensity, true)?;
-            validate_scalar(&actual.expected_count, true)?;
-            validate_scalar(&actual.pearson_residual, false)?;
+            validate_scalar(&actual.latent_effect, SummarySupport::Real)?;
+            validate_scalar(&actual.intensity, SummarySupport::Positive)?;
+            validate_scalar(&actual.expected_count, SummarySupport::Positive)?;
+            validate_scalar(&actual.pearson_residual, SummarySupport::Real)?;
         }
         let observed_total = request.cells.iter().map(|cell| cell.count).sum::<u64>();
         let observed_zeros = request.cells.iter().filter(|cell| cell.count == 0).count() as u64;
@@ -435,8 +445,8 @@ impl GriddedLgcpFitWorkerResult {
                     recomputed_expected,
                 ]) || intensity <= 0.0
                     || expected <= 0.0
-                    || !close(intensity, recomputed_intensity)
-                    || !close(expected, recomputed_expected)
+                    || !relative_eq(intensity, recomputed_intensity, RELATIVE_TOLERANCE)
+                    || !relative_eq(expected, recomputed_expected, RELATIVE_TOLERANCE)
                 {
                     return Err(BayesError::WorkerContract(
                         "gridded LGCP predictive draw intensity is invalid".into(),
@@ -517,9 +527,9 @@ impl GriddedLgcpFitWorkerResult {
             sampling: self.sampling,
             fit_state: self.fit_state,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental"
+                ClaimStatus::Experimental
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             posterior: self.posterior,
             cells: self.cells,
@@ -557,7 +567,7 @@ impl GriddedLgcpFitWorkerResult {
             observed_event_count: request.event_count,
             sampling: self.sampling,
             fit_state: self.fit_state,
-            claim_status: "experimental_discretized_prediction",
+            claim_status: ClaimStatus::ExperimentalDiscretizedPrediction,
             diagnostics: self.diagnostics,
             prediction_seed: request.prediction.seed,
             replicate_count: request.prediction.replicates,
@@ -578,25 +588,12 @@ impl GriddedLgcpFitWorkerResult {
     }
 }
 
-fn validate_scalar(summary: &SarScalarSummary, positive: bool) -> Result<(), BayesError> {
-    if !finite(&[
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]) || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-        || (positive && (summary.mean <= 0.0 || summary.interval_lower < 0.0))
-    {
-        return Err(BayesError::WorkerContract(
-            "gridded LGCP posterior summary is invalid".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn close(actual: f64, expected: f64) -> bool {
-    (actual - expected).abs() <= 1e-10 * actual.abs().max(expected.abs()).max(1.0)
+fn validate_scalar(summary: &McseScalarSummary, support: SummarySupport) -> Result<(), BayesError> {
+    validate_mcse_summary(
+        summary,
+        support,
+        "gridded LGCP posterior summary is invalid",
+    )
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -622,10 +619,10 @@ pub struct GriddedLgcpFitResult {
     pub observed_event_count: usize,
     pub sampling: SamplingSummary,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub posterior: GriddedLgcpPosterior,
     pub cells: Vec<GriddedLgcpCellPosterior>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GriddedLgcpPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,
@@ -656,8 +653,8 @@ pub struct GriddedLgcpPredictionResult {
     pub observed_event_count: usize,
     pub sampling: SamplingSummary,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub claim_status: ClaimStatus,
+    pub diagnostics: PosteriorDiagnostics,
     pub prediction_seed: u64,
     pub replicate_count: u32,
     pub total_points: u64,

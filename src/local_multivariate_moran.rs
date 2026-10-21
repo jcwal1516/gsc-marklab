@@ -1,7 +1,11 @@
+use crate::result_vocabulary::{
+    MoranNullModel, MoranPopulationClaim, MoranStatisticalUnit, MultiplicityCorrection,
+};
 use std::collections::{BTreeMap, HashSet};
 
 use marklab_cohort::InferenceDesign;
-use marklab_workflow::ContentDigest;
+use marklab_numerics::summation::neumaier_sum;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -43,10 +47,10 @@ pub struct LocalMultivariateMoranLocation {
 pub struct LocalMultivariateMoranResult {
     pub format: String,
     pub version: u32,
-    pub statistical_unit: String,
-    pub population_claim: String,
-    pub null: String,
-    pub multiplicity: String,
+    pub statistical_unit: MoranStatisticalUnit,
+    pub population_claim: MoranPopulationClaim,
+    pub null: MoranNullModel,
+    pub multiplicity: MultiplicityCorrection,
     pub assumptions: Vec<String>,
     pub failure_policy: String,
     pub feature_names: Vec<String>,
@@ -60,7 +64,6 @@ pub struct LocalMultivariateMoranResult {
     pub weights_sha256: String,
     pub window_sha256: String,
     pub permutations_requested: usize,
-    pub permutations_completed: usize,
     pub seed: u64,
     pub permutation_edge_evaluations: usize,
     pub retained_memory_bytes: usize,
@@ -88,7 +91,6 @@ pub enum LocalMultivariateMoranError {
 /// its exact declared stratum under the random-labeling null. The result is a
 /// within-specimen field diagnostic and does not turn point rows into population
 /// replicates.
-#[allow(clippy::too_many_arguments)]
 pub fn local_multivariate_moran_permutation(
     points: &[LocalMultivariateMoranPoint],
     feature_names: &[String],
@@ -211,10 +213,10 @@ pub fn local_multivariate_moran_permutation(
     Ok(LocalMultivariateMoranResult {
         format: "marklab.local_multivariate_moran".into(),
         version: 1,
-        statistical_unit: "complete_multivariate_mark_row".into(),
-        population_claim: "within_specimen_field_diagnostic_only".into(),
-        null: "complete_rows_randomly_labeled_within_declared_strata".into(),
-        multiplicity: "single_step_max_abs_over_all_locations".into(),
+        statistical_unit: MoranStatisticalUnit::CompleteMultivariateMarkRow,
+        population_claim: MoranPopulationClaim::WithinSpecimenFieldDiagnosticOnly,
+        null: MoranNullModel::CompleteRowsRandomlyLabeledWithinDeclaredStrata,
+        multiplicity: MultiplicityCorrection::SingleStepMaxAbsOverAllLocations,
         assumptions: vec![
             "fixed physical locations and exact observation window".into(),
             "complete feature rows are exchangeable only within declared strata".into(),
@@ -233,7 +235,6 @@ pub fn local_multivariate_moran_permutation(
         weights_sha256,
         window_sha256: window.descriptor().logical_digest.to_string(),
         permutations_requested: permutations,
-        permutations_completed: permutations,
         seed,
         permutation_edge_evaluations,
         retained_memory_bytes,
@@ -333,11 +334,11 @@ fn standardize(
     let mut means = vec![0.0; dimension];
     for (feature, mean) in means.iter_mut().enumerate() {
         *mean =
-            compensated_sum(points.iter().map(|point| point.values[feature])) / points.len() as f64;
+            neumaier_sum(points.iter().map(|point| point.values[feature])) / points.len() as f64;
     }
     let mut standard_deviations = vec![0.0; dimension];
     for (feature, standard_deviation) in standard_deviations.iter_mut().enumerate() {
-        *standard_deviation = (compensated_sum(points.iter().map(|point| {
+        *standard_deviation = (neumaier_sum(points.iter().map(|point| {
             let centered = point.values[feature] - means[feature];
             centered * centered
         })) / points.len() as f64)
@@ -390,8 +391,8 @@ fn evaluate(
     for row in 0..standardized.len() {
         let source = &standardized[permutation[row]];
         let inverse_degree = 1.0 / neighbors[row].len() as f64;
-        let statistic = compensated_sum((0..dimension).map(|feature| {
-            let neighbor_mean = compensated_sum(
+        let statistic = neumaier_sum((0..dimension).map(|feature| {
+            let neighbor_mean = neumaier_sum(
                 neighbors[row]
                     .iter()
                     .map(|neighbor| standardized[permutation[*neighbor]][feature]),
@@ -459,18 +460,6 @@ fn valid_text(value: &str) -> bool {
         && value.len() <= 256
         && value.trim() == value
         && !value.chars().any(char::is_control)
-}
-
-fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
-    let mut sum = 0.0;
-    let mut correction = 0.0;
-    for value in values {
-        let adjusted = value - correction;
-        let next = sum + adjusted;
-        correction = (next - sum) - adjusted;
-        sum = next;
-    }
-    sum
 }
 
 #[cfg(test)]

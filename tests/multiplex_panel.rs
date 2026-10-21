@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
 use marklab::{
-    ArtifactId, AssayMarkDeclaration, AssayMarkValues, CellId, ContentDigest, MarkTable,
-    MeasurementStatus, ScalarMarkColumn, ScalarMarkId,
+    marks::{AssayMarkDeclaration, AssayMarkValues, MarkTable, ScalarMarkColumn, ScalarMarkId},
+    workflow::{ArtifactId, ContentDigest},
+    CellId, MeasurementStatus,
 };
 
 fn declaration(name: &str, unit: &str) -> AssayMarkDeclaration {
@@ -106,9 +107,12 @@ fn invalid_assay_values_fail_at_construction() {
 #[test]
 fn both_spatial_summaries_match_a_direct_graph_oracle_and_keep_unavailable_channels() {
     use marklab::{
-        summarize_assay_spatial, AssaySpatialInput, AssaySpatialLimits, AssaySpatialOutcome,
+        autocorrelation::{
+            summarize_assay_spatial, AssaySpatialInput, AssaySpatialLimits, AssaySpatialOutcome,
+            GlobalMoranWeightPolicy,
+        },
         CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
-        GlobalMoranWeightPolicy, ObservationWindow2D, ObservationWindowLimits, SpatialAxis,
+        ObservationWindow2D, ObservationWindowLimits, SpatialAxis,
     };
     let frame = CoordinateFrameId::new("panel-um").unwrap();
     let declared_frame = CoordinateFrame::new(
@@ -211,33 +215,36 @@ fn both_spatial_summaries_match_a_direct_graph_oracle_and_keep_unavailable_chann
 
 #[test]
 fn existing_modality_and_unit_enums_remain_exhaustively_matchable() {
-    fn modality(value: marklab::ScalarMarkModality) -> u8 {
+    fn modality(value: marklab::marks::ScalarMarkModality) -> u8 {
         match value {
-            marklab::ScalarMarkModality::Histology => 0,
-            marklab::ScalarMarkModality::Immunohistochemistry => 1,
-            marklab::ScalarMarkModality::Morphology => 2,
+            marklab::marks::ScalarMarkModality::Histology => 0,
+            marklab::marks::ScalarMarkModality::Immunohistochemistry => 1,
+            marklab::marks::ScalarMarkModality::Morphology => 2,
         }
     }
-    fn unit(value: marklab::ScalarMarkUnit) -> u8 {
+    fn unit(value: marklab::marks::ScalarMarkUnit) -> u8 {
         match value {
-            marklab::ScalarMarkUnit::Categorical => 0,
-            marklab::ScalarMarkUnit::Unitless => 1,
-            marklab::ScalarMarkUnit::SquareMicrometer => 2,
-            marklab::ScalarMarkUnit::ProbabilitySimplex => 3,
-            marklab::ScalarMarkUnit::Ordinal => 4,
-            marklab::ScalarMarkUnit::EmbeddingVector => 5,
+            marklab::marks::ScalarMarkUnit::Categorical => 0,
+            marklab::marks::ScalarMarkUnit::Unitless => 1,
+            marklab::marks::ScalarMarkUnit::SquareMicrometer => 2,
+            marklab::marks::ScalarMarkUnit::ProbabilitySimplex => 3,
+            marklab::marks::ScalarMarkUnit::Ordinal => 4,
+            marklab::marks::ScalarMarkUnit::EmbeddingVector => 5,
         }
     }
-    assert_eq!(modality(marklab::ScalarMarkModality::Histology), 0);
-    assert_eq!(unit(marklab::ScalarMarkUnit::Unitless), 1);
+    assert_eq!(modality(marklab::marks::ScalarMarkModality::Histology), 0);
+    assert_eq!(unit(marklab::marks::ScalarMarkUnit::Unitless), 1);
 }
 
 #[test]
 fn observed_row_subgraphs_obey_hand_values_and_exact_work_bounds() {
     use marklab::{
-        summarize_assay_spatial, AssaySpatialInput, AssaySpatialLimits, AssaySpatialOutcome,
+        autocorrelation::{
+            summarize_assay_spatial, AssaySpatialInput, AssaySpatialLimits, AssaySpatialOutcome,
+            GlobalMoranWeightPolicy,
+        },
         CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
-        GlobalMoranWeightPolicy, ObservationWindow2D, ObservationWindowLimits, SpatialAxis,
+        ObservationWindow2D, ObservationWindowLimits, SpatialAxis,
     };
     let frame = CoordinateFrameId::new("observed-um").unwrap();
     let registry = CoordinateRegistry::new(

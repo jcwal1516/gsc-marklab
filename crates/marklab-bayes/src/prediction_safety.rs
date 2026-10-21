@@ -1,4 +1,4 @@
-use crate::linalg;
+use marklab_numerics::dense;
 
 use serde::Serialize;
 use std::collections::HashSet;
@@ -242,7 +242,9 @@ pub fn mahalanobis_ood_score(
             }
         }
     }
-    let lower = cholesky(&covariance, dimension)?;
+    let lower = dense::cholesky(&covariance, dimension).ok_or_else(|| {
+        PredictionSafetyError::Invalid("shrunk training covariance is not positive definite".into())
+    })?;
     let score = |unit: &OodRepresentationUnit| {
         let centered = unit
             .representation
@@ -250,7 +252,7 @@ pub fn mahalanobis_ood_score(
             .zip(&mean)
             .map(|(value, center)| value - center)
             .collect::<Vec<_>>();
-        linalg::solve_lower_dot(&lower, dimension, &centered)
+        dense::solve_lower(&lower, dimension, &centered)
             .iter()
             .map(|value| value * value)
             .sum::<f64>()
@@ -300,30 +302,6 @@ pub fn mahalanobis_ood_score(
         threshold,
         scores,
     })
-}
-
-fn cholesky(matrix: &[f64], dimension: usize) -> Result<Vec<f64>, PredictionSafetyError> {
-    let mut lower = vec![0.0; matrix.len()];
-    for row in 0..dimension {
-        for column in 0..=row {
-            let prior = (0..column)
-                .map(|index| lower[row * dimension + index] * lower[column * dimension + index])
-                .sum::<f64>();
-            if row == column {
-                let diagonal = matrix[row * dimension + row] - prior;
-                if !diagonal.is_finite() || diagonal <= 0.0 {
-                    return Err(PredictionSafetyError::Invalid(
-                        "shrunk training covariance is not positive definite".into(),
-                    ));
-                }
-                lower[row * dimension + column] = diagonal.sqrt();
-            } else {
-                lower[row * dimension + column] =
-                    (matrix[row * dimension + column] - prior) / lower[column * dimension + column];
-            }
-        }
-    }
-    Ok(lower)
 }
 
 #[cfg(test)]

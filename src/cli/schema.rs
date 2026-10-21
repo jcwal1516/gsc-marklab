@@ -1,970 +1,232 @@
 use super::*;
 
-#[path = "schema/dispatch.rs"]
 mod dispatch;
 
-pub(super) fn run_cli() -> Result<()> {
-    dispatch::run_cli()
-}
+pub(crate) use dispatch::{run, run_multimodal, run_project};
 
-pub(super) fn command() -> clap::Command {
-    <Cli as clap::CommandFactory>::command()
-}
-
-#[derive(Debug, Parser)]
-#[command(
-    name = "marklab",
-    version,
-    about = "Spatial statistics for marked cell patterns in pathology"
-)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
-
+/// Top-level library commands. `project` and `multimodal` subcommands are separate enums
+/// so the executable can combine them with its own subcommands of the same name.
 #[derive(Debug, Subcommand)]
-enum Commands {
+pub enum Commands {
+    /// Print a whole-slide image's metadata as JSON.
     #[cfg(feature = "wsi")]
     InspectSlide {
+        /// Whole-slide image to inspect or extract from.
         slide: PathBuf,
+        /// Destination for the generated output.
         #[arg(long)]
         output: Option<PathBuf>,
     },
+    /// Extract one region of a whole-slide image as RGBA pixels.
     #[cfg(feature = "wsi")]
-    ExtractRegion {
-        slide: PathBuf,
-        #[arg(long, default_value_t = 0)]
-        scene: usize,
-        #[arg(long, default_value_t = 0)]
-        series: usize,
-        #[arg(long, default_value_t = 0)]
-        level: u32,
-        #[arg(long, default_value_t = 0)]
-        z: u32,
-        #[arg(long, default_value_t = 0)]
-        c: u32,
-        #[arg(long, default_value_t = 0)]
-        t: u32,
-        #[arg(long)]
-        x: u64,
-        #[arg(long)]
-        y: u64,
-        #[arg(long)]
-        width: u32,
-        #[arg(long)]
-        height: u32,
-        #[arg(long)]
-        output: PathBuf,
-        #[arg(long)]
-        force: bool,
-    },
-    Analyze {
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        config: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        threads: Option<usize>,
-        #[arg(long, value_enum)]
-        log: Option<LogLevel>,
-        #[arg(long)]
-        trace_json: Option<PathBuf>,
-        #[arg(long)]
-        timings: Option<PathBuf>,
-        #[arg(long)]
-        heap_profile: Option<PathBuf>,
-    },
-    Classical {
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        r_max_um: f64,
-        #[arg(long)]
-        r_steps: usize,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_csr_draws: usize,
-    },
-    NearestSpace {
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        r_max_um: f64,
-        #[arg(long)]
-        r_steps: usize,
-        #[arg(long)]
-        probe_grid_x: usize,
-        #[arg(long)]
-        probe_grid_y: usize,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        j_denominator_epsilon: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_nearest_queries: usize,
-        #[arg(long)]
-        max_csr_draws: usize,
-    },
-    Project {
-        #[command(subcommand)]
-        command: ProjectCommands,
-    },
+    ExtractRegion(slide::ExtractRequest),
+    /// Run the marked-pattern analysis on one tissue section.
+    Analyze(AnalyzeRequest),
+    /// Test whether cells are clustered or regularly spaced (Ripley's K and L against CSR simulations).
+    Classical(ClassicalRequest),
+    /// Nearest-neighbour (G), empty-space (F) and J functions against CSR simulations.
+    NearestSpace(NearestSpaceRequest),
+    /// Run analyze for every row of a manifest.
     Batch {
+        /// Manifest with one row per analysis.
         #[arg(long)]
         manifest: PathBuf,
+        /// Analysis configuration (TOML).
         #[arg(long)]
         config: PathBuf,
+        /// Output directory.
         #[arg(long)]
         out: PathBuf,
+        /// Number of worker threads (default: all available cores).
         #[arg(long)]
         threads: Option<usize>,
     },
+    /// Compare two finished analyses, such as before and after treatment.
     Prepost {
+        /// Output directory of the earlier analysis.
         #[arg(long)]
         pre: PathBuf,
+        /// Output directory of the later analysis.
         #[arg(long)]
         post: PathBuf,
+        /// Output directory.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Write the profiling commands for a benchmark workload.
     ProfilePlan {
+        /// Benchmark workload whose profiling commands should be generated.
         #[arg(long)]
         workload: String,
+        /// File to write the profiling plan to.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Simulate synthetic patterns and tissue models.
     Simulate {
         #[command(subcommand)]
         command: SimulateCommands,
     },
-    Multimodal {
-        #[command(subcommand)]
-        command: MultimodalCommands,
-    },
+    /// Run the synthetic or multimodal smoke checks.
     Smoke {
+        /// Synthetic validation suite to execute.
         #[arg(long)]
         suite: String,
+        /// Number of simulated or resampled datasets used by the analysis.
         #[arg(long)]
         replicates: usize,
+        /// Output directory.
         #[arg(long)]
         out: PathBuf,
     },
 }
 
 #[derive(Debug, Subcommand)]
-enum SimulateCommands {
+pub enum SimulateCommands {
+    /// Write a row of cells with a fixed fraction marked at random.
     RandomLabeling {
+        /// Number of cells in the synthetic pattern.
         #[arg(long)]
         n: usize,
+        /// Probability that a synthetic cell receives the positive mark.
         #[arg(long)]
         p: f64,
+        /// Random seed; the same seed gives the same result.
         #[arg(long, default_value_t = 123_456_789)]
         seed: u64,
+        /// CSV or Parquet file to write.
         #[arg(long)]
         out: PathBuf,
     },
-    GrowthFront {
-        #[arg(long)]
-        input: PathBuf,
-        #[arg(long)]
-        diffusion_um2_per_time: f64,
-        #[arg(long)]
-        growth_rate_per_time: f64,
-        #[arg(long)]
-        carrying_capacity: f64,
-        #[arg(long)]
-        final_time: f64,
-        #[arg(long)]
-        time_step: f64,
-        #[arg(long)]
-        front_threshold_fraction: f64,
-        #[arg(long)]
-        record_every_steps: u32,
-        #[arg(long)]
-        maximum_cell_steps: u64,
-        #[arg(long)]
-        out: PathBuf,
-    },
-    SpatialCompetition {
-        #[arg(long)]
-        input: PathBuf,
-        #[arg(long)]
-        diffusion_a_um2_per_time: f64,
-        #[arg(long)]
-        diffusion_b_um2_per_time: f64,
-        #[arg(long)]
-        growth_a_per_time: f64,
-        #[arg(long)]
-        growth_b_per_time: f64,
-        #[arg(long)]
-        carrying_a: f64,
-        #[arg(long)]
-        carrying_b: f64,
-        #[arg(long)]
-        competition_a_from_b: f64,
-        #[arg(long)]
-        competition_b_from_a: f64,
-        #[arg(long)]
-        treatment_a_per_time: f64,
-        #[arg(long)]
-        treatment_b_per_time: f64,
-        #[arg(long)]
-        final_time: f64,
-        #[arg(long)]
-        time_step: f64,
-        #[arg(long)]
-        extinction_threshold_fraction: f64,
-        #[arg(long)]
-        record_every_steps: u32,
-        #[arg(long)]
-        maximum_cell_species_steps: u64,
-        #[arg(long)]
-        out: PathBuf,
-    },
-    AgentCompetition {
-        #[arg(long)]
-        input: PathBuf,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        maximum_events: u32,
-        #[arg(long)]
-        maximum_agents: u32,
-        #[arg(long)]
-        maximum_pair_visits: u64,
-        #[arg(long)]
-        retain_events: u32,
-        #[arg(long)]
-        out: PathBuf,
-    },
-    ReactionDiffusion {
-        #[arg(long)]
-        input: PathBuf,
-        #[arg(long)]
-        final_time: f64,
-        #[arg(long)]
-        time_step: f64,
-        #[arg(long)]
-        record_every_steps: u32,
-        #[arg(long)]
-        maximum_cell_steps: u64,
-        #[arg(long)]
-        out: PathBuf,
-    },
-    EvolveInterface {
-        #[arg(long)]
-        input: PathBuf,
-        #[arg(long)]
-        final_time: f64,
-        #[arg(long)]
-        time_step: f64,
-        #[arg(long)]
-        reinitialize_every_steps: u32,
-        #[arg(long)]
-        record_every_steps: u32,
-        #[arg(long)]
-        maximum_cell_steps: u64,
-        #[arg(long)]
-        maximum_reinitialization_distance_visits: u64,
-        #[arg(long)]
-        out: PathBuf,
-    },
-    VascularTransport {
-        #[arg(long)]
-        input: PathBuf,
-        #[arg(long)]
-        final_time: f64,
-        #[arg(long)]
-        time_step: f64,
-        #[arg(long)]
-        hypoxia_threshold: f64,
-        #[arg(long)]
-        record_every_steps: u32,
-        #[arg(long)]
-        maximum_cell_steps: u64,
-        #[arg(long)]
-        out: PathBuf,
-    },
+    /// Simulate a one-dimensional Fisher-KPP growth front.
+    GrowthFront(simulate::growth_front::GrowthFrontArgs),
+    /// Simulate two-species Lotka-Volterra competition in one dimension.
+    SpatialCompetition(simulate::spatial_competition::SpatialCompetitionArgs),
+    /// Simulate two competing cell species as an exact stochastic agent process.
+    AgentCompetition(simulate::agent_competition::AgentCompetitionArgs),
+    /// Simulate a periodic two-dimensional reaction-diffusion field.
+    ReactionDiffusion(simulate::reaction_diffusion::ReactionDiffusionArgs),
+    /// Evolve a tissue interface with a two-dimensional level-set method.
+    EvolveInterface(simulate::level_set::EvolveInterfaceArgs),
+    /// Simulate transport from vessels through a static two-dimensional flow field.
+    VascularTransport(simulate::vascular_transport::VascularTransportArgs),
+    /// Simulate the coupled mechanistic tissue model.
     MechanisticTissue {
+        /// JSON grid, initial density and phi fields, plus vascular, agents, coupling and numerics.
         #[arg(long)]
         input: PathBuf,
+        /// File to write the result to.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Score simulated against observed summary statistics.
     SummaryMatching {
+        /// JSON SummaryMatchingSpec: window, observed and generated points, radii and weights.
         #[arg(long)]
         input: PathBuf,
+        /// File to write the result to.
         #[arg(long)]
         out: PathBuf,
     },
 }
 
 #[derive(Debug, Subcommand)]
-enum ProjectCommands {
-    CategoricalPair {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        source_level: String,
-        #[arg(long)]
-        target_level: String,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        permutations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_pair_evaluations: usize,
-    },
-    CategoricalCrossPairCorrelation {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        source_level: String,
-        #[arg(long)]
-        target_level: String,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        bandwidth_um: f64,
-        #[arg(long)]
-        permutations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_pair_evaluations: usize,
-    },
-    TranslationCategoricalCrossPairCorrelation {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        source_level: String,
-        #[arg(long)]
-        target_level: String,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        bandwidth_um: f64,
-        #[arg(long)]
-        permutations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_pair_evaluations: usize,
-        #[arg(long)]
-        max_overlap_evaluations: usize,
-        #[arg(long)]
-        max_overlap_candidate_work: usize,
-        #[arg(long)]
-        max_overlap_output_vertices: usize,
-    },
-    IsotropicCategoricalCrossPairCorrelation {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        source_level: String,
-        #[arg(long)]
-        target_level: String,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        bandwidth_um: f64,
-        #[arg(long)]
-        permutations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_pair_evaluations: usize,
-        #[arg(long)]
-        max_visible_arc_evaluations: usize,
-        #[arg(long)]
-        max_arc_segment_tests: usize,
-        #[arg(long)]
-        max_arc_membership_queries: usize,
-    },
-    InhomogeneousSpatial {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        bandwidth_um: f64,
-        #[arg(long)]
-        cross_fit_folds: Option<usize>,
-        #[arg(long)]
-        grid_x: usize,
-        #[arg(long)]
-        grid_y: usize,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        minimum_intensity_per_um2: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_probes: usize,
-        #[arg(long)]
-        max_intensity_evaluations: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_draws: usize,
-    },
-    TranslationSpatial {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_overlap_evaluations: usize,
-        #[arg(long)]
-        max_overlap_candidate_work: usize,
-        #[arg(long)]
-        max_overlap_output_vertices: usize,
-        #[arg(long)]
-        max_csr_draws: usize,
-    },
-    TranslationPairCorrelation {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        bandwidth_um: f64,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_overlap_evaluations: usize,
-        #[arg(long)]
-        max_overlap_candidate_work: usize,
-        #[arg(long)]
-        max_overlap_output_vertices: usize,
-        #[arg(long)]
-        max_csr_draws: usize,
-    },
-    IsotropicSpatial {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_visible_arc_evaluations: usize,
-        #[arg(long)]
-        max_arc_segment_tests: usize,
-        #[arg(long)]
-        max_arc_membership_queries: usize,
-        #[arg(long)]
-        max_csr_draws: usize,
-    },
-    IsotropicPairCorrelation {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        bandwidth_um: f64,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_visible_arc_evaluations: usize,
-        #[arg(long)]
-        max_arc_segment_tests: usize,
-        #[arg(long)]
-        max_arc_membership_queries: usize,
-        #[arg(long)]
-        max_csr_draws: usize,
-    },
-    GaussianBandwidthSelectedSpatial {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long, value_delimiter = ',')]
-        candidate_bandwidths_um: Vec<f64>,
-        #[arg(long)]
-        grid_x: usize,
-        #[arg(long)]
-        grid_y: usize,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        minimum_intensity_per_um2: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_probes: usize,
-        #[arg(long)]
-        max_intensity_evaluations: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_draws: usize,
-        #[arg(long)]
-        max_bandwidth_candidates: usize,
-        #[arg(long)]
-        max_selection_intensity_evaluations: usize,
-    },
-    PiecewiseCompartmentSpatial {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        observation_mask: PathBuf,
-        #[arg(long)]
-        negative_mask: PathBuf,
-        #[arg(long)]
-        positive_mask: PathBuf,
-        #[arg(long)]
-        negative_compartment_id: String,
-        #[arg(long)]
-        positive_compartment_id: String,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_boundary_segments: usize,
-        #[arg(long)]
-        max_compartment_queries: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_draws: usize,
-    },
-    PiecewiseCompartmentPairCorrelation {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        observation_mask: PathBuf,
-        #[arg(long)]
-        negative_mask: PathBuf,
-        #[arg(long)]
-        positive_mask: PathBuf,
-        #[arg(long)]
-        negative_compartment_id: String,
-        #[arg(long)]
-        positive_compartment_id: String,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        pair_bandwidth_um: f64,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_boundary_segments: usize,
-        #[arg(long)]
-        max_compartment_queries: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_draws: usize,
-    },
-    InhomogeneousPairCorrelation {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        intensity_bandwidth_um: f64,
-        #[arg(long)]
-        pair_bandwidth_um: f64,
-        #[arg(long)]
-        grid_x: usize,
-        #[arg(long)]
-        grid_y: usize,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        minimum_intensity_per_um2: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_probes: usize,
-        #[arg(long)]
-        max_intensity_evaluations: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_draws: usize,
-    },
-    InhomogeneousCategoricalCrossPairCorrelation {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        source_level: String,
-        #[arg(long)]
-        target_level: String,
-        #[arg(long, value_delimiter = ',')]
-        radii_um: Vec<f64>,
-        #[arg(long)]
-        intensity_bandwidth_um: f64,
-        #[arg(long)]
-        cross_fit_folds: Option<usize>,
-        #[arg(long, value_enum, default_value_t = CliInhomogeneousCrossEdgeCorrection::StandardBorder)]
-        edge_correction: CliInhomogeneousCrossEdgeCorrection,
-        #[arg(long)]
-        pair_bandwidth_um: f64,
-        #[arg(long)]
-        grid_x: usize,
-        #[arg(long)]
-        grid_y: usize,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        minimum_intensity_per_um2: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_probes: usize,
-        #[arg(long)]
-        max_intensity_evaluations: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_null_draws: usize,
-        #[arg(long)]
-        max_overlap_evaluations: Option<usize>,
-        #[arg(long)]
-        max_overlap_candidate_work: Option<usize>,
-        #[arg(long)]
-        max_overlap_output_vertices: Option<usize>,
-        #[arg(long)]
-        max_visible_arc_evaluations: Option<usize>,
-        #[arg(long)]
-        max_arc_segment_tests: Option<usize>,
-        #[arg(long)]
-        max_arc_membership_queries: Option<usize>,
-    },
-    ScalarVariogram {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long, value_delimiter = ',')]
-        lag_edges_um: Vec<f64>,
-        #[arg(long)]
-        condition_by_histologic_compartment: bool,
-        #[arg(long)]
-        permutations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_permutation_pair_evaluations: usize,
-    },
-    Classical {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        r_max_um: f64,
-        #[arg(long)]
-        r_steps: usize,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_pair_visits: usize,
-        #[arg(long)]
-        max_csr_draws: usize,
-    },
-    NearestSpace {
-        #[arg(long)]
-        project: PathBuf,
-        #[arg(long)]
-        cells: PathBuf,
-        #[arg(long)]
-        mask: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        r_max_um: f64,
-        #[arg(long)]
-        r_steps: usize,
-        #[arg(long)]
-        probe_grid_x: usize,
-        #[arg(long)]
-        probe_grid_y: usize,
-        #[arg(long)]
-        simulations: usize,
-        #[arg(long)]
-        seed: u64,
-        #[arg(long)]
-        alpha: f64,
-        #[arg(long)]
-        j_denominator_epsilon: f64,
-        #[arg(long)]
-        memory_budget_mib: usize,
-        #[arg(long)]
-        max_nearest_queries: usize,
-        #[arg(long)]
-        max_csr_draws: usize,
-    },
+pub enum ProjectCommands {
+    /// Count cell pairs between two compartment levels against label permutations.
+    CategoricalPair(categorical_pair::Request),
+    /// Directed cross-type pair correlation between two compartment levels.
+    CategoricalCrossPairCorrelation(categorical_cross_pair_correlation::Request),
+    /// Cross-type pair correlation with translation edge correction.
+    TranslationCategoricalCrossPairCorrelation(
+        categorical_cross_pair_correlation::TranslationRequest,
+    ),
+    /// Cross-type pair correlation with isotropic edge correction.
+    IsotropicCategoricalCrossPairCorrelation(categorical_cross_pair_correlation::IsotropicRequest),
+    /// Intensity-reweighted (inhomogeneous) K and L functions.
+    InhomogeneousSpatial(inhomogeneous_spatial::Request),
+    /// K and L functions with translation edge correction.
+    TranslationSpatial(translation_spatial::Request),
+    /// Pair correlation with translation edge correction.
+    TranslationPairCorrelation(translation_pair_correlation::Request),
+    /// K and L functions with isotropic edge correction.
+    IsotropicSpatial(isotropic_spatial::Request),
+    /// Pair correlation with isotropic edge correction.
+    IsotropicPairCorrelation(isotropic_pair_correlation::Request),
+    /// Inhomogeneous K and L after choosing the Gaussian intensity bandwidth from prespecified candidates.
+    GaussianBandwidthSelectedSpatial(inhomogeneous_bandwidth_selection::Request),
+    /// Inhomogeneous K and L with a separate intensity in each compartment.
+    PiecewiseCompartmentSpatial(piecewise_compartment_spatial::Request),
+    /// Inhomogeneous pair correlation with a separate intensity in each compartment.
+    PiecewiseCompartmentPairCorrelation(piecewise_compartment_pair_correlation::Request),
+    /// Intensity-reweighted (inhomogeneous) pair correlation.
+    InhomogeneousPairCorrelation(inhomogeneous_pair_correlation::Request),
+    /// Intensity-reweighted cross-type pair correlation between two compartment levels.
+    InhomogeneousCategoricalCrossPairCorrelation(
+        inhomogeneous_categorical_cross_pair_correlation::Request,
+    ),
+    /// Semivariogram of a scalar mark with a random-labeling test.
+    ScalarVariogram(scalar_variogram::Request),
+    /// Classical K and L workflow, cached in a durable project.
+    Classical(ProjectClassicalArgs),
+    /// Nearest-neighbour, empty-space and J workflow, cached in a durable project.
+    NearestSpace(ProjectNearestSpaceArgs),
+}
+
+/// `--project` plus the arguments of the uncached command.
+#[derive(clap::Args, Debug)]
+pub struct ProjectNearestSpaceArgs {
+    /// Durable project directory that caches results.
+    #[arg(long)]
+    pub(super) project: PathBuf,
+    #[command(flatten)]
+    pub(super) request: NearestSpaceRequest,
+}
+
+/// `--project` plus the arguments of the uncached command.
+#[derive(clap::Args, Debug)]
+pub struct ProjectClassicalArgs {
+    /// Durable project directory that caches results.
+    #[arg(long)]
+    pub(super) project: PathBuf,
+    #[command(flatten)]
+    pub(super) request: ClassicalRequest,
 }
 
 #[derive(Debug, Subcommand)]
-enum MultimodalCommands {
-    Analyze {
-        #[arg(long)]
-        he_cells: PathBuf,
-        #[arg(long)]
-        ihc_cells: PathBuf,
-        #[arg(long)]
-        landmarks: PathBuf,
-        /// TOML configuration; registration.transform="rigid" fits rotation and translation only.
-        #[arg(long)]
-        config: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-        #[arg(long)]
-        case_id: String,
-        #[arg(long)]
-        timepoint: String,
-        #[arg(long)]
-        protein: String,
-        #[arg(long, value_enum, default_value_t = HeInputFormat::HeCsv)]
-        he_format: HeInputFormat,
-        #[arg(long, default_value_t = 0.5)]
-        cellvit_min_probability: f64,
-    },
+pub enum MultimodalCommands {
+    /// Align H&E and IHC sections, match their cells and run the multimodal analysis.
+    Analyze(MultimodalAnalyzeRequest),
+    /// Compare two finished multimodal analyses.
     Prepost {
+        /// Output directory of the earlier analysis.
         #[arg(long)]
         pre: PathBuf,
+        /// Output directory of the later analysis.
         #[arg(long)]
         post: PathBuf,
+        /// Output directory.
         #[arg(long)]
         out: PathBuf,
     },
+    /// Run multimodal analyze for every row of a manifest.
     Batch {
+        /// Manifest with one row per analysis.
         #[arg(long)]
         manifest: PathBuf,
+        /// Output directory.
         #[arg(long)]
         out: PathBuf,
     },
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
-pub(super) enum HeInputFormat {
+pub enum HeInputFormat {
     HeCsv,
     CellvitCsv,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
-pub(super) enum CliInhomogeneousCrossEdgeCorrection {
+pub enum CliInhomogeneousCrossEdgeCorrection {
     StandardBorder,
     Translation,
     Isotropic,

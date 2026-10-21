@@ -406,7 +406,7 @@ impl InferenceDesign {
         self.analysis_level
     }
 
-    /// Exact admitted null family.
+    /// Exact supported null family.
     pub fn null_family(&self) -> InferenceNullFamily {
         self.null_family
     }

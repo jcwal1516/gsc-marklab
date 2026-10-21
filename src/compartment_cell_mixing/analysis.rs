@@ -1,9 +1,13 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 use crate::{
-    analyze_compartment_interface_profile, classical::SpatialGeometryPlan2D,
-    BinaryCompartmentPartition2D, ClassicalSpatialLimits, CompartmentInterfaceLimits,
-    DeclaredScalarPatternInput,
+    classical::SpatialGeometryPlan2D,
+    compartments::{
+        analyze_compartment_interface_profile, BinaryCompartmentPartition2D,
+        CompartmentInterfaceLimits,
+    },
+    marks::DeclaredScalarPatternInput,
+    spatial::ClassicalSpatialLimits,
 };
 
 use super::types::*;

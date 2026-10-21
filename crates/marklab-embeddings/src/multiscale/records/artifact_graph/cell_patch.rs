@@ -8,8 +8,7 @@ use thiserror::Error;
 use crate::{
     columnar::{
         validate_patch_footprint_set_arrow_from_store,
-        validate_patch_footprint_set_parquet_from_store, EmbeddingColumnarBudgets,
-        MultiscaleColumnarError,
+        validate_patch_footprint_set_parquet_from_store, ColumnarError, EmbeddingColumnarBudgets,
     },
     expected::ExpectedCellReaderError,
     multiscale::{
@@ -25,7 +24,7 @@ use crate::{
     ArtifactAvailabilityFailure, ExpectedCellSet,
 };
 
-/// Artifact roles admitted by independent cell-patch input validation.
+/// Artifact roles accepted by independent cell-patch input validation.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 #[non_exhaustive]
 pub enum CellPatchInputArtifactRole {
@@ -127,7 +126,7 @@ pub enum CellPatchInputArtifactGraphError {
     #[error("patch footprint physical validation failed: {reason}")]
     FootprintPhysical {
         /// Redacted physical failure.
-        reason: MultiscaleColumnarError,
+        reason: ColumnarError,
     },
     /// A catalog record cannot be verified through the managed store.
     #[error("required {role} artifact is unavailable from the managed store: {reason:?}")]

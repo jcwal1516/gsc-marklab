@@ -1,12 +1,12 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, PointwiseLogLikelihoodDraw, PsisLooInputIdentity, PsisLooSpec,
+    json_sha256, sha256_hex, PointwiseLogLikelihoodDraw, PsisLooInputIdentity, PsisLooSpec,
     PsisLooWorkerRequest, PsisLooWorkerResult,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::PsisLooArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,31 +17,23 @@ struct LogLikelihoodRow {
     log_likelihood: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    model_name: String,
-    likelihood_target: String,
-    data_identity_sha256: String,
-    preprocessing_identity_sha256: String,
-    heldout_unit: String,
-    relative_efficiency: f64,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: PsisLooArgs) -> Result<(), CliError> {
+    let PsisLooArgs {
+        input,
+        model_name,
+        likelihood_target,
+        data_identity_sha256,
+        preprocessing_identity_sha256,
+        heldout_unit,
+        relative_efficiency,
+        timeout_seconds,
+        out,
+    } = args;
+    let input_path = input;
+    let output_path = out;
     let draws = read_log_likelihood(&input_path)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_arviz_psis_loo_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_arviz_psis_loo_worker.py")?;
     let request = PsisLooWorkerRequest::new(
         PsisLooSpec {
             model_name,
@@ -52,14 +44,14 @@ pub(super) fn run(
             relative_efficiency,
             draws,
         },
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let input = PsisLooInputIdentity {
         path: input_path.display().to_string(),
         log_likelihood_value_count: request.log_likelihood.len(),
-        log_likelihood_sha256: sha256_hex(&serde_json::to_vec(&request.log_likelihood)?),
+        log_likelihood_sha256: json_sha256(&request.log_likelihood)?,
     };
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
@@ -76,8 +68,8 @@ pub(super) fn run(
 
 fn read_log_likelihood(
     path: &std::path::Path,
-) -> Result<Vec<PointwiseLogLikelihoodDraw>, BayesCliError> {
-    super::input_file::validate_regular_file(
+) -> Result<Vec<PointwiseLogLikelihoodDraw>, CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "PSIS-LOO input must be a regular file within the 16 MiB limit",
@@ -88,7 +80,7 @@ fn read_log_likelihood(
         .iter()
         .eq(["chain", "draw", "unit_id", "log_likelihood"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "PSIS-LOO headers must be exactly: chain,draw,unit_id,log_likelihood".into(),
         ));
     }
@@ -102,7 +94,7 @@ fn read_log_likelihood(
             log_likelihood: row.log_likelihood,
         });
         if draws.len() > 500_000 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "PSIS-LOO log-likelihood matrix exceeds 500000 values".into(),
             ));
         }

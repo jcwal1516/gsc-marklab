@@ -1,17 +1,32 @@
+use crate::is_worker_timeout;
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
     ordinal_group::{OrdinalCutpointPosterior, OrdinalLevelPosterior, OrdinalLevelPredictive},
     ordinal_group_site_hierarchy::OrdinalGroupSitePatientData,
-    sha256_hex,
-    validation::{diagnostics_satisfy_policy, is_lower_hex_sha256},
-    BackendContract, BayesError, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+    validation::{diagnostics_satisfy_policy, is_exact_name, is_sha256},
+    BackendContract, BayesError, DiagnosticPolicy, FitState, NutsSamplingSpec,
+    PosteriorDiagnostics, SamplingSummary, ScalarSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
+/// Ordinal outcomes with group-specific cutpoints and shared site intercepts.
+///
+/// The categorical likelihood uses `P(y_i <= k) = sigmoid(c_group,k - a_site)`.
+/// Each group has a separate ordered cutpoint vector with normal prior densities
+/// centered at `K - 1` evenly spaced values from -1.5 to 1.5 and SD
+/// `cutpoint_prior_sd`. The threshold-specific group effect is the reference
+/// cutpoint minus the comparison cutpoint. Site intercepts are non-centered:
+/// `a = sigma * (z - mean(z))`, `z_s ~ Normal(0, 1)`, and
+/// `sigma ~ HalfNormal(site_intercept_sd_prior_sd)` with the argument specifying
+/// the underlying normal SD. Intercepts sum to zero; reported group probabilities
+/// weight sites equally.
 #[derive(Clone, Debug)]
 pub struct NonproportionalOrdinalGroupSiteSpec {
     pub reference_group: String,
@@ -40,8 +55,8 @@ pub struct NonproportionalOrdinalGroupSiteModelIr {
     pub likelihood: &'static str,
     pub observation_unit: &'static str,
     pub biological_unit: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -76,8 +91,8 @@ impl NonproportionalOrdinalGroupSiteWorkerRequest {
         timeout_seconds: u64,
     ) -> Result<Self, BayesError> {
         sampling.validate()?;
-        if !valid_name(&spec.reference_group)
-            || !valid_name(&spec.comparison_group)
+        if !is_exact_name(&spec.reference_group)
+            || !is_exact_name(&spec.comparison_group)
             || spec.reference_group == spec.comparison_group
             || !(2..=8).contains(&spec.ordered_levels.len())
             || !spec.cutpoint_prior_sd.is_finite()
@@ -85,15 +100,18 @@ impl NonproportionalOrdinalGroupSiteWorkerRequest {
             || !spec.site_intercept_sd_prior_sd.is_finite()
             || spec.site_intercept_sd_prior_sd <= 0.0
             || !(32..=1_024).contains(&spec.patients.len())
-            || !is_lower_hex_sha256(&environment_lock_sha256)
-            || !is_lower_hex_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_sha256(&environment_lock_sha256)
+            || !is_sha256(&worker_sha256)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "nonproportional ordinal controls or identities are invalid".into(),
             ));
         }
-        if spec.ordered_levels.iter().any(|level| !valid_name(level))
+        if spec
+            .ordered_levels
+            .iter()
+            .any(|level| !is_exact_name(level))
             || spec.ordered_levels.iter().collect::<BTreeSet<_>>().len()
                 != spec.ordered_levels.len()
         {
@@ -107,8 +125,8 @@ impl NonproportionalOrdinalGroupSiteWorkerRequest {
         let mut site_groups = BTreeMap::<String, [usize; 2]>::new();
         let mut level_counts = vec![0_usize; spec.ordered_levels.len()];
         for patient in &patients {
-            if !valid_name(&patient.patient_id)
-                || !valid_name(&patient.site_id)
+            if !is_exact_name(&patient.patient_id)
+                || !is_exact_name(&patient.site_id)
                 || !patient_ids.insert(patient.patient_id.as_str())
                 || (patient.group != spec.reference_group && patient.group != spec.comparison_group)
                 || patient.outcome_code as usize >= spec.ordered_levels.len()
@@ -148,7 +166,7 @@ impl NonproportionalOrdinalGroupSiteWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -169,8 +187,8 @@ impl NonproportionalOrdinalGroupSiteWorkerRequest {
                 likelihood: "ordered_logistic_patient_outcome",
                 observation_unit: "one_complete_ordered_outcome_per_patient",
                 biological_unit: "patient",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             site_ids,
             patients,
@@ -188,25 +206,18 @@ impl NonproportionalOrdinalGroupSiteWorkerRequest {
     }
 }
 
-fn valid_name(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.trim() == value
-        && !value.chars().any(char::is_control)
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OrdinalThresholdGroupEffect {
     pub threshold_after_level: String,
-    pub summary: SarScalarSummary,
+    pub summary: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct NonproportionalOrdinalSitePosterior {
     pub site_id: String,
-    pub intercept: SarScalarSummary,
+    pub intercept: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -215,11 +226,11 @@ pub struct NonproportionalOrdinalGroupSitePosterior {
     pub reference_cutpoints: Vec<OrdinalCutpointPosterior>,
     pub comparison_cutpoints: Vec<OrdinalCutpointPosterior>,
     pub threshold_group_log_odds_effects: Vec<OrdinalThresholdGroupEffect>,
-    pub site_intercept_sd: SarScalarSummary,
+    pub site_intercept_sd: ScalarSummary,
     pub sites: Vec<NonproportionalOrdinalSitePosterior>,
     pub levels: Vec<OrdinalLevelPosterior>,
-    pub reference_expected_code: SarScalarSummary,
-    pub comparison_expected_code: SarScalarSummary,
+    pub reference_expected_code: ScalarSummary,
+    pub comparison_expected_code: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -238,7 +249,7 @@ pub struct NonproportionalOrdinalGroupSiteWorkerResult {
     pub fit_state: FitState,
     pub sampling: SamplingSummary,
     pub posterior: NonproportionalOrdinalGroupSitePosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: NonproportionalOrdinalGroupSitePosteriorPredictive,
 }
 
@@ -252,11 +263,7 @@ impl NonproportionalOrdinalGroupSiteWorkerResult {
         let thresholds = levels.len() - 1;
         if self.format != "marklab.pymc_nonproportional_ordinal_group_site_worker_result"
             || self.version != 1
-            || self.backend.name != request.backend.name
-            || self.backend.version != request.backend.version
-            || self.backend.python_version != request.backend.python_version
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != sha
             || self.posterior.reference_cutpoints.len() != thresholds
             || self.posterior.comparison_cutpoints.len() != thresholds
@@ -408,9 +415,9 @@ impl NonproportionalOrdinalGroupSiteWorkerResult {
             posterior_predictive: self.posterior_predictive,
             seed: request.sampling.seed,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_patient_nonproportional_ordinal_group_association"
+                ClaimStatus::ExperimentalPatientNonproportionalOrdinalGroupAssociation
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             request_sha256: self.request_sha256,
         }
@@ -418,7 +425,7 @@ impl NonproportionalOrdinalGroupSiteWorkerResult {
 }
 
 fn validate_summary(
-    summary: &SarScalarSummary,
+    summary: &ScalarSummary,
     support: Option<(f64, f64)>,
 ) -> Result<(), BayesError> {
     if ![
@@ -455,12 +462,6 @@ pub struct NonproportionalOrdinalGroupSiteInputIdentity {
     pub reference_patients: usize,
     pub comparison_patients: usize,
 }
-pub fn nonproportional_ordinal_group_site_data_sha256(
-    patients: &[OrdinalGroupSitePatientData],
-) -> Result<String, BayesError> {
-    Ok(sha256_hex(&serde_json::to_vec(patients)?))
-}
-
 #[derive(Debug, Serialize)]
 pub struct NonproportionalOrdinalGroupSiteResult {
     pub format: &'static str,
@@ -471,10 +472,10 @@ pub struct NonproportionalOrdinalGroupSiteResult {
     pub sampling: SamplingSummary,
     pub fit_state: FitState,
     pub posterior: NonproportionalOrdinalGroupSitePosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: NonproportionalOrdinalGroupSitePosteriorPredictive,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }
 

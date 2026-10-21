@@ -5,23 +5,21 @@ use std::{
 };
 
 use crate::{
-    execute_algorithm,
     geom::{mask::TumorMask, window::ObservationWindowLimits},
     output::{ClassicalOutputContext, ClassicalOutputWriter},
-    ArtifactRef, ArtifactSchema, ClassicalSpatialAnalysisNode, ClassicalSpatialConfig,
-    ClassicalSpatialLimits, ContentDigest, DurableProject, DurableProjectLimits,
-    DurableRecoveryAction, LocalScheduler, MarklabError, MarklabProject, NativeRuntimeProvenance,
-    NodeId, ObservationWindow2D, Pattern, PatternLoader, Result, SchedulerLimits, WorkflowGraph,
+    spatial::{ClassicalSpatialAnalysisNode, ClassicalSpatialConfig, ClassicalSpatialLimits},
+    workflow::{
+        execute_algorithm, ArtifactRef, ArtifactSchema, ContentDigest, DurableProject,
+        DurableProjectLimits, DurableRecoveryAction, LocalScheduler, MarklabProject,
+        NativeRuntimeProvenance, NodeId, SchedulerLimits, WorkflowGraph,
+    },
+    MarklabError, ObservationWindow2D, Pattern, PatternLoader, Result,
 };
 
 use super::ClassicalRequest;
 
 const MAXIMUM_RADII: usize = 4_096;
 const MAXIMUM_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
-const PROJECT_CONTROL_BYTES: usize = 1024 * 1024;
-const PROJECT_LEDGER_BYTES: usize = 16 * 1024 * 1024;
-const PROJECT_LEDGER_RECORDS: usize = 10_000;
-const PROJECT_RECORD_BYTES: usize = 64 * 1024;
 const CELL_SOURCE_KIND: &str = "application/vnd.marklab.source.cell-table;version=1";
 const WINDOW_SOURCE_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";
 
@@ -50,14 +48,8 @@ pub(super) fn run(request: ClassicalRequest) -> Result<()> {
 pub(super) fn run_project(project_path: PathBuf, request: ClassicalRequest) -> Result<()> {
     let (prepared, source_artifacts) = prepare_project(&request)?;
     let runtime = native_runtime_provenance()?;
-    let project_limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        prepared.memory_bytes,
-    )
-    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let project_limits = DurableProjectLimits::for_object_bytes(prepared.memory_bytes)
+        .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let mut durable = DurableProject::open_or_create(&project_path, project_limits)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
     report_recovery(&durable);
@@ -143,7 +135,7 @@ fn prepare(request: &ClassicalRequest) -> Result<PreparedClassical> {
     let window_text = read_bounded_utf8(&request.mask, window_limits.maximum_input_bytes)?;
     let window = ObservationWindow2D::from_geojson_str(&window_text, window_limits)
         .map_err(|error| MarklabError::Geometry(error.to_string()))?;
-    let mask = TumorMask::from_observation_window(window.clone());
+    let mask = TumorMask::from_geojson_str(&window_text)?;
     let pattern = PatternLoader::new(&mask).load_classical(&request.cells)?;
 
     let radii = (1..=request.r_steps)
@@ -185,7 +177,7 @@ fn scheduler(memory_bytes: usize) -> Result<LocalScheduler> {
 fn write_output(
     request: &ClassicalRequest,
     command: &'static str,
-    run: crate::NodeRun<crate::ClassicalSpatialResult>,
+    run: crate::workflow::NodeRun<crate::spatial::ClassicalSpatialResult>,
 ) -> Result<()> {
     ClassicalOutputWriter::write(
         &run.output,

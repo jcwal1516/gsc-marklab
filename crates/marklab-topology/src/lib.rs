@@ -2,6 +2,8 @@
 
 use std::collections::HashSet;
 
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -13,6 +15,7 @@ pub use connectivity::{
     connectivity_transition, ConnectivityCurvePoint, ConnectivityPointInput,
     ConnectivityTransitionResult, ConnectivityTransitionSpec, ConnectivityWindow,
 };
+use marklab_core::vocabulary::ValidationStatus;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -120,7 +123,7 @@ pub struct AlphaFiltrationResult {
     pub precision: String,
     pub coefficient_field: u32,
     pub tie_break_order: String,
-    pub validation_status: String,
+    pub validation_status: ValidationStatus,
     pub simplices: Vec<AlphaSimplex>,
     pub simplex_counts_by_dimension: Vec<usize>,
     pub boundary_of_boundary_max_abs: f64,
@@ -195,7 +198,7 @@ pub struct AlphaPersistenceResult {
     pub landscape: PersistenceLandscapeResult,
     pub persistence_image: PersistenceImageResult,
     pub euler_curve: EulerCurveResult,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -219,7 +222,7 @@ pub struct WitnessPersistenceResult {
     pub approximation: WitnessApproximationResult,
     pub filtration: AlphaFiltrationResult,
     pub persistence: PersistenceResult,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -274,7 +277,7 @@ pub struct WitnessPerturbationStabilityResult {
 pub struct WitnessPersistenceStabilityResult {
     pub format: String,
     pub version: u32,
-    pub statistical_unit: String,
+    pub statistical_unit: StatisticalUnit,
     pub perturbation_rule: String,
     pub finite_result_policy: String,
     pub seed: u64,
@@ -295,7 +298,7 @@ pub struct WitnessPersistenceStabilityResult {
     pub total_simplex_budget: u64,
     pub total_timeout_seconds: u64,
     pub stable_under_declared_thresholds: bool,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -314,8 +317,16 @@ pub struct WitnessPersistenceBottleneckStabilitySpec {
 #[serde(deny_unknown_fields)]
 pub struct WitnessBottleneckDimensionResult {
     pub dimension: usize,
-    pub status: String,
+    pub status: BottleneckStatus,
     pub bottleneck_distance_um_squared: Option<f64>,
+}
+
+marklab_core::vocabulary_enum! {
+    /// Whether a bottleneck distance is finite for one homology dimension.
+    pub enum BottleneckStatus {
+        Finite => "finite",
+        InfiniteEssentialCountMismatch => "infinite_essential_count_mismatch",
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -347,7 +358,7 @@ pub struct WitnessPersistenceBottleneckStabilityResult {
     pub total_backend_executions: u64,
     pub stable_under_bottleneck_threshold: bool,
     pub stable_under_all_declared_thresholds: bool,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Debug, Error)]
@@ -474,12 +485,12 @@ impl AlphaPersistenceResult {
             || result.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
             || result.backend.worker_sha256 != request.backend.worker_sha256
             || result.request_sha256 != sha256_hex(request_bytes)
-            || result.filtration.validation_status != "passed"
+            || result.filtration.validation_status != ValidationStatus::Passed
             || result.filtration.coefficient_field != request.coefficient_field
             || result.filtration.simplices.len() > request.maximum_simplices
             || result.landscape.dimension != request.transform_dimension
             || result.persistence_image.dimension != request.transform_dimension
-            || result.claim_status != "experimental_synthetic_alpha_topology"
+            || result.claim_status != ClaimStatus::ExperimentalSyntheticAlphaTopology
         {
             return Err(TopologyError::Backend(
                 "topology result identity or contract mismatch".into(),
@@ -553,9 +564,9 @@ impl WitnessPersistenceResult {
             || self.approximation.landmark_count != request.landmark_count
             || self.approximation.nu != request.nu
             || !self.approximation.coverage_radius_um.is_finite()
-            || self.filtration.validation_status != "passed"
+            || self.filtration.validation_status != ValidationStatus::Passed
             || self.filtration.simplices.len() > request.maximum_simplices
-            || self.claim_status != "experimental_witness_approximation"
+            || self.claim_status != ClaimStatus::ExperimentalWitnessApproximation
         {
             return Err(TopologyError::Backend(
                 "witness result identity or contract mismatch".into(),

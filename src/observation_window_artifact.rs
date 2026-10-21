@@ -1,6 +1,7 @@
 use std::io;
 
-use marklab_workflow::{ArtifactRef, NodeError};
+use marklab_project::ArtifactRef;
+use marklab_workflow::NodeError;
 use serde::Serialize;
 
 use crate::ObservationWindow2D;

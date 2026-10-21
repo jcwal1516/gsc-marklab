@@ -1,0 +1,9 @@
+package	version
+R	4.5.2
+jsonlite	2.0.0
+imcRtools	1.16.0
+SPIAT	1.12.1
+SpatialExperiment	1.20.0
+BiocNeighbors	2.4.0
+BiocParallel	1.44.0
+dbscan	1.2.7

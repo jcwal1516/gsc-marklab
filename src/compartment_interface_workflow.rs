@@ -1,18 +1,20 @@
+use crate::workflow_codec::invalid;
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::Serialize;
 
 use crate::{
-    compartment_interface::analysis::{
-        configuration_digest, measurement_status_name, retained_bytes,
+    compartment_interface::analysis::{configuration_digest, retained_bytes},
+    compartments::{
+        BinaryCompartmentPartition2D, CompartmentInterfaceLimits, CompartmentInterfaceProfile,
+        CompartmentInterfaceSummary,
     },
-    workflow::pattern_artifact,
-    BinaryCompartmentPartition2D, CompartmentInterfaceLimits, CompartmentInterfaceProfile,
-    CompartmentInterfaceSummary, DeclaredScalarPatternInput, ScalarMarkId,
+    marked_workflow::pattern_artifact,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    scalar_mark::COMPARTMENT_MARK_ID,
 };
 
 const NODE_KIND: &str = "compartment_interface_profile";
@@ -25,13 +27,13 @@ const POLICY: &[u8] =
 
 /// Cache-addressed typed per-cell compartment-interface profile.
 pub struct CompartmentInterfaceAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<CompartmentInterfaceAnalysis<'a>>,
+}
+
+struct CompartmentInterfaceAnalysis<'a> {
     input: &'a DeclaredScalarPatternInput<'a>,
     partition: &'a BinaryCompartmentPartition2D,
     limits: &'a CompartmentInterfaceLimits,
-    inputs: [ArtifactRef; 4],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> CompartmentInterfaceAnalysisNode<'a> {
@@ -56,41 +58,42 @@ impl<'a> CompartmentInterfaceAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter=compartment-interface-profile-node-v1",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            partition,
-            limits,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter=compartment-interface-profile-node-v1",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: CompartmentInterfaceAnalysis {
+                    input,
+                    partition,
+                    limits,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for CompartmentInterfaceAnalysisNode<'_> {
+impl NodeAnalysis for CompartmentInterfaceAnalysis<'_> {
     type Output = CompartmentInterfaceProfile;
+    type Inputs = [ArtifactRef; 4];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let current = [
             pattern_artifact(self.input.pattern())?,
             self.input
@@ -99,25 +102,16 @@ impl WorkflowNode for CompartmentInterfaceAnalysisNode<'_> {
             partition_artifact(self.partition)?,
             config_artifact(self.input, self.partition, self.limits)?,
         ];
-        for (bound, current) in self.inputs.iter().zip(current) {
-            bound
-                .verify_identity(current.digest(), current.byte_len())
-                .map_err(NodeError::input)?;
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_inputs(inputs, current)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::analyze_compartment_interface_profile(self.input, self.partition, self.limits)
-            .map_err(NodeError::execution)
+        crate::compartments::analyze_compartment_interface_profile(
+            self.input,
+            self.partition,
+            self.limits,
+        )
+        .map_err(NodeError::execution)
     }
 
     fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
@@ -137,6 +131,8 @@ impl WorkflowNode for CompartmentInterfaceAnalysisNode<'_> {
         RESULT_KIND
     }
 }
+
+crate::workflow_node::impl_workflow_node!(CompartmentInterfaceAnalysisNode<'_> => CompartmentInterfaceProfile);
 
 #[derive(Serialize)]
 struct PartitionArtifact<'a> {
@@ -206,7 +202,7 @@ fn validate(
         &descriptor.positive_compartment_id,
     )
     .map_err(invalid_owned)?;
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(invalid_owned)?;
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(invalid_owned)?;
     let table = input
         .mark_table()
         .ok_or_else(|| invalid("typed MarkTable is absent"))?;
@@ -222,7 +218,7 @@ fn validate(
     if result.case_id != input.pattern().meta.case_id
         || result.timepoint != input.pattern().meta.timepoint
         || result.mark_id != mark_id.as_str()
-        || result.measurement_status != measurement_status_name(expected_status)
+        || result.measurement_status != expected_status
         || result.negative_compartment_id != descriptor.negative_compartment_id
         || result.positive_compartment_id != descriptor.positive_compartment_id
         || result.coordinate_frame_id != descriptor.coordinate_frame_id.as_str()
@@ -319,10 +315,6 @@ impl<'a> SummaryCheck<'a> {
             && value.mean_absolute_distance_um.to_bits()
                 == ((self.absolute_sum + self.correction) / self.count as f64).to_bits()
     }
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {

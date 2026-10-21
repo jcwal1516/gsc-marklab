@@ -1,166 +1,15 @@
 #![cfg(feature = "parquet")]
 
 use super::support::*;
-use marklab::{
+use marklab::embeddings::{
     publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
     verify_patch_embedding_table_arrow_bytes, verify_patch_embedding_table_arrow_from_store,
     verify_patch_embedding_table_parquet_bytes, verify_patch_embedding_table_parquet_from_store,
-    verify_patch_footprint_set_arrow_from_store, verify_patch_footprint_set_parquet_from_store,
-    verify_patch_overlap_graph_arrow_from_store, verify_patch_overlap_graph_parquet_from_store,
-    write_patch_embedding_table_arrow, write_patch_embedding_table_parquet,
-    EmbeddingColumnarBudgets, EmbeddingStatus, MultiscaleColumnarError, PatchEmbeddingRow,
-    PatchEmbeddingTable, VerifiedDirectPatchEmbeddingArtifactGraph,
-    VerifiedPatchEmbeddingSupportArtifact,
+    verify_patch_footprint_set_parquet_from_store, verify_patch_overlap_graph_parquet_from_store,
+    write_patch_embedding_table_arrow, write_patch_embedding_table_parquet, ColumnarError,
+    EmbeddingStatus, PatchEmbeddingRow, PatchEmbeddingTable,
+    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
 };
-
-fn budgets() -> EmbeddingColumnarBudgets {
-    EmbeddingColumnarBudgets::new(
-        64 * 1024 * 1024,
-        64 * 1024 * 1024,
-        64 * 1024 * 1024,
-        64 * 1024 * 1024,
-    )
-}
-
-fn graph(fixture: &Fixture) -> VerifiedDirectPatchEmbeddingArtifactGraph {
-    fixture
-        .provenance
-        .validate_direct_patch_artifact_graph(
-            fixture.provenance_artifact_id,
-            &fixture.expected_patches,
-            &fixture.source_entities,
-            &fixture.identity_map,
-            &fixture.source_row_link,
-            &fixture.input_normalization,
-            &fixture.context,
-            &fixture.footprints,
-            &fixture.overlap,
-            &fixture.support,
-            &fixture.catalog,
-            &fixture.store,
-        )
-        .expect("valid direct-patch graph")
-}
-
-fn arrow_support(
-    fixture: &Fixture,
-    graph: VerifiedDirectPatchEmbeddingArtifactGraph,
-) -> VerifiedPatchEmbeddingSupportArtifact {
-    let footprints = verify_patch_footprint_set_arrow_from_store(
-        &fixture.store,
-        &fixture.footprint_record,
-        &fixture.expected_patches,
-        &fixture.context,
-        &fixture.footprints,
-        graph,
-        budgets(),
-    )
-    .expect("verified Arrow footprints");
-    let overlap = verify_patch_overlap_graph_arrow_from_store(
-        &fixture.store,
-        &fixture.overlap_record,
-        &fixture.expected_patches,
-        &fixture.context,
-        &fixture.footprints,
-        &fixture.overlap,
-        footprints,
-        graph,
-        budgets(),
-    )
-    .expect("verified Arrow overlap");
-    VerifiedPatchEmbeddingSupportArtifact::from_verified_components(graph, footprints, overlap)
-        .expect("verified patch support")
-}
-
-fn parquet_support(
-    fixture: &Fixture,
-    graph: VerifiedDirectPatchEmbeddingArtifactGraph,
-) -> VerifiedPatchEmbeddingSupportArtifact {
-    let footprints = verify_patch_footprint_set_parquet_from_store(
-        &fixture.store,
-        &fixture.footprint_record,
-        &fixture.expected_patches,
-        &fixture.context,
-        &fixture.footprints,
-        graph,
-        budgets(),
-    )
-    .expect("verified Parquet footprints");
-    let overlap = verify_patch_overlap_graph_parquet_from_store(
-        &fixture.store,
-        &fixture.overlap_record,
-        &fixture.expected_patches,
-        &fixture.context,
-        &fixture.footprints,
-        &fixture.overlap,
-        footprints,
-        graph,
-        budgets(),
-    )
-    .expect("verified Parquet overlap");
-    VerifiedPatchEmbeddingSupportArtifact::from_verified_components(graph, footprints, overlap)
-        .expect("verified patch support")
-}
-
-fn mixed_support(
-    fixture: &Fixture,
-    graph: VerifiedDirectPatchEmbeddingArtifactGraph,
-    footprint_parquet: bool,
-    overlap_parquet: bool,
-) -> VerifiedPatchEmbeddingSupportArtifact {
-    let footprints = if footprint_parquet {
-        verify_patch_footprint_set_parquet_from_store(
-            &fixture.store,
-            &fixture.footprint_record,
-            &fixture.expected_patches,
-            &fixture.context,
-            &fixture.footprints,
-            graph,
-            budgets(),
-        )
-        .expect("verified mixed Parquet footprints")
-    } else {
-        verify_patch_footprint_set_arrow_from_store(
-            &fixture.store,
-            &fixture.footprint_record,
-            &fixture.expected_patches,
-            &fixture.context,
-            &fixture.footprints,
-            graph,
-            budgets(),
-        )
-        .expect("verified mixed Arrow footprints")
-    };
-    let overlap = if overlap_parquet {
-        verify_patch_overlap_graph_parquet_from_store(
-            &fixture.store,
-            &fixture.overlap_record,
-            &fixture.expected_patches,
-            &fixture.context,
-            &fixture.footprints,
-            &fixture.overlap,
-            footprints,
-            graph,
-            budgets(),
-        )
-        .expect("verified mixed Parquet overlap")
-    } else {
-        verify_patch_overlap_graph_arrow_from_store(
-            &fixture.store,
-            &fixture.overlap_record,
-            &fixture.expected_patches,
-            &fixture.context,
-            &fixture.footprints,
-            &fixture.overlap,
-            footprints,
-            graph,
-            budgets(),
-        )
-        .expect("verified mixed Arrow overlap")
-    };
-    VerifiedPatchEmbeddingSupportArtifact::from_verified_components(graph, footprints, overlap)
-        .expect("verified mixed-format patch support")
-}
 
 fn table(
     fixture: &Fixture,
@@ -230,8 +79,10 @@ fn patch_support_receipt_composes_exact_physical_components_and_redacts_debug() 
         canonical_physical: true,
         ..FixtureOptions::default()
     });
-    let arrow_graph = graph(&arrow);
-    let support = arrow_support(&arrow, arrow_graph);
+    let arrow_graph = arrow
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let support = patch_support(&arrow, arrow_graph, false, false);
     assert_eq!(support.logical_digest(), arrow.support.logical_digest());
     assert_eq!(support.row_count(), 2);
 
@@ -240,8 +91,10 @@ fn patch_support_receipt_composes_exact_physical_components_and_redacts_debug() 
         parquet_physical: true,
         ..FixtureOptions::default()
     });
-    let parquet_graph = graph(&parquet);
-    let parquet_support = parquet_support(&parquet, parquet_graph);
+    let parquet_graph = parquet
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let parquet_support = patch_support(&parquet, parquet_graph, true, true);
     assert_ne!(support.logical_digest(), parquet_support.logical_digest());
     assert!(matches!(
         VerifiedPatchEmbeddingSupportArtifact::from_verified_components(
@@ -278,7 +131,7 @@ fn patch_support_receipt_composes_exact_physical_components_and_redacts_debug() 
             )
             .expect("verified Parquet overlap"),
         ),
-        Err(MultiscaleColumnarError::ArtifactBindingMismatch)
+        Err(ColumnarError::ArtifactBindingMismatch)
     ));
 
     let debug = format!("{support:?}");
@@ -293,9 +146,11 @@ fn patch_support_receipt_composes_mixed_physical_formats() {
         overlap_parquet_physical: Some(true),
         ..FixtureOptions::default()
     });
-    let arrow_footprint_graph = graph(&arrow_footprint);
+    let arrow_footprint_graph = arrow_footprint
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
     let arrow_footprint_support =
-        mixed_support(&arrow_footprint, arrow_footprint_graph, false, true);
+        patch_support(&arrow_footprint, arrow_footprint_graph, false, true);
     assert_eq!(
         arrow_footprint_support.logical_digest(),
         arrow_footprint.support.logical_digest()
@@ -307,9 +162,11 @@ fn patch_support_receipt_composes_mixed_physical_formats() {
         overlap_parquet_physical: Some(false),
         ..FixtureOptions::default()
     });
-    let parquet_footprint_graph = graph(&parquet_footprint);
+    let parquet_footprint_graph = parquet_footprint
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
     let parquet_footprint_support =
-        mixed_support(&parquet_footprint, parquet_footprint_graph, true, false);
+        patch_support(&parquet_footprint, parquet_footprint_graph, true, false);
     assert_eq!(
         parquet_footprint_support.logical_digest(),
         parquet_footprint.support.logical_digest()
@@ -322,8 +179,10 @@ fn arrow_patch_matrix_receipts_match_borrowed_and_managed_paths() {
         canonical_physical: true,
         ..FixtureOptions::default()
     });
-    let graph = graph(&fixture);
-    let support = arrow_support(&fixture, graph);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let support = patch_support(&fixture, graph, false, false);
     let table = table(&fixture, support, None, fixture.provenance.logical_digest());
     let record = publish_patch_embedding_table_arrow(&fixture.store, &table, budgets())
         .expect("publish patch Arrow")
@@ -365,8 +224,10 @@ fn parquet_patch_matrix_receipts_match_borrowed_and_managed_paths() {
         parquet_physical: true,
         ..FixtureOptions::default()
     });
-    let graph = graph(&fixture);
-    let support = parquet_support(&fixture, graph);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let support = patch_support(&fixture, graph, true, true);
     let table = table(&fixture, support, None, fixture.provenance.logical_digest());
     let record = publish_patch_embedding_table_parquet(&fixture.store, &table, budgets())
         .expect("publish patch Parquet")
@@ -405,8 +266,10 @@ fn patch_matrix_receipts_are_format_neutral_and_preserve_all_statuses() {
         source_row_status_pattern: SourceRowStatusPattern::AllStatuses,
         ..FixtureOptions::default()
     });
-    let arrow_graph = graph(&arrow_support_fixture);
-    let arrow_support = arrow_support(&arrow_support_fixture, arrow_graph);
+    let arrow_graph = arrow_support_fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let arrow_support = patch_support(&arrow_support_fixture, arrow_graph, false, false);
     let parquet_table = table(
         &arrow_support_fixture,
         arrow_support,
@@ -443,8 +306,10 @@ fn patch_matrix_receipts_are_format_neutral_and_preserve_all_statuses() {
         source_row_status_pattern: SourceRowStatusPattern::AllStatuses,
         ..FixtureOptions::default()
     });
-    let parquet_graph = graph(&parquet_support_fixture);
-    let parquet_support = parquet_support(&parquet_support_fixture, parquet_graph);
+    let parquet_graph = parquet_support_fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let parquet_support = patch_support(&parquet_support_fixture, parquet_graph, true, true);
     let arrow_table = table(
         &parquet_support_fixture,
         parquet_support,
@@ -477,8 +342,10 @@ fn patch_matrix_receipts_cover_empty_and_maximum_dimension_boundaries() {
         entity_count: 0,
         ..FixtureOptions::default()
     });
-    let empty_graph = graph(&empty);
-    let empty_support = arrow_support(&empty, empty_graph);
+    let empty_graph = empty
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let empty_support = patch_support(&empty, empty_graph, false, false);
     let empty_table = table(
         &empty,
         empty_support,
@@ -507,8 +374,10 @@ fn patch_matrix_receipts_cover_empty_and_maximum_dimension_boundaries() {
         output_dimension: 65_536,
         ..FixtureOptions::default()
     });
-    let maximum_graph = graph(&maximum);
-    let maximum_support = parquet_support(&maximum, maximum_graph);
+    let maximum_graph = maximum
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let maximum_support = patch_support(&maximum, maximum_graph, true, true);
     let maximum_table = table(
         &maximum,
         maximum_support,
@@ -541,8 +410,10 @@ fn patch_matrix_receipt_crosses_the_public_arrow_batch_boundary() {
         source_row_status_pattern: SourceRowStatusPattern::AllStatuses,
         ..FixtureOptions::default()
     });
-    let graph = graph(&fixture);
-    let support = arrow_support(&fixture, graph);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let support = patch_support(&fixture, graph, false, false);
     let table = table(&fixture, support, None, fixture.provenance.logical_digest());
     let record = publish_patch_embedding_table_arrow(&fixture.store, &table, budgets())
         .expect("publish multi-batch patch Arrow")
@@ -580,8 +451,8 @@ fn assert_arrow_receipt_rejected(
             graph,
             budgets(),
         ),
-        Err(marklab::VerifiedReaderError::Callback(
-            MultiscaleColumnarError::ArtifactBindingMismatch
+        Err(marklab::workflow::VerifiedReaderError::Callback(
+            ColumnarError::ArtifactBindingMismatch
         ))
     ));
 }
@@ -592,8 +463,10 @@ fn patch_matrix_receipt_rejects_every_table_graph_binding_drift() {
         canonical_physical: true,
         ..FixtureOptions::default()
     });
-    let graph = graph(&fixture);
-    let support = arrow_support(&fixture, graph);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let support = patch_support(&fixture, graph, false, false);
     let expected_id = fixture.source_row_link.expected_patches_artifact_id();
     let provenance_digest = fixture.provenance.logical_digest();
     let cases = [
@@ -659,8 +532,10 @@ fn physical_failure_and_managed_integrity_precede_receipt_binding_checks() {
         canonical_physical: true,
         ..FixtureOptions::default()
     });
-    let graph = graph(&fixture);
-    let support = arrow_support(&fixture, graph);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let support = patch_support(&fixture, graph, false, false);
     let wrong_provenance = table(
         &fixture,
         support,
@@ -684,7 +559,7 @@ fn physical_failure_and_managed_integrity_precede_receipt_binding_checks() {
             graph,
             budgets(),
         ),
-        Err(MultiscaleColumnarError::Arrow { .. })
+        Err(ColumnarError::Arrow { .. })
     ));
 
     let artifact = record.id().to_string();
@@ -711,7 +586,9 @@ fn physical_failure_and_managed_integrity_precede_receipt_binding_checks() {
     .expect_err("managed integrity must fail before receipt binding");
     assert!(matches!(
         error,
-        marklab::VerifiedReaderError::Store(marklab::ArtifactStoreError::ContentIntegrity { .. })
+        marklab::workflow::VerifiedReaderError::Store(
+            marklab::workflow::ArtifactStoreError::ContentIntegrity { .. }
+        )
     ));
     let rendered = error.to_string();
     assert!(!rendered.contains("private-source"));
@@ -724,8 +601,10 @@ fn patch_matrix_receipt_rejects_provenance_digest_and_source_status_drift() {
         canonical_physical: true,
         ..FixtureOptions::default()
     });
-    let graph = graph(&fixture);
-    let support = arrow_support(&fixture, graph);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
+    let support = patch_support(&fixture, graph, false, false);
 
     let wrong_provenance = table(
         &fixture,
@@ -747,8 +626,8 @@ fn patch_matrix_receipt_rejects_provenance_digest_and_source_status_drift() {
             graph,
             budgets(),
         ),
-        Err(marklab::VerifiedReaderError::Callback(
-            MultiscaleColumnarError::ArtifactBindingMismatch
+        Err(marklab::workflow::VerifiedReaderError::Callback(
+            ColumnarError::ArtifactBindingMismatch
         ))
     ));
 
@@ -772,8 +651,8 @@ fn patch_matrix_receipt_rejects_provenance_digest_and_source_status_drift() {
             graph,
             budgets(),
         ),
-        Err(marklab::VerifiedReaderError::Callback(
-            MultiscaleColumnarError::ArtifactBindingMismatch
+        Err(marklab::workflow::VerifiedReaderError::Callback(
+            ColumnarError::ArtifactBindingMismatch
         ))
     ));
 }

@@ -1,6 +1,8 @@
 use approx::assert_abs_diff_eq;
 use marklab::{
-    BinaryCompartmentPartition2D, CompartmentPartitionError, CompartmentPartitionLimits,
+    compartments::{
+        BinaryCompartmentPartition2D, CompartmentPartitionError, CompartmentPartitionLimits,
+    },
     CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
     ObservationWindow2D, ObservationWindowLimits, SpatialAxis,
 };

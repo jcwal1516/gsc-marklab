@@ -1,10 +1,14 @@
 #![forbid(unsafe_code)]
-//! Dimension-aware bounded three-dimensional spatial statistics.
+//! Three-dimensional spatial statistics for Marklab.
 
 use std::collections::HashSet;
 
+use marklab_core::backend::ClaimStatus;
 use serde::{Deserialize, Deserializer, Serialize};
 use thiserror::Error;
+
+#[doc(hidden)]
+pub mod protocol;
 
 mod graph;
 mod voxel_window;
@@ -162,7 +166,7 @@ pub struct HomogeneousK3dResult {
     pub curve: Vec<K3dCurvePoint>,
     pub unordered_pairs_visited: u64,
     pub pair_radius_evaluations: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl<'de> Deserialize<'de> for HomogeneousK3dResult {
@@ -197,7 +201,7 @@ impl<'de> Deserialize<'de> for HomogeneousK3dResult {
         };
         if owned.format != "marklab.homogeneous_k3d"
             || owned.coordinate_unit != "micrometer"
-            || owned.claim_status != "homogeneous_cuboid_3d_descriptive_only"
+            || owned.claim_status != ClaimStatus::HomogeneousCuboid3dDescriptiveOnly.as_str()
         {
             return Err(serde::de::Error::custom(
                 "unexpected homogeneous 3-D result identity",
@@ -217,7 +221,7 @@ impl<'de> Deserialize<'de> for HomogeneousK3dResult {
             curve: owned.curve,
             unordered_pairs_visited: owned.unordered_pairs_visited,
             pair_radius_evaluations: owned.pair_radius_evaluations,
-            claim_status: "homogeneous_cuboid_3d_descriptive_only",
+            claim_status: ClaimStatus::HomogeneousCuboid3dDescriptiveOnly,
         })
     }
 }
@@ -372,7 +376,7 @@ pub fn homogeneous_k3d(spec: HomogeneousK3dSpec) -> Result<HomogeneousK3dResult,
         curve,
         unordered_pairs_visited: pair_count,
         pair_radius_evaluations: work,
-        claim_status: "homogeneous_cuboid_3d_descriptive_only",
+        claim_status: ClaimStatus::HomogeneousCuboid3dDescriptiveOnly,
     })
 }
 

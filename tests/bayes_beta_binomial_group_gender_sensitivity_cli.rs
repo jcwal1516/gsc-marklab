@@ -97,8 +97,21 @@ msi-f-4,MSI,Female,64,100\n",
                     .unwrap()
                     .is_finite()
         }));
-    assert!(matches!(
-        result["sensitivity_status"].as_str().unwrap(),
-        "stable_within_declared_grid" | "sensitive_within_declared_grid"
-    ));
+    assert_eq!(
+        result["sensitivity_status"],
+        "sensitive_within_declared_grid"
+    );
+    let changed_prior = result["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|scenario| scenario["scenario_id"] == "concentration_sd_upper")
+        .expect("declared prior scenario");
+    let shift = changed_prior["parameter_standardized_shifts"]["concentration"]
+        .as_f64()
+        .unwrap();
+    assert!(
+        (1.8..=3.5).contains(&shift),
+        "unexpected signed shift: {shift}"
+    );
 }

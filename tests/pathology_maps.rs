@@ -11,7 +11,7 @@ fn recipe() -> Value {
 
 fn analyze(input: &Value) -> Value {
     serde_json::to_value(
-        marklab::analyze_pathology_maps(&serde_json::to_vec(input).unwrap()).unwrap(),
+        marklab::pathology::analyze_pathology_maps(&serde_json::to_vec(input).unwrap()).unwrap(),
     )
     .unwrap()
 }
@@ -275,9 +275,10 @@ fn malformed_measurements_and_resource_exhaustion_fail_instead_of_publishing_par
             "maximum_permutation_edge_evaluations":50_000_000_000u64,
             "memory_budget_bytes":8_u64 * 1024 * 1024 * 1024
         });
-        assert!(
-            marklab::analyze_pathology_maps(&serde_json::to_vec(&extended_work).unwrap()).is_ok()
-        );
+        assert!(marklab::pathology::analyze_pathology_maps(
+            &serde_json::to_vec(&extended_work).unwrap()
+        )
+        .is_ok());
         for (field, above) in [
             ("maximum_pair_visits", 250_000_001u64),
             ("maximum_permutation_edge_evaluations", 50_000_000_001u64),
@@ -285,9 +286,10 @@ fn malformed_measurements_and_resource_exhaustion_fail_instead_of_publishing_par
         ] {
             let mut rejected = extended_work.clone();
             rejected["limits"][field] = json!(above);
-            assert!(
-                marklab::analyze_pathology_maps(&serde_json::to_vec(&rejected).unwrap()).is_err()
-            );
+            assert!(marklab::pathology::analyze_pathology_maps(
+                &serde_json::to_vec(&rejected).unwrap()
+            )
+            .is_err());
         }
     }
     for (pointer, value) in [
@@ -309,7 +311,8 @@ fn malformed_measurements_and_resource_exhaustion_fail_instead_of_publishing_par
         let mut input = base.clone();
         *input.pointer_mut(pointer).unwrap() = value;
         assert!(
-            marklab::analyze_pathology_maps(&serde_json::to_vec(&input).unwrap()).is_err(),
+            marklab::pathology::analyze_pathology_maps(&serde_json::to_vec(&input).unwrap())
+                .is_err(),
             "{pointer}"
         );
     }
@@ -324,7 +327,8 @@ fn malformed_measurements_and_resource_exhaustion_fail_instead_of_publishing_par
         let mut input = base.clone();
         input["limits"] = json!({field:1});
         assert!(
-            marklab::analyze_pathology_maps(&serde_json::to_vec(&input).unwrap()).is_err(),
+            marklab::pathology::analyze_pathology_maps(&serde_json::to_vec(&input).unwrap())
+                .is_err(),
             "{field}"
         );
     }

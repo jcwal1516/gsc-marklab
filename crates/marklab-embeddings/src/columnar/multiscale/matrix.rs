@@ -9,7 +9,7 @@ use crate::{
     EmbeddingStatus,
 };
 
-use super::MultiscaleColumnarError;
+use super::ColumnarError;
 
 pub(crate) use crate::multiscale::MultiscaleMatrixTable;
 
@@ -27,7 +27,7 @@ pub(crate) const MATRIX_METADATA_KEYS: [&str; 9] = [
 
 pub(crate) fn matrix_dependencies(
     table: &dyn MultiscaleMatrixTable,
-) -> Result<[ArtifactId; 3], MultiscaleColumnarError> {
+) -> Result<[ArtifactId; 3], ColumnarError> {
     let mut dependencies = [
         table.expected_entities_artifact_id(),
         table.support_artifact_id(),
@@ -35,7 +35,7 @@ pub(crate) fn matrix_dependencies(
     ];
     dependencies.sort_unstable();
     if dependencies.windows(2).any(|pair| pair[0] == pair[1]) {
-        return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(dependencies)
 }
@@ -43,7 +43,7 @@ pub(crate) fn matrix_dependencies(
 pub(crate) fn matrix_metadata(
     encoding: SpatialPhysicalEncoding,
     table: &dyn MultiscaleMatrixTable,
-) -> Result<[(String, String); 9], MultiscaleColumnarError> {
+) -> Result<[(String, String); 9], ColumnarError> {
     validate_matrix_domain(table)?;
     let profile = table.profile();
     let values = [
@@ -67,24 +67,24 @@ pub(crate) fn matrix_metadata(
 
 pub(crate) fn validate_matrix_domain(
     table: &dyn MultiscaleMatrixTable,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     if table.profile().entity_kind() != table.entity_kind()
         || table.dimension() == 0
         || table.dimension() > 65_536
         || table.row_count() > 100_000_000
     {
-        return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     matrix_dependencies(table)?;
     let mut accumulator = MatrixPhysicalAccumulator::new(table)?;
     for index in 0..table.row_count() {
         let row = table
             .row(index)
-            .map_err(|_| MultiscaleColumnarError::ArtifactBindingMismatch)?;
+            .map_err(|_| ColumnarError::ArtifactBindingMismatch)?;
         accumulator.push(row.id(), row.status(), row.vector())?;
     }
     if accumulator.finish()? != table.qc_summary() {
-        return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
@@ -93,32 +93,31 @@ pub(crate) fn matrix_decoded_bytes(
     table: &dyn MultiscaleMatrixTable,
     start: usize,
     end: usize,
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
     if start > end || end > table.row_count() {
-        return Err(MultiscaleColumnarError::SizeOverflow);
+        return Err(ColumnarError::SizeOverflow);
     }
     let rows = end - start;
     if rows == 0 {
         return Ok(0);
     }
-    let dimension =
-        usize::try_from(table.dimension()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+    let dimension = usize::try_from(table.dimension()).map_err(|_| ColumnarError::SizeOverflow)?;
     let components = rows
         .checked_mul(dimension)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let (identifier_bytes, status_bytes) = (start..end).try_fold(
         (0_usize, 0_usize),
         |(identifier_bytes, status_bytes), index| {
             let row = table
                 .row(index)
-                .map_err(|_| MultiscaleColumnarError::ArtifactBindingMismatch)?;
-            Ok::<_, MultiscaleColumnarError>((
+                .map_err(|_| ColumnarError::ArtifactBindingMismatch)?;
+            Ok::<_, ColumnarError>((
                 identifier_bytes
                     .checked_add(row.id().len())
-                    .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                    .ok_or(ColumnarError::SizeOverflow)?,
                 status_bytes
                     .checked_add(row.status().wire_name().len())
-                    .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                    .ok_or(ColumnarError::SizeOverflow)?,
             ))
         },
     )?;
@@ -127,10 +126,10 @@ pub(crate) fn matrix_decoded_bytes(
     let offsets = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(2 * size_of::<i32>()))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let values = components
         .checked_mul(size_of::<f32>())
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     row_validity
         .checked_mul(3)
         .and_then(|value| value.checked_add(component_validity))
@@ -138,20 +137,20 @@ pub(crate) fn matrix_decoded_bytes(
         .and_then(|value| value.checked_add(identifier_bytes))
         .and_then(|value| value.checked_add(status_bytes))
         .and_then(|value| value.checked_add(values))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
-fn bitmap_bytes(values: usize) -> Result<usize, MultiscaleColumnarError> {
+fn bitmap_bytes(values: usize) -> Result<usize, ColumnarError> {
     values
         .checked_add(7)
         .map(|value| value / 8)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
 pub(crate) struct MatrixPhysicalAccumulator(MatrixSummaryAccumulator);
 
 impl MatrixPhysicalAccumulator {
-    pub(crate) fn new(table: &dyn MultiscaleMatrixTable) -> Result<Self, MultiscaleColumnarError> {
+    pub(crate) fn new(table: &dyn MultiscaleMatrixTable) -> Result<Self, ColumnarError> {
         MatrixSummaryAccumulator::new(
             table.entity_kind(),
             table.profile().logical_domain(),
@@ -166,7 +165,7 @@ impl MatrixPhysicalAccumulator {
             table.row_count(),
         )
         .map(Self)
-        .map_err(|_| MultiscaleColumnarError::ArtifactBindingMismatch)
+        .map_err(|_| ColumnarError::ArtifactBindingMismatch)
     }
 
     pub(crate) fn push(
@@ -174,15 +173,40 @@ impl MatrixPhysicalAccumulator {
         id: &str,
         status: EmbeddingStatus,
         vector: Option<&[f32]>,
-    ) -> Result<(), MultiscaleColumnarError> {
+    ) -> Result<(), ColumnarError> {
         self.0
             .push(id, status, vector)
-            .map_err(|_| MultiscaleColumnarError::ArtifactBindingMismatch)
+            .map_err(|_| ColumnarError::ArtifactBindingMismatch)
     }
 
-    pub(crate) fn finish(self) -> Result<MultiscaleEmbeddingQcSummary, MultiscaleColumnarError> {
+    pub(crate) fn finish(self) -> Result<MultiscaleEmbeddingQcSummary, ColumnarError> {
         self.0
             .finish()
-            .map_err(|_| MultiscaleColumnarError::ArtifactBindingMismatch)
+            .map_err(|_| ColumnarError::ArtifactBindingMismatch)
     }
+}
+
+pub(crate) fn matrix_schema_fields(
+    profile: super::MatrixPhysicalProfile,
+    dimension: u32,
+    encoding: SpatialPhysicalEncoding,
+) -> Result<Vec<arrow::datatypes::Field>, ColumnarError> {
+    use arrow::datatypes::{DataType, Field};
+    let dimension = i32::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?;
+    let child_name = match encoding {
+        SpatialPhysicalEncoding::Arrow => "item",
+        SpatialPhysicalEncoding::Parquet => "element",
+    };
+    Ok(vec![
+        Field::new(profile.id_column(), DataType::Utf8, false),
+        Field::new(
+            "embedding",
+            DataType::FixedSizeList(
+                std::sync::Arc::new(Field::new(child_name, DataType::Float32, false)),
+                dimension,
+            ),
+            false,
+        ),
+        Field::new("embedding_status", DataType::Utf8, false),
+    ])
 }

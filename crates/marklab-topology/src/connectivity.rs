@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::TopologyError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -51,7 +52,7 @@ pub struct ConnectivityTransitionResult {
     pub critical_radius_rule: &'static str,
     pub pair_evaluations: u64,
     pub finite_size_caveat: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn connectivity_transition(
@@ -196,7 +197,7 @@ pub fn connectivity_transition(
         pair_evaluations,
         finite_size_caveat:
             "single finite point pattern; cohort inference requires patient summaries",
-        claim_status: "experimental_finite_size_connectivity",
+        claim_status: ClaimStatus::ExperimentalFiniteSizeConnectivity,
     })
 }
 

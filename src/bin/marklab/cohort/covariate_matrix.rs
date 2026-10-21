@@ -83,20 +83,33 @@ struct Covariates {
 #[derive(Debug, Serialize)]
 struct Permutations {
     requested: usize,
-    attempted: usize,
-    completed: usize,
     seed: u64,
     alternative: CliAlternative,
 }
 
-pub(super) struct RunArgs {
-    pub input: PathBuf,
-    pub group_a: String,
-    pub group_b: String,
-    pub permutations: usize,
-    pub seed: u64,
-    pub alternative: CliAlternative,
-    pub out: PathBuf,
+#[derive(Debug, clap::Args)]
+pub(crate) struct RunArgs {
+    /// CSV with patient_id, group, outcome, covariate and value columns, plus optional block.
+    #[arg(long)]
+    pub(super) input: PathBuf,
+    /// Label of the first group in the contrast.
+    #[arg(long)]
+    pub(super) group_a: String,
+    /// Label of the second group in the contrast.
+    #[arg(long)]
+    pub(super) group_b: String,
+    /// Number of randomized label or residual assignments.
+    #[arg(long)]
+    pub(super) permutations: usize,
+    /// Random seed for reproducible simulation or inference.
+    #[arg(long)]
+    pub(super) seed: u64,
+    /// Direction of the alternative hypothesis.
+    #[arg(long, value_enum)]
+    pub(super) alternative: CliAlternative,
+    /// Destination for the analysis output.
+    #[arg(long)]
+    pub(super) out: PathBuf,
 }
 
 pub(super) fn run(args: RunArgs) -> Result<(), CohortError> {
@@ -163,8 +176,6 @@ impl Output {
             p_value: result.p_value,
             permutations: Permutations {
                 requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
                 seed: result.seed,
                 alternative,
             },

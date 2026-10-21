@@ -1,8 +1,18 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    CacheStatus, IsotropicSpatialAnalysisNode, IsotropicSpatialConfig, IsotropicSpatialLimits,
-    IsotropicSpatialResultDocument, LocalScheduler, MarklabProject, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, Pattern, PatternMeta, SchedulerLimits, WorkflowGraph, WorkflowNode,
+    spatial::{
+        IsotropicSpatialAnalysisNode, IsotropicSpatialConfig, IsotropicSpatialLimits,
+        IsotropicSpatialResultDocument,
+    },
+    workflow::{
+        CacheStatus, LocalScheduler, MarklabProject, NodeId, SchedulerLimits, WorkflowGraph,
+        WorkflowNode,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn pattern() -> Pattern {
@@ -10,16 +20,12 @@ fn pattern() -> Pattern {
         vec![1.0, 3.0],
         vec![5.0, 5.0],
         vec![0, 0],
-        PatternMeta {
-            case_id: "isotropic-workflow-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("isotropic-workflow-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "isotropic-workflow-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("isotropic-workflow-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -95,6 +101,10 @@ fn isotropic_node_misses_hits_round_trips_and_invalidates_arc_limits() {
     );
     let document = IsotropicSpatialResultDocument::new(direct).expect("document");
     let encoded = document.to_json_pretty().expect("JSON");
+    assert_eq!(
+        encoded,
+        include_str!("fixtures/edge_estimators/isotropic_spatial.json")
+    );
     assert!(encoded.contains("\"format\": \"marklab.isotropic_spatial\""));
     assert_eq!(
         IsotropicSpatialResultDocument::from_json(&encoded)

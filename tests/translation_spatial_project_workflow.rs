@@ -1,8 +1,17 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{
-    CacheStatus, LocalScheduler, MarklabProject, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, Pattern, PatternMeta, SchedulerLimits, TranslationSpatialAnalysisNode,
-    TranslationSpatialConfig, TranslationSpatialLimits, TranslationSpatialResultDocument,
-    WorkflowGraph, WorkflowNode,
+    spatial::{
+        TranslationSpatialAnalysisNode, TranslationSpatialConfig, TranslationSpatialLimits,
+        TranslationSpatialResultDocument,
+    },
+    workflow::{
+        CacheStatus, LocalScheduler, MarklabProject, NodeId, SchedulerLimits, WorkflowGraph,
+        WorkflowNode,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn pattern() -> Pattern {
@@ -10,16 +19,12 @@ fn pattern() -> Pattern {
         vec![0.5, 1.5],
         vec![0.5, 0.5],
         vec![0, 0],
-        PatternMeta {
-            case_id: "translation-workflow-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("translation-workflow-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "translation-workflow-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("translation-workflow-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -88,6 +93,10 @@ fn translation_node_misses_hits_round_trips_and_invalidates_overlap_limits() {
     assert_eq!(miss.output, direct);
     let document = TranslationSpatialResultDocument::new(direct).expect("document");
     let encoded = document.to_json_pretty().expect("JSON");
+    assert_eq!(
+        encoded,
+        include_str!("fixtures/edge_estimators/translation_spatial.json")
+    );
     assert!(encoded.contains("\"format\": \"marklab.translation_spatial\""));
     assert_eq!(
         TranslationSpatialResultDocument::from_json(&encoded)

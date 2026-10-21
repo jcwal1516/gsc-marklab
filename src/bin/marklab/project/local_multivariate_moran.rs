@@ -1,59 +1,27 @@
-use std::path::PathBuf;
+use std::borrow::Cow;
 
-use marklab::LocalMultivariateMoranResult;
-use marklab_workflow::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalScheduler, MarklabProject, NodeError, NodeId,
-    NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
-};
+use super::is_sha256;
+use marklab::autocorrelation::{LocalMultivariateMoranLimits, LocalMultivariateMoranResult};
+use marklab_project::ContentDigest;
+use marklab_workflow::NodeError;
 
+use super::cli_schema::LocalMultivariateMoranProjectArgs;
 use super::{
-    bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
-    MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES, PROJECT_LEDGER_RECORDS,
-    PROJECT_RECORD_BYTES,
+    durable::{self, Codec, NodeContract, Source, SourceNode},
+    CliError, MAXIMUM_RESULT_BYTES,
 };
 use crate::local_multivariate::{self, PreparedLocalMultivariateMoran};
 
 const INPUT_KIND: &str = "application/vnd.marklab.source.local-multivariate-points+csv;version=1";
 const WINDOW_KIND: &str = "application/vnd.marklab.source.observation-window+geojson;version=1";
-const OUTPUT_KIND: &str = "application/vnd.marklab.local-multivariate-moran+json;version=1";
-const IMPLEMENTATION_IDENTITY: &str = "marklab-project-local-multivariate-moran-node-v1";
+const OUTPUT_KIND: &str = "application/vnd.marklab.local-multivariate-moran+json;version=2";
+const IMPLEMENTATION_IDENTITY: &str = "marklab-project-local-multivariate-moran-node-v2";
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    project_path: PathBuf,
-    input_path: PathBuf,
-    window_path: PathBuf,
-    radius_um: f64,
-    permutations: usize,
-    seed: u64,
-    maximum_points: usize,
-    maximum_dimension: usize,
-    maximum_directed_edges: usize,
-    maximum_permutation_edge_evaluations: usize,
-    memory_budget_mib: usize,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let memory_budget_bytes = memory_budget_mib
-        .checked_mul(1024 * 1024)
-        .ok_or_else(|| BayesCliError::Input("--memory-budget-mib is too large".into()))?;
-    let paths = SourcePaths {
+pub(super) fn run(args: LocalMultivariateMoranProjectArgs) -> Result<(), CliError> {
+    let LocalMultivariateMoranProjectArgs {
+        project: project_path,
         input: input_path,
         window: window_path,
-    };
-    let before = source_artifacts(&paths)?;
-    let prepared = local_multivariate::prepare(&paths.input, &paths.window, memory_budget_bytes)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let after = source_artifacts(&paths)?;
-    if before != after {
-        return Err(BayesCliError::Input(
-            "local multivariate Moran sources changed while prepared".into(),
-        ));
-    }
-    let node = LocalMultivariateMoranProjectNode::new(
-        paths,
-        after.clone(),
-        prepared,
         radius_um,
         permutations,
         seed,
@@ -61,105 +29,79 @@ pub(super) fn run(
         maximum_dimension,
         maximum_directed_edges,
         maximum_permutation_edge_evaluations,
-        memory_budget_bytes,
+        memory_budget_mib,
+        out: output_path,
+    } = args;
+    const LABEL: &str = "local multivariate Moran sources";
+    let memory_budget_bytes = memory_budget_mib
+        .checked_mul(1024 * 1024)
+        .ok_or_else(|| CliError::Input("--memory-budget-mib is too large".into()))?;
+    let sources = Source::identify_all([input_path, window_path], &[INPUT_KIND, WINDOW_KIND])?;
+    let prepared =
+        local_multivariate::prepare(sources[0].path(), sources[1].path(), memory_budget_bytes)
+            .map_err(|error| CliError::Input(error.to_string()))?;
+    Source::ensure_all_unchanged(&sources, LABEL)?;
+    let (analysis, contract) = LocalMultivariateMoran::new(
+        prepared,
+        radius_um,
+        permutations,
+        seed,
+        LocalMultivariateMoranLimits {
+            maximum_points,
+            maximum_dimension,
+            maximum_directed_edges,
+            maximum_permutation_edge_evaluations,
+            memory_budget_bytes,
+        },
         memory_budget_mib,
     )?;
-    let runtime = native_runtime_provenance()?;
-    let limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
-    )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let mut durable = DurableProject::open_or_create(&project_path, limits)
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    for artifact in &after {
-        project
-            .register_reference(artifact.clone())
-            .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    }
-    let graph = WorkflowGraph::new([node.spec().clone()])
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
-    })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let execution = execute_algorithm(
-        &mut durable,
-        &mut project,
-        &graph,
+    let node = SourceNode::new(
+        contract,
+        LABEL,
+        sources,
+        analysis,
+        LocalMultivariateMoran::execute,
+        |analysis, output| analysis.validate_decoded(output),
+    )?;
+
+    let run = durable::execute_node(
+        &project_path,
         &node,
-        &scheduler,
-        ArtifactSchema::new("marklab.local_multivariate_moran", 1)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        runtime,
+        ("marklab.local_multivariate_moran", 1),
+        MAXIMUM_RESULT_BYTES,
+    )?;
+    durable::publish(
+        "local-multivariate-moran",
+        &output_path,
+        &run.output,
+        run.cache_status,
     )
-    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    bayes::publish_json(&output_path, &execution.output)?;
-    let cache_status = match execution.cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project local-multivariate-moran cache_status={cache_status}");
-    Ok(())
 }
 
-#[derive(Clone)]
-struct SourcePaths {
-    input: PathBuf,
-    window: PathBuf,
-}
-
-fn source_artifacts(paths: &SourcePaths) -> Result<Vec<ArtifactRef>, BayesCliError> {
-    Ok(vec![
-        source_artifact(&paths.input, INPUT_KIND)?,
-        source_artifact(&paths.window, WINDOW_KIND)?,
-    ])
-}
-
-struct LocalMultivariateMoranProjectNode {
-    spec: NodeSpec,
-    paths: SourcePaths,
-    input_artifacts: Vec<ArtifactRef>,
+struct LocalMultivariateMoran {
     prepared: PreparedLocalMultivariateMoran,
     radius_um: f64,
     permutations: usize,
     seed: u64,
-    maximum_points: usize,
-    maximum_dimension: usize,
-    maximum_directed_edges: usize,
-    maximum_permutation_edge_evaluations: usize,
-    memory_budget_bytes: usize,
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
+    limits: LocalMultivariateMoranLimits,
 }
 
-impl LocalMultivariateMoranProjectNode {
-    #[allow(clippy::too_many_arguments)]
+impl LocalMultivariateMoran {
     fn new(
-        paths: SourcePaths,
-        input_artifacts: Vec<ArtifactRef>,
         prepared: PreparedLocalMultivariateMoran,
         radius_um: f64,
         permutations: usize,
         seed: u64,
-        maximum_points: usize,
-        maximum_dimension: usize,
-        maximum_directed_edges: usize,
-        maximum_permutation_edge_evaluations: usize,
-        memory_budget_bytes: usize,
+        limits: LocalMultivariateMoranLimits,
         memory_budget_mib: usize,
-    ) -> Result<Self, BayesCliError> {
-        if input_artifacts.len() != 2 {
-            return Err(BayesCliError::Input(
-                "local multivariate Moran source identities are incomplete".into(),
-            ));
-        }
+    ) -> Result<(Self, NodeContract), CliError> {
+        let LocalMultivariateMoranLimits {
+            maximum_points,
+            maximum_dimension,
+            maximum_directed_edges,
+            maximum_permutation_edge_evaluations,
+            ..
+        } = limits;
         let configuration_digest = ContentDigest::from_framed([
             b"marklab-local-multivariate-moran-configuration-v1".as_slice(),
             prepared.source_schema.as_bytes(),
@@ -177,33 +119,25 @@ impl LocalMultivariateMoranProjectNode {
             prepared.source_schema
         )
         .into_bytes();
-        Ok(Self {
-            spec: NodeSpec::new(
-                NodeId::new("local-multivariate-moran")
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
-                "local_multivariate_moran",
-                1,
-                Vec::new(),
-            )
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-            paths,
-            input_artifacts,
-            prepared,
-            radius_um,
-            permutations,
-            seed,
-            maximum_points,
-            maximum_dimension,
-            maximum_directed_edges,
-            maximum_permutation_edge_evaluations,
-            memory_budget_bytes,
-            configuration_digest,
-            execution_policy,
-        })
-    }
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
+        Ok((
+            Self {
+                prepared,
+                radius_um,
+                permutations,
+                seed,
+                limits,
+            },
+            NodeContract {
+                id: "local-multivariate-moran",
+                kind: "local_multivariate_moran",
+                version: 1,
+                configuration_digest,
+                execution_policy: Cow::Owned(execution_policy),
+                implementation_identity: IMPLEMENTATION_IDENTITY,
+                output_kind: OUTPUT_KIND,
+                codec: Codec::Json,
+            },
+        ))
     }
 
     fn validate_decoded(&self, result: &LocalMultivariateMoranResult) -> Result<(), NodeError> {
@@ -222,10 +156,10 @@ impl LocalMultivariateMoranProjectNode {
         let denominator = self.permutations as f64 + 1.0;
         if result.format != "marklab.local_multivariate_moran"
             || result.version != 1
-            || result.statistical_unit != "complete_multivariate_mark_row"
-            || result.population_claim != "within_specimen_field_diagnostic_only"
-            || result.null != "complete_rows_randomly_labeled_within_declared_strata"
-            || result.multiplicity != "single_step_max_abs_over_all_locations"
+            || result.statistical_unit != marklab::autocorrelation::MoranStatisticalUnit::CompleteMultivariateMarkRow
+            || result.population_claim != marklab::autocorrelation::MoranPopulationClaim::WithinSpecimenFieldDiagnosticOnly
+            || result.null != marklab::autocorrelation::MoranNullModel::CompleteRowsRandomlyLabeledWithinDeclaredStrata
+            || result.multiplicity != marklab::marks::MultiplicityCorrection::SingleStepMaxAbsOverAllLocations
             || result.feature_names != self.prepared.feature_names
             || result.feature_means.len() != self.prepared.feature_names.len()
             || result.feature_standard_deviations.len() != self.prepared.feature_names.len()
@@ -239,15 +173,14 @@ impl LocalMultivariateMoranProjectNode {
             || result.dimension != self.prepared.feature_names.len()
             || result.stratum_count != expected_stratum_count
             || result.permutations_requested != self.permutations
-            || result.permutations_completed != self.permutations
             || result.seed != self.seed
             || result.window_sha256 != self.prepared.window.descriptor().logical_digest.to_string()
             || !is_sha256(&result.weights_sha256)
-            || result.directed_edge_count > self.maximum_directed_edges
+            || result.directed_edge_count > self.limits.maximum_directed_edges
             || result.permutation_edge_evaluations
                 != result.directed_edge_count.saturating_mul(self.permutations)
-            || result.permutation_edge_evaluations > self.maximum_permutation_edge_evaluations
-            || result.retained_memory_bytes > self.memory_budget_bytes
+            || result.permutation_edge_evaluations > self.limits.maximum_permutation_edge_evaluations
+            || result.retained_memory_bytes > self.limits.memory_budget_bytes
             || result.locations.len() != self.prepared.points.len()
             || result
                 .locations
@@ -281,10 +214,18 @@ impl LocalMultivariateMoranProjectNode {
         }
         Ok(())
     }
-}
 
-fn is_sha256(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    fn execute(&self) -> Result<LocalMultivariateMoranResult, NodeError> {
+        let result = local_multivariate::evaluate(
+            &self.prepared,
+            self.radius_um,
+            self.permutations,
+            self.seed,
+            self.limits,
+        )
+        .map_err(NodeError::execution)?;
+        local_multivariate::canonical_result_codec(result).map_err(NodeError::execution)
+    }
 }
 
 fn permutation_probability(value: f64, denominator: f64) -> bool {
@@ -300,68 +241,4 @@ fn equal_within_one_ulp(left: f64, right: f64) -> bool {
         return left.to_bits() == right.to_bits();
     }
     left.to_bits().abs_diff(right.to_bits()) <= 1
-}
-
-impl WorkflowNode for LocalMultivariateMoranProjectNode {
-    type Output = LocalMultivariateMoranResult;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.input_artifacts
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        let current = source_artifacts(&self.paths).map_err(NodeError::input)?;
-        if current != self.input_artifacts {
-            return Err(NodeError::input(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "local multivariate Moran sources changed after preparation",
-            )));
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: IMPLEMENTATION_IDENTITY,
-        }
-    }
-
-    fn execute(&self) -> Result<Self::Output, NodeError> {
-        let result = local_multivariate::evaluate(
-            &self.prepared,
-            self.radius_um,
-            self.permutations,
-            self.seed,
-            self.maximum_points,
-            self.maximum_dimension,
-            self.maximum_directed_edges,
-            self.maximum_permutation_edge_evaluations,
-            self.memory_budget_bytes,
-        )
-        .map_err(NodeError::execution)?;
-        local_multivariate::canonical_result_codec(result).map_err(NodeError::execution)
-    }
-
-    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        serde_json::to_vec(output)
-            .map(Vec::into_boxed_slice)
-            .map_err(NodeError::encoding)
-    }
-
-    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let result: LocalMultivariateMoranResult =
-            serde_json::from_slice(bytes).map_err(NodeError::decode)?;
-        self.validate_decoded(&result)?;
-        Ok(result)
-    }
-
-    fn output_kind(&self) -> &'static str {
-        OUTPUT_KIND
-    }
 }

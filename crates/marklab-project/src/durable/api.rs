@@ -27,6 +27,18 @@ pub struct DurableProjectLimits {
 }
 
 impl DurableProjectLimits {
+    /// The limits Marklab's commands use: 1 MiB control files, an execution ledger of at most
+    /// 16 MiB and 10,000 records of up to 64 KiB, and `maximum_object_bytes` per stored result.
+    pub fn for_object_bytes(maximum_object_bytes: usize) -> Result<Self, DurableProjectError> {
+        Self::new(
+            1024 * 1024,
+            16 * 1024 * 1024,
+            10_000,
+            64 * 1024,
+            maximum_object_bytes,
+        )
+    }
+
     /// Build and validate explicit positive project-state bounds.
     pub fn new(
         maximum_control_bytes: usize,

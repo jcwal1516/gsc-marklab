@@ -1,4 +1,5 @@
-use marklab_workflow::ContentDigest;
+use crate::result_vocabulary::EdgeCorrection;
+use marklab_project::ContentDigest;
 
 use crate::common::finite::canonical_zero;
 
@@ -111,11 +112,10 @@ pub fn homogeneous_pair_correlation(
         window: window_summary(window.descriptor()),
         kernel: PairCorrelationKernel::Epanechnikov,
         bandwidth_um: config.bandwidth_um,
-        edge_correction: "standard_border_radius_plus_bandwidth".into(),
-        null_model: "homogeneous_csr_conditional_on_count".into(),
-        randomization_unit: "whole_location_pattern".into(),
+        edge_correction: EdgeCorrection::StandardBorderRadiusPlusBandwidth,
+        null_model: crate::spatial::ClassicalNullModel::HomogeneousCsrConditionalOnCount,
+        randomization_unit: crate::spatial::ClassicalRandomizationUnit::WholeLocationPattern,
         geometry_digest: observed_plan.logical_digest().to_string(),
-        geometry_build_count: 1,
         observed_pair_visits,
         total_pair_visits: used_pair_visits,
         estimated_storage_bytes: required_bytes,
@@ -223,7 +223,8 @@ fn evaluate(
         } else {
             PairCorrelationPointStatus::Available
         };
-        let g = (status == PairCorrelationPointStatus::Available)
+        let estimable = point_count >= 2 && eligible_centers[index] > 0;
+        let g = estimable
             .then(|| {
                 let denominator = 2.0
                     * std::f64::consts::PI
@@ -234,7 +235,7 @@ fn evaluate(
             })
             .filter(|value| value.is_finite())
             .map(canonical_zero);
-        if status == PairCorrelationPointStatus::Available && g.is_none() {
+        if estimable && g.is_none() {
             return Err(HomogeneousPairCorrelationError::Dependency(
                 "pair-correlation normalization produced a non-finite value".into(),
             ));

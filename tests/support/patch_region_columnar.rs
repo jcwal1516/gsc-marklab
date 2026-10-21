@@ -1,13 +1,15 @@
 use std::str::FromStr;
 
 use marklab::{
-    ArtifactId, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EffectiveReceptiveField, ExpectedPatchSet,
-    ExpectedRegionSet, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
-    PatchBoundaryPolicy, PatchEmbeddingContext, PatchFootprint, PatchFootprintSet, PatchId,
-    PatchRegionAssessment, PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink,
-    PatientId, PositiveRational, RegionId, ReplicationRole, SlideId, SpatialAxis, TransformId,
-    TransformMatrix,
+    embeddings::{
+        EffectiveReceptiveField, ExpectedPatchSet, ExpectedRegionSet, PatchBoundaryPolicy,
+        PatchEmbeddingContext, PatchFootprint, PatchFootprintSet, PatchRegionAssessment,
+        PatchRegionAssessmentBindings, PatchRegionDeclaration, PatchRegionLink, PositiveRational,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
+    CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, PatchId,
+    PatientId, RegionId, ReplicationRole, SlideId, SpatialAxis, TransformId, TransformMatrix,
 };
 
 const DOMAIN_BUDGET: usize = 512 * 1024 * 1024;

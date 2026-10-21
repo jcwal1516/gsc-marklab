@@ -1,14 +1,17 @@
 pub(super) use std::{mem::size_of, str::FromStr};
 
 pub(super) use marklab::{
-    ArtifactId, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EffectiveReceptiveField,
-    EmbeddingEntityKind, EmbeddingStatus, ExpectedPatchSet, ExpectedRegionSet, ExpectedSlideSet,
-    FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
-    MultiscaleEmbeddingError, PatchBoundaryPolicy, PatchEmbeddingContext, PatchEmbeddingRow,
-    PatchEmbeddingTable, PatchFootprint, PatchFootprintSet, PatchId, PatchOverlapGraph, PatientId,
-    PositiveRational, RegionEmbeddingRow, RegionEmbeddingTable, RegionId, ReplicationRole,
-    SlideEmbeddingRow, SlideEmbeddingTable, SlideId, SpatialAxis, TransformId, TransformMatrix,
+    embeddings::{
+        EffectiveReceptiveField, EmbeddingEntityKind, EmbeddingStatus, ExpectedPatchSet,
+        ExpectedRegionSet, ExpectedSlideSet, MultiscaleEmbeddingError, PatchBoundaryPolicy,
+        PatchEmbeddingContext, PatchEmbeddingRow, PatchEmbeddingTable, PatchFootprint,
+        PatchFootprintSet, PatchOverlapGraph, PositiveRational, RegionEmbeddingRow,
+        RegionEmbeddingTable, SlideEmbeddingRow, SlideEmbeddingTable,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
+    CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, PatchId,
+    PatientId, RegionId, ReplicationRole, SlideId, SpatialAxis, TransformId, TransformMatrix,
 };
 
 pub(super) const RETAINED_BUDGET: usize = 64 * 1024;

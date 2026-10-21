@@ -67,10 +67,6 @@ pub struct ClusterCovariatePermutationResult {
     pub p_value: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Completed replicate count.
-    pub permutations_completed: usize,
     /// Base deterministic seed.
     pub seed: u64,
     /// Prespecified alternative.
@@ -203,8 +199,6 @@ pub fn cluster_covariate_matrix_freedman_lane(
         studentized_statistic: observed.target_statistic,
         p_value,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
         alternative: spec.alternative,
     })

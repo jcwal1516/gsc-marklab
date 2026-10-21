@@ -20,6 +20,8 @@ use super::{
     DurableProject, DurableProjectError,
 };
 
+/// Test-only crash point inside a durable commit.
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum CommitFault {
     None,
@@ -67,12 +69,11 @@ pub(super) fn restore_success(
     }))
 }
 
-pub(super) fn commit_success_inner(
+pub(super) fn commit_success(
     durable: &mut DurableProject,
     request: &DurableExecutionRequest,
     output_kind: &str,
     encoded_output: &[u8],
-    fault: CommitFault,
 ) -> Result<DurableCommitDisposition, DurableProjectError> {
     if encoded_output.len() > durable.limits.maximum_object_bytes {
         return Err(DurableProjectError::ObjectTooLarge {
@@ -120,7 +121,8 @@ pub(super) fn commit_success_inner(
         .store
         .publish_new_send(&draft, |writer| writer.write_all(encoded_output))?;
     let record = publication.into_record();
-    if fault == CommitFault::AfterObjectPublication {
+    #[cfg(test)]
+    if durable.commit_fault == CommitFault::AfterObjectPublication {
         return Err(DurableProjectError::InjectedFailure {
             stage: "after object publication",
         });
@@ -165,7 +167,8 @@ pub(super) fn commit_success_inner(
     )?;
     prepare_execution_append(&durable.root, &entry, durable.limits)?;
     atomic_write(&durable.root, PENDING_PATH, &pending_bytes)?;
-    if fault == CommitFault::AfterPendingIntent {
+    #[cfg(test)]
+    if durable.commit_fault == CommitFault::AfterPendingIntent {
         return Err(DurableProjectError::InjectedFailure {
             stage: "after pending intent",
         });
@@ -173,7 +176,8 @@ pub(super) fn commit_success_inner(
 
     append_execution(&durable.root, &entry, durable.limits)?;
     durable.ledger.push(entry.clone());
-    if fault == CommitFault::AfterLedgerAppend {
+    #[cfg(test)]
+    if durable.commit_fault == CommitFault::AfterLedgerAppend {
         return Err(DurableProjectError::InjectedFailure {
             stage: "after ledger append",
         });
@@ -186,7 +190,8 @@ pub(super) fn commit_success_inner(
         ledger_byte_len(&durable.ledger)?,
     )?;
     write_head(&durable.root, &durable.head, durable.limits)?;
-    if fault == CommitFault::AfterHeadReplacement {
+    #[cfg(test)]
+    if durable.commit_fault == CommitFault::AfterHeadReplacement {
         return Err(DurableProjectError::InjectedFailure {
             stage: "after head replacement",
         });

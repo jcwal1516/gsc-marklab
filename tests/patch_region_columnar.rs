@@ -7,14 +7,18 @@ mod support;
 use std::{fs, io, io::Write, process::Command};
 
 use marklab::{
-    preflight_patch_region_link_arrow_bytes, preflight_patch_region_link_parquet_bytes,
-    publish_patch_region_link_arrow, publish_patch_region_link_parquet,
-    validate_patch_region_link_arrow_bytes, validate_patch_region_link_arrow_from_store,
-    validate_patch_region_link_parquet_bytes, validate_patch_region_link_parquet_from_store,
-    write_patch_region_link_arrow, write_patch_region_link_parquet, ArtifactRecord, ContentDigest,
-    EmbeddingColumnarBudgets, LocalArtifactStore, PatchRegionAssessment, PatchRegionDeclaration,
-    PatchRegionLink, PublicationDisposition, StoreId, TableColumnType, TableFormat,
-    TableScalarType,
+    embeddings::{
+        preflight_patch_region_link_arrow_bytes, preflight_patch_region_link_parquet_bytes,
+        publish_patch_region_link_arrow, publish_patch_region_link_parquet,
+        validate_patch_region_link_arrow_bytes, validate_patch_region_link_arrow_from_store,
+        validate_patch_region_link_parquet_bytes, validate_patch_region_link_parquet_from_store,
+        write_patch_region_link_arrow, write_patch_region_link_parquet, EmbeddingColumnarBudgets,
+        PatchRegionAssessment, PatchRegionDeclaration, PatchRegionLink,
+    },
+    workflow::{
+        ArtifactRecord, ContentDigest, LocalArtifactStore, PublicationDisposition, StoreId,
+        TableColumnType, TableFormat, TableScalarType,
+    },
 };
 use tempfile::TempDir;
 

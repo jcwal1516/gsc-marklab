@@ -1,20 +1,24 @@
-use crate::validation::all_finite as finite;
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
 use serde::{Deserialize, Serialize};
 
+use crate::agreement_metric::AgreementVerdict;
+use crate::agreement_metric::{compare_parameter, ParameterAgreement};
+pub use crate::backend_versions::JAX_VERSION;
+pub use crate::backend_versions::NUMPYRO_VERSION;
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::all_finite as finite;
+use crate::validation::is_sha256;
+use crate::AgreementStatus;
+use crate::ClaimStatus;
 use crate::{
     hierarchical::{
         GaussianHierarchyInputIdentity, GaussianHierarchyModelIr, GaussianHierarchyPosterior,
         GaussianHierarchyWorkerRequest, HierarchicalPosteriorPredictive, HierarchicalWorkerResult,
         PartialPoolingSummary,
     },
-    sha256_hex, BackendContract, BayesError, FitState, NormalMeanDiagnostics, SamplingSummary,
+    json_sha256, BackendContract, BayesError, FitState, PosteriorDiagnostics, SamplingSummary,
     WorkerBackend,
 };
 
-pub const NUMPYRO_VERSION: &str = "0.21.0";
-pub const JAX_VERSION: &str = "0.11.1";
 const REQUEST_FORMAT: &str = "marklab.numpyro_hierarchical_worker_request";
 const RESULT_FORMAT: &str = "marklab.numpyro_hierarchical_worker_result";
 
@@ -39,14 +43,14 @@ impl NumpyroHierarchyWorkerRequest {
                 "NumPyro environment and worker identities must be SHA-256 digests".into(),
             ));
         }
-        let source_request_sha256 = sha256_hex(&serde_json::to_vec(&source_request)?);
+        let source_request_sha256 = json_sha256(&source_request)?;
         Ok(Self {
             format: REQUEST_FORMAT,
             version: 1,
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -70,7 +74,7 @@ pub struct NumpyroHierarchyWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: GaussianHierarchyPosterior,
     pub partial_pooling: Vec<PartialPoolingSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: HierarchicalPosteriorPredictive,
 }
 
@@ -82,11 +86,7 @@ impl NumpyroHierarchyWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != RESULT_FORMAT
             || self.version != 1
-            || self.backend.name != "numpyro"
-            || self.backend.version != NUMPYRO_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.jax_version != JAX_VERSION
             || self.request_sha256 != request_sha256
             || self.source_request_sha256 != request.source_request_sha256
@@ -143,11 +143,13 @@ impl NumpyroHierarchyWorkerResult {
                     summary.raw_mean,
                     summary.posterior_mean,
                     summary.posterior_sd,
+                    summary.mcse_mean,
                     summary.interval_lower,
                     summary.interval_upper,
                     summary.shrinkage,
                 ])
                 || summary.posterior_sd <= 0.0
+                || summary.mcse_mean < 0.0
                 || summary.interval_lower > summary.interval_upper
                 || (summary.raw_mean - raw_mean).abs() > 1e-12 * raw_mean.abs().max(1.0)
             {
@@ -252,18 +254,6 @@ impl HierarchicalAgreementPolicy {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ParameterAgreement {
-    pub pymc_mean: f64,
-    pub numpyro_mean: f64,
-    pub absolute_difference: f64,
-    pub combined_mcse: f64,
-    pub standardized_difference: f64,
-    pub tolerance: f64,
-    pub intervals_overlap: bool,
-    pub passes: bool,
-}
-
-#[derive(Debug, Serialize)]
 pub struct HierarchicalAgreementComparison {
     pub global_mean: ParameterAgreement,
     pub between_patient_sd: ParameterAgreement,
@@ -278,7 +268,7 @@ pub struct HierarchicalBackendSummary {
     pub fit_state: FitState,
     pub sampling: SamplingSummary,
     pub posterior: GaussianHierarchyPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: HierarchicalPosteriorPredictive,
 }
 
@@ -289,12 +279,12 @@ pub struct HierarchicalAgreementResult {
     pub model: GaussianHierarchyModelIr,
     pub input: GaussianHierarchyInputIdentity,
     pub fit_state: FitState,
-    pub agreement_status: &'static str,
+    pub agreement_status: AgreementStatus,
     pub pymc: HierarchicalBackendSummary,
     pub numpyro: HierarchicalBackendSummary,
     pub comparison: HierarchicalAgreementComparison,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl HierarchicalAgreementResult {
@@ -306,41 +296,27 @@ impl HierarchicalAgreementResult {
         policy: HierarchicalAgreementPolicy,
     ) -> Result<Self, BayesError> {
         let policy = policy.validate()?;
-        let global_mean = compare(
+        let global_mean = compare_parameter(
             &pymc.posterior.global_mean,
-            pymc.diagnostics.mcse_mean,
             &numpyro.posterior.global_mean,
-            numpyro.diagnostics.mcse_mean,
-            policy,
+            policy.maximum_standardized_difference,
+            policy.minimum_absolute_tolerance,
         );
-        let between_patient_sd = compare(
+        let between_patient_sd = compare_parameter(
             &pymc.posterior.between_patient_sd,
-            pymc.diagnostics.mcse_mean,
             &numpyro.posterior.between_patient_sd,
-            numpyro.diagnostics.mcse_mean,
-            policy,
+            policy.maximum_standardized_difference,
+            policy.minimum_absolute_tolerance,
         );
-        let fits_complete =
-            pymc.fit_state == FitState::Complete && numpyro.fit_state == FitState::Complete;
         let agrees = global_mean.passes && between_patient_sd.passes;
-        let available = fits_complete && agrees;
+        let verdict = AgreementVerdict::new(pymc.fit_state, numpyro.fit_state, agrees);
         Ok(Self {
             format: "marklab.bayesian_hierarchical_cross_backend_agreement",
             version: 1,
             model: source_request.model,
             input,
-            fit_state: if fits_complete {
-                FitState::Complete
-            } else {
-                FitState::Nonconverged
-            },
-            agreement_status: if available {
-                "agree_within_monte_carlo_error"
-            } else if !fits_complete {
-                "diagnostic_only_nonconverged"
-            } else {
-                "diagnostic_only_backend_disagreement"
-            },
+            fit_state: verdict.fit_state,
+            agreement_status: verdict.agreement_status,
             pymc: HierarchicalBackendSummary {
                 backend: pymc.backend,
                 request_sha256: pymc.request_sha256,
@@ -366,39 +342,7 @@ impl HierarchicalAgreementResult {
                 minimum_absolute_tolerance: policy.minimum_absolute_tolerance,
             },
             seed: source_request.sampling.seed,
-            claim_status: if available {
-                "experimental_cross_backend_validation"
-            } else {
-                "diagnostic_only_cross_backend_validation"
-            },
+            claim_status: verdict.claim_status,
         })
     }
 }
-
-fn compare(
-    pymc: &crate::hierarchical::ScalarPosteriorSummary,
-    pymc_mcse: f64,
-    numpyro: &crate::hierarchical::ScalarPosteriorSummary,
-    numpyro_mcse: f64,
-    policy: HierarchicalAgreementPolicy,
-) -> ParameterAgreement {
-    let absolute_difference = (pymc.mean - numpyro.mean).abs();
-    let combined_mcse = pymc_mcse.hypot(numpyro_mcse);
-    let standardized_difference = standardized_mcse_difference(absolute_difference, combined_mcse);
-    let tolerance = policy
-        .minimum_absolute_tolerance
-        .max(policy.maximum_standardized_difference * combined_mcse);
-    let intervals_overlap = pymc.interval_lower <= numpyro.interval_upper
-        && numpyro.interval_lower <= pymc.interval_upper;
-    ParameterAgreement {
-        pymc_mean: pymc.mean,
-        numpyro_mean: numpyro.mean,
-        absolute_difference,
-        combined_mcse,
-        standardized_difference,
-        tolerance,
-        intervals_overlap,
-        passes: intervals_overlap && absolute_difference <= tolerance,
-    }
-}
-use crate::agreement_metric::standardized_mcse_difference;

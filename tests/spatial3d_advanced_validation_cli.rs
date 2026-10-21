@@ -61,4 +61,18 @@ fn advanced_3d_longitudinal_suite_runs_synthetic_controls_and_records_real_evide
         result["claim_status"],
         "synthetic_3d_longitudinal_validation_with_explicit_real_gap"
     );
+
+    // The typed worker contract preserves every serialized value, including the
+    // explicit gaps, and rejects vocabulary it cannot interpret.
+    use marklab_spatial3d::protocol::AdvancedValidationResult;
+    let typed: AdvancedValidationResult = serde_json::from_value(result.clone()).unwrap();
+    assert_eq!(serde_json::to_value(typed).unwrap(), result);
+    for pointer in ["/claim_status", "/overall_status", "/entries/0/status"] {
+        let mut unknown = result.clone();
+        *unknown.pointer_mut(pointer).unwrap() = serde_json::json!("unknown_status");
+        assert!(
+            serde_json::from_value::<AdvancedValidationResult>(unknown).is_err(),
+            "accepted an unknown vocabulary at {pointer}"
+        );
+    }
 }

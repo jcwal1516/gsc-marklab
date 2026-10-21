@@ -1,12 +1,18 @@
+use marklab_bayes::is_worker_timeout;
 use std::{collections::HashSet, path::PathBuf};
 
 use marklab_topology::sha256_hex;
 
-use super::super::topology::{publish_json, read_input, run_worker, TopologyCliError};
+use super::super::topology::{publish_json, read_input, run_worker};
 use super::schema::{DropoutRobustSpec, JointPathologySpec};
 use super::worker_assets;
+use crate::cli_error::CliError;
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
-pub(super) fn run_joint_pathology(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_joint_pathology(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: JointPathologySpec = serde_json::from_slice(&bytes)?;
     spec.patients.sort();
@@ -23,10 +29,10 @@ pub(super) fn run_joint_pathology(input: PathBuf, out: PathBuf) -> Result<(), To
         "version": 1,
         "backend": {
             "name": "jax_scipy_l_bfgs_laplace",
-            "jax_version": "0.11.1",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "jax_version": JAX_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "Apache-2.0_plus_BSD-3-Clause",
             "environment_lock_sha256": assets.lock_sha256,
             "worker_sha256": assets.worker_sha256
@@ -59,14 +65,14 @@ pub(super) fn run_joint_pathology(input: PathBuf, out: PathBuf) -> Result<(), To
         || result["fit_state"] != "approximate_only"
         || result["claim_status"] != "experimental_synthetic_joint_pathology_model"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "joint pathology result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_joint_pathology(spec: &JointPathologySpec) -> Result<(), TopologyCliError> {
+fn validate_joint_pathology(spec: &JointPathologySpec) -> Result<(), CliError> {
     let mut patients = HashSet::new();
     let valid_patients = spec.patients.iter().all(|patient| {
         !patient.trim().is_empty() && patient.trim() == patient && patients.insert(patient.as_str())
@@ -149,9 +155,9 @@ fn validate_joint_pathology(spec: &JointPathologySpec) -> Result<(), TopologyCli
         || !spec.parameter_precision.is_finite()
         || spec.parameter_precision <= 0.0
         || !(10..=10_000).contains(&spec.maximum_iterations)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "joint pathology requires complete patient-region ownership, five measured typed likelihood blocks, masked patient outcomes, and bounded Laplace controls"
                 .into(),
         ));
@@ -159,7 +165,7 @@ fn validate_joint_pathology(spec: &JointPathologySpec) -> Result<(), TopologyCli
     Ok(())
 }
 
-pub(super) fn run_dropout_robust(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_dropout_robust(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: DropoutRobustSpec = serde_json::from_slice(&bytes)?;
     spec.rows
@@ -174,10 +180,10 @@ pub(super) fn run_dropout_robust(input: PathBuf, out: PathBuf) -> Result<(), Top
         "version": 1,
         "backend": {
             "name": "jax_scipy_predictive_objective",
-            "jax_version": "0.11.1",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "jax_version": JAX_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "Apache-2.0_plus_BSD-3-Clause",
             "environment_lock_sha256": assets.lock_sha256,
             "worker_sha256": assets.worker_sha256
@@ -206,14 +212,14 @@ pub(super) fn run_dropout_robust(input: PathBuf, out: PathBuf) -> Result<(), Top
         || result["fit_state"] != "approximate_only"
         || result["claim_status"] != "experimental_synthetic_modality_dropout_robustness"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "modality dropout result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_dropout_robust(spec: &DropoutRobustSpec) -> Result<(), TopologyCliError> {
+fn validate_dropout_robust(spec: &DropoutRobustSpec) -> Result<(), CliError> {
     let train_count = spec.rows.iter().filter(|row| row.split == "train").count();
     let test_count = spec.rows.iter().filter(|row| row.split == "test").count();
     let mut modality_ids = HashSet::new();
@@ -303,9 +309,9 @@ fn validate_dropout_robust(spec: &DropoutRobustSpec) -> Result<(), TopologyCliEr
         || !spec.parameter_precision.is_finite()
         || spec.parameter_precision <= 0.0
         || !(10..=10_000).contains(&spec.maximum_iterations)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "modality dropout requires measured patient Gaussian views, isolated train/test rows, normalized anchor-preserving missing-view patterns, and bounded optimization controls"
                 .into(),
         ));

@@ -1,14 +1,17 @@
+use crate::result_vocabulary::{
+    CompartmentInterfaceEventPolicy, EdgeCorrection, InhomogeneousNullModel,
+    IntensityBoundaryCorrection, IntensityCrossFit, IntensityEstimator, SpatialRandomizationUnit,
+};
+use crate::workflow_codec::invalid;
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 use serde::Serialize;
 
 use crate::{
-    workflow::pattern_artifact, BinaryCompartmentPartition2D, InhomogeneousSpatialPointStatus,
-    Pattern,
+    compartments::BinaryCompartmentPartition2D, marked_workflow::pattern_artifact,
+    spatial::InhomogeneousSpatialPointStatus, Pattern,
 };
 
 use super::{
@@ -209,7 +212,7 @@ fn validate(
         || result.timepoint != pattern.meta.timepoint
         || result.window.logical_digest != window.logical_digest.to_string()
         || result.window.area_um2.to_bits() != window.area_um2.to_bits()
-        || result.edge_correction != "standard_border_inverse_intensity_ratio"
+        || result.edge_correction != EdgeCorrection::StandardBorderInverseIntensityRatio
         || result.configuration_digest != piecewise_configuration_digest(config).to_string()
         || result.limits != config.limits()
         || result.estimated_storage_bytes > config.limits().maximum_retained_bytes
@@ -219,9 +222,9 @@ fn validate(
         || result.total_pair_visits > config.limits().maximum_pair_visits
         || result.curve.len() != config.radii_um().len()
         || result.inference.null_model
-            != "fixed_binary_compartment_counts_uniform_within_exact_partition"
+            != InhomogeneousNullModel::FixedBinaryCompartmentCountsUniformWithinExactPartition
         || result.inference.randomization_unit
-            != "whole_location_pattern_conditioned_on_binary_compartment_counts"
+            != SpatialRandomizationUnit::WholeLocationPatternConditionedOnBinaryCompartmentCounts
         || result.inference.simulations_completed != config.simulations()
         || result.inference.seed != config.seed()
         || result.inference.alpha.to_bits() != config.alpha().to_bits()
@@ -243,10 +246,10 @@ pub(super) fn validate_piecewise_intensity(
     partition: &BinaryCompartmentPartition2D,
 ) -> io::Result<()> {
     let descriptor = partition.descriptor();
-    if summary.estimator != "piecewise_constant_binary_compartment"
-        || summary.cross_fit != "leave_one_out_within_compartment"
-        || summary.boundary_correction != "exact_compartment_area"
-        || summary.interface_event_policy != "reject"
+    if summary.estimator != IntensityEstimator::PiecewiseConstantBinaryCompartment
+        || summary.cross_fit != IntensityCrossFit::LeaveOneOutWithinCompartment
+        || summary.boundary_correction != IntensityBoundaryCorrection::ExactCompartmentArea
+        || summary.interface_event_policy != CompartmentInterfaceEventPolicy::Reject
         || summary.negative.role != PiecewiseCompartmentRole::Negative
         || summary.positive.role != PiecewiseCompartmentRole::Positive
         || summary.negative.compartment_id != descriptor.negative_compartment_id
@@ -359,8 +362,4 @@ fn validate_curve(
         return Err(invalid("inference is inconsistent or non-finite"));
     }
     Ok(())
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }

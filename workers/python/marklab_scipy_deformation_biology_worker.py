@@ -1,22 +1,31 @@
 #!/usr/bin/env python3
+"""SciPy worker separating registration deformation from biological change."""
 
-import hashlib
 import json
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import scipy
 from scipy.interpolate import RBFInterpolator
 
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def main():
-    if np.__version__ != "2.4.6" or scipy.__version__ != "1.18.1" or sys.version_info[:2] != (3, 12):
-        raise ContractError("deformation-biology backend version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
+    require_versions(numpy=np.__version__, scipy=scipy.__version__)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
     if request["format"] != "marklab.scipy_deformation_biology_request" or request["version"] != 1:
         raise ContractError("request identity mismatch")
@@ -25,11 +34,17 @@ def main():
     post_coordinates = np.asarray([point["post_coordinates"] for point in points], dtype=float)
     pre_values = np.asarray([point["pre_value"] for point in points], dtype=float)
     post_values = np.asarray([point["post_value"] for point in points], dtype=float)
-    negative_values = np.asarray([point["negative_control_post_value"] for point in points], dtype=float)
+    negative_values = np.asarray(
+        [point["negative_control_post_value"] for point in points], dtype=float
+    )
     domain = np.asarray([point["domain_indicator"] for point in points], dtype=float)
-    independent = np.asarray([point["independent_change_measurement"] for point in points], dtype=float)
+    independent = np.asarray(
+        [point["independent_change_measurement"] for point in points], dtype=float
+    )
     deformation_draws = np.asarray(request["deformation_translation_draws"], dtype=float)
-    interpolator = RBFInterpolator(pre_coordinates, pre_values, kernel="thin_plate_spline", smoothing=1e-10)
+    interpolator = RBFInterpolator(
+        pre_coordinates, pre_values, kernel="thin_plate_spline", smoothing=1e-10
+    )
     design = np.column_stack([np.ones(len(points)), domain])
     coefficient_draws = []
     negative_coefficient_draws = []
@@ -38,7 +53,9 @@ def main():
     for translation in deformation_draws:
         corrected_coordinates = post_coordinates - translation
         baseline_prediction = interpolator(corrected_coordinates)
-        interpolation_errors.append(float(np.sqrt(np.mean((baseline_prediction - pre_values) ** 2))))
+        interpolation_errors.append(
+            float(np.sqrt(np.mean((baseline_prediction - pre_values) ** 2)))
+        )
         residual = post_values - baseline_prediction
         negative_residual = negative_values - baseline_prediction
         coefficient_draws.append(np.linalg.lstsq(design, residual, rcond=None)[0])
@@ -53,7 +70,7 @@ def main():
         "format": "marklab.deformation_biology_model",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "coordinate_frame": request["coordinate_frame"],
         "deformation": {
             "family": "translation_posterior_from_registration",
@@ -90,13 +107,8 @@ def main():
         },
         "claim_status": "experimental_synthetic_deformation_biology_separation",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"deformation-biology worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "deformation-biology worker contract error", errors=CONTRACT_ERRORS)

@@ -1,12 +1,12 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, MetaAnalysisInputIdentity, MetaAnalysisSpec, MetaAnalysisWorkerRequest,
-    MetaAnalysisWorkerResult, NutsSamplingSpec, SiteEstimate,
+    json_sha256, sha256_hex, MetaAnalysisInputIdentity, MetaAnalysisSpec,
+    MetaAnalysisWorkerRequest, MetaAnalysisWorkerResult, SiteEstimate,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::MetaAnalysisArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,32 +17,25 @@ struct SiteRow {
     covariate: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    covariate_name: String,
-    new_site_covariate: f64,
-    global_prior_mean: f64,
-    global_prior_sd: f64,
-    covariate_prior_sd: f64,
-    heterogeneity_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: MetaAnalysisArgs) -> Result<(), CliError> {
+    let MetaAnalysisArgs {
+        input,
+        covariate_name,
+        new_site_covariate,
+        global_prior_mean,
+        global_prior_sd,
+        covariate_prior_sd,
+        heterogeneity_prior_sd,
+        timeout_seconds,
+        out,
+        nuts,
+    } = args;
+    let input_path = input;
+    let sampling = nuts.spec();
+    let output_path = out;
     let sites = read_sites(&input_path)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_meta_analysis_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_pymc_meta_analysis_worker.py")?;
     let request = MetaAnalysisWorkerRequest::new(
         MetaAnalysisSpec {
             covariate_name,
@@ -54,14 +47,14 @@ pub(super) fn run(
             sites,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let input = MetaAnalysisInputIdentity {
         path: input_path.display().to_string(),
         sites: request.sites.len(),
-        site_data_sha256: sha256_hex(&serde_json::to_vec(&request.sites)?),
+        site_data_sha256: json_sha256(&request.sites)?,
     };
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
@@ -76,8 +69,8 @@ pub(super) fn run(
     publish_json(&output_path, &result.into_fit(request, input))
 }
 
-fn read_sites(path: &std::path::Path) -> Result<Vec<SiteEstimate>, BayesCliError> {
-    super::input_file::validate_regular_file(
+fn read_sites(path: &std::path::Path) -> Result<Vec<SiteEstimate>, CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "meta-analysis input must be a regular file within the 16 MiB limit",
@@ -88,7 +81,7 @@ fn read_sites(path: &std::path::Path) -> Result<Vec<SiteEstimate>, BayesCliError
         .iter()
         .eq(["site_id", "effect", "standard_error", "covariate"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "meta-analysis CSV headers must be exactly: site_id,effect,standard_error,covariate"
                 .into(),
         ));
@@ -103,7 +96,7 @@ fn read_sites(path: &std::path::Path) -> Result<Vec<SiteEstimate>, BayesCliError
             covariate: row.covariate,
         });
         if sites.len() > 10_000 {
-            return Err(BayesCliError::Input("site count exceeds 10000".into()));
+            return Err(CliError::Input("site count exceeds 10000".into()));
         }
     }
     Ok(sites)

@@ -1,10 +1,10 @@
 use crate::{soft_neighborhood_composition::composition_rows, Result};
 
 use super::{
-    admission::Geometry,
     charge,
     input::{Recipe, Slide},
     invalid,
+    preparation::Geometry,
     result::{NeighborhoodMap, NeighborhoodRow},
 };
 

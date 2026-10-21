@@ -1,3 +1,4 @@
+use crate::result_vocabulary::{EdgeCorrection, InhomogeneousNullModel, SpatialRandomizationUnit};
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
     common::{
@@ -31,6 +32,7 @@ pub fn analyze_inhomogeneous_spatial_pattern(
         window,
         config,
         &super::study_fit::StudyFitPolicy::default(),
+        None,
     )
 }
 
@@ -39,6 +41,7 @@ pub(crate) fn analyze_inhomogeneous_spatial_pattern_with_policy(
     window: &ObservationWindow2D,
     config: &InhomogeneousSpatialConfig,
     policy: &super::study_fit::StudyFitPolicy,
+    capture: Option<&mut super::NullCurveCapture>,
 ) -> Result<InhomogeneousSpatialResult, InhomogeneousSpatialError> {
     if pattern.len() < 2 {
         return Err(InhomogeneousSpatialError::InsufficientPoints);
@@ -89,44 +92,71 @@ pub(crate) fn analyze_inhomogeneous_spatial_pattern_with_policy(
         .try_reserve_exact(config.simulations)
         .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
     let mut jointly_eligible = observed.eligible.clone();
+    let mut support_redraws = 0_usize;
     for simulation in 0..config.simulations {
-        let seed = derive_seed(
+        let first_seed = derive_seed(
             config.seed,
             SeedEndpoint::InhomogeneousSpatialNull,
             simulation,
         );
-        let (x, y) = sample_fixed_grid_pattern(
-            window,
-            pattern.len(),
-            &fitted.grid,
-            &fitted.probe_cdf,
-            fitted.fixed_grid_total_mass,
-            seed,
-            config,
-            &mut counters,
-        )?;
-        let intensities = if policy.refit {
-            super::study_fit::refit_intensities(
-                &x,
-                &y,
-                pattern,
+        let mut draw = 0_usize;
+        let evaluated = loop {
+            let seed = if draw == 0 {
+                first_seed
+            } else {
+                derive_seed(first_seed, SeedEndpoint::InhomogeneousSupportRedraw, draw)
+            };
+            let (x, y) = sample_fixed_grid_pattern(
+                window,
+                pattern.len(),
                 &fitted.grid,
+                &fitted.probe_cdf,
+                fitted.fixed_grid_total_mass,
+                seed,
                 config,
-                policy,
                 &mut counters,
-            )?
-        } else {
-            evaluate_fixed_intensities(&x, &y, pattern, &fitted, config, &mut counters)?
+            )?;
+            let intensities = if policy.refit {
+                super::study_fit::refit_intensities(
+                    &x,
+                    &y,
+                    pattern,
+                    &fitted.grid,
+                    config,
+                    policy,
+                    &mut counters,
+                )?
+            } else {
+                evaluate_fixed_intensities(&x, &y, pattern, &fitted, config, &mut counters)?
+            };
+            let plan =
+                SpatialGeometryPlan2D::new(&x, &y, window, geometry_limits).map_err(dependency)?;
+            let evaluated = evaluate_curve(
+                &plan,
+                &intensities,
+                &config.radii_um,
+                config.limits.maximum_pair_visits,
+                &mut counters,
+            )?;
+            draw += 1;
+            match policy.support {
+                Some(support)
+                    if !super::study_fit::covers_observed_support(
+                        &observed.eligible,
+                        &evaluated.eligible,
+                    ) =>
+                {
+                    if draw >= support.maximum_draws_per_simulation {
+                        return Err(InhomogeneousSpatialError::SupportRedrawsExhausted {
+                            simulation,
+                            draws: draw,
+                        });
+                    }
+                    support_redraws += 1;
+                }
+                _ => break evaluated,
+            }
         };
-        let plan =
-            SpatialGeometryPlan2D::new(&x, &y, window, geometry_limits).map_err(dependency)?;
-        let evaluated = evaluate_curve(
-            &plan,
-            &intensities,
-            &config.radii_um,
-            config.limits.maximum_pair_visits,
-            &mut counters,
-        )?;
         for (joint, current) in jointly_eligible.iter_mut().zip(&evaluated.eligible) {
             *joint &= *current;
         }
@@ -158,13 +188,17 @@ pub(crate) fn analyze_inhomogeneous_spatial_pattern_with_policy(
         } else {
             (None, None, None, 0)
         };
+    if let Some(capture) = capture {
+        capture.simulated = simulated;
+        capture.jointly_eligible = jointly_eligible;
+    }
     let intensity = into_intensity_summary(pattern, window, config, fitted)?;
     Ok(InhomogeneousSpatialResult {
         case_id: pattern.meta.case_id.clone(),
         timepoint: pattern.meta.timepoint.clone(),
         window: window_summary(window.descriptor()),
         intensity,
-        edge_correction: "standard_border_inverse_intensity_ratio".into(),
+        edge_correction: EdgeCorrection::StandardBorderInverseIntensityRatio,
         configuration_digest: configuration_digest(config).to_string(),
         observed_pair_visits,
         total_pair_visits: counters.pair_visits,
@@ -174,12 +208,11 @@ pub(crate) fn analyze_inhomogeneous_spatial_pattern_with_policy(
         curve: observed.points,
         inference: InhomogeneousSpatialInference {
             null_model: if policy.refit {
-                "refitted_gridded_inhomogeneous_binomial_experimental"
+                InhomogeneousNullModel::RefittedGriddedInhomogeneousBinomialExperimental
             } else {
-                "fixed_gridded_inhomogeneous_binomial"
-            }
-            .into(),
-            randomization_unit: "whole_location_pattern_conditioned_on_count".into(),
+                InhomogeneousNullModel::FixedGriddedInhomogeneousBinomial
+            },
+            randomization_unit: SpatialRandomizationUnit::WholeLocationPatternConditionedOnCount,
             p_global,
             erl_depth,
             critical_depth,
@@ -188,6 +221,7 @@ pub(crate) fn analyze_inhomogeneous_spatial_pattern_with_policy(
             seed: config.seed,
             alpha: config.alpha,
             null_draws: counters.null_draws,
+            support_redraws: policy.support.map(|_| support_redraws),
         },
     })
 }

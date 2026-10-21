@@ -90,7 +90,7 @@ b4-2,b4,B,5.0,batch,1\n",
     assert_eq!(result["design"]["reduced_model_columns"], 3);
     assert_eq!(result["design"]["full_model_columns"], 4);
     assert_eq!(result["design"]["residual_degrees_of_freedom"], 4);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"]["requested"], 99);
     assert!(result["effect_group_a_minus_group_b"].as_f64().is_some());
     assert!(result["p_value"].as_f64().is_some());
 }

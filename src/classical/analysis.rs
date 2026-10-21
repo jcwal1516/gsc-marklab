@@ -1,6 +1,10 @@
+use crate::result_vocabulary::{
+    BoundaryDistanceOwner, DuplicatePointPolicy, PairTraversal, SpatialExecutionMode,
+    WindowCoordinateFrame, WindowCoordinateUnit, WindowMembershipPolicy,
+};
 use std::collections::BTreeSet;
 
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 use crate::common::finite::canonical_zero;
 
@@ -67,10 +71,10 @@ pub fn analyze_classical_spatial_pattern(
                 total_pair_visits: 0,
                 estimated_storage_bytes: observed_plan.estimated_storage_bytes(),
                 logical_digest: observed_plan.logical_digest().to_string(),
-                execution_mode: "exact".into(),
-                duplicate_policy: "reject".into(),
-                boundary_distance_owner: "observation_window_2d".into(),
-                pair_traversal: "exact_streaming_ordered_pairs".into(),
+                execution_mode: SpatialExecutionMode::Exact,
+                duplicate_policy: DuplicatePointPolicy::Reject,
+                boundary_distance_owner: BoundaryDistanceOwner::ObservationWindow2d,
+                pair_traversal: PairTraversal::ExactStreamingOrderedPairs,
             },
             configuration,
             null_design,
@@ -173,10 +177,10 @@ pub fn analyze_classical_spatial_pattern(
             total_pair_visits: pair_budget.used(),
             estimated_storage_bytes: observed_plan.estimated_storage_bytes(),
             logical_digest: observed_plan.logical_digest().to_string(),
-            execution_mode: "exact".into(),
-            duplicate_policy: "reject".into(),
-            boundary_distance_owner: "observation_window_2d".into(),
-            pair_traversal: "exact_streaming_ordered_pairs".into(),
+            execution_mode: SpatialExecutionMode::Exact,
+            duplicate_policy: DuplicatePointPolicy::Reject,
+            boundary_distance_owner: BoundaryDistanceOwner::ObservationWindow2d,
+            pair_traversal: PairTraversal::ExactStreamingOrderedPairs,
         },
         configuration,
         null_design,
@@ -362,9 +366,9 @@ fn retained_byte_estimate(
 
 pub(crate) fn window_summary(descriptor: &ObservationWindowDescriptor) -> ClassicalWindowSummary {
     ClassicalWindowSummary {
-        coordinate_unit: "micrometre".into(),
-        coordinate_frame: "existing_pattern_physical_xy".into(),
-        membership_policy: "closed_window".into(),
+        coordinate_unit: WindowCoordinateUnit::Micrometre,
+        coordinate_frame: WindowCoordinateFrame::ExistingPatternPhysicalXy,
+        membership_policy: WindowMembershipPolicy::ClosedWindow,
         area_um2: descriptor.area_um2,
         perimeter_um: descriptor.perimeter_um,
         bounds_um: descriptor.bounds_um,

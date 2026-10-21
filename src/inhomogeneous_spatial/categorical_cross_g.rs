@@ -1,17 +1,21 @@
-use marklab_workflow::ContentDigest;
+use crate::result_vocabulary::{EdgeCorrection, InhomogeneousNullModel, SpatialRandomizationUnit};
+use marklab_project::ContentDigest;
 
-use crate::common::{finite::canonical_zero, summation::kahan_add};
-use crate::measurement_status_wire::name as measurement_status_name;
+use marklab_numerics::summation::NeumaierSum;
+
+use crate::common::finite::canonical_zero;
 
 use crate::{
     classical::{window_summary, SpatialGeometryPlan2D},
     common::seeds::{derive_seed, SeedEndpoint},
     isotropic_spatial::edge::IsotropicArcBudget,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
     pair_correlation::epanechnikov_weight,
     permutation::envelopes::GlobalEnvelope,
+    scalar_mark::COMPARTMENT_MARK_ID,
+    spatial::{PairCorrelationKernel, PairCorrelationPointStatus},
     translation_spatial::edge::{preflight_overlap_complexity, TranslationOverlapBudget},
-    DeclaredScalarPatternInput, ObservationWindow2D, PairCorrelationKernel,
-    PairCorrelationPointStatus, Pattern, ScalarMarkId,
+    ObservationWindow2D, Pattern,
 };
 
 use super::{
@@ -52,7 +56,7 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
     if frame != input.coordinate_frame_id() {
         return Err(InhomogeneousCategoricalCrossPairCorrelationError::CoordinateFrameMismatch);
     }
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(dependency)?;
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(dependency)?;
     let table = input
         .mark_table()
         .ok_or(InhomogeneousCategoricalCrossPairCorrelationError::MissingCategoricalMark)?;
@@ -73,12 +77,11 @@ pub fn inhomogeneous_categorical_cross_pair_correlation(
         source_rows,
         target_rows,
         mark_id.as_str(),
-        measurement_status_name(
-            table
-                .measurement_status(&mark_id)
-                .ok_or(InhomogeneousCategoricalCrossPairCorrelationError::MissingCategoricalMark)?,
-        ),
+        table
+            .measurement_status(&mark_id)
+            .ok_or(InhomogeneousCategoricalCrossPairCorrelationError::MissingCategoricalMark)?,
         &super::study_fit::StudyFitPolicy::default(),
+        None,
     )
 }
 
@@ -90,8 +93,9 @@ pub(crate) fn analyze_category_rows(
     source_rows: Vec<usize>,
     target_rows: Vec<usize>,
     mark_id: &str,
-    measurement_status: &str,
+    measurement_status: marklab_data::MeasurementStatus,
     policy: &super::study_fit::StudyFitPolicy,
+    capture: Option<&mut super::NullCurveCapture>,
 ) -> Result<
     InhomogeneousCategoricalCrossPairCorrelationResult,
     InhomogeneousCategoricalCrossPairCorrelationError,
@@ -163,6 +167,11 @@ pub(crate) fn analyze_category_rows(
     for (&row, &intensity) in target_rows.iter().zip(&target_fitted.observed_intensities) {
         target_intensities[row] = Some(intensity);
     }
+    if policy.support.is_some() && !matches!(edge_budget, EdgeBudget::Standard) {
+        return Err(dependency(
+            "a declared support rule applies only to the standard-border cross-g estimator",
+        ));
+    }
     let mut observed = evaluate(
         &observed_plan,
         &pattern.x_um,
@@ -183,112 +192,155 @@ pub(crate) fn analyze_category_rows(
         .try_reserve_exact(base.simulations())
         .map_err(|_| InhomogeneousCategoricalCrossPairCorrelationError::AllocationFailed)?;
     let mut jointly_eligible = observed.eligible.clone();
+    let mut support_redraws = 0_usize;
     for simulation in 0..base.simulations() {
-        let (source_x, source_y) = sample_fixed_grid_pattern(
-            window,
-            source_rows.len(),
-            &source_fitted.grid,
-            &source_fitted.probe_cdf,
-            source_fitted.fixed_grid_total_mass,
+        let first_seeds = (
             derive_seed(
                 base.seed(),
                 SeedEndpoint::InhomogeneousCrossSourceNull,
                 simulation,
             ),
-            base,
-            &mut counters,
-        )?;
-        let (target_x, target_y) = sample_fixed_grid_pattern(
-            window,
-            target_rows.len(),
-            &target_fitted.grid,
-            &target_fitted.probe_cdf,
-            target_fitted.fixed_grid_total_mass,
             derive_seed(
                 base.seed(),
                 SeedEndpoint::InhomogeneousCrossTargetNull,
                 simulation,
             ),
-            base,
-            &mut counters,
-        )?;
-        let simulated_source_intensity = if policy.refit {
-            super::study_fit::refit_intensities(
-                &source_x,
-                &source_y,
-                &source_pattern,
+        );
+        let mut draw = 0_usize;
+        let evaluated = loop {
+            let (source_seed, target_seed) = if draw == 0 {
+                first_seeds
+            } else {
+                (
+                    derive_seed(
+                        first_seeds.0,
+                        SeedEndpoint::InhomogeneousSupportRedraw,
+                        draw,
+                    ),
+                    derive_seed(
+                        first_seeds.1,
+                        SeedEndpoint::InhomogeneousSupportRedraw,
+                        draw,
+                    ),
+                )
+            };
+            let (source_x, source_y) = sample_fixed_grid_pattern(
+                window,
+                source_rows.len(),
                 &source_fitted.grid,
-                base,
-                policy,
-                &mut counters,
-            )?
-        } else {
-            evaluate_fixed_intensities(
-                &source_x,
-                &source_y,
-                &source_pattern,
-                &source_fitted,
+                &source_fitted.probe_cdf,
+                source_fitted.fixed_grid_total_mass,
+                source_seed,
                 base,
                 &mut counters,
-            )?
-        };
-        let simulated_target_intensity = if policy.refit {
-            super::study_fit::refit_intensities(
-                &target_x,
-                &target_y,
-                &target_pattern,
+            )?;
+            let (target_x, target_y) = sample_fixed_grid_pattern(
+                window,
+                target_rows.len(),
                 &target_fitted.grid,
-                base,
-                policy,
-                &mut counters,
-            )?
-        } else {
-            evaluate_fixed_intensities(
-                &target_x,
-                &target_y,
-                &target_pattern,
-                &target_fitted,
+                &target_fitted.probe_cdf,
+                target_fitted.fixed_grid_total_mass,
+                target_seed,
                 base,
                 &mut counters,
-            )?
+            )?;
+            let simulated_source_intensity = if policy.refit {
+                super::study_fit::refit_intensities(
+                    &source_x,
+                    &source_y,
+                    &source_pattern,
+                    &source_fitted.grid,
+                    base,
+                    policy,
+                    &mut counters,
+                )?
+            } else {
+                evaluate_fixed_intensities(
+                    &source_x,
+                    &source_y,
+                    &source_pattern,
+                    &source_fitted,
+                    base,
+                    &mut counters,
+                )?
+            };
+            let simulated_target_intensity = if policy.refit {
+                super::study_fit::refit_intensities(
+                    &target_x,
+                    &target_y,
+                    &target_pattern,
+                    &target_fitted.grid,
+                    base,
+                    policy,
+                    &mut counters,
+                )?
+            } else {
+                evaluate_fixed_intensities(
+                    &target_x,
+                    &target_y,
+                    &target_pattern,
+                    &target_fitted,
+                    base,
+                    &mut counters,
+                )?
+            };
+            let source_count = source_x.len();
+            let mut x = source_x;
+            let mut y = source_y;
+            x.try_reserve_exact(target_x.len())
+                .and_then(|()| y.try_reserve_exact(target_y.len()))
+                .map_err(|_| InhomogeneousCategoricalCrossPairCorrelationError::AllocationFailed)?;
+            x.extend(target_x);
+            y.extend(target_y);
+            let plan =
+                SpatialGeometryPlan2D::new(&x, &y, window, geometry_limits).map_err(dependency)?;
+            let mut simulated_source_rows = Vec::new();
+            simulated_source_rows
+                .try_reserve_exact(source_count)
+                .map_err(|_| InhomogeneousCategoricalCrossPairCorrelationError::AllocationFailed)?;
+            simulated_source_rows.extend(0..source_count);
+            let mut source_map = filled_vec(x.len(), None)?;
+            let mut target_map = filled_vec(x.len(), None)?;
+            for (row, intensity) in simulated_source_intensity.into_iter().enumerate() {
+                source_map[row] = Some(intensity);
+            }
+            for (offset, intensity) in simulated_target_intensity.into_iter().enumerate() {
+                target_map[source_count + offset] = Some(intensity);
+            }
+            let evaluated = evaluate(
+                &plan,
+                &x,
+                &y,
+                window,
+                &simulated_source_rows,
+                &target_map,
+                &source_map,
+                base.radii_um(),
+                config.pair_bandwidth_um(),
+                base.limits().maximum_pair_visits,
+                &mut counters,
+                &mut edge_budget,
+            )?;
+            draw += 1;
+            match policy.support {
+                Some(support)
+                    if !super::study_fit::covers_observed_support(
+                        &observed.eligible,
+                        &evaluated.eligible,
+                    ) =>
+                {
+                    if draw >= support.maximum_draws_per_simulation {
+                        return Err(super::InhomogeneousSpatialError::SupportRedrawsExhausted {
+                            simulation,
+                            draws: draw,
+                        }
+                        .into());
+                    }
+                    support_redraws += 1;
+                }
+                _ => break evaluated,
+            }
         };
-        let source_count = source_x.len();
-        let mut x = source_x;
-        let mut y = source_y;
-        x.try_reserve_exact(target_x.len())
-            .and_then(|()| y.try_reserve_exact(target_y.len()))
-            .map_err(|_| InhomogeneousCategoricalCrossPairCorrelationError::AllocationFailed)?;
-        x.extend(target_x);
-        y.extend(target_y);
-        let plan =
-            SpatialGeometryPlan2D::new(&x, &y, window, geometry_limits).map_err(dependency)?;
-        let mut simulated_source_rows = Vec::new();
-        simulated_source_rows
-            .try_reserve_exact(source_count)
-            .map_err(|_| InhomogeneousCategoricalCrossPairCorrelationError::AllocationFailed)?;
-        simulated_source_rows.extend(0..source_count);
-        let mut source_map = filled_vec(x.len(), None)?;
-        let mut target_map = filled_vec(x.len(), None)?;
-        for (row, intensity) in simulated_source_intensity.into_iter().enumerate() {
-            source_map[row] = Some(intensity);
-        }
-        for (offset, intensity) in simulated_target_intensity.into_iter().enumerate() {
-            target_map[source_count + offset] = Some(intensity);
-        }
-        let evaluated = evaluate(
-            &plan,
-            &x,
-            &y,
-            window,
-            &simulated_source_rows,
-            &target_map,
-            &source_map,
-            base.radii_um(),
-            config.pair_bandwidth_um(),
-            base.limits().maximum_pair_visits,
-            &mut counters,
-            &mut edge_budget,
-        )?;
         for (joint, current) in jointly_eligible.iter_mut().zip(evaluated.eligible) {
             *joint &= current;
         }
@@ -319,12 +371,16 @@ pub(crate) fn analyze_category_rows(
         } else {
             (None, None, None, 0)
         };
+    if let Some(capture) = capture {
+        capture.simulated = simulations;
+        capture.jointly_eligible = jointly_eligible;
+    }
     let source_intensity = into_intensity_summary(&source_pattern, window, base, source_fitted)?;
     let target_intensity = into_intensity_summary(&target_pattern, window, base, target_fitted)?;
     let (edge_correction, edge_work) = edge_summary(&edge_budget);
     Ok(InhomogeneousCategoricalCrossPairCorrelationResult {
         mark_id: mark_id.into(),
-        measurement_status: measurement_status.into(),
+        measurement_status,
         coordinate_frame_id: frame.as_str().into(),
         window: window_summary(window.descriptor()),
         source_level: config.source_level().into(),
@@ -348,13 +404,11 @@ pub(crate) fn analyze_category_rows(
         curve: observed.points,
         inference: super::InhomogeneousSpatialInference {
             null_model: if policy.refit {
-                "independent_refitted_type_specific_inhomogeneous_binomial_experimental"
+                InhomogeneousNullModel::IndependentRefittedTypeSpecificInhomogeneousBinomialExperimental
             } else {
-                "independent_fixed_gridded_type_specific_inhomogeneous_binomial"
-            }
-            .into(),
-            randomization_unit:
-                "independent_source_and_target_location_patterns_conditioned_on_type_counts".into(),
+                InhomogeneousNullModel::IndependentFixedGriddedTypeSpecificInhomogeneousBinomial
+            },
+            randomization_unit: SpatialRandomizationUnit::IndependentSourceAndTargetLocationPatternsConditionedOnTypeCounts,
             p_global,
             erl_depth,
             critical_depth,
@@ -363,6 +417,7 @@ pub(crate) fn analyze_category_rows(
             seed: base.seed(),
             alpha: base.alpha(),
             null_draws: counters.null_draws,
+            support_redraws: policy.support.map(|_| support_redraws),
         },
         edge_work,
     })
@@ -437,11 +492,9 @@ fn evaluate_standard(
     counters: &mut Counters,
 ) -> Result<Evaluation, InhomogeneousCategoricalCrossPairCorrelationError> {
     let mut centers = filled_vec(radii.len(), 0usize)?;
-    let mut center_sums = filled_vec(radii.len(), 0.0)?;
-    let mut center_corrections = filled_vec(radii.len(), 0.0)?;
+    let mut center_sums = filled_vec(radii.len(), NeumaierSum::new())?;
     let mut pairs = filled_vec(radii.len(), 0usize)?;
-    let mut kernel_sums = filled_vec(radii.len(), 0.0)?;
-    let mut kernel_corrections = filled_vec(radii.len(), 0.0)?;
+    let mut kernel_sums = filled_vec(radii.len(), NeumaierSum::new())?;
     let maximum_query = radii[radii.len() - 1] + pair_bandwidth_um;
     let starting_visits = counters.pair_visits;
     for &source in source_rows {
@@ -457,11 +510,7 @@ fn evaluate_standard(
             centers[index] = centers[index]
                 .checked_add(1)
                 .ok_or(InhomogeneousCategoricalCrossPairCorrelationError::SizeOverflow)?;
-            kahan_add(
-                &mut center_sums[index],
-                &mut center_corrections[index],
-                inverse_source,
-            );
+            center_sums[index].add(inverse_source);
         }
         if eligible_end == 0 {
             continue;
@@ -507,11 +556,7 @@ fn evaluate_standard(
                             return;
                         }
                     };
-                    kahan_add(
-                        &mut kernel_sums[index],
-                        &mut kernel_corrections[index],
-                        weight,
-                    );
+                    kernel_sums[index].add(weight);
                 }
             })
             .map_err(dependency)?;
@@ -528,11 +573,11 @@ fn evaluate_standard(
         .and_then(|()| eligible.try_reserve_exact(radii.len()))
         .map_err(|_| InhomogeneousCategoricalCrossPairCorrelationError::AllocationFailed)?;
     for (index, radius_um) in radii.iter().copied().enumerate() {
-        let center_sum = center_sums[index] + center_corrections[index];
+        let center_sum = center_sums[index].total();
         let kernel_sum = if pairs[index] == 0 {
             0.0
         } else {
-            kernel_sums[index] + kernel_corrections[index]
+            kernel_sums[index].total()
         };
         let status = if centers[index] == 0 {
             PairCorrelationPointStatus::NoEligibleCenters
@@ -541,7 +586,8 @@ fn evaluate_standard(
         } else {
             PairCorrelationPointStatus::Available
         };
-        let cross_g = (status == PairCorrelationPointStatus::Available)
+        let estimable = centers[index] > 0;
+        let cross_g = estimable
             .then(|| kernel_sum / (2.0 * std::f64::consts::PI * radius_um * center_sum))
             .map(canonical_zero);
         if cross_g.is_some_and(|value| !value.is_finite() || value < 0.0) {
@@ -668,10 +714,8 @@ fn evaluate_robust(
     ) -> Result<f64, InhomogeneousCategoricalCrossPairCorrelationError>,
 ) -> Result<Evaluation, InhomogeneousCategoricalCrossPairCorrelationError> {
     let mut pairs = filled_vec(radii.len(), 0usize)?;
-    let mut kernel_sums = filled_vec(radii.len(), 0.0)?;
-    let mut kernel_corrections = filled_vec(radii.len(), 0.0)?;
-    let mut edge_sums = filled_vec(radii.len(), 0.0)?;
-    let mut edge_corrections = filled_vec(radii.len(), 0.0)?;
+    let mut kernel_sums = filled_vec(radii.len(), NeumaierSum::new())?;
+    let mut edge_sums = filled_vec(radii.len(), NeumaierSum::new())?;
     let maximum_query = radii[radii.len() - 1] + pair_bandwidth_um;
     let source_inverse_sum = source_rows.iter().try_fold(0.0, |sum, source| {
         source_intensities[*source]
@@ -729,12 +773,8 @@ fn evaluate_robust(
                             return;
                         }
                     };
-                    kahan_add(
-                        &mut kernel_sums[index],
-                        &mut kernel_corrections[index],
-                        weight,
-                    );
-                    kahan_add(&mut edge_sums[index], &mut edge_corrections[index], measure);
+                    kernel_sums[index].add(weight);
+                    edge_sums[index].add(measure);
                 }
             })
             .map_err(dependency)?;
@@ -746,9 +786,9 @@ fn evaluate_robust(
     let mut values = Vec::new();
     let mut eligible = Vec::new();
     for (index, radius_um) in radii.iter().copied().enumerate() {
-        let kernel_sum = kernel_sums[index] + kernel_corrections[index];
-        let available = pairs[index] > 0;
-        let cross_g = available
+        let kernel_sum = kernel_sums[index].total();
+        let has_pairs = pairs[index] > 0;
+        let cross_g = (!source_rows.is_empty() && normalization_area > 0.0)
             .then(|| kernel_sum / (std::f64::consts::TAU * radius_um * normalization_area))
             .map(canonical_zero);
         if cross_g.is_some_and(|value| !value.is_finite() || value < 0.0) {
@@ -757,10 +797,10 @@ fn evaluate_robust(
             ));
         }
         values.push(cross_g.unwrap_or(0.0));
-        eligible.push(available);
+        eligible.push(cross_g.is_some());
         points.push(InhomogeneousCategoricalCrossPairCorrelationPoint {
             radius_um,
-            status: if available {
+            status: if has_pairs {
                 PairCorrelationPointStatus::Available
             } else {
                 PairCorrelationPointStatus::NoPairsInKernelSupport
@@ -774,7 +814,7 @@ fn evaluate_robust(
             inference_eligible: false,
             lower_cross_g: None,
             upper_cross_g: None,
-            edge_measure_sum: Some(canonical_zero(edge_sums[index] + edge_corrections[index])),
+            edge_measure_sum: Some(canonical_zero(edge_sums[index].total())),
         });
     }
     Ok(Evaluation {
@@ -785,17 +825,21 @@ fn evaluate_robust(
     })
 }
 
-fn edge_summary(budget: &EdgeBudget) -> (String, Option<InhomogeneousCategoricalCrossEdgeWork>) {
+fn edge_summary(
+    budget: &EdgeBudget,
+) -> (
+    EdgeCorrection,
+    Option<InhomogeneousCategoricalCrossEdgeWork>,
+) {
     match budget {
         EdgeBudget::Standard => (
-            "standard_border_radius_plus_pair_bandwidth_type_specific_inverse_intensity_ratio"
-                .into(),
+            EdgeCorrection::StandardBorderRadiusPlusPairBandwidthTypeSpecificInverseIntensityRatio,
             None,
         ),
         EdgeBudget::Translation(budget) => (
-            "translation_exact_polygon_type_specific_inverse_intensity".into(),
+            EdgeCorrection::TranslationExactPolygonTypeSpecificInverseIntensity,
             Some(InhomogeneousCategoricalCrossEdgeWork {
-                correction: "translation".into(),
+                correction: EdgeCorrection::Translation,
                 pair_visits: budget.pair_visits,
                 geometry_evaluations: budget.overlap_evaluations,
                 geometry_candidate_work: budget.overlap_candidate_work,
@@ -804,9 +848,9 @@ fn edge_summary(budget: &EdgeBudget) -> (String, Option<InhomogeneousCategorical
             }),
         ),
         EdgeBudget::Isotropic(budget) => (
-            "isotropic_visible_arc_type_specific_inverse_intensity".into(),
+            EdgeCorrection::IsotropicVisibleArcTypeSpecificInverseIntensity,
             Some(InhomogeneousCategoricalCrossEdgeWork {
-                correction: "isotropic".into(),
+                correction: EdgeCorrection::Isotropic,
                 pair_visits: budget.pair_visits,
                 geometry_evaluations: budget.visible_arc_evaluations,
                 geometry_candidate_work: budget.arc_segment_tests,
@@ -863,12 +907,8 @@ fn filled_vec<T: Clone>(
     length: usize,
     value: T,
 ) -> Result<Vec<T>, InhomogeneousCategoricalCrossPairCorrelationError> {
-    let mut result = Vec::new();
-    result
-        .try_reserve_exact(length)
-        .map_err(|_| InhomogeneousCategoricalCrossPairCorrelationError::AllocationFailed)?;
-    result.resize(length, value);
-    Ok(result)
+    crate::common::alloc::try_filled(length, value)
+        .map_err(|_| InhomogeneousCategoricalCrossPairCorrelationError::AllocationFailed)
 }
 
 fn require_two(

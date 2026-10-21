@@ -83,6 +83,30 @@ fn backend_doctor_reports_the_resolved_assets_and_interpreter() {
 }
 
 #[test]
+fn backend_search_path_override_accepts_only_absolute_directories() {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let doctor = |search_path: &str| {
+        let mut command = Command::cargo_bin("marklab").unwrap();
+        command
+            .args(["backend", "doctor"])
+            .env("MARKLAB_RUNTIME_ROOT", repository)
+            .env(
+                "MARKLAB_PYTHON",
+                repository.join("target/pymc-venv/bin/python"),
+            )
+            .env("MARKLAB_BACKEND_PATH", search_path);
+        command
+    };
+    doctor("/usr/bin:/bin").assert().success();
+    for rejected in ["relative/bin", "/usr/bin:", ""] {
+        doctor(rejected)
+            .assert()
+            .failure()
+            .stderr(predicates::str::contains("MARKLAB_BACKEND_PATH"));
+    }
+}
+
+#[test]
 fn explicit_missing_interpreter_is_reported_before_a_fit() {
     let directory = tempfile::tempdir().unwrap();
     let input = directory.path().join("observations.csv");
@@ -110,17 +134,24 @@ fn relocated_bundle_executes_once_and_replays_without_an_interpreter() {
     let assets = bundle.join("workers/python");
     fs::create_dir_all(&assets).unwrap();
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"));
-    for name in [
-        "uv.lock",
-        "pyproject.toml",
-        "marklab_pymc_worker.py",
-        "marklab_pytensor_config.py",
-    ] {
+    for name in ["uv.lock", "pyproject.toml", "marklab_pymc_worker.py"] {
         fs::copy(
             repository.join("workers/python").join(name),
             assets.join(name),
         )
         .unwrap();
+    }
+    let support = assets.join("marklab_worker_support");
+    fs::create_dir(&support).unwrap();
+    for entry in fs::read_dir(repository.join("workers/python/marklab_worker_support")).unwrap() {
+        let entry = entry.unwrap();
+        if entry
+            .path()
+            .extension()
+            .is_some_and(|extension| extension == "py")
+        {
+            fs::copy(entry.path(), support.join(entry.file_name())).unwrap();
+        }
     }
     let executable = bundle.join(if cfg!(windows) {
         "marklab.exe"
@@ -133,9 +164,20 @@ fn relocated_bundle_executes_once_and_replays_without_an_interpreter() {
     let project = directory.path().join("project");
     let first = directory.path().join("first.json");
     let second = directory.path().join("second.json");
-    let interpreter = marklab::python_backend_interpreter(repository).unwrap();
+    let changed_support = directory.path().join("changed-support.json");
+    let interpreter = marklab::backend::python_backend_interpreter(repository).unwrap();
 
-    for (out, replay) in [(&first, false), (&second, true)] {
+    for (out, replay, support_changed) in [
+        (&first, false, false),
+        (&second, true, false),
+        (&changed_support, true, true),
+    ] {
+        if support_changed {
+            let module = support.join("normal_models.py");
+            let mut bytes = fs::read(&module).unwrap();
+            bytes.extend_from_slice(b"\nraise RuntimeError('changed support module')\n");
+            fs::write(module, bytes).unwrap();
+        }
         let mut command = Command::new(&executable);
         command
             .current_dir(directory.path())
@@ -180,14 +222,21 @@ fn relocated_bundle_executes_once_and_replays_without_an_interpreter() {
         if replay {
             command.env("MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION", "1");
         }
-        command
-            .assert()
-            .success()
-            .stderr(predicates::str::contains(if replay {
-                "cache_status=hit"
-            } else {
-                "cache_status=miss"
-            }));
+        if support_changed {
+            command.assert().failure().stderr(predicates::str::contains(
+                "external backend execution is disabled",
+            ));
+            assert!(!out.exists());
+        } else {
+            command
+                .assert()
+                .success()
+                .stderr(predicates::str::contains(if replay {
+                    "cache_status=hit"
+                } else {
+                    "cache_status=miss"
+                }));
+        }
     }
     let first_bytes = fs::read(first).unwrap();
     assert_eq!(first_bytes, fs::read(second).unwrap());

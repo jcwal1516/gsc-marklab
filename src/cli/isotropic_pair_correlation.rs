@@ -3,27 +3,70 @@ use super::{
     inhomogeneous_project::{prepare, write_output, PrepareRequest, PreparedInhomogeneousProject},
 };
 use crate::{
-    execute_algorithm_with_store, ArtifactSchema, IsotropicPairCorrelationAnalysisNode,
-    IsotropicPairCorrelationConfig, IsotropicPairCorrelationResultDocument, IsotropicSpatialLimits,
-    LocalScheduler, MarklabError, NodeId, Result, SchedulerLimits, WorkflowGraph,
+    spatial::{
+        IsotropicPairCorrelationAnalysisNode, IsotropicPairCorrelationConfig,
+        IsotropicPairCorrelationResultDocument, IsotropicSpatialLimits,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactSchema, LocalScheduler, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MarklabError, Result,
 };
 use std::path::PathBuf;
 
-pub(super) struct Request {
+#[derive(clap::Args, Debug)]
+pub struct Request {
+    /// Durable project directory that caches results.
+    #[arg(long)]
     pub project: PathBuf,
+    /// Cell table (CSV or Parquet).
+    #[arg(long)]
     pub cells: PathBuf,
+    /// Tissue mask (GeoJSON).
+    #[arg(long)]
     pub mask: PathBuf,
+    /// New JSON file for the result; it must not already exist.
+    #[arg(long)]
     pub out: PathBuf,
+    /// Comma-separated radii in µm.
+    #[arg(long, value_delimiter = ',')]
     pub radii_um: Vec<f64>,
+    /// Kernel bandwidth in µm.
+    #[arg(long)]
     pub bandwidth_um: f64,
+    /// Number of simulated null patterns.
+    #[arg(long)]
     pub simulations: usize,
+    /// Random seed; the same seed gives the same result.
+    #[arg(long)]
     pub seed: u64,
+    /// Significance level.
+    #[arg(long)]
     pub alpha: f64,
+    /// Memory budget in MiB.
+    #[arg(long)]
     pub memory_budget_mib: usize,
+    /// Maximum number of cell pairs visited.
+    #[arg(long = "max-pair-visits", value_name = "MAX_PAIR_VISITS")]
     pub maximum_pair_visits: usize,
+    /// Upper bound on visible arc evaluations.
+    #[arg(
+        long = "max-visible-arc-evaluations",
+        value_name = "MAX_VISIBLE_ARC_EVALUATIONS"
+    )]
     pub maximum_visible_arc_evaluations: usize,
+    /// Upper bound on arc segment tests.
+    #[arg(long = "max-arc-segment-tests", value_name = "MAX_ARC_SEGMENT_TESTS")]
     pub maximum_arc_segment_tests: usize,
+    /// Upper bound on arc membership queries.
+    #[arg(
+        long = "max-arc-membership-queries",
+        value_name = "MAX_ARC_MEMBERSHIP_QUERIES"
+    )]
     pub maximum_arc_membership_queries: usize,
+    /// Maximum number of random points drawn for CSR simulations.
+    #[arg(long = "max-csr-draws", value_name = "MAX_CSR_DRAWS")]
     pub maximum_csr_draws: usize,
 }
 
@@ -66,7 +109,7 @@ pub(super) fn run_project(request: Request) -> Result<()> {
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let runtime = native_runtime_provenance()?;
     let identity = format!(
-        "{};adapter=isotropic-pair-correlation-node-v1",
+        "{};adapter=isotropic-pair-correlation-node-v4",
         runtime.implementation_identity()
     );
     let sources = vec![

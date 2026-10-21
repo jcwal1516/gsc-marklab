@@ -1,16 +1,20 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::backend_versions::SCIPY_PYTENSOR_BACKEND;
+use crate::ClaimStatus;
 use crate::{
     model::{
         BackendContract, WorkerResourceLimits, MODEL_FORMAT, MODEL_VERSION, WORKER_REQUEST_FORMAT,
         WORKER_REQUEST_VERSION,
     },
-    BayesError, FitState, SarScalarSummary, WorkerBackend,
+    BayesError, FitState, ScalarSummary, WorkerBackend,
 };
-
-const LAPLACE_BACKEND_VERSION: &str = "scipy-1.18.1+pytensor-3.2.4";
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct PoissonExposureObservation {
@@ -19,6 +23,15 @@ pub struct PoissonExposureObservation {
     pub exposure: f64,
 }
 
+/// Laplace approximation for a Poisson rate with known observation exposures.
+///
+/// The likelihood is `count_i ~ Poisson(exposure_i * exp(theta))`, with `theta ~
+/// Normal(prior_mean, prior_sd)` on the log rate. The worker finds the mode using BFGS with
+/// exact PyTensor derivatives and Newton refinement, then uses a Gaussian approximation with
+/// variance equal to the inverse negative log-posterior curvature at that mode. Transforming
+/// back to the rate gives a lognormal approximation. The optimizer controls govern this
+/// approximation rather than a different prior.
+///
 #[derive(Clone, Debug)]
 pub struct PoissonLaplaceSpec {
     pub prior_mean: f64,
@@ -42,8 +55,8 @@ pub struct PoissonLaplaceModelIr {
     pub likelihood: &'static str,
     pub link: &'static str,
     pub transformation: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -75,7 +88,7 @@ impl PoissonLaplaceWorkerRequest {
         seed: u64,
     ) -> Result<Self, BayesError> {
         validate_spec(&mut spec)?;
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "Laplace worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -85,8 +98,8 @@ impl PoissonLaplaceWorkerRequest {
             version: WORKER_REQUEST_VERSION,
             backend: BackendContract {
                 name: "scipy_pytensor",
-                version: LAPLACE_BACKEND_VERSION,
-                python_version: "3.12",
+                version: SCIPY_PYTENSOR_BACKEND,
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -102,8 +115,8 @@ impl PoissonLaplaceWorkerRequest {
                 likelihood: "poisson_exposure",
                 link: "log",
                 transformation: "rate_equals_exp_log_rate",
-                backend_capability: "laplace_approximation",
-                maturity: "experimental_approximation",
+                backend_capability: BackendCapability::LaplaceApproximation,
+                maturity: ModelMaturity::ExperimentalApproximation,
             },
             observations: spec.observations,
             optimizer: LaplaceOptimizerSpec {
@@ -235,7 +248,7 @@ pub struct PoissonLaplaceWorkerResult {
     pub optimizer: LaplaceOptimizerDiagnostics,
     pub mode: LaplaceMode,
     pub hessian: LaplaceHessian,
-    pub log_rate_approximation: SarScalarSummary,
+    pub log_rate_approximation: ScalarSummary,
     pub rate_approximation: LaplaceRateApproximation,
     pub posterior_predictive: LaplacePosteriorPredictive,
 }
@@ -249,11 +262,7 @@ impl PoissonLaplaceWorkerResult {
         if self.fit_state == FitState::Complete
             || self.format != "marklab.scipy_pytensor_poisson_laplace_worker_result"
             || self.version != 1
-            || self.backend.name != "scipy_pytensor"
-            || self.backend.version != LAPLACE_BACKEND_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
         {
             return Err(BayesError::WorkerContract(
@@ -342,9 +351,9 @@ impl PoissonLaplaceWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::ApproximateOnly => "experimental_approximate_only",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::Complete => "experimental",
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::Complete => ClaimStatus::Experimental,
             },
             optimizer: self.optimizer,
             mode: self.mode,
@@ -373,11 +382,11 @@ pub struct PoissonLaplaceFit {
     pub model: PoissonLaplaceModelIr,
     pub input: PoissonLaplaceInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub optimizer: LaplaceOptimizerDiagnostics,
     pub mode: LaplaceMode,
     pub hessian: LaplaceHessian,
-    pub log_rate_approximation: SarScalarSummary,
+    pub log_rate_approximation: ScalarSummary,
     pub rate_approximation: LaplaceRateApproximation,
     pub posterior_predictive: LaplacePosteriorPredictive,
     pub seed: u64,

@@ -1,12 +1,17 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection, WeightFunction,
+};
 use marklab_cohort::{InferenceAlternative, InferenceDesign};
-use marklab_workflow::ContentDigest;
+use marklab_numerics::summation::NeumaierSum;
+use marklab_project::ContentDigest;
 
 use crate::{
     classical::window_summary,
-    continuous_mark_correlation::{compensated_add, mark_statistics},
+    continuous_mark_correlation::mark_statistics,
     mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes, MarkPairPlan, MarkPairPlanError},
+    marks::DeclaredScalarPatternInput,
     permutation::envelopes::GlobalEnvelope,
-    DeclaredScalarPatternInput, ObservationWindow2D,
+    ObservationWindow2D,
 };
 
 use super::types::*;
@@ -163,15 +168,14 @@ pub fn continuous_mark_weighted_k(
         unit: "square_micrometer".into(),
         coordinate_frame_id: frame.clone(),
         window: window_summary(window.descriptor()),
-        weight_function: "product_over_global_arithmetic_mean_squared".into(),
-        edge_correction: "standard_border_reduced_sample".into(),
+        weight_function: WeightFunction::ProductOverGlobalArithmeticMeanSquared,
+        edge_correction: EdgeCorrection::StandardBorderReducedSample,
         global_mark_mean: global_mean,
         global_mark_population_variance: global_variance,
         expected_random_label_weight: expected_weight,
         geometry: MarkWeightedKGeometrySummary {
             point_count: marks.len(),
             directed_pair_count: plan.pairs.len(),
-            geometry_build_count: 1,
             geometry_digest: plan.geometry.logical_digest(),
             pair_plan_digest: plan.digest,
             estimated_storage_bytes: retained_bytes,
@@ -180,14 +184,12 @@ pub fn continuous_mark_weighted_k(
         limits: config.limits,
         curve: observed.points,
         inference: MarkWeightedKInferenceSummary {
-            null_model: "random_labeling".into(),
-            permutation_unit: "complete_continuous_mark_row".into(),
-            alternative: "two_sided".into(),
-            multiplicity: "single_weighted_k_erl_family".into(),
+            null_model: MarkNullModel::RandomLabeling,
+            permutation_unit: MarkPermutationUnit::CompleteContinuousMarkRow,
+            alternative: marklab_cohort::InferenceAlternative::TwoSided,
+            multiplicity: MultiplicityCorrection::SingleWeightedKErlFamily,
             weighted_k,
             permutations_requested: config.permutations,
-            permutations_attempted: config.permutations,
-            permutations_completed: config.permutations,
             seed: config.seed,
             alpha: config.alpha,
             permutation_pair_evaluations: required_evaluations,
@@ -210,10 +212,8 @@ fn evaluate(
     let mut eligible_ends = vec![0_usize; width];
     let mut pair_starts = vec![0_usize; width];
     let mut pair_ends = vec![0_usize; width];
-    let mut product_starts = vec![0.0_f64; width];
-    let mut product_start_corrections = vec![0.0_f64; width];
-    let mut product_ends = vec![0.0_f64; width];
-    let mut product_end_corrections = vec![0.0_f64; width];
+    let mut product_starts = vec![NeumaierSum::new(); width];
+    let mut product_ends = vec![NeumaierSum::new(); width];
     for boundary in plan.geometry.boundary_distances() {
         let end = radii_um.partition_point(|radius| *radius <= *boundary);
         eligible_ends[end] = eligible_ends[end]
@@ -234,22 +234,13 @@ fn evaluate(
             .checked_add(1)
             .ok_or(MarkWeightedKError::SizeOverflow)?;
         let product = f64::from(marks[pair.source]) * f64::from(marks[pair.target]);
-        compensated_add(
-            &mut product_starts[start],
-            &mut product_start_corrections[start],
-            product,
-        );
-        compensated_add(
-            &mut product_ends[end],
-            &mut product_end_corrections[end],
-            product,
-        );
+        product_starts[start].add(product);
+        product_ends[end].add(product);
     }
 
     let mut eligible_centers = marks.len();
     let mut active_pairs = 0_usize;
-    let mut active_product_sum = 0.0;
-    let mut active_product_correction = 0.0;
+    let mut active_product_sum = NeumaierSum::new();
     let mut points = Vec::new();
     let mut weighted_values = Vec::new();
     let mut eligible = Vec::new();
@@ -266,20 +257,12 @@ fn evaluate(
             .checked_sub(pair_ends[index])
             .and_then(|value| value.checked_add(pair_starts[index]))
             .ok_or(MarkWeightedKError::SizeOverflow)?;
-        compensated_add(
-            &mut active_product_sum,
-            &mut active_product_correction,
-            -(product_ends[index] + product_end_corrections[index]),
-        );
-        compensated_add(
-            &mut active_product_sum,
-            &mut active_product_correction,
-            product_starts[index] + product_start_corrections[index],
-        );
+        active_product_sum.subtract_sum(&product_ends[index]);
+        active_product_sum.add_sum(&product_starts[index]);
         let product_sum = if active_pairs == 0 {
             0.0
         } else {
-            active_product_sum + active_product_correction
+            active_product_sum.total()
         };
         let normalized_weight_sum = product_sum / normalization;
         let denominator = marks
@@ -384,12 +367,16 @@ pub(crate) fn configuration_digest(config: &MarkWeightedKConfig) -> ContentDiges
     ContentDigest::from_framed(fields.iter().map(Vec::as_slice))
 }
 
-fn mark_statistics_error(error: crate::ContinuousMarkCorrelationError) -> MarkWeightedKError {
+fn mark_statistics_error(
+    error: crate::marks::ContinuousMarkCorrelationError,
+) -> MarkWeightedKError {
     match error {
-        crate::ContinuousMarkCorrelationError::ZeroMarkVariance => {
+        crate::marks::ContinuousMarkCorrelationError::ZeroMarkVariance => {
             MarkWeightedKError::ZeroMarkVariance
         }
-        crate::ContinuousMarkCorrelationError::SizeOverflow => MarkWeightedKError::SizeOverflow,
+        crate::marks::ContinuousMarkCorrelationError::SizeOverflow => {
+            MarkWeightedKError::SizeOverflow
+        }
         other => MarkWeightedKError::Dependency {
             reason: other.to_string(),
         },

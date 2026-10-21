@@ -7,7 +7,7 @@ use marklab_project::{ArtifactRecord, LocalArtifactStore, VerifiedReaderError};
 use crate::{
     columnar::{
         multiscale::{enforce_file_budget, enforce_retained_budget},
-        EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialArrowFailure,
+        ArrowIpcFailure, ColumnarError, EmbeddingColumnarBudgets,
     },
     multiscale::physical::{record_matches_encoding, SpatialPhysicalEncoding},
     PatchRegionLink, VerifiedPatchRegionInputArtifactGraph, VerifiedPatchRegionLinkArtifact,
@@ -26,9 +26,8 @@ pub fn validate_patch_region_link_arrow_bytes(
     record: &ArtifactRecord,
     link: &PatchRegionLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<PatchRegionArrowPreflight, MultiscaleColumnarError> {
-    let encoded_len =
-        u64::try_from(bytes.len()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<PatchRegionArrowPreflight, ColumnarError> {
+    let encoded_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     enforce_file_budget(encoded_len, budgets)?;
     validate_record(record, encoded_len, link)?;
     let preflight = preflight_patch_region_link_arrow_bytes(bytes, link, budgets)?;
@@ -49,24 +48,33 @@ pub fn validate_patch_region_link_arrow_from_store(
     record: &ArtifactRecord,
     link: &PatchRegionLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<PatchRegionArrowPreflight, VerifiedReaderError<MultiscaleColumnarError>> {
+) -> Result<PatchRegionArrowPreflight, VerifiedReaderError<ColumnarError>> {
     store.with_verified_reader(record, |reader| {
-        let encoded_len = reader
-            .seek(std::io::SeekFrom::End(0))
-            .map_err(|_| arrow_failure(SpatialArrowFailure::ArtifactRead))?;
-        enforce_file_budget(encoded_len, budgets)?;
-        validate_record(record, encoded_len, link)?;
-        let preflight = preflight_reader(reader, record.content().digest(), link, budgets)?;
-        validate_identity(&preflight, record)?;
-        decode(
-            reader,
-            link,
-            preflight.retained_preflight_bytes,
-            preflight.maximum_batch_decoded_bytes,
-            budgets,
-        )?;
-        Ok(preflight)
+        validate_patch_region_link_arrow_reader(reader, record, link, budgets)
     })
+}
+
+pub(crate) fn validate_patch_region_link_arrow_reader<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    record: &ArtifactRecord,
+    link: &PatchRegionLink,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<PatchRegionArrowPreflight, ColumnarError> {
+    let encoded_len = reader
+        .seek(std::io::SeekFrom::End(0))
+        .map_err(|_| arrow_failure(ArrowIpcFailure::ArtifactRead))?;
+    enforce_file_budget(encoded_len, budgets)?;
+    validate_record(record, encoded_len, link)?;
+    let preflight = preflight_reader(reader, record.content().digest(), link, budgets)?;
+    validate_identity(&preflight, record)?;
+    decode(
+        reader,
+        link,
+        preflight.retained_preflight_bytes,
+        preflight.maximum_batch_decoded_bytes,
+        budgets,
+    )?;
+    Ok(preflight)
 }
 
 /// Verify borrowed patch-region Arrow bytes and mint a graph-bound runtime receipt.
@@ -76,9 +84,13 @@ pub fn verify_patch_region_link_arrow_bytes(
     link: &PatchRegionLink,
     graph: VerifiedPatchRegionInputArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedPatchRegionLinkArtifact, MultiscaleColumnarError> {
-    validate_patch_region_link_arrow_bytes(bytes, record, link, budgets)?;
-    VerifiedPatchRegionLinkArtifact::new(record.id(), link, graph)
+) -> Result<VerifiedPatchRegionLinkArtifact, ColumnarError> {
+    crate::columnar::verify::<crate::columnar::ArrowIpc, crate::columnar::PatchRegionEntity>(
+        Cursor::new(bytes),
+        record,
+        &crate::columnar::PatchRegionVerifyContext { link, graph },
+        budgets,
+    )
 }
 
 /// Verify a managed patch-region Arrow artifact and mint a graph-bound runtime receipt.
@@ -88,10 +100,12 @@ pub fn verify_patch_region_link_arrow_from_store(
     link: &PatchRegionLink,
     graph: VerifiedPatchRegionInputArtifactGraph,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<VerifiedPatchRegionLinkArtifact, VerifiedReaderError<MultiscaleColumnarError>> {
-    validate_patch_region_link_arrow_from_store(store, record, link, budgets)?;
-    VerifiedPatchRegionLinkArtifact::new(record.id(), link, graph)
-        .map_err(VerifiedReaderError::Callback)
+) -> Result<VerifiedPatchRegionLinkArtifact, VerifiedReaderError<ColumnarError>> {
+    crate::columnar::with_verified_columnar_reader(store, record, budgets, |reader| {
+        reader.verify::<crate::columnar::ArrowIpc, crate::columnar::PatchRegionEntity>(
+            &crate::columnar::PatchRegionVerifyContext { link, graph },
+        )
+    })
 }
 
 fn decode<R: Read + Seek>(
@@ -100,32 +114,32 @@ fn decode<R: Read + Seek>(
     retained_preflight: usize,
     maximum_batch_decoded: usize,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let retained = retained_preflight
         .checked_add(maximum_batch_decoded)
         .and_then(|value| value.checked_add(64 * 1024))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(retained, budgets)?;
     let expected_schema = schema(link)?;
     let mut reader = FileReaderBuilder::new()
         .with_max_footer_fb_depth(8)
         .with_max_footer_fb_tables(32)
         .build(source)
-        .map_err(|_| arrow_failure(SpatialArrowFailure::StockDecode))?;
+        .map_err(|_| arrow_failure(ArrowIpcFailure::StockDecode))?;
     if reader.schema().as_ref() != &expected_schema || !reader.custom_metadata().is_empty() {
-        return Err(arrow_failure(SpatialArrowFailure::StockDecode));
+        return Err(arrow_failure(ArrowIpcFailure::StockDecode));
     }
     let mut global_row = 0_usize;
     for decoded in &mut reader {
-        let batch = decoded.map_err(|_| arrow_failure(SpatialArrowFailure::StockDecode))?;
+        let batch = decoded.map_err(|_| arrow_failure(ArrowIpcFailure::StockDecode))?;
         if batch.num_columns() != FIELD_COUNT {
-            return Err(arrow_failure(SpatialArrowFailure::StockDecode));
+            return Err(arrow_failure(ArrowIpcFailure::StockDecode));
         }
         for column in batch.columns() {
             column
                 .to_data()
                 .validate_full()
-                .map_err(|_| arrow_failure(SpatialArrowFailure::StockDecode))?;
+                .map_err(|_| arrow_failure(ArrowIpcFailure::StockDecode))?;
         }
         let patches = string_column(&batch, 0)?;
         let regions = string_column(&batch, 1)?;
@@ -137,28 +151,28 @@ fn decode<R: Read + Seek>(
             .iter()
             .any(|column| column.null_count() != 0)
         {
-            return Err(arrow_failure(SpatialArrowFailure::StockDecode));
+            return Err(arrow_failure(ArrowIpcFailure::StockDecode));
         }
         for local in 0..batch.num_rows() {
             let row = link
                 .nonzero_relations()
                 .get(global_row)
-                .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidRowCount))?;
+                .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidRowCount))?;
             if patches.value(local) != row.patch_id().as_str()
                 || regions.value(local) != row.region_id().as_str()
                 || relations.value(local) != row.relation().wire_name()
                 || numerators.value(local) != row.numerator()
                 || denominators.value(local) != row.denominator()
             {
-                return Err(arrow_failure(SpatialArrowFailure::InvalidCanonicalRows));
+                return Err(arrow_failure(ArrowIpcFailure::InvalidCanonicalRows));
             }
             global_row = global_row
                 .checked_add(1)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
         }
     }
     if global_row != link.nonzero_relation_count() {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidRowCount));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidRowCount));
     }
     Ok(())
 }
@@ -167,14 +181,14 @@ fn validate_record(
     record: &ArtifactRecord,
     encoded_len: u64,
     link: &PatchRegionLink,
-) -> Result<(), MultiscaleColumnarError> {
-    let rows = u64::try_from(link.nonzero_relation_count())
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<(), ColumnarError> {
+    let rows =
+        u64::try_from(link.nonzero_relation_count()).map_err(|_| ColumnarError::SizeOverflow)?;
     if !record_matches_encoding(record, role(), SpatialPhysicalEncoding::Arrow, rows)
         || record.dependencies() != dependencies(link)
         || record.content().byte_len() != encoded_len
     {
-        return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
@@ -182,11 +196,11 @@ fn validate_record(
 fn validate_identity(
     preflight: &PatchRegionArrowPreflight,
     record: &ArtifactRecord,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     if preflight.content_digest() != record.content().digest()
         || preflight.encoded_byte_len() != record.content().byte_len()
     {
-        return Err(MultiscaleColumnarError::ArtifactBindingMismatch);
+        return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(())
 }
@@ -194,21 +208,21 @@ fn validate_identity(
 fn string_column(
     batch: &arrow::record_batch::RecordBatch,
     index: usize,
-) -> Result<&StringArray, MultiscaleColumnarError> {
+) -> Result<&StringArray, ColumnarError> {
     batch
         .column(index)
         .as_any()
         .downcast_ref::<StringArray>()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::StockDecode))
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::StockDecode))
 }
 
 fn u64_column(
     batch: &arrow::record_batch::RecordBatch,
     index: usize,
-) -> Result<&UInt64Array, MultiscaleColumnarError> {
+) -> Result<&UInt64Array, ColumnarError> {
     batch
         .column(index)
         .as_any()
         .downcast_ref::<UInt64Array>()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::StockDecode))
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::StockDecode))
 }

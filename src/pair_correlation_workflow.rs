@@ -1,16 +1,19 @@
+use crate::result_vocabulary::EdgeCorrection;
+use crate::workflow_codec::invalid;
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::Serialize;
 
 use crate::{
+    marked_workflow::pattern_artifact,
     pair_correlation::{configuration_digest, HomogeneousPairCorrelationConfig},
-    workflow::pattern_artifact,
-    HomogeneousPairCorrelationResult, ObservationWindow2D, PairCorrelationKernel,
-    PairCorrelationPointStatus, Pattern,
+    spatial::{
+        HomogeneousPairCorrelationResult, PairCorrelationKernel, PairCorrelationPointStatus,
+    },
+    ObservationWindow2D, Pattern,
 };
 
 const NODE_KIND: &str = "homogeneous_pair_correlation";
@@ -18,19 +21,19 @@ const WINDOW_KIND: &str = "application/vnd.marklab.observation-window-ref;versio
 const CONFIG_KIND: &str =
     "application/vnd.marklab.homogeneous-pair-correlation-config+json;version=1";
 const RESULT_KIND: &str =
-    "application/vnd.marklab.homogeneous-pair-correlation-result+json;version=1";
+    "application/vnd.marklab.homogeneous-pair-correlation-result+json;version=2";
 const EXECUTION_POLICY: &[u8] = b"serial;exact-rstar;epanechnikov;explicit-bandwidth;standard-border-radius-plus-bandwidth;whole-pattern-conditional-csr;erl";
-const IMPLEMENTATION: &str = "homogeneous-pair-correlation-analysis-node-v2";
+const IMPLEMENTATION: &str = "homogeneous-pair-correlation-analysis-node-v4";
 
 /// Cache-addressed homogeneous pair-correlation workflow.
 pub struct HomogeneousPairCorrelationAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<HomogeneousPairCorrelationAnalysis<'a>>,
+}
+
+struct HomogeneousPairCorrelationAnalysis<'a> {
     pattern: &'a Pattern,
     window: &'a ObservationWindow2D,
     config: &'a HomogeneousPairCorrelationConfig,
-    inputs: [ArtifactRef; 3],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> HomogeneousPairCorrelationAnalysisNode<'a> {
@@ -51,61 +54,48 @@ impl<'a> HomogeneousPairCorrelationAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter={IMPLEMENTATION}",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            pattern,
-            window,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter={IMPLEMENTATION}",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: HomogeneousPairCorrelationAnalysis {
+                    pattern,
+                    window,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(EXECUTION_POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for HomogeneousPairCorrelationAnalysisNode<'_> {
+impl NodeAnalysis for HomogeneousPairCorrelationAnalysis<'_> {
     type Output = HomogeneousPairCorrelationResult;
+    type Inputs = [ArtifactRef; 3];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let pattern = pattern_artifact(self.pattern)?;
-        self.inputs[0]
-            .verify_identity(pattern.digest(), pattern.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 0, &pattern)?;
         let window = window_artifact(self.window)?;
-        self.inputs[1]
-            .verify_identity(window.digest(), window.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 1, &window)?;
         let config = config_artifact(self.config)?;
-        self.inputs[2]
-            .verify_identity(config.digest(), config.byte_len())
-            .map_err(NodeError::input)
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: EXECUTION_POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_input(inputs, 2, &config)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::homogeneous_pair_correlation(self.pattern, self.window, self.config)
+        crate::spatial::homogeneous_pair_correlation(self.pattern, self.window, self.config)
             .map_err(NodeError::execution)
     }
 
@@ -130,6 +120,8 @@ impl WorkflowNode for HomogeneousPairCorrelationAnalysisNode<'_> {
     }
 }
 
+crate::workflow_node::impl_workflow_node!(HomogeneousPairCorrelationAnalysisNode<'_> => HomogeneousPairCorrelationResult);
+
 #[derive(Serialize)]
 struct WindowArtifact<'a> {
     logical_digest: String,
@@ -153,7 +145,7 @@ struct ConfigArtifact<'a> {
     simulations: usize,
     seed: u64,
     alpha: f64,
-    limits: crate::ClassicalSpatialLimits,
+    limits: crate::spatial::ClassicalSpatialLimits,
     logical_digest: String,
 }
 
@@ -183,10 +175,10 @@ fn validate_result(
         || result.timepoint != pattern.meta.timepoint
         || result.kernel != PairCorrelationKernel::Epanechnikov
         || result.bandwidth_um.to_bits() != config.bandwidth_um().to_bits()
-        || result.edge_correction != "standard_border_radius_plus_bandwidth"
-        || result.null_model != "homogeneous_csr_conditional_on_count"
-        || result.randomization_unit != "whole_location_pattern"
-        || result.geometry_build_count != 1
+        || result.edge_correction != EdgeCorrection::StandardBorderRadiusPlusBandwidth
+        || result.null_model != crate::spatial::ClassicalNullModel::HomogeneousCsrConditionalOnCount
+        || result.randomization_unit
+            != crate::spatial::ClassicalRandomizationUnit::WholeLocationPattern
         || result.observed_pair_visits > result.total_pair_visits
         || result.estimated_storage_bytes > config.limits().maximum_retained_bytes
         || result.configuration_digest != configuration_digest(config).to_string()
@@ -214,7 +206,13 @@ fn validate_result(
         return Err(invalid("result contains a non-finite summary"));
     }
     for (point, radius) in result.curve.iter().zip(config.radii_um()) {
-        let available = point.status == PairCorrelationPointStatus::Available;
+        let available = point.status == PairCorrelationPointStatus::Available
+            || (point.status == PairCorrelationPointStatus::NoPairsInKernelSupport
+                && pattern.len() >= 2
+                && point.eligible_centers > 0
+                && point.directed_pairs_in_support == 0
+                && point.kernel_weight_sum == 0.0
+                && point.g == Some(0.0));
         if point.radius_um.to_bits() != radius.to_bits()
             || !point.radius_um.is_finite()
             || !point.kernel_weight_sum.is_finite()
@@ -246,8 +244,4 @@ fn validate_result(
         return Err(invalid("result has envelopes without global inference"));
     }
     Ok(())
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }

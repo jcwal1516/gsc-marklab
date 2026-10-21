@@ -136,8 +136,9 @@ mod tests {
         )
         .unwrap();
         let interpreter =
-            marklab::python_backend_interpreter(Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap();
-        let mut command = marklab::python_backend_command(&interpreter, &worker);
+            marklab::backend::python_backend_interpreter(Path::new(env!("CARGO_MANIFEST_DIR")))
+                .unwrap();
+        let mut command = marklab::backend::python_backend_command(&interpreter, &worker).unwrap();
         let request = vec![b' '; 1024 * 1024];
         let started = Instant::now();
         let error = run_worker(&mut command, &request, 1, "test worker").unwrap_err();
@@ -151,7 +152,8 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let worker = directory.path().join("worker.py");
         let interpreter =
-            marklab::python_backend_interpreter(Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap();
+            marklab::backend::python_backend_interpreter(Path::new(env!("CARGO_MANIFEST_DIR")))
+                .unwrap();
         let request = vec![b'x'; 1024 * 1024];
         for (script, expected_error) in [
             ("sys.stdout.buffer.write(sys.stdin.buffer.read())", None),
@@ -165,7 +167,8 @@ mod tests {
             ),
         ] {
             fs::write(&worker, format!("import sys\n{script}\n")).unwrap();
-            let mut command = marklab::python_backend_command(&interpreter, &worker);
+            let mut command =
+                marklab::backend::python_backend_command(&interpreter, &worker).unwrap();
             let result = run_worker(&mut command, &request, 10, "test worker");
             if let Some(expected) = expected_error {
                 assert!(matches!(result, Err(WorkerProcessError::Backend(message))

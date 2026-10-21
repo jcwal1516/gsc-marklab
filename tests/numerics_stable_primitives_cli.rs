@@ -46,6 +46,9 @@ fn stable_primitives_match_overflow_and_cancellation_oracles() {
         1000.0 + (-1.0_f64).exp().ln_1p() - 2.0_f64.ln(),
     );
     assert_close(result["weighted_mean"].as_f64().unwrap(), 1.0 / 3.0);
+    // Normalizing uniform weights through 1 - sum(p^2) previously returned
+    // [[0.9999999999999999, 1.9999999999999998],
+    //  [1.9999999999999998, 3.9999999999999996]] instead of this exact sample covariance.
     assert_eq!(
         result["covariance"],
         serde_json::json!([[1.0, 2.0], [2.0, 4.0]])

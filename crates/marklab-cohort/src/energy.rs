@@ -1,11 +1,10 @@
 use super::{
-    compensated_sum,
     inference_design::{
         compile_blocked_population_independence, validate_permutation_count,
         validate_two_group_labels,
     },
     mmd::{squared_euclidean, validate_fingerprints},
-    CohortInferenceError, Fingerprint, InferenceDesign, PatientExchangeabilityBlock,
+    neumaier_sum, CohortInferenceError, Fingerprint, InferenceDesign, PatientExchangeabilityBlock,
 };
 
 const ENERGY_NAMESPACE: u64 = 0x656e_6572_6779_5f70;
@@ -51,10 +50,6 @@ pub struct EnergyDistanceResult {
     pub p_value: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Completed replicate count.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
 }
@@ -180,8 +175,6 @@ fn execute_energy(
         energy_distance: observed,
         p_value: (exceedances as f64 + 1.0) / (spec.permutations + 1) as f64,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
     })
 }
@@ -245,7 +238,7 @@ fn energy_distance(
 }
 
 fn matrix_mean(distances: &[f64], n: usize, left: &[usize], right: &[usize]) -> f64 {
-    compensated_sum(
+    neumaier_sum(
         left.iter()
             .flat_map(|left| right.iter().map(move |right| distances[left * n + right])),
     ) / (left.len() * right.len()) as f64

@@ -1,131 +1,89 @@
-use std::path::PathBuf;
-
-use clap::{Parser, Subcommand};
-use marklab_bayes::{FitState, SarScalarSummary};
-use serde::{Deserialize, Serialize};
-
-use super::{
-    conditional_multitype_mark::{self, Args as FitArgs, Output as FitOutput},
-    publish_json, BayesCliError,
+pub(crate) use marklab_bayes::protocol::conditional_multitype_mark_sensitivity::{
+    Output, Scenario, View,
 };
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-#[derive(Debug, Subcommand)]
-enum Command {
-    ConditionalMultitypeMarkSensitivity(Box<Args>),
-}
+use std::path::PathBuf;
+
+use marklab_bayes::FitState;
+
+use super::conditional_multitype_mark;
+use super::conditional_multitype_mark::Args as FitArgs;
+use super::publish_json;
+use super::CliError;
+use marklab_bayes::SensitivityStatus;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct Args {
+pub(crate) struct Args {
+    /// CSV of points: point_id or cell_id, x_um, y_um, and type_id or histologic_compartment.
     #[arg(long)]
     input: PathBuf,
+    /// Point-type label used as the model reference.
     #[arg(long)]
     reference_type: String,
+    /// Spatial radius in micrometers.
     #[arg(long)]
     radius_um: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior scale for interaction.
     #[arg(long)]
     interaction_prior_sd: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on points.
     #[arg(long)]
     maximum_points: usize,
+    /// Upper bound on types.
     #[arg(long)]
     maximum_types: usize,
+    /// Upper bound on neighbor visits.
     #[arg(long)]
     maximum_neighbor_visits: u64,
+    /// Upper bound on edges.
     #[arg(long)]
     maximum_edges: usize,
+    /// Upper bound on draw parameter work.
     #[arg(long)]
     maximum_draw_parameter_work: u64,
+    /// Upper bound on total draw parameter work.
     #[arg(long)]
     maximum_total_draw_parameter_work: u64,
+    /// Upper bound on working bytes.
     #[arg(long)]
     maximum_working_bytes: usize,
+    /// Upper bound on tree depth.
     #[arg(long)]
     maximum_tree_depth: u32,
+    /// Posterior change, in standard-deviation units, considered material.
     #[arg(long)]
     materiality_threshold_sd: f64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Debug, Deserialize)]
-struct AffinityRow {
-    type_a: String,
-    type_b: String,
-    contrast: SarScalarSummary,
-}
-#[derive(Debug, Deserialize)]
-struct ScoreRows {
-    spatial_composite_log_score: SarScalarSummary,
-}
-#[derive(Debug, Deserialize)]
-struct View {
-    fit_state: FitState,
-    pair_affinity_contrasts: Vec<AffinityRow>,
-    comparison: ScoreRows,
-}
-
-#[derive(Debug, Serialize)]
-struct Scenario {
-    scenario: &'static str,
-    intercept_prior_sd: f64,
-    interaction_prior_sd: f64,
-    maximum_affinity_shift_sd: f64,
-    composite_log_score_shift_sd: f64,
-    material: bool,
-    result: FitOutput,
-}
-
-#[derive(Debug, Serialize)]
-struct Output {
-    format: &'static str,
-    version: u32,
-    baseline_scenario: &'static str,
-    materiality_threshold_sd: f64,
-    maximum_total_draw_parameter_work: u64,
-    scenarios: Vec<Scenario>,
-    fit_state: FitState,
-    sensitivity_status: &'static str,
-    statistical_unit: &'static str,
-    assumptions: [&'static str; 4],
-    finite_result_policy: &'static str,
-    claim_status: &'static str,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::ConditionalMultitypeMarkSensitivity(args) = command;
-    run(*args)
-}
-
-fn run(args: Args) -> Result<(), BayesCliError> {
+pub(super) fn run(args: Args) -> Result<(), CliError> {
     if !args.materiality_threshold_sd.is_finite() || args.materiality_threshold_sd <= 0.0 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "conditional multitype sensitivity threshold is invalid".into(),
         ));
     }
@@ -138,14 +96,14 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 .and_then(|pairs| pairs.checked_div(2))
                 .and_then(|pairs| value.checked_add(pairs.checked_sub(1)?))
         })
-        .ok_or_else(|| BayesCliError::Input("sensitivity parameter work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("sensitivity parameter work overflows".into()))?;
     let total_work = u64::from(args.chains)
         .checked_mul(u64::from(args.draws))
         .and_then(|value| value.checked_mul(conservative_parameters as u64))
         .and_then(|value| value.checked_mul(5))
-        .ok_or_else(|| BayesCliError::Input("sensitivity total work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("sensitivity total work overflows".into()))?;
     if total_work > args.maximum_total_draw_parameter_work {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "sensitivity total work exceeds maximum: {total_work} > {}",
             args.maximum_total_draw_parameter_work
         )));
@@ -270,13 +228,13 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 FitState::Nonconverged
             },
             sensitivity_status: if !complete {
-                "diagnostic_only_nonconverged"
+                SensitivityStatus::DiagnosticOnlyNonconverged
             } else if any_material {
-                "material_prior_sensitivity"
+                SensitivityStatus::MaterialPriorSensitivity
             } else {
-                "stable_below_declared_threshold"
+                SensitivityStatus::StableBelowDeclaredThreshold
             },
-            statistical_unit: "one_fixed_location_pattern",
+            statistical_unit: StatisticalUnit::OneFixedLocationPattern,
             assumptions: [
                 "fixed_half_base_double_one_at_a_time_prior_grid",
                 "same_graph_seed_sampling_and_diagnostic_thresholds",
@@ -284,11 +242,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 "one_pattern_does_not_support_patient_population_inference",
             ],
             finite_result_policy: "retain_every_scenario_and_require_finite_complete_fits",
-            claim_status: "experimental_prior_sensitivity",
+            claim_status: ClaimStatus::ExperimentalPriorSensitivity,
         },
     )
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

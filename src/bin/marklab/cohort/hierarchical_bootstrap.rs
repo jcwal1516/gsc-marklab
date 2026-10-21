@@ -10,7 +10,10 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publication::publish_json, validate_input_file, CohortError};
+use super::{
+    publication::publish_json, validate_input_file, BootstrapEquivalenceArgs, CohortError,
+    HierarchicalBootstrapArgs,
+};
 
 #[derive(Debug, Deserialize)]
 struct CsvRow {
@@ -19,13 +22,14 @@ struct CsvRow {
     endpoint: f64,
 }
 
-pub(super) fn run(
-    input: PathBuf,
-    replicates: usize,
-    seed: u64,
-    alpha: f64,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run(args: HierarchicalBootstrapArgs) -> Result<(), CohortError> {
+    let HierarchicalBootstrapArgs {
+        input,
+        replicates,
+        seed,
+        alpha,
+        out,
+    } = args;
     let records = read_records(&input)?;
     let result = hierarchical_bootstrap(
         &records,
@@ -41,17 +45,17 @@ pub(super) fn run(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run_equivalence(
-    input: PathBuf,
-    lower_margin: f64,
-    upper_margin: f64,
-    alpha: f64,
-    replicates: usize,
-    seed: u64,
-    margin_rationale: String,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run_equivalence(args: BootstrapEquivalenceArgs) -> Result<(), CohortError> {
+    let BootstrapEquivalenceArgs {
+        input,
+        lower_margin,
+        upper_margin,
+        alpha,
+        replicates,
+        seed,
+        margin_rationale,
+        out,
+    } = args;
     let records = read_records(&input)?;
     let result = bootstrap_equivalence(
         &records,

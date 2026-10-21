@@ -1,49 +1,39 @@
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
-use marklab::{
+use clap::Subcommand;
+use marklab::pathology::{
     analyze_pathology_composition, analyze_pathology_maps, publish_pathology_composition,
     publish_pathology_maps,
 };
-use marklab::{analyze_pathology_scan, publish_pathology_scan};
-use marklab::{analyze_pathology_spatial_study, publish_pathology_spatial_study};
-
-#[derive(Parser)]
-#[command(name = "marklab")]
-struct PathologyCli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
+use marklab::pathology::{analyze_pathology_scan, publish_pathology_scan};
+use marklab::pathology::{analyze_pathology_spatial_study, publish_pathology_spatial_study};
 
 #[derive(Subcommand)]
-enum TopLevel {
-    /// H&E/IHC annotation profiles and within-slide spatial maps.
-    Pathology {
-        #[command(subcommand)]
-        command: PathologyCommand,
-    },
-}
-
-#[derive(Subcommand)]
-enum PathologyCommand {
+pub(crate) enum PathologyCommand {
     /// Search for binary phenotype enrichment across declared centers and radii.
     Scan {
+        /// Declared analysis recipe.
         #[arg(long)]
         recipe: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
     /// Context-conditioned spatial curves and area-weighted patient comparison.
     SpatialStudy {
+        /// Declared analysis recipe.
         #[arg(long)]
         recipe: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
     /// Compare patient composition and density, with tile-size/offset sensitivity.
     Composition {
+        /// Declared analysis recipe.
         #[arg(long)]
         recipe: PathBuf,
+        /// Destination for the analysis output.
         #[arg(long)]
         out: PathBuf,
     },
@@ -58,12 +48,7 @@ enum PathologyCommand {
     },
 }
 
-pub(crate) fn cli_route() -> super::command_tree::Route {
-    super::command_tree::Route::new::<PathologyCli>(run)
-}
-
-fn run() -> marklab::Result<()> {
-    let TopLevel::Pathology { command } = PathologyCli::parse().command;
+pub(crate) fn run(command: PathologyCommand) -> marklab::Result<()> {
     let (recipe, out) = match &command {
         PathologyCommand::Maps { recipe, out }
         | PathologyCommand::Composition { recipe, out }

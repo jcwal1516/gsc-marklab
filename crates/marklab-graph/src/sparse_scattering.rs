@@ -4,6 +4,8 @@ use crate::{
     graph_sparse_radius_diffusion_wavelet_workflow, graph_sparse_radius_heat_workflow, GraphError,
     GraphNodeInput, GraphSparseRadiusDiffusionWaveletSpec, GraphSparseRadiusHeatSpec,
 };
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -51,7 +53,7 @@ pub struct SparseRadiusSecondOrderScatteringResult {
 pub struct GraphSparseRadiusScatteringResult {
     pub format: String,
     pub version: u32,
-    pub statistical_unit: String,
+    pub statistical_unit: StatisticalUnit,
     pub graph_digest: String,
     pub graph_rule: String,
     pub wavelet: String,
@@ -75,7 +77,7 @@ pub struct GraphSparseRadiusScatteringResult {
     pub total_matrix_vector_work: u64,
     pub peak_working_bytes: u64,
     pub retained_bytes: u64,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 impl GraphSparseRadiusScatteringResult {
@@ -90,13 +92,13 @@ impl GraphSparseRadiusScatteringResult {
         };
         if self.format != "marklab.graph_sparse_radius_scattering"
             || self.version != 1
-            || self.statistical_unit != "one_specimen_graph"
+            || self.statistical_unit != StatisticalUnit::OneSpecimenGraph
             || self.graph_rule != "uniform_cell_exact_physical_radius"
             || self.wavelet != "telescoping_sparse_heat_filter_bank"
             || self.nonlinearity != "pointwise_absolute_value"
             || self.aggregation != "graph_node_mean_and_energy"
             || self.finite_result_policy != "reject_non_finite_input_or_output"
-            || self.claim_status != "experimental_sparse_graph_scattering"
+            || self.claim_status != ClaimStatus::ExperimentalSparseGraphScattering
             || self.node_count != spec.nodes.len()
             || self.radius_um.to_bits() != spec.radius_um.to_bits()
             || self.scattering_order != spec.scattering_order
@@ -271,7 +273,7 @@ pub fn graph_sparse_radius_scattering_workflow(
     let result = GraphSparseRadiusScatteringResult {
         format: "marklab.graph_sparse_radius_scattering".into(),
         version: 1,
-        statistical_unit: "one_specimen_graph".into(),
+        statistical_unit: StatisticalUnit::OneSpecimenGraph,
         graph_digest: wavelet.graph_digest,
         graph_rule: "uniform_cell_exact_physical_radius".into(),
         wavelet: "telescoping_sparse_heat_filter_bank".into(),
@@ -295,7 +297,7 @@ pub fn graph_sparse_radius_scattering_workflow(
         total_matrix_vector_work,
         peak_working_bytes,
         retained_bytes,
-        claim_status: "experimental_sparse_graph_scattering".into(),
+        claim_status: ClaimStatus::ExperimentalSparseGraphScattering,
     };
     result.validate_for_spec(&spec)?;
     Ok(result)

@@ -1,10 +1,14 @@
 use std::str::FromStr;
 
 use marklab::{
-    ArtifactId, BinaryMarkDeclaration, CellId, ContentDigest, DeclaredScalarInputError,
-    DeclaredScalarPatternInput, MarkTable, MeasurementStatus, MissingnessPolicy,
-    NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ProbabilityThresholdComparator,
-    ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarInputError, DeclaredScalarPatternInput, MarkTable,
+        MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
+        ProbabilityThresholdComparator, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+        ScalarMarkUnit,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CellId, MeasurementStatus,
 };
 
 #[path = "support/declared_scalar.rs"]
@@ -353,6 +357,13 @@ fn typed_mark_table_enforces_threshold_modality_and_all_column_provenance() {
 fn independent_binary_input_binds_rows_frame_status_and_provenance() {
     let mut fixture = fixture();
     let binary = independent_binary(&mut fixture, MeasurementStatus::Measured);
+    fixture.pattern.cell_ids = Some(
+        fixture
+            .cell_ids
+            .iter()
+            .map(|id| id.as_str().to_owned())
+            .collect(),
+    );
     let text_bytes = cell_id_text_bytes(&fixture.cell_ids);
     let input = construct(
         &fixture,
@@ -370,6 +381,53 @@ fn independent_binary_input_binds_rows_frame_status_and_provenance() {
     assert_eq!(input.coordinate_frame_id(), &fixture.frame_id);
     assert_eq!(input.binary_mark(), &binary);
     assert_eq!(input.probability_mark(), None);
+}
+
+#[test]
+fn declared_input_rejects_conflicting_source_cell_ids() {
+    let mut fixture = fixture();
+    let binary = independent_binary(&mut fixture, MeasurementStatus::Measured);
+    let table = MarkTable::new(
+        fixture.cell_ids.clone(),
+        vec![ScalarMarkColumn::binary(
+            binary.clone(),
+            ScalarMarkModality::Immunohistochemistry,
+            ScalarMarkUnit::Unitless,
+            MissingnessPolicy::NotPermitted,
+            fixture.pattern.mark.clone(),
+        )
+        .unwrap()],
+        ROW_LIMIT,
+        cell_id_text_bytes(&fixture.cell_ids),
+    )
+    .unwrap();
+    let source_ids = fixture
+        .cell_ids
+        .iter()
+        .map(|id| id.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let mut reversed = source_ids.clone();
+    reversed.reverse();
+    for ids in [reversed, source_ids[..3].to_vec()] {
+        fixture.pattern.cell_ids = Some(ids.into_boxed_slice());
+        assert!(construct(
+            &fixture,
+            &fixture.cell_ids,
+            binary.clone(),
+            None,
+            ROW_LIMIT,
+            cell_id_text_bytes(&fixture.cell_ids)
+        )
+        .is_err());
+        assert!(DeclaredScalarPatternInput::from_mark_table(
+            &fixture.project,
+            &fixture.pattern,
+            &table,
+            fixture.slide_id.clone(),
+            fixture.frame_id.clone()
+        )
+        .is_err());
+    }
 }
 
 #[test]
@@ -454,7 +512,7 @@ fn cell_identity_and_resource_edges_are_strict_and_precede_traversal() {
         ),
         Err(DeclaredScalarInputError::CellHierarchyMismatch { row: 3 })
     ));
-    let mut project_without_hierarchy = marklab::MarklabProject::new();
+    let mut project_without_hierarchy = marklab::workflow::MarklabProject::new();
     project_without_hierarchy
         .install_coordinate_registry(
             fixture

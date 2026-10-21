@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use marklab_data::CoordinateFrameId;
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use rstar::RTree;
 use thiserror::Error;
 

@@ -1,24 +1,22 @@
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
-    fs, io,
-    path::PathBuf,
+    io,
 };
 
-use marklab_bayes::{
+use marklab_embeddings::analysis::{
     kernel_mark_correlation, EmbeddingDistanceBin, EmbeddingKernelError, EmbeddingKernelKind,
     EmbeddingKernelSpec, KernelEmbeddingRow, KernelMarkCorrelationSpec,
 };
-use marklab_workflow::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalScheduler, MarklabProject, NodeError, NodeId,
-    NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
-};
+use marklab_project::ContentDigest;
+use marklab_workflow::NodeError;
 use serde::{Deserialize, Serialize};
 
+use super::cli_schema::{KernelMarkCorrelationLimits, KernelMarkCorrelationProjectArgs};
 use super::{
-    bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
-    MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES,
-    PROJECT_LEDGER_RECORDS, PROJECT_RECORD_BYTES,
+    bayes,
+    durable::{self, Codec, NodeContract, Source, SourceNode},
+    CliError, MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES,
 };
 
 const INPUT_KIND: &str = "application/vnd.marklab.source.kernel-embedding-points-csv;version=1";
@@ -26,55 +24,56 @@ const BINS_KIND: &str = "application/vnd.marklab.source.distance-bins-csv;versio
 const OUTPUT_KIND: &str = "application/vnd.marklab.kernel-mark-correlation+json;version=1";
 const IMPLEMENTATION_IDENTITY: &str = "marklab-project-kernel-mark-correlation-node-v1";
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    project_path: PathBuf,
-    input_path: PathBuf,
-    bins_path: PathBuf,
-    kernel: String,
-    global_reference_tolerance: f64,
-    maximum_points: usize,
-    maximum_dimension: usize,
-    maximum_pair_visits: u64,
-    memory_budget_mib: usize,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: KernelMarkCorrelationProjectArgs) -> Result<(), CliError> {
+    let KernelMarkCorrelationProjectArgs {
+        project: project_path,
+        input: input_path,
+        bins: bins_path,
+        kernel,
+        global_reference_tolerance,
+        limits,
+        out: output_path,
+    } = args;
+    let KernelMarkCorrelationLimits {
+        maximum_points,
+        maximum_dimension,
+        maximum_pair_visits,
+        memory_budget_mib,
+    } = limits;
+    const LABEL: &str = "kernel mark-correlation sources";
     let memory_bytes = memory_budget_mib
         .checked_mul(1024 * 1024)
-        .ok_or_else(|| BayesCliError::Input("--memory-budget-mib is too large".into()))?;
+        .ok_or_else(|| CliError::Input("--memory-budget-mib is too large".into()))?;
     if memory_bytes == 0 {
-        return Err(BayesCliError::Input(
-            "memory budget must be positive".into(),
-        ));
+        return Err(CliError::Input("memory budget must be positive".into()));
     }
     if maximum_points == 0 || maximum_dimension == 0 || maximum_pair_visits == 0 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "kernel mark-correlation point, dimension, and pair-work limits must be positive"
                 .into(),
         ));
     }
     if !global_reference_tolerance.is_finite() || global_reference_tolerance < 0.0 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "global reference tolerance must be finite and nonnegative".into(),
         ));
     }
     let kernel_kind = EmbeddingKernelKind::parse(&kernel).map_err(map_error)?;
-    let paths = SourcePaths {
-        input: input_path,
-        bins: bins_path,
-    };
-    let input_bytes = read_bounded(&paths.input, memory_bytes)?;
-    let bins_bytes = read_bounded(&paths.bins, memory_bytes)?;
+    let input_bytes = read_bounded(&input_path, memory_bytes)?;
+    let bins_bytes = read_bounded(&bins_path, memory_bytes)?;
     let source_bytes = input_bytes
         .len()
         .checked_add(bins_bytes.len())
-        .ok_or_else(|| BayesCliError::Input("kernel source-byte total overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("kernel source-byte total overflowed".into()))?;
     if source_bytes > memory_bytes {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "kernel source files exceed the retained-memory budget".into(),
         ));
     }
-    let prepared_artifacts = source_artifacts_from_bytes(&input_bytes, &bins_bytes)?;
+    let sources = vec![
+        Source::from_bytes(input_path, INPUT_KIND, &input_bytes)?,
+        Source::from_bytes(bins_path, BINS_KIND, &bins_bytes)?,
+    ];
     let (rows, feature_names) = read_rows(&input_bytes)?;
     let bins = bayes::embedding_spatial::read_bins(&bins_bytes)?;
     let requirements = preflight(
@@ -94,19 +93,14 @@ pub(super) fn run(
         requirements.scale_fit_pairs,
     )?;
     if retained > memory_bytes {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "kernel mark-correlation retained-memory estimate {retained} exceeds budget {memory_bytes}"
         )));
     }
-    let current_artifacts = source_artifacts(&paths)?;
-    if prepared_artifacts != current_artifacts {
-        return Err(BayesCliError::Input(
-            "kernel mark-correlation sources changed while prepared".into(),
-        ));
-    }
+    Source::ensure_all_unchanged(&sources, LABEL)?;
 
-    let input_sha256 = prepared_artifacts[0].digest().to_string();
-    let bins_sha256 = prepared_artifacts[1].digest().to_string();
+    let input_sha256 = sources[0].artifact().digest().to_string();
+    let bins_sha256 = sources[1].artifact().digest().to_string();
     let analysis = KernelMarkCorrelationSpec {
         kernel_spec: EmbeddingKernelSpec {
             rows,
@@ -117,107 +111,50 @@ pub(super) fn run(
         global_reference_tolerance,
         maximum_pair_visits,
     };
-    let node = KernelMarkCorrelationProjectNode::new(
-        paths,
-        prepared_artifacts.clone(),
+    let (analysis, contract) = KernelMarkCorrelation::new(
         analysis,
         requirements,
         input_sha256,
         bins_sha256,
         kernel,
-        maximum_points,
-        maximum_dimension,
-        memory_budget_mib,
+        limits,
     )?;
-    let runtime = native_runtime_provenance()?;
-    let limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
-    )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let mut durable = DurableProject::open_or_create(&project_path, limits)
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    for artifact in &prepared_artifacts {
-        project
-            .register_reference(artifact.clone())
-            .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    }
-    let graph = WorkflowGraph::new([node.spec().clone()])
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
-    })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let execution = execute_algorithm(
-        &mut durable,
-        &mut project,
-        &graph,
+    let node = SourceNode::new(
+        contract,
+        LABEL,
+        sources,
+        analysis,
+        KernelMarkCorrelation::execute,
+        |analysis, output| analysis.validate(output).map_err(NodeError::decode),
+    )?;
+
+    let run = durable::execute_node(
+        &project_path,
         &node,
-        &scheduler,
-        ArtifactSchema::new("marklab.kernel_mark_correlation", 1)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        runtime,
+        ("marklab.kernel_mark_correlation", 1),
+        MAXIMUM_RESULT_BYTES,
+    )?;
+    durable::publish(
+        "kernel-mark-correlation",
+        &output_path,
+        &run.output,
+        run.cache_status,
     )
-    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    bayes::publish_json(&output_path, &execution.output)?;
-    let cache_status = match execution.cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project kernel-mark-correlation cache_status={cache_status}");
-    Ok(())
 }
 
-#[derive(Clone)]
-struct SourcePaths {
-    input: PathBuf,
-    bins: PathBuf,
-}
-
-fn source_artifacts(paths: &SourcePaths) -> Result<Vec<ArtifactRef>, BayesCliError> {
-    Ok(vec![
-        source_artifact(&paths.input, INPUT_KIND)?,
-        source_artifact(&paths.bins, BINS_KIND)?,
-    ])
-}
-
-fn source_artifacts_from_bytes(
-    input_bytes: &[u8],
-    bins_bytes: &[u8],
-) -> Result<Vec<ArtifactRef>, BayesCliError> {
-    Ok(vec![
-        ArtifactRef::from_bytes(INPUT_KIND, input_bytes)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        ArtifactRef::from_bytes(BINS_KIND, bins_bytes)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-    ])
-}
-
-fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
+fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, CliError> {
     let maximum = (MAXIMUM_INPUT_BYTES as usize).min(memory_bytes);
-    if !metadata.is_file() || metadata.len() > maximum as u64 {
-        return Err(BayesCliError::Input(format!(
+    crate::input_file::read_regular_file(
+        path,
+        maximum as u64,
+        &format!(
             "kernel source must be a regular file within {maximum} bytes: {}",
             path.display()
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+        ),
+    )
 }
 
-fn read_rows(bytes: &[u8]) -> Result<(Vec<KernelEmbeddingRow>, Vec<String>), BayesCliError> {
+fn read_rows(bytes: &[u8]) -> Result<(Vec<KernelEmbeddingRow>, Vec<String>), CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -227,7 +164,7 @@ fn read_rows(bytes: &[u8]) -> Result<(Vec<KernelEmbeddingRow>, Vec<String>), Bay
         || headers.iter().take(5).collect::<Vec<_>>()
             != ["object_id", "biological_unit", "split", "x_um", "y_um"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "kernel input requires object_id,biological_unit,split,x_um,y_um and at least two embedding_* columns"
                 .into(),
         ));
@@ -242,7 +179,7 @@ fn read_rows(bytes: &[u8]) -> Result<(Vec<KernelEmbeddingRow>, Vec<String>), Bay
         let record = record?;
         let parse = |index: usize| {
             record[index].parse::<f64>().map_err(|_| {
-                BayesCliError::Input(format!(
+                CliError::Input(format!(
                     "kernel numeric value in column {} is invalid",
                     &headers[index]
                 ))
@@ -276,14 +213,14 @@ fn preflight(
     maximum_points: usize,
     maximum_dimension: usize,
     maximum_pair_visits: u64,
-) -> Result<Requirements, BayesCliError> {
+) -> Result<Requirements, CliError> {
     if rows.len() > maximum_points {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "point count exceeds maximum_points {maximum_points}"
         )));
     }
     if feature_names.len() > maximum_dimension {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "embedding dimension exceeds maximum_dimension {maximum_dimension}"
         )));
     }
@@ -293,12 +230,25 @@ fn preflight(
     let dimension = feature_names.len();
     let split_count = |split: &str| rows.iter().filter(|row| row.split == split).count() as u64;
     let train = split_count("train");
-    let curve_pairs = [train, split_count("validation"), split_count("test")]
-        .into_iter()
-        .try_fold(0_u64, |total, count| {
-            total.checked_add(count.saturating_mul(count.saturating_sub(1)) / 2)
-        })
-        .ok_or_else(|| BayesCliError::Input("kernel pair count overflowed".into()))?;
+    let mut unit_counts = HashMap::<(&str, &str), u64>::new();
+    for row in rows {
+        *unit_counts
+            .entry((&row.split, &row.biological_unit))
+            .or_default() += 1;
+    }
+    let mut split_pairs = HashMap::<&str, u64>::new();
+    for ((split, _), count) in unit_counts {
+        *split_pairs.entry(split).or_default() += count * (count - 1) / 2;
+    }
+    if split_pairs.values().any(|pairs| *pairs == 0) {
+        return Err(CliError::Input(
+            "every split requires at least one within-biological-unit pair".into(),
+        ));
+    }
+    let curve_pairs = split_pairs
+        .values()
+        .try_fold(0_u64, |total, count| total.checked_add(*count))
+        .ok_or_else(|| CliError::Input("kernel pair count overflowed".into()))?;
     let scale_fit_pairs = if matches!(
         kernel_kind,
         EmbeddingKernelKind::Rbf | EmbeddingKernelKind::Laplacian
@@ -306,23 +256,23 @@ fn preflight(
         train
             .checked_mul(train.saturating_sub(1))
             .and_then(|value| value.checked_div(2))
-            .ok_or_else(|| BayesCliError::Input("kernel scale-fit pair count overflowed".into()))?
+            .ok_or_else(|| CliError::Input("kernel scale-fit pair count overflowed".into()))?
     } else {
         0
     };
     let pair_visits = curve_pairs
         .checked_add(scale_fit_pairs)
-        .ok_or_else(|| BayesCliError::Input("kernel pair count overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("kernel pair count overflowed".into()))?;
     if pair_visits > maximum_pair_visits {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "{pair_visits} kernel pair visits exceed maximum_pair_visits {maximum_pair_visits}"
         )));
     }
     let work = pair_visits
         .checked_mul(dimension as u64)
-        .ok_or_else(|| BayesCliError::Input("kernel element work overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("kernel element work overflowed".into()))?;
     if work > 250_000_000 {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "{work} kernel element operations exceed the fixed ceiling 250000000"
         )));
     }
@@ -332,12 +282,9 @@ fn preflight(
     })
 }
 
-fn validate_input(
-    rows: &[KernelEmbeddingRow],
-    feature_names: &[String],
-) -> Result<(), BayesCliError> {
+fn validate_input(rows: &[KernelEmbeddingRow], feature_names: &[String]) -> Result<(), CliError> {
     if !(8..=10_000).contains(&rows.len()) || !(2..=128).contains(&feature_names.len()) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "kernel object count or embedding dimension is invalid".into(),
         ));
     }
@@ -348,7 +295,7 @@ fn validate_input(
             || !name.starts_with("embedding_")
             || !features.insert(name.as_str())
     }) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "kernel feature names must be unique exact embedding_* names".into(),
         ));
     }
@@ -368,7 +315,7 @@ fn validate_input(
             || row.embedding.len() != feature_names.len()
             || row.embedding.iter().any(|value| !value.is_finite())
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "kernel rows require unique exact identities, closed splits, finite coordinates, and complete finite vectors"
                     .into(),
             ));
@@ -376,7 +323,7 @@ fn validate_input(
         if let Some(previous) = unit_splits.insert(row.biological_unit.as_str(), row.split.as_str())
         {
             if previous != row.split {
-                return Err(BayesCliError::Input(
+                return Err(CliError::Input(
                     "each biological unit must belong to exactly one split".into(),
                 ));
             }
@@ -387,16 +334,16 @@ fn validate_input(
         || !(split_counts.contains_key("validation") || split_counts.contains_key("test"))
         || split_counts.values().any(|count| *count < 2)
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "kernel fitting requires train and held-out splits with at least two rows each".into(),
         ));
     }
     Ok(())
 }
 
-fn validate_bins(bins: &[EmbeddingDistanceBin]) -> Result<(), BayesCliError> {
+fn validate_bins(bins: &[EmbeddingDistanceBin]) -> Result<(), CliError> {
     if !(1..=256).contains(&bins.len()) {
-        return Err(BayesCliError::Input("distance bin count is invalid".into()));
+        return Err(CliError::Input("distance bin count is invalid".into()));
     }
     let mut identifiers = HashSet::new();
     for (index, bin) in bins.iter().enumerate() {
@@ -408,7 +355,7 @@ fn validate_bins(bins: &[EmbeddingDistanceBin]) -> Result<(), BayesCliError> {
             || bin.lower_um >= bin.upper_um
             || (index > 0 && bin.lower_um.to_bits() != bins[index - 1].upper_um.to_bits())
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "distance bins must be unique, contiguous, and increasing".into(),
             ));
         }
@@ -422,57 +369,48 @@ fn retained_bytes(
     dimension: usize,
     bins: usize,
     scale_fit_pairs: u64,
-) -> Result<usize, BayesCliError> {
+) -> Result<usize, CliError> {
     let embedding_bytes = points
         .checked_mul(dimension)
         .and_then(|value| value.checked_mul(std::mem::size_of::<f64>()))
-        .ok_or_else(|| BayesCliError::Input("kernel embedding memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("kernel embedding memory overflowed".into()))?;
     // Radial scale fitting retains all training-pair distances, and stable sorting can retain
     // scratch storage. Three f64 slots per pair conservatively cover both allocations.
     let scale_fit_bytes = usize::try_from(scale_fit_pairs)
         .ok()
         .and_then(|pairs| pairs.checked_mul(3 * std::mem::size_of::<f64>()))
-        .ok_or_else(|| BayesCliError::Input("kernel scale-fit memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("kernel scale-fit memory overflowed".into()))?;
     source_bytes
         .checked_add(embedding_bytes.saturating_mul(2))
         .and_then(|value| value.checked_add(points.saturating_mul(256)))
         .and_then(|value| value.checked_add(dimension.saturating_mul(128)))
         .and_then(|value| value.checked_add(bins.saturating_mul(512)))
         .and_then(|value| value.checked_add(scale_fit_bytes))
-        .ok_or_else(|| BayesCliError::Input("kernel retained-memory estimate overflowed".into()))
+        .ok_or_else(|| CliError::Input("kernel retained-memory estimate overflowed".into()))
 }
 
-struct KernelMarkCorrelationProjectNode {
-    spec: NodeSpec,
-    paths: SourcePaths,
-    input_artifacts: Vec<ArtifactRef>,
+struct KernelMarkCorrelation {
     analysis: KernelMarkCorrelationSpec,
     requirements: Requirements,
     input_sha256: String,
     bins_sha256: String,
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
 }
 
-impl KernelMarkCorrelationProjectNode {
-    #[allow(clippy::too_many_arguments)]
+impl KernelMarkCorrelation {
     fn new(
-        paths: SourcePaths,
-        input_artifacts: Vec<ArtifactRef>,
         analysis: KernelMarkCorrelationSpec,
         requirements: Requirements,
         input_sha256: String,
         bins_sha256: String,
         kernel: String,
-        maximum_points: usize,
-        maximum_dimension: usize,
-        memory_budget_mib: usize,
-    ) -> Result<Self, BayesCliError> {
-        if input_artifacts.len() != 2 {
-            return Err(BayesCliError::Input(
-                "kernel mark-correlation source identities are incomplete".into(),
-            ));
-        }
+        limits: KernelMarkCorrelationLimits,
+    ) -> Result<(Self, NodeContract), CliError> {
+        let KernelMarkCorrelationLimits {
+            maximum_points,
+            maximum_dimension,
+            memory_budget_mib,
+            ..
+        } = limits;
         let tolerance_bits = analysis.global_reference_tolerance.to_bits().to_string();
         let configuration_digest = ContentDigest::from_framed([
             b"marklab-kernel-mark-correlation-configuration-v1".as_slice(),
@@ -484,32 +422,28 @@ impl KernelMarkCorrelationProjectNode {
             memory_budget_mib.to_string().as_bytes(),
         ]);
         let execution_policy = format!(
-            "serial;training-only-kernel-fit;split-isolated-curves;physical-distance-bins;kernel={kernel};global_reference_tolerance_bits={tolerance_bits};maximum_points={maximum_points};maximum_dimension={maximum_dimension};maximum_pair_visits={};memory_budget_mib={memory_budget_mib}",
+            "serial;training-only-kernel-fit;split-and-biological-unit-isolated-curves;physical-distance-bins;kernel={kernel};global_reference_tolerance_bits={tolerance_bits};maximum_points={maximum_points};maximum_dimension={maximum_dimension};maximum_pair_visits={};memory_budget_mib={memory_budget_mib}",
             analysis.maximum_pair_visits
         )
         .into_bytes();
-        Ok(Self {
-            spec: NodeSpec::new(
-                NodeId::new("kernel-mark-correlation")
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
-                "kernel_mark_correlation",
-                1,
-                Vec::new(),
-            )
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-            paths,
-            input_artifacts,
-            analysis,
-            requirements,
-            input_sha256,
-            bins_sha256,
-            configuration_digest,
-            execution_policy,
-        })
-    }
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
+        Ok((
+            Self {
+                analysis,
+                requirements,
+                input_sha256,
+                bins_sha256,
+            },
+            NodeContract {
+                id: "kernel-mark-correlation",
+                kind: "kernel_mark_correlation",
+                version: 1,
+                configuration_digest,
+                execution_policy: Cow::Owned(execution_policy),
+                implementation_identity: IMPLEMENTATION_IDENTITY,
+                output_kind: OUTPUT_KIND,
+                codec: Codec::ExactFloatJson,
+            },
+        ))
     }
 
     fn validate(&self, output: &Output) -> io::Result<()> {
@@ -582,7 +516,20 @@ impl KernelMarkCorrelationProjectNode {
             return Err(invalid("decoded kernel split count differs"));
         }
         for (curve, (split, count)) in output.curves.iter().zip(expected_splits) {
-            let pairs = count as u64 * (count as u64 - 1) / 2;
+            let mut unit_counts = HashMap::<&str, u64>::new();
+            for row in self
+                .analysis
+                .kernel_spec
+                .rows
+                .iter()
+                .filter(|row| row.split == split)
+            {
+                *unit_counts.entry(&row.biological_unit).or_default() += 1;
+            }
+            let pairs = unit_counts
+                .values()
+                .map(|count| count * (count - 1) / 2)
+                .sum::<u64>();
             if curve.split != split
                 || curve.object_count as usize != count
                 || curve.pair_visits != pairs
@@ -633,39 +580,8 @@ impl KernelMarkCorrelationProjectNode {
         }
         Ok(())
     }
-}
 
-impl WorkflowNode for KernelMarkCorrelationProjectNode {
-    type Output = Output;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.input_artifacts
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        let current = source_artifacts(&self.paths).map_err(NodeError::input)?;
-        if current != self.input_artifacts {
-            return Err(NodeError::input(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "kernel mark-correlation source identity changed",
-            )));
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: IMPLEMENTATION_IDENTITY,
-        }
-    }
-
-    fn execute(&self) -> Result<Self::Output, NodeError> {
+    fn execute(&self) -> Result<Output, NodeError> {
         let result =
             kernel_mark_correlation(self.analysis.clone()).map_err(NodeError::execution)?;
         Ok(Output::from_result(
@@ -673,21 +589,6 @@ impl WorkflowNode for KernelMarkCorrelationProjectNode {
             self.bins_sha256.clone(),
             result,
         ))
-    }
-
-    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        self.validate(output).map_err(NodeError::encoding)?;
-        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
-    }
-
-    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let output: Output = marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
-        self.validate(&output).map_err(NodeError::decode)?;
-        Ok(output)
-    }
-
-    fn output_kind(&self) -> &'static str {
-        OUTPUT_KIND
     }
 }
 
@@ -707,7 +608,7 @@ impl Output {
     fn from_result(
         input_sha256: String,
         bins_sha256: String,
-        result: marklab_bayes::KernelMarkCorrelationResult,
+        result: marklab_embeddings::analysis::KernelMarkCorrelationResult,
     ) -> Self {
         Self {
             input_sha256,
@@ -802,10 +703,10 @@ fn kernel_name(kind: EmbeddingKernelKind) -> &'static str {
     }
 }
 
-fn map_error(error: EmbeddingKernelError) -> BayesCliError {
+fn map_error(error: EmbeddingKernelError) -> CliError {
     match error {
-        EmbeddingKernelError::Invalid(message) => BayesCliError::Input(message),
-        EmbeddingKernelError::Numeric(message) => BayesCliError::Backend(message),
+        EmbeddingKernelError::Invalid(message) => CliError::Input(message),
+        EmbeddingKernelError::Numeric(message) => CliError::Backend(message),
     }
 }
 

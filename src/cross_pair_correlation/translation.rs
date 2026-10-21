@@ -1,20 +1,25 @@
+use crate::edge_corrected::{cache_corrections, estimate_cross, CrossWork};
+use crate::result_vocabulary::{EdgeCorrection, MarkNullModel, MarkPermutationUnit};
 use std::collections::BTreeMap;
 
 use marklab_cohort::{InferenceAlternative, InferenceDesign};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 
 use crate::common::finite::canonical_zero;
-use crate::measurement_status_wire::name as measurement_status_name;
 
 use crate::{
     classical::window_summary,
     mark_pair_plan::{build_mark_pair_plan, erl_workspace_bytes, MarkPairPlan},
-    pair_correlation::epanechnikov_weight,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
     permutation::envelopes::GlobalEnvelope,
+    scalar_mark::COMPARTMENT_MARK_ID,
+    spatial::{
+        ClassicalWindowSummary, PairCorrelationKernel, PairCorrelationPointStatus,
+        TranslationSpatialError, TranslationSpatialLimits,
+    },
     translation_spatial::edge::{preflight_overlap_complexity, TranslationOverlapBudget},
-    ClassicalWindowSummary, DeclaredScalarPatternInput, ObservationWindow2D, PairCorrelationKernel,
-    PairCorrelationPointStatus, ScalarMarkId, TranslationSpatialError, TranslationSpatialLimits,
+    ObservationWindow2D,
 };
 
 use super::{CategoricalCrossPairCorrelationError, CategoricalCrossPairCorrelationInference};
@@ -78,7 +83,8 @@ pub struct TranslationCategoricalCrossPairCorrelationPoint {
 #[serde(deny_unknown_fields)]
 pub struct TranslationCategoricalCrossPairCorrelationResult {
     pub mark_id: String,
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     pub coordinate_frame_id: String,
     pub window: ClassicalWindowSummary,
     pub source_level: String,
@@ -87,7 +93,7 @@ pub struct TranslationCategoricalCrossPairCorrelationResult {
     pub target_count: usize,
     pub kernel: PairCorrelationKernel,
     pub bandwidth_um: f64,
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     pub geometry_digest: String,
     pub pair_plan_digest: String,
     pub retained_directed_pair_count: usize,
@@ -123,7 +129,7 @@ pub fn translation_categorical_cross_pair_correlation(
     if frame != input.coordinate_frame_id() {
         return Err(CategoricalCrossPairCorrelationError::CoordinateFrameMismatch);
     }
-    let mark_id = ScalarMarkId::new("histologic_compartment").map_err(dependency)?;
+    let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(dependency)?;
     let table = input
         .mark_table()
         .ok_or(CategoricalCrossPairCorrelationError::MissingCategoricalMark)?;
@@ -249,12 +255,9 @@ pub fn translation_categorical_cross_pair_correlation(
         };
     Ok(TranslationCategoricalCrossPairCorrelationResult {
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(
-            table
-                .measurement_status(&mark_id)
-                .ok_or(CategoricalCrossPairCorrelationError::MissingCategoricalMark)?,
-        )
-        .into(),
+        measurement_status: table
+            .measurement_status(&mark_id)
+            .ok_or(CategoricalCrossPairCorrelationError::MissingCategoricalMark)?,
         coordinate_frame_id: frame.as_str().into(),
         window: window_summary(window.descriptor()),
         source_level: base.source_level.clone(),
@@ -263,7 +266,7 @@ pub fn translation_categorical_cross_pair_correlation(
         target_count,
         kernel: PairCorrelationKernel::Epanechnikov,
         bandwidth_um: base.bandwidth_um,
-        edge_correction: "translation".into(),
+        edge_correction: EdgeCorrection::Translation,
         geometry_digest: plan.geometry.logical_digest().to_string(),
         pair_plan_digest: plan.digest.to_string(),
         retained_directed_pair_count: plan.pairs.len(),
@@ -275,8 +278,8 @@ pub fn translation_categorical_cross_pair_correlation(
         configuration_digest: configuration_digest(config).to_string(),
         curve: observed.points,
         inference: CategoricalCrossPairCorrelationInference {
-            null_model: "random_labeling".into(),
-            permutation_unit: "complete_categorical_row".into(),
+            null_model: MarkNullModel::RandomLabeling,
+            permutation_unit: MarkPermutationUnit::CompleteCategoricalRow,
             p_global,
             erl_depth,
             critical_depth,
@@ -296,32 +299,7 @@ fn build_overlaps(
     plan: &MarkPairPlan,
     budget: &mut TranslationOverlapBudget,
 ) -> Result<BTreeMap<(usize, usize), f64>, CategoricalCrossPairCorrelationError> {
-    let pattern = input.pattern();
-    let mut overlaps = BTreeMap::new();
-    for pair in &plan.pairs {
-        if pair.source >= pair.target {
-            continue;
-        }
-        budget.charge_pair().map_err(translation_dependency)?;
-        let lower = pair.distance_um - config.bandwidth_um;
-        let upper = pair.distance_um + config.bandwidth_um;
-        let start = config.radii_um.partition_point(|radius| *radius <= lower);
-        let end = config.radii_um.partition_point(|radius| *radius < upper);
-        if start == end {
-            continue;
-        }
-        let overlap = budget
-            .overlap(
-                window,
-                pattern.x_um[pair.target] - pattern.x_um[pair.source],
-                pattern.y_um[pair.target] - pattern.y_um[pair.source],
-                pair.source,
-                pair.target,
-            )
-            .map_err(translation_dependency)?;
-        overlaps.insert((pair.source, pair.target), overlap);
-    }
-    Ok(overlaps)
+    cache_corrections(input, window, config, plan, budget).map_err(translation_dependency)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -336,41 +314,24 @@ fn evaluate(
     overlaps: &BTreeMap<(usize, usize), f64>,
     config: &super::CategoricalCrossPairCorrelationConfig,
 ) -> Result<Evaluation, CategoricalCrossPairCorrelationError> {
-    let mut pair_counts = vec![0_usize; config.radii_um.len()];
-    let mut overlap_counts = vec![0_usize; config.radii_um.len()];
-    let mut overlap_sums = vec![0.0_f64; config.radii_um.len()];
-    let mut weighted_sums = vec![0.0_f64; config.radii_um.len()];
-    for pair in &plan.pairs {
-        if codes[pair.source] != source_code || codes[pair.target] != target_code {
-            continue;
-        }
-        let key = (pair.source.min(pair.target), pair.source.max(pair.target));
-        let Some(overlap) = overlaps.get(&key).copied() else {
-            continue;
-        };
-        let lower = pair.distance_um - config.bandwidth_um;
-        let upper = pair.distance_um + config.bandwidth_um;
-        let start = config.radii_um.partition_point(|radius| *radius <= lower);
-        let end = config.radii_um.partition_point(|radius| *radius < upper);
-        for index in start..end {
-            let kernel = epanechnikov_weight(
-                config.radii_um[index],
-                pair.distance_um,
-                config.bandwidth_um,
-            )
-            .expect("strict compact support");
-            pair_counts[index] += 1;
-            overlap_counts[index] += 1;
-            overlap_sums[index] += overlap;
-            weighted_sums[index] += kernel * area / overlap;
-        }
-    }
+    let CrossWork {
+        counts: pair_counts,
+        measure_sums: overlap_sums,
+        weighted_sums,
+    } = estimate_cross::<TranslationOverlapBudget>(
+        codes,
+        (source_code, target_code),
+        area,
+        plan,
+        overlaps,
+        config,
+    )?;
     let mut points = Vec::with_capacity(config.radii_um.len());
     let mut values = Vec::with_capacity(config.radii_um.len());
     let mut eligible = Vec::with_capacity(config.radii_um.len());
     for index in 0..config.radii_um.len() {
-        let available = pair_counts[index] > 0;
-        let cross_g = available.then(|| {
+        let has_pairs = pair_counts[index] > 0;
+        let cross_g = (source_count > 0 && target_count > 0).then(|| {
             area * weighted_sums[index]
                 / (std::f64::consts::TAU
                     * config.radii_um[index]
@@ -383,16 +344,16 @@ fn evaluate(
             ));
         }
         values.push(cross_g.unwrap_or(0.0));
-        eligible.push(available);
+        eligible.push(cross_g.is_some());
         points.push(TranslationCategoricalCrossPairCorrelationPoint {
             radius_um: config.radii_um[index],
-            status: if available {
+            status: if has_pairs {
                 PairCorrelationPointStatus::Available
             } else {
                 PairCorrelationPointStatus::NoPairsInKernelSupport
             },
             directed_source_target_pairs_in_support: pair_counts[index],
-            overlap_evaluations: overlap_counts[index],
+            overlap_evaluations: pair_counts[index],
             translation_overlap_area_sum_um2: canonical_zero(overlap_sums[index]),
             translation_weighted_kernel_sum: canonical_zero(weighted_sums[index]),
             cross_g: cross_g.map(canonical_zero),

@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+"""SciPy worker for clone phylogeography diffusion and clone-niche contrast models."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import scipy
@@ -11,50 +14,137 @@ from scipy.optimize import minimize
 from scipy.special import logsumexp
 from scipy.stats import invgamma
 
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def fit_niche(values, probabilities, patient_indices, patient_count):
-    patient_means = np.asarray([values[patient_indices == patient].mean() for patient in range(patient_count)])
-    centered = values - patient_means[patient_indices]
+    """Fit a clone contrast, patient intercepts and common residual SD by mixture likelihood.
 
-    def objective(parameters):
-        contrast = parameters[0]
-        sigma = math.exp(parameters[1])
-        means = np.column_stack([
-            np.full(len(centered), contrast / 2.0),
-            np.full(len(centered), -contrast / 2.0),
-        ])
+    The component means are ``patient_intercept +/- contrast/2``. Centering the input only
+    sets the origin for the fitted intercepts; it does not constrain them. The contrast SE
+    profiles all free nuisance parameters through the observed-information Schur complement.
+    At the existing residual-SD floor, the SE is conditional on that active bound.
+    """
+    counts = np.bincount(patient_indices, minlength=patient_count)
+    patient_means = np.bincount(patient_indices, weights=values, minlength=patient_count) / counts
+    centered = values - patient_means[patient_indices]
+    signs = np.asarray([0.5, -0.5])
+    with np.errstate(divide="ignore"):
+        log_probabilities = np.log(probabilities)
+
+    def components(parameters):
+        residual = centered[:, None] - parameters[2:][patient_indices, None]
+        residual = residual - parameters[0] * signs
+        precision = math.exp(-2.0 * parameters[1])
         log_components = (
-            np.log(np.maximum(probabilities, 1e-300))
-            - 0.5 * ((centered[:, None] - means) / sigma) ** 2
-            - math.log(sigma)
+            log_probabilities
+            - 0.5 * residual**2 * precision
+            - parameters[1]
             - 0.5 * math.log(2.0 * math.pi)
         )
-        return float(-np.sum(logsumexp(log_components, axis=1)))
+        log_density = logsumexp(log_components, axis=1)
+        weights = np.exp(log_components - log_density[:, None])
+        scores = np.stack(
+            [signs * residual * precision, residual**2 * precision - 1.0, residual * precision],
+            axis=2,
+        )
+        mean_scores = np.sum(weights[:, :, None] * scores, axis=1)
+        return log_density, weights, scores, mean_scores, precision
 
-    initial = np.asarray([2.0, math.log(max(centered.std(ddof=0) * 0.2, 0.05))])
-    fit = minimize(objective, initial, method="L-BFGS-B", bounds=[(-20.0, 20.0), (-6.0, 4.0)])
+    def objective(parameters):
+        log_density, _, _, scores, _ = components(parameters)
+        gradient = -np.r_[
+            scores[:, :2].sum(axis=0),
+            np.bincount(patient_indices, weights=scores[:, 2], minlength=patient_count),
+        ]
+        return float(-log_density.sum()), gradient
+
+    expected_clone = probabilities[:, 0] - 0.5
+    patient_clone = np.bincount(patient_indices, weights=expected_clone) / counts
+    within_clone = expected_clone - patient_clone[patient_indices]
+    information = float(within_clone @ within_clone)
+    initial_contrast = float(within_clone @ centered) / information if information > 0.0 else 2.0
+    initial_contrast = float(np.clip(initial_contrast, -20.0, 20.0))
+    initial_intercepts = -initial_contrast * patient_clone
+    residual = centered - initial_contrast * within_clone
+    initial_log_sd = float(np.clip(math.log(max(np.std(residual), 0.05)), -6.0, 4.0))
+    initial = np.r_[initial_contrast, initial_log_sd, initial_intercepts]
+    fit = minimize(
+        objective,
+        initial,
+        jac=True,
+        method="L-BFGS-B",
+        bounds=[(-20.0, 20.0), (-6.0, 4.0), *[(None, None)] * patient_count],
+        options={"ftol": 1e-12, "gtol": 1e-7, "maxiter": 1000},
+    )
     if not fit.success:
         raise ContractError(f"clone niche fit did not converge: {fit.message}")
-    step = 1e-4
-    curvature = (objective(fit.x + [step, 0.0]) - 2.0 * objective(fit.x) + objective(fit.x - [step, 0.0])) / step**2
-    standard_error = math.sqrt(1.0 / max(curvature, 1e-12))
+    if abs(fit.x[0]) >= 20.0 - 1e-8 or fit.x[1] >= 4.0 - 1e-8:
+        raise ContractError("clone niche contrast or residual SD reached its bound")
+
+    _, weights, scores, mean_scores, precision = components(fit.x)
+    # For a two-component mixture, the missing-information covariance is
+    # w_A*w_B*(score_A-score_B)*(score_A-score_B)^T for each observation.
+    difference = scores[:, 0, :] - scores[:, 1, :]
+    mixture_variance = weights[:, 0] * weights[:, 1]
+    cc = len(values) * precision / 4.0 - np.sum(mixture_variance * difference[:, 0] ** 2)
+    cs = 2.0 * mean_scores[:, 0].sum() - np.sum(
+        mixture_variance * difference[:, 0] * difference[:, 1]
+    )
+    ss = 2.0 * (mean_scores[:, 1] + 1.0).sum() - np.sum(mixture_variance * difference[:, 1] ** 2)
+    global_information = np.asarray([[cc, cs], [cs, ss]])
+    patient_information = np.bincount(
+        patient_indices,
+        weights=precision - mixture_variance * difference[:, 2] ** 2,
+        minlength=patient_count,
+    )
+    cross = np.column_stack(
+        [
+            np.bincount(
+                patient_indices,
+                weights=(weights @ signs) * precision
+                - mixture_variance * difference[:, 0] * difference[:, 2],
+                minlength=patient_count,
+            ),
+            np.bincount(
+                patient_indices,
+                weights=2.0 * mean_scores[:, 2]
+                - mixture_variance * difference[:, 1] * difference[:, 2],
+                minlength=patient_count,
+            ),
+        ]
+    )
+    if not np.isfinite(patient_information).all() or np.any(patient_information <= 0.0):
+        raise ContractError("clone niche patient effects are not identifiable")
+    profiled = global_information - cross.T @ (cross / patient_information[:, None])
+    if fit.x[1] <= -6.0 + 1e-8:
+        profiled = profiled[:1, :1]
+    tolerance = 64.0 * np.finfo(float).eps * np.max(np.abs(global_information))
+    if not np.isfinite(profiled).all() or np.linalg.eigvalsh(profiled).min() <= tolerance:
+        raise ContractError("clone niche contrast is not identifiable")
+    standard_error = math.sqrt(float(np.linalg.inv(profiled)[0, 0]))
     return float(fit.x[0]), standard_error, patient_means.tolist(), float(fit.fun)
 
 
-def main():
-    if np.__version__ != "2.4.6" or scipy.__version__ != "1.18.1" or sys.version_info[:2] != (3, 12):
-        raise ContractError("clone model backend version drift")
-    request_bytes = sys.stdin.buffer.read(32 * 1024 * 1024 + 1)
-    request = json.loads(request_bytes)
-    if request["format"] != "marklab.scipy_clone_models_request" or request["version"] != 1:
-        raise ContractError("request identity mismatch")
+def diffusion_posterior(request, location_by_clone, rng):
+    """Draw the clone-tree Brownian diffusion coefficient, integrating location uncertainty.
+
+    Clone locations are drawn from their Gaussian posteriors. Given one draw of all locations,
+    each branch displacement is ``Normal(0, 2 D length I_2)``, so with an
+    ``InverseGamma(shape, scale)`` prior on ``D`` the conditional posterior is
+    ``InverseGamma(shape + branches * d / 2, scale + sum(|displacement|^2 / length) / 4)``,
+    from which one ``D`` is drawn per location draw.
+    """
     tree = request["tree"]
-    location_by_clone = {location["clone_id"]: location for location in request["clone_locations"]}
-    rng = np.random.default_rng(request["seed"])
     location_draws = {}
     for clone_id, location in location_by_clone.items():
         location_draws[clone_id] = rng.multivariate_normal(
@@ -69,14 +159,33 @@ def main():
     for draw in range(request["posterior_draws"]):
         scaled_sum = 0.0
         for branch in tree["branches"]:
-            displacement = location_draws[branch["child"]][draw] - location_draws[branch["parent"]][draw]
+            displacement = (
+                location_draws[branch["child"]][draw] - location_draws[branch["parent"]][draw]
+            )
             scaled_sum += float(displacement @ displacement) / branch["length"]
-        shape = request["diffusion_prior"]["inverse_gamma_shape"] + len(tree["branches"]) * dimension / 2.0
+        shape = (
+            request["diffusion_prior"]["inverse_gamma_shape"]
+            + len(tree["branches"]) * dimension / 2.0
+        )
         scale = request["diffusion_prior"]["inverse_gamma_scale"] + scaled_sum / 4.0
         posterior_shapes.append(shape)
         posterior_scales.append(scale)
         diffusion_draws.append(float(invgamma.rvs(shape, scale=scale, random_state=rng)))
-    diffusion_draws = np.asarray(diffusion_draws)
+    return np.asarray(diffusion_draws), posterior_shapes, posterior_scales
+
+
+def main():
+    require_versions(numpy=np.__version__, scipy=scipy.__version__)
+    request_bytes = read_request(32 * MIB)
+    request = json.loads(request_bytes)
+    if request["format"] != "marklab.scipy_clone_models_request" or request["version"] != 1:
+        raise ContractError("request identity mismatch")
+    tree = request["tree"]
+    location_by_clone = {location["clone_id"]: location for location in request["clone_locations"]}
+    rng = np.random.default_rng(request["seed"])
+    diffusion_draws, posterior_shapes, posterior_scales = diffusion_posterior(
+        request, location_by_clone, rng
+    )
     cells = request["cells"]
     probabilities = np.asarray([cell["clone_probabilities"] for cell in cells], dtype=float)
     values = np.asarray([cell["neighborhood_features"] for cell in cells], dtype=float)
@@ -97,15 +206,15 @@ def main():
         objectives.append(objective)
     loo_contrasts = []
     for heldout_patient in range(len(patient_ids)):
-        admitted = patient_indices != heldout_patient
-        remap_ids = patient_indices[admitted]
+        retained = patient_indices != heldout_patient
+        remap_ids = patient_indices[retained]
         unique = sorted(set(remap_ids.tolist()))
         remap = {old: new for new, old in enumerate(unique)}
         remapped = np.asarray([remap[value] for value in remap_ids])
         fold = []
         for feature in range(values.shape[1]):
             contrast, _, _, _ = fit_niche(
-                values[admitted, feature], probabilities[admitted], remapped, len(unique)
+                values[retained, feature], probabilities[retained], remapped, len(unique)
             )
             fold.append(contrast)
         loo_contrasts.append(fold)
@@ -115,7 +224,7 @@ def main():
         "format": "marklab.clone_phylogeography_and_niche_models",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "tree": tree,
         "clone_labels": request["clone_labels"],
         "phylogeography": {
@@ -131,7 +240,9 @@ def main():
             "direction_or_history_identified": False,
         },
         "niche_model": {
-            "likelihood": "clone_probability_weighted_two_component_gaussian_with_patient_centering",
+            "likelihood": (
+                "clone_probability_weighted_two_component_gaussian_with_patient_intercepts"
+            ),
             "patient_count": len(patient_ids),
             "cell_count": len(cells),
             "clone_a_minus_b_contrast": contrasts,
@@ -144,13 +255,8 @@ def main():
         },
         "claim_status": "experimental_synthetic_clone_models_no_identified_history",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"clone model worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "clone model worker contract error", errors=CONTRACT_ERRORS)

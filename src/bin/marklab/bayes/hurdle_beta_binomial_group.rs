@@ -1,71 +1,24 @@
 use std::{fs, path::PathBuf};
 
-use clap::{Args, Parser, Subcommand};
+use clap::Args;
 use marklab_bayes::{
-    hurdle_beta_binomial_group_data_sha256, sha256_hex, HurdleBetaBinomialGroupInputIdentity,
+    json_sha256, sha256_hex, HurdleBetaBinomialGroupInputIdentity,
     HurdleBetaBinomialGroupPatientData, HurdleBetaBinomialGroupSpec,
-    HurdleBetaBinomialGroupWorkerRequest, HurdleBetaBinomialGroupWorkerResult, NutsSamplingSpec,
+    HurdleBetaBinomialGroupWorkerRequest, HurdleBetaBinomialGroupWorkerResult,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum TopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    HurdleBetaBinomialGroup(Box<HurdleBetaBinomialGroupArgs>),
-}
+use super::worker_identity;
+use super::HurdleBetaBinomialGroupModelArgs;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Args)]
-struct HurdleBetaBinomialGroupArgs {
+pub(crate) struct HurdleBetaBinomialGroupArgs {
+    #[command(flatten)]
+    pub(super) model: HurdleBetaBinomialGroupModelArgs,
+    /// Destination for the analysis output.
     #[arg(long)]
-    input: PathBuf,
-    #[arg(long)]
-    reference_group: String,
-    #[arg(long)]
-    comparison_group: String,
-    #[arg(long, allow_hyphen_values = true)]
-    presence_intercept_prior_mean: f64,
-    #[arg(long)]
-    presence_intercept_prior_sd: f64,
-    #[arg(long)]
-    presence_group_effect_prior_sd: f64,
-    #[arg(long, allow_hyphen_values = true)]
-    abundance_intercept_prior_mean: f64,
-    #[arg(long)]
-    abundance_intercept_prior_sd: f64,
-    #[arg(long)]
-    abundance_group_effect_prior_sd: f64,
-    #[arg(long)]
-    concentration_prior_sd: f64,
-    #[arg(long)]
-    chains: u32,
-    #[arg(long)]
-    tune: u32,
-    #[arg(long)]
-    draws: u32,
-    #[arg(long)]
-    target_accept: f64,
-    #[arg(long)]
-    seed: u64,
-    #[arg(long)]
-    timeout_seconds: u64,
-    #[arg(long)]
-    out: PathBuf,
+    pub(super) out: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -77,33 +30,8 @@ struct PatientRow {
     trials: u64,
 }
 
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Cli {
-        command:
-            TopLevel::Bayes {
-                command: Command::HurdleBetaBinomialGroup(args),
-            },
-    } = Cli::parse();
-    let prepared = prepare(
-        args.input,
-        args.reference_group,
-        args.comparison_group,
-        args.presence_intercept_prior_mean,
-        args.presence_intercept_prior_sd,
-        args.presence_group_effect_prior_sd,
-        args.abundance_intercept_prior_mean,
-        args.abundance_intercept_prior_sd,
-        args.abundance_group_effect_prior_sd,
-        args.concentration_prior_sd,
-        NutsSamplingSpec {
-            chains: args.chains,
-            tune_per_chain: args.tune,
-            draws_per_chain: args.draws,
-            target_accept: args.target_accept,
-            seed: args.seed,
-        },
-        args.timeout_seconds,
-    )?;
+pub(super) fn run(args: HurdleBetaBinomialGroupArgs) -> Result<(), CliError> {
+    let prepared = prepare(args.model)?;
     let result = execute(&prepared)?;
     publish_json(
         &args.out,
@@ -119,31 +47,35 @@ pub(crate) struct PreparedHurdleBetaBinomialGroup {
     pub(crate) timeout_seconds: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    presence_intercept_prior_mean: f64,
-    presence_intercept_prior_sd: f64,
-    presence_group_effect_prior_sd: f64,
-    abundance_intercept_prior_mean: f64,
-    abundance_intercept_prior_sd: f64,
-    abundance_group_effect_prior_sd: f64,
-    concentration_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-) -> Result<PreparedHurdleBetaBinomialGroup, BayesCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| BayesCliError::Io {
+    model: HurdleBetaBinomialGroupModelArgs,
+) -> Result<PreparedHurdleBetaBinomialGroup, CliError> {
+    let HurdleBetaBinomialGroupModelArgs {
+        input: input_path,
+        reference_group,
+        comparison_group,
+        presence_intercept_prior_mean,
+        presence_intercept_prior_sd,
+        presence_group_effect_prior_sd,
+        abundance_intercept_prior_mean,
+        abundance_intercept_prior_sd,
+        abundance_group_effect_prior_sd,
+        concentration_prior_sd,
+        timeout_seconds,
+        nuts,
+    } = model;
+    let sampling = nuts.spec();
+
+    let metadata = fs::metadata(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
     if metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "hurdle beta-binomial input exceeds 16 MiB".into(),
         ));
     }
-    let input_bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+    let input_bytes = fs::read(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
@@ -161,18 +93,11 @@ pub(crate) fn prepare(
             })
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_hurdle_beta_binomial_group_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(
+        repository,
+        "marklab_pymc_hurdle_beta_binomial_group_worker.py",
+    )?;
     let request = HurdleBetaBinomialGroupWorkerRequest::new(
         HurdleBetaBinomialGroupSpec {
             reference_group: reference_group.clone(),
@@ -187,13 +112,13 @@ pub(crate) fn prepare(
             patients,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let input_identity = HurdleBetaBinomialGroupInputIdentity {
         path: input_path.display().to_string(),
-        patient_data_sha256: hurdle_beta_binomial_group_data_sha256(&request.patients)?,
+        patient_data_sha256: json_sha256(&request.patients)?,
         patient_count: request.patients.len(),
         zero_count: request
             .patients
@@ -230,8 +155,8 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedHurdleBetaBinomialGroup,
-) -> Result<HurdleBetaBinomialGroupWorkerResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<HurdleBetaBinomialGroupWorkerResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_hurdle_beta_binomial_group_worker.py",
@@ -241,8 +166,4 @@ pub(crate) fn execute(
     let result: HurdleBetaBinomialGroupWorkerResult = serde_json::from_slice(&result_bytes)?;
     result.validate(&prepared.request, &prepared.request_sha256)?;
     Ok(result)
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

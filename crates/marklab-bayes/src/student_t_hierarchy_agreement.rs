@@ -1,11 +1,17 @@
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
 use serde::{Deserialize, Serialize};
 
+use crate::agreement_metric::AgreementVerdict;
+use crate::agreement_metric::{
+    compare_elements, compare_parameter, ParameterAgreement, PatientAgreement,
+};
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::is_sha256;
+use crate::AgreementStatus;
+use crate::ClaimStatus;
 use crate::{
-    hierarchical::{GaussianHierarchyInputIdentity, PartialPoolingSummary, ScalarPosteriorSummary},
+    hierarchical::{GaussianHierarchyInputIdentity, PartialPoolingSummary},
     hierarchical_agreement::{JAX_VERSION, NUMPYRO_VERSION},
-    sha256_hex, BackendContract, BayesError, FitState, NormalMeanDiagnostics, SamplingSummary,
+    json_sha256, BackendContract, BayesError, FitState, PosteriorDiagnostics, SamplingSummary,
     StudentTHierarchyModelIr, StudentTHierarchyPosterior, StudentTHierarchyPosteriorPredictive,
     StudentTHierarchyWorkerRequest, StudentTHierarchyWorkerResult, WorkerBackend,
 };
@@ -34,14 +40,14 @@ impl NumpyroStudentTHierarchyWorkerRequest {
                 "NumPyro Student-t identities must be SHA-256 digests".into(),
             ));
         }
-        let source_request_sha256 = sha256_hex(&serde_json::to_vec(&source_request)?);
+        let source_request_sha256 = json_sha256(&source_request)?;
         Ok(Self {
             format: REQUEST_FORMAT,
             version: 1,
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -65,7 +71,7 @@ pub struct NumpyroStudentTHierarchyWorkerResult {
     sampling: SamplingSummary,
     posterior: StudentTHierarchyPosterior,
     partial_pooling: Vec<PartialPoolingSummary>,
-    diagnostics: NormalMeanDiagnostics,
+    diagnostics: PosteriorDiagnostics,
     posterior_predictive: StudentTHierarchyPosteriorPredictive,
 }
 
@@ -135,34 +141,12 @@ impl StudentTHierarchyAgreementPolicy {
 }
 
 #[derive(Debug, Serialize)]
-pub struct StudentTParameterAgreement {
-    pub pymc_mean: f64,
-    pub numpyro_mean: f64,
-    pub absolute_difference: f64,
-    pub combined_mcse: f64,
-    pub standardized_difference: f64,
-    pub tolerance: f64,
-    pub intervals_overlap: bool,
-    pub passes: bool,
-}
-
-#[derive(Debug, Serialize)]
-pub struct StudentTPatientMeanAgreement {
-    pub patient_count: usize,
-    pub root_mean_square_difference: f64,
-    pub maximum_absolute_difference: f64,
-    pub maximum_standardized_difference: f64,
-    pub all_intervals_overlap: bool,
-    pub passes: bool,
-}
-
-#[derive(Debug, Serialize)]
 pub struct StudentTHierarchyAgreementComparison {
-    pub global_mean: StudentTParameterAgreement,
-    pub between_patient_sd: StudentTParameterAgreement,
-    pub observation_sd: StudentTParameterAgreement,
-    pub degrees_of_freedom: StudentTParameterAgreement,
-    pub patient_means: StudentTPatientMeanAgreement,
+    pub global_mean: ParameterAgreement,
+    pub between_patient_sd: ParameterAgreement,
+    pub observation_sd: ParameterAgreement,
+    pub degrees_of_freedom: ParameterAgreement,
+    pub patient_means: PatientAgreement,
     pub maximum_standardized_difference: f64,
     pub minimum_location_scale_tolerance: f64,
     pub minimum_degrees_of_freedom_tolerance: f64,
@@ -177,7 +161,7 @@ pub struct StudentTHierarchyBackendSummary {
     pub sampling: SamplingSummary,
     pub posterior: StudentTHierarchyPosterior,
     pub partial_pooling: Vec<PartialPoolingSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: StudentTHierarchyPosteriorPredictive,
 }
 
@@ -188,12 +172,12 @@ pub struct StudentTHierarchyAgreementResult {
     pub model: StudentTHierarchyModelIr,
     pub input: GaussianHierarchyInputIdentity,
     pub fit_state: FitState,
-    pub agreement_status: &'static str,
+    pub agreement_status: AgreementStatus,
     pub pymc: StudentTHierarchyBackendSummary,
     pub numpyro: StudentTHierarchyBackendSummary,
     pub comparison: StudentTHierarchyAgreementComparison,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl StudentTHierarchyAgreementResult {
@@ -212,68 +196,43 @@ impl StudentTHierarchyAgreementResult {
         }
         let global_mean = compare_parameter(
             &pymc.posterior.global_mean,
-            pymc.diagnostics.ess_bulk,
             &numpyro.posterior.global_mean,
-            numpyro.diagnostics.ess_bulk,
             policy.maximum_standardized_difference,
             policy.minimum_location_scale_tolerance,
         );
         let between_patient_sd = compare_parameter(
             &pymc.posterior.between_patient_sd,
-            pymc.diagnostics.ess_bulk,
             &numpyro.posterior.between_patient_sd,
-            numpyro.diagnostics.ess_bulk,
             policy.maximum_standardized_difference,
             policy.minimum_location_scale_tolerance,
         );
         let observation_sd = compare_parameter(
             &pymc.posterior.observation_sd,
-            pymc.diagnostics.ess_bulk,
             &numpyro.posterior.observation_sd,
-            numpyro.diagnostics.ess_bulk,
             policy.maximum_standardized_difference,
             policy.minimum_location_scale_tolerance,
         );
         let degrees_of_freedom = compare_parameter(
             &pymc.posterior.degrees_of_freedom,
-            pymc.diagnostics.ess_bulk,
             &numpyro.posterior.degrees_of_freedom,
-            numpyro.diagnostics.ess_bulk,
             policy.maximum_standardized_difference,
             policy.minimum_degrees_of_freedom_tolerance,
         );
-        let patient_means = compare_patients(
-            &pymc.partial_pooling,
-            &numpyro.partial_pooling,
-            pymc.diagnostics.ess_bulk,
-            numpyro.diagnostics.ess_bulk,
-            policy,
-        );
-        let fits_complete =
-            pymc.fit_state == FitState::Complete && numpyro.fit_state == FitState::Complete;
+        let patient_means =
+            compare_patients(&pymc.partial_pooling, &numpyro.partial_pooling, policy);
         let agrees = global_mean.passes
             && between_patient_sd.passes
             && observation_sd.passes
             && degrees_of_freedom.passes
-            && patient_means.passes;
-        let available = fits_complete && agrees;
+            && patient_means.agreement.passes;
+        let verdict = AgreementVerdict::new(pymc.fit_state, numpyro.fit_state, agrees);
         Ok(Self {
             format: "marklab.bayesian_student_t_cross_backend_agreement",
             version: 1,
             model: source_request.model,
             input,
-            fit_state: if fits_complete {
-                FitState::Complete
-            } else {
-                FitState::Nonconverged
-            },
-            agreement_status: if available {
-                "agree_within_monte_carlo_error"
-            } else if fits_complete {
-                "diagnostic_only_backend_disagreement"
-            } else {
-                "diagnostic_only_nonconverged"
-            },
+            fit_state: verdict.fit_state,
+            agreement_status: verdict.agreement_status,
             comparison: StudentTHierarchyAgreementComparison {
                 global_mean,
                 between_patient_sd,
@@ -288,11 +247,7 @@ impl StudentTHierarchyAgreementResult {
             pymc: summarize(pymc),
             numpyro: summarize(numpyro),
             seed: source_request.sampling.seed,
-            claim_status: if available {
-                "experimental_cross_backend_validation"
-            } else {
-                "diagnostic_only_cross_backend_validation"
-            },
+            claim_status: verdict.claim_status,
         })
     }
 }
@@ -310,68 +265,25 @@ fn summarize(result: StudentTHierarchyWorkerResult) -> StudentTHierarchyBackendS
     }
 }
 
-fn compare_parameter(
-    pymc: &ScalarPosteriorSummary,
-    pymc_ess: f64,
-    numpyro: &ScalarPosteriorSummary,
-    numpyro_ess: f64,
-    maximum_standardized_difference: f64,
-    minimum_tolerance: f64,
-) -> StudentTParameterAgreement {
-    let absolute_difference = (pymc.mean - numpyro.mean).abs();
-    let combined_mcse = (pymc.sd / pymc_ess.sqrt()).hypot(numpyro.sd / numpyro_ess.sqrt());
-    let standardized_difference = standardized(absolute_difference, combined_mcse);
-    let tolerance = minimum_tolerance.max(maximum_standardized_difference * combined_mcse);
-    let intervals_overlap = pymc.interval_lower <= numpyro.interval_upper
-        && numpyro.interval_lower <= pymc.interval_upper;
-    StudentTParameterAgreement {
-        pymc_mean: pymc.mean,
-        numpyro_mean: numpyro.mean,
-        absolute_difference,
-        combined_mcse,
-        standardized_difference,
-        tolerance,
-        intervals_overlap,
-        passes: intervals_overlap && absolute_difference <= tolerance,
-    }
-}
-
 fn compare_patients(
     pymc: &[PartialPoolingSummary],
     numpyro: &[PartialPoolingSummary],
-    pymc_ess: f64,
-    numpyro_ess: f64,
     policy: StudentTHierarchyAgreementPolicy,
-) -> StudentTPatientMeanAgreement {
-    let mut squared = 0.0;
-    let mut maximum_absolute = 0.0_f64;
-    let mut maximum_standardized = 0.0_f64;
-    let mut overlaps = true;
-    let mut passes = true;
-    for (left, right) in pymc.iter().zip(numpyro) {
-        let difference = (left.posterior_mean - right.posterior_mean).abs();
-        let mcse =
-            (left.posterior_sd / pymc_ess.sqrt()).hypot(right.posterior_sd / numpyro_ess.sqrt());
-        let standardized_difference = standardized(difference, mcse);
-        let tolerance = policy
-            .minimum_patient_tolerance
-            .max(policy.maximum_standardized_difference * mcse);
-        let overlap = left.interval_lower <= right.interval_upper
-            && right.interval_lower <= left.interval_upper;
-        squared += difference * difference;
-        maximum_absolute = maximum_absolute.max(difference);
-        maximum_standardized = maximum_standardized.max(standardized_difference);
-        overlaps &= overlap;
-        passes &= left.patient_id == right.patient_id && overlap && difference <= tolerance;
-    }
-    StudentTPatientMeanAgreement {
+) -> PatientAgreement {
+    let identities_match = pymc
+        .iter()
+        .zip(numpyro)
+        .all(|(left, right)| left.patient_id == right.patient_id);
+    let mut agreement = compare_elements(
+        pymc.iter()
+            .zip(numpyro)
+            .map(|(left, right)| (left.posterior(), right.posterior())),
+        policy.maximum_standardized_difference,
+        policy.minimum_patient_tolerance,
+    );
+    agreement.passes &= identities_match;
+    PatientAgreement {
         patient_count: pymc.len(),
-        root_mean_square_difference: (squared / pymc.len() as f64).sqrt(),
-        maximum_absolute_difference: maximum_absolute,
-        maximum_standardized_difference: maximum_standardized,
-        all_intervals_overlap: overlaps,
-        passes,
+        agreement,
     }
 }
-
-use crate::agreement_metric::standardized_mcse_difference as standardized;

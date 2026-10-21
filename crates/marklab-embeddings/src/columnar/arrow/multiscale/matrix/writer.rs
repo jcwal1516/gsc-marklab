@@ -1,4 +1,5 @@
-use std::{io::Write, mem::size_of, sync::Arc};
+use crate::columnar::arrow::multiscale::writer::enforce_footer_bound;
+use std::{io::Write, sync::Arc};
 
 use crate::{PatchEmbeddingTable, RegionEmbeddingTable, SlideEmbeddingTable};
 use arrow::{
@@ -9,12 +10,10 @@ use arrow::{
 
 use super::super::physical::{enforce_writer_budgets, write_record_batches};
 use super::profile::{schema, BUFFER_COUNT};
-use crate::columnar::arrow::profile::{
-    ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
-};
+use crate::columnar::arrow::profile::{ALIGNMENT, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS};
 use crate::columnar::{
     multiscale::{matrix_decoded_bytes, validate_matrix_domain, MultiscaleMatrixTable},
-    ColumnarWriteSummary, EmbeddingColumnarBudgets, MultiscaleColumnarError,
+    ColumnarError, ColumnarWriteSummary, EmbeddingColumnarBudgets,
 };
 
 macro_rules! typed_writer {
@@ -24,7 +23,7 @@ macro_rules! typed_writer {
             output: &mut dyn Write,
             table: &$table,
             budgets: EmbeddingColumnarBudgets,
-        ) -> Result<ColumnarWriteSummary, MultiscaleColumnarError> {
+        ) -> Result<ColumnarWriteSummary, ColumnarError> {
             write_matrix_arrow(output, table, budgets)
         }
     };
@@ -38,7 +37,7 @@ fn write_matrix_arrow(
     output: &mut dyn Write,
     table: &dyn MultiscaleMatrixTable,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<ColumnarWriteSummary, MultiscaleColumnarError> {
+) -> Result<ColumnarWriteSummary, ColumnarError> {
     validate_matrix_domain(table)?;
     let row_count = table.row_count();
     enforce_footer_bound(row_count)?;
@@ -67,27 +66,24 @@ fn build_batch(
     table: &dyn MultiscaleMatrixTable,
     start: usize,
     end: usize,
-) -> Result<RecordBatch, MultiscaleColumnarError> {
-    let rows = end
-        .checked_sub(start)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    let dimension =
-        usize::try_from(table.dimension()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<RecordBatch, ColumnarError> {
+    let rows = end.checked_sub(start).ok_or(ColumnarError::SizeOverflow)?;
+    let dimension = usize::try_from(table.dimension()).map_err(|_| ColumnarError::SizeOverflow)?;
     let component_count = rows
         .checked_mul(dimension)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let (id_bytes, status_bytes) =
         (start..end).try_fold((0_usize, 0_usize), |(id_total, status_total), index| {
             let row = table
                 .row(index)
-                .map_err(|_| MultiscaleColumnarError::ArtifactBindingMismatch)?;
-            Ok::<_, MultiscaleColumnarError>((
+                .map_err(|_| ColumnarError::ArtifactBindingMismatch)?;
+            Ok::<_, ColumnarError>((
                 id_total
                     .checked_add(row.id().len())
-                    .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                    .ok_or(ColumnarError::SizeOverflow)?,
                 status_total
                     .checked_add(row.status().wire_name().len())
-                    .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                    .ok_or(ColumnarError::SizeOverflow)?,
             ))
         })?;
     let mut ids = StringBuilder::with_capacity(rows, id_bytes);
@@ -95,16 +91,15 @@ fn build_batch(
     let list_field = match schema.field(1).data_type() {
         DataType::FixedSizeList(field, observed)
             if *observed
-                == i32::try_from(table.dimension())
-                    .map_err(|_| MultiscaleColumnarError::SizeOverflow)? =>
+                == i32::try_from(table.dimension()).map_err(|_| ColumnarError::SizeOverflow)? =>
         {
             Arc::clone(field)
         }
-        _ => return Err(MultiscaleColumnarError::ArrowWriter),
+        _ => return Err(ColumnarError::ArrowWriter),
     };
     let mut embeddings = FixedSizeListBuilder::with_capacity(
         values,
-        i32::try_from(table.dimension()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        i32::try_from(table.dimension()).map_err(|_| ColumnarError::SizeOverflow)?,
         rows,
     )
     .with_field(list_field);
@@ -112,7 +107,7 @@ fn build_batch(
     for index in start..end {
         let row = table
             .row(index)
-            .map_err(|_| MultiscaleColumnarError::ArtifactBindingMismatch)?;
+            .map_err(|_| ColumnarError::ArtifactBindingMismatch)?;
         ids.append_value(row.id());
         if let Some(vector) = row.vector() {
             embeddings.values().append_slice(vector);
@@ -129,8 +124,7 @@ fn build_batch(
         Arc::new(embeddings.finish()),
         Arc::new(statuses.finish()),
     ];
-    RecordBatch::try_new(Arc::new(schema.clone()), columns)
-        .map_err(|_| MultiscaleColumnarError::ArrowWriter)
+    RecordBatch::try_new(Arc::new(schema.clone()), columns).map_err(|_| ColumnarError::ArrowWriter)
 }
 
 #[derive(Clone, Copy)]
@@ -139,7 +133,7 @@ struct Estimates {
     maximum_batch: usize,
 }
 
-fn estimates(table: &dyn MultiscaleMatrixTable) -> Result<Estimates, MultiscaleColumnarError> {
+fn estimates(table: &dyn MultiscaleMatrixTable) -> Result<Estimates, ColumnarError> {
     let mut decoded = 0_u64;
     let mut maximum_batch = 0_usize;
     let mut start = 0_usize;
@@ -147,16 +141,16 @@ fn estimates(table: &dyn MultiscaleMatrixTable) -> Result<Estimates, MultiscaleC
         let end = start
             .checked_add(RECORD_BATCH_ROWS)
             .map(|value| value.min(table.row_count()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let bytes = matrix_decoded_bytes(table, start, end)?;
         decoded = decoded
-            .checked_add(u64::try_from(bytes).map_err(|_| MultiscaleColumnarError::SizeOverflow)?)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .checked_add(u64::try_from(bytes).map_err(|_| ColumnarError::SizeOverflow)?)
+            .ok_or(ColumnarError::SizeOverflow)?;
         maximum_batch = maximum_batch.max(
             bytes
                 .checked_add(BUFFER_COUNT * (ALIGNMENT - 1))
                 .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                .ok_or(ColumnarError::SizeOverflow)?,
         );
         start = end;
     }
@@ -164,18 +158,4 @@ fn estimates(table: &dyn MultiscaleMatrixTable) -> Result<Estimates, MultiscaleC
         decoded,
         maximum_batch,
     })
-}
-
-fn enforce_footer_bound(row_count: usize) -> Result<(), MultiscaleColumnarError> {
-    let record_blocks = row_count
-        .div_ceil(RECORD_BATCH_ROWS)
-        .checked_mul(size_of::<arrow_ipc::Block>())
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    let footer_bound = record_blocks
-        .checked_add(MAXIMUM_MESSAGE_BYTES)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    if footer_bound > MAXIMUM_FOOTER_BYTES {
-        return Err(MultiscaleColumnarError::ArrowWriter);
-    }
-    Ok(())
 }

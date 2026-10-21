@@ -1,29 +1,22 @@
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
-use std::collections::BTreeSet;
+use crate::is_worker_timeout;
+use crate::validation::is_sha256;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::sbc::{
+    validate_sbc_replicates, SbcCalibrationPolicy, SbcControls, SbcReplicateRow, SbcSamplerRow,
+};
+use crate::ClaimStatus;
 use crate::{
     hierarchical_agreement::{JAX_VERSION, NUMPYRO_VERSION},
     BackendContract, BayesError, DirichletMultinomialGroupModelIr,
-    DirichletMultinomialGroupWorkerRequest, FitState, HierarchicalSbcFailure,
-    HierarchicalSbcParameterDiagnostics, NutsSamplingSpec, WorkerBackend,
+    DirichletMultinomialGroupWorkerRequest, FitState, HierarchicalSbcFailure, NutsSamplingSpec,
+    SbcParameterDiagnostics, WorkerBackend,
 };
 
 const REQUEST_FORMAT: &str = "marklab.numpyro_dirichlet_multinomial_group_sbc_worker_request";
 const RESULT_FORMAT: &str = "marklab.numpyro_dirichlet_multinomial_group_sbc_worker_result";
-
-#[derive(Clone, Debug, Serialize)]
-pub struct DirichletMultinomialGroupSbcCalibrationPolicy {
-    pub replicates: u32,
-    pub rank_bins: u32,
-    pub interval_probability: f64,
-    pub maximum_tree_depth: u32,
-    pub minimum_rank_uniformity_p_value: f64,
-    pub minimum_coverage: f64,
-    pub maximum_coverage: f64,
-}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct DirichletMultinomialGroupSbcResourceLimits {
@@ -42,38 +35,30 @@ pub struct NumpyroDirichletMultinomialGroupSbcWorkerRequest {
     pub jax_version: &'static str,
     pub source_request_sha256: String,
     pub source_request: DirichletMultinomialGroupWorkerRequest,
-    pub calibration: DirichletMultinomialGroupSbcCalibrationPolicy,
+    pub calibration: SbcCalibrationPolicy,
     pub resources: DirichletMultinomialGroupSbcResourceLimits,
 }
 
 impl NumpyroDirichletMultinomialGroupSbcWorkerRequest {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_request: DirichletMultinomialGroupWorkerRequest,
-        replicates: u32,
-        minimum_rank_uniformity_p_value: f64,
-        minimum_coverage: f64,
-        maximum_coverage: f64,
+        controls: SbcControls,
         environment_lock_sha256: String,
         worker_sha256: String,
         timeout_seconds: u64,
     ) -> Result<Self, BayesError> {
-        if !(20..=100).contains(&replicates)
-            || !minimum_rank_uniformity_p_value.is_finite()
-            || !(0.0..0.1).contains(&minimum_rank_uniformity_p_value)
-            || !minimum_coverage.is_finite()
-            || !maximum_coverage.is_finite()
-            || !(0.0..=1.0).contains(&minimum_coverage)
-            || !(0.0..=1.0).contains(&maximum_coverage)
-            || minimum_coverage > maximum_coverage
-            || !is_sha256(&environment_lock_sha256)
-            || !is_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
-        {
-            return Err(BayesError::InvalidSpec(
-                "Dirichlet-multinomial SBC controls or identities are invalid".into(),
-            ));
-        }
+        let calibration = SbcCalibrationPolicy::new(controls)
+            .filter(|_| {
+                is_sha256(&environment_lock_sha256)
+                    && is_sha256(&worker_sha256)
+                    && is_worker_timeout(timeout_seconds)
+            })
+            .ok_or_else(|| {
+                BayesError::InvalidSpec(
+                    "Dirichlet-multinomial SBC controls or identities are invalid".into(),
+                )
+            })?;
+        let replicates = calibration.replicates;
         let cells = source_request
             .patients
             .iter()
@@ -100,29 +85,21 @@ impl NumpyroDirichletMultinomialGroupSbcWorkerRequest {
                 "Dirichlet-multinomial SBC exceeds cell or iteration limits".into(),
             ));
         }
-        let source_request_sha256 = crate::sha256_hex(&serde_json::to_vec(&source_request)?);
+        let source_request_sha256 = crate::json_sha256(&source_request)?;
         Ok(Self {
             format: REQUEST_FORMAT,
             version: 1,
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
             jax_version: JAX_VERSION,
             source_request_sha256,
             source_request,
-            calibration: DirichletMultinomialGroupSbcCalibrationPolicy {
-                replicates,
-                rank_bins: 10,
-                interval_probability: 0.9,
-                maximum_tree_depth: 12,
-                minimum_rank_uniformity_p_value,
-                minimum_coverage,
-                maximum_coverage,
-            },
+            calibration,
             resources: DirichletMultinomialGroupSbcResourceLimits {
                 maximum_replicates: 100,
                 maximum_simulated_cells,
@@ -158,13 +135,63 @@ pub struct DirichletMultinomialGroupSbcReplicate {
     pub max_tree_depth_hits: u64,
 }
 
+impl SbcReplicateRow for DirichletMultinomialGroupSbcReplicate {
+    fn replicate(&self) -> u32 {
+        self.replicate
+    }
+
+    /// Ranks in diagnostics order: baseline logits, group effects, concentration, then
+    /// class-probability differences.
+    fn ranks(&self) -> Vec<(u32, bool)> {
+        let pairs = |ranks: &[u32], covered: &[bool]| -> Vec<(u32, bool)> {
+            ranks.iter().copied().zip(covered.iter().copied()).collect()
+        };
+        let mut ranks = pairs(&self.baseline_logit_ranks, &self.baseline_logit_covered);
+        ranks.extend(pairs(
+            &self.group_log_ratio_effect_ranks,
+            &self.group_log_ratio_effect_covered,
+        ));
+        ranks.push((self.concentration_rank, self.concentration_covered));
+        ranks.extend(pairs(
+            &self.class_probability_difference_ranks,
+            &self.class_probability_difference_covered,
+        ));
+        ranks
+    }
+
+    fn truths_valid(&self) -> bool {
+        self.true_baseline_logits
+            .iter()
+            .chain(&self.true_group_log_ratio_effects)
+            .chain(&self.true_class_probability_differences)
+            .chain(std::iter::once(&self.true_concentration))
+            .all(|value| value.is_finite())
+            && self.true_concentration > 0.0
+            && self
+                .true_class_probability_differences
+                .iter()
+                .all(|value| (-1.0..1.0).contains(value))
+    }
+
+    fn sampler(&self) -> SbcSamplerRow {
+        SbcSamplerRow {
+            r_hat: self.r_hat,
+            ess_bulk: self.ess_bulk,
+            ess_tail: self.ess_tail,
+            minimum_ebfmi: Some(self.minimum_ebfmi),
+            divergences: self.divergences,
+            max_tree_depth_hits: self.max_tree_depth_hits,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DirichletMultinomialGroupSbcDiagnostics {
-    pub baseline_logits: Vec<HierarchicalSbcParameterDiagnostics>,
-    pub group_log_ratio_effects: Vec<HierarchicalSbcParameterDiagnostics>,
-    pub concentration: HierarchicalSbcParameterDiagnostics,
-    pub class_probability_differences: Vec<HierarchicalSbcParameterDiagnostics>,
+    pub baseline_logits: Vec<SbcParameterDiagnostics>,
+    pub group_log_ratio_effects: Vec<SbcParameterDiagnostics>,
+    pub concentration: SbcParameterDiagnostics,
+    pub class_probability_differences: Vec<SbcParameterDiagnostics>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -191,11 +218,7 @@ impl NumpyroDirichletMultinomialGroupSbcWorkerResult {
         let free = classes - 1;
         if self.format != RESULT_FORMAT
             || self.version != 1
-            || self.backend.name != request.backend.name
-            || self.backend.version != request.backend.version
-            || self.backend.python_version != request.backend.python_version
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.jax_version != JAX_VERSION
             || self.request_sha256 != request_sha256
             || self.replicates.len() + self.failures.len()
@@ -208,12 +231,8 @@ impl NumpyroDirichletMultinomialGroupSbcWorkerResult {
                 "Dirichlet-multinomial SBC result identity or dimensions mismatch".into(),
             ));
         }
-        let posterior_draws = request.source_request.sampling.chains
-            * request.source_request.sampling.draws_per_chain;
-        let policy = &request.source_request.diagnostic_policy;
-        let mut dispositions = BTreeSet::new();
-        for row in &self.replicates {
-            let vector_dimensions = row.true_baseline_logits.len() == free
+        let dimensions_match = self.replicates.iter().all(|row| {
+            row.true_baseline_logits.len() == free
                 && row.true_group_log_ratio_effects.len() == free
                 && row.true_class_probability_differences.len() == classes
                 && row.baseline_logit_ranks.len() == free
@@ -221,97 +240,32 @@ impl NumpyroDirichletMultinomialGroupSbcWorkerResult {
                 && row.class_probability_difference_ranks.len() == classes
                 && row.baseline_logit_covered.len() == free
                 && row.group_log_ratio_effect_covered.len() == free
-                && row.class_probability_difference_covered.len() == classes;
-            if row.replicate >= request.calibration.replicates
-                || !dispositions.insert(row.replicate)
-                || !vector_dimensions
-                || row
-                    .baseline_logit_ranks
-                    .iter()
-                    .chain(&row.group_log_ratio_effect_ranks)
-                    .chain(&row.class_probability_difference_ranks)
-                    .chain(std::iter::once(&row.concentration_rank))
-                    .any(|rank| *rank > posterior_draws)
-                || row
-                    .true_baseline_logits
-                    .iter()
-                    .chain(&row.true_group_log_ratio_effects)
-                    .chain(&row.true_class_probability_differences)
-                    .chain([
-                        &row.true_concentration,
-                        &row.r_hat,
-                        &row.ess_bulk,
-                        &row.ess_tail,
-                        &row.minimum_ebfmi,
-                    ])
-                    .any(|value| !value.is_finite())
-                || row.true_concentration <= 0.0
-                || row
-                    .true_class_probability_differences
-                    .iter()
-                    .any(|value| !(-1.0..1.0).contains(value))
-                || row.r_hat > policy.maximum_r_hat
-                || row.ess_bulk < policy.minimum_bulk_ess
-                || row.ess_tail < policy.minimum_tail_ess
-                || row.minimum_ebfmi < policy.minimum_ebfmi
-                || row.divergences > policy.maximum_divergences
-                || row.max_tree_depth_hits > policy.maximum_tree_depth_hits
-            {
-                return Err(BayesError::WorkerContract(
-                    "Dirichlet-multinomial SBC replicate is invalid".into(),
-                ));
-            }
+                && row.class_probability_difference_covered.len() == classes
+        });
+        if !dimensions_match {
+            return Err(BayesError::WorkerContract(
+                "Dirichlet-multinomial SBC replicate is invalid".into(),
+            ));
         }
-        for failure in &self.failures {
-            if failure.replicate >= request.calibration.replicates
-                || !dispositions.insert(failure.replicate)
-                || failure.reason.is_empty()
-                || failure.reason.len() > 512
-            {
-                return Err(BayesError::WorkerContract(
-                    "Dirichlet-multinomial SBC failure disposition is invalid".into(),
-                ));
-            }
-        }
-        let diagnostics = self
+        let diagnostics: Vec<&SbcParameterDiagnostics> = self
             .diagnostics
             .baseline_logits
             .iter()
             .chain(&self.diagnostics.group_log_ratio_effects)
             .chain(std::iter::once(&self.diagnostics.concentration))
             .chain(&self.diagnostics.class_probability_differences)
-            .collect::<Vec<_>>();
-        for diagnostic in &diagnostics {
-            if diagnostic.rank_histogram.len() != request.calibration.rank_bins as usize
-                || diagnostic.rank_histogram.iter().sum::<u32>() != self.replicates.len() as u32
-                || ![
-                    diagnostic.rank_uniformity_p_value,
-                    diagnostic.coverage_90,
-                    diagnostic.mean_normalized_rank,
-                ]
-                .iter()
-                .all(|value| value.is_finite() && (0.0..=1.0).contains(value))
-            {
-                return Err(BayesError::WorkerContract(
-                    "Dirichlet-multinomial SBC diagnostics are invalid".into(),
-                ));
-            }
-        }
-        let passes = self.failures.is_empty()
-            && diagnostics.iter().all(|diagnostic| {
-                diagnostic.rank_uniformity_p_value
-                    >= request.calibration.minimum_rank_uniformity_p_value
-                    && (request.calibration.minimum_coverage..=request.calibration.maximum_coverage)
-                        .contains(&diagnostic.coverage_90)
-            });
-        if dispositions.len() != request.calibration.replicates as usize
-            || (self.fit_state == FitState::Complete) != passes
-        {
-            return Err(BayesError::WorkerContract(
-                "Dirichlet-multinomial SBC disposition or fit state is invalid".into(),
-            ));
-        }
-        Ok(())
+            .collect();
+        validate_sbc_replicates(
+            &self.replicates,
+            &self.failures,
+            &diagnostics,
+            &request.calibration,
+            request.source_request.sampling.chains
+                * request.source_request.sampling.draws_per_chain,
+            &request.source_request.diagnostic_policy,
+            self.fit_state,
+        )
+        .map_err(|violation| violation.error("Dirichlet-multinomial"))
     }
 
     pub fn into_result(
@@ -332,9 +286,9 @@ impl NumpyroDirichletMultinomialGroupSbcWorkerResult {
             failures: self.failures,
             diagnostics: self.diagnostics,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_simulation_calibration"
+                ClaimStatus::ExperimentalSimulationCalibration
             } else {
-                "diagnostic_only_failed_calibration"
+                ClaimStatus::DiagnosticOnlyFailedCalibration
             },
             request_sha256: self.request_sha256,
         }
@@ -349,12 +303,12 @@ pub struct DirichletMultinomialGroupSbcResult {
     pub jax_version: String,
     pub model: DirichletMultinomialGroupModelIr,
     pub sampling: NutsSamplingSpec,
-    pub calibration: DirichletMultinomialGroupSbcCalibrationPolicy,
+    pub calibration: SbcCalibrationPolicy,
     pub resources: DirichletMultinomialGroupSbcResourceLimits,
     pub fit_state: FitState,
     pub replicates: Vec<DirichletMultinomialGroupSbcReplicate>,
     pub failures: Vec<HierarchicalSbcFailure>,
     pub diagnostics: DirichletMultinomialGroupSbcDiagnostics,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }

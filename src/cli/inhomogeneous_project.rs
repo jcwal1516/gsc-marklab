@@ -1,8 +1,8 @@
 use std::{fs, path::Path};
 
 use crate::{
-    DurableProject, DurableProjectLimits, LocalArtifactStore, MarklabError, MarklabProject,
-    ObservationWindow2D, ObservationWindowLimits, Pattern, PatternLoader, Result, StoreId,
+    workflow::{DurableProject, DurableProjectLimits, LocalArtifactStore, MarklabProject, StoreId},
+    MarklabError, ObservationWindow2D, ObservationWindowLimits, Pattern, PatternLoader, Result,
     TumorMask,
 };
 
@@ -11,10 +11,6 @@ pub(super) use super::project_output::write_output;
 
 const SOURCE_CELLS_KIND: &str = "application/vnd.marklab.source.point-table;version=1";
 const SOURCE_WINDOW_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";
-const PROJECT_CONTROL_BYTES: usize = 1024 * 1024;
-const PROJECT_LEDGER_BYTES: usize = 16 * 1024 * 1024;
-const PROJECT_LEDGER_RECORDS: usize = 10_000;
-const PROJECT_RECORD_BYTES: usize = 64 * 1024;
 
 pub(super) struct PrepareRequest<'a> {
     pub project: &'a Path,
@@ -60,14 +56,8 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedInhomogeneo
             request.source_change_message.into(),
         ));
     }
-    let durable_limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        memory_bytes,
-    )
-    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let durable_limits = DurableProjectLimits::for_object_bytes(memory_bytes)
+        .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let durable = DurableProject::open_or_create(request.project, durable_limits)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
     let store_path = request.project.join(request.store_id);

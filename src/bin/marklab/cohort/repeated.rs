@@ -1,12 +1,13 @@
-use std::path::PathBuf;
-
 use marklab_cohort::{
     repeated_measures_freedman_lane, InferenceNullFamily, InferencePermutationUnit,
     RepeatedFreedmanLaneResult, RepeatedFreedmanLaneSpec, RepeatedMeasureRecord,
 };
 use serde::{Deserialize, Serialize};
 
-use super::{input::validate_input_file_with_message, publication::publish_json, CohortError};
+use super::{
+    input::validate_input_file_with_message, publication::publish_json, CohortError,
+    RepeatedFreedmanLaneArgs,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -47,17 +48,17 @@ struct Design {
 #[derive(Debug, Serialize)]
 struct Permutations {
     requested: usize,
-    completed: usize,
     seed: u64,
     alternative: &'static str,
 }
 
-pub(super) fn run(
-    input: PathBuf,
-    permutations: usize,
-    seed: u64,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run(args: RepeatedFreedmanLaneArgs) -> Result<(), CohortError> {
+    let RepeatedFreedmanLaneArgs {
+        input,
+        permutations,
+        seed,
+        out,
+    } = args;
     let records = read_records(&input)?;
     let result = repeated_measures_freedman_lane(
         &records,
@@ -100,7 +101,6 @@ impl From<RepeatedFreedmanLaneResult> for Output {
             p_value: result.p_value,
             permutations: Permutations {
                 requested: result.permutations_requested,
-                completed: result.permutations_completed,
                 seed: result.seed,
                 alternative: "two_sided",
             },

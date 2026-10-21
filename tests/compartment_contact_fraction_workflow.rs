@@ -1,11 +1,16 @@
 use approx::assert_abs_diff_eq;
 use marklab::{
-    compartment_contact_fractions, execute_algorithm, ArtifactRef, ArtifactSchema,
-    BinaryCompartmentPartition2D, CacheStatus, CompartmentContactAnalysisNode,
-    CompartmentContactResult, CompartmentPartitionLimits, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, DurableProject, DurableProjectLimits,
-    LocalScheduler, MarklabProject, NativeRuntimeProvenance, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, SchedulerLimits, SpatialAxis, WorkflowGraph,
+    compartments::{
+        compartment_contact_fractions, BinaryCompartmentPartition2D,
+        CompartmentContactAnalysisNode, CompartmentContactResult, CompartmentPartitionLimits,
+    },
+    workflow::{
+        execute_algorithm, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, MarklabProject, NativeRuntimeProvenance, NodeId,
+        SchedulerLimits, WorkflowGraph,
+    },
+    CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit,
+    ObservationWindow2D, ObservationWindowLimits, SpatialAxis,
 };
 
 const GEOS_ORACLE: &str = include_str!("fixtures/compartment_partition/geos_rectangle_oracle.json");

@@ -1,77 +1,92 @@
 #!/usr/bin/env python3
-"""Static PyMC worker for Marklab's VFE inducing-point GP."""
+"""PyMC worker for a variational (VFE) inducing-point Matern-3/2 Gaussian process."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
-import numpy as np
 sys.path.append(str(Path(__file__).resolve().parent))
-import marklab_pytensor_config  # noqa: E402,F401
+
+# Configure PyTensor before PyMC is imported.
+from marklab_worker_support import pytensor_config  # noqa: F401
+
+# isort: split
+import numpy as np
 import pymc as pm
 
-PYMC_VERSION = "6.3.0"
+from marklab_worker_support import versions
+from marklab_worker_support.posterior import summary
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
-
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys-actual)}, unknown={sorted(actual-keys)}"
-        )
-    return value
-
-
-def num(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    value = float(value)
-    if not math.isfinite(value):
-        raise ContractError(f"{path} must be finite")
-    return value
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low},{high}]")
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
+RESULT_FORMAT = "marklab.pymc_variational_gp_worker_result"
+PARAMETERS = ["mean", "amplitude", "length_scale_um", "noise_sd"]
 
 
 def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
     request = obj(
         request,
-        {"format", "version", "backend", "model", "observations", "predictions", "inference", "resources"},
+        {
+            "format",
+            "version",
+            "backend",
+            "model",
+            "observations",
+            "predictions",
+            "inference",
+            "resources",
+        },
         "request",
     )
     exact(request["format"], "marklab.pymc_worker_request", "request.format")
     integer(request["version"], "request.version", 1, 1)
-    backend = obj(request["backend"], {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"}, "backend")
-    exact(backend["name"], "pymc", "backend.name")
-    exact(backend["version"], PYMC_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_sha, "backend.lock")
-    exact(backend["worker_sha256"], worker_sha, "backend.worker")
+    validate_backend(
+        request["backend"],
+        "backend",
+        name="pymc",
+        version=versions.PYMC,
+        lock_sha256=lock_sha,
+        worker_sha256=worker_sha,
+    )
     model = obj(
         request["model"],
         {
-            "format", "version", "family", "approximation", "coordinate_dimension",
-            "coordinate_unit", "kernel", "mean_prior_mean", "mean_prior_sd",
-            "amplitude_prior_sd", "length_scale_prior_sd_um", "noise_prior_sd", "jitter",
-            "inducing_initialization", "inducing_constraint", "fit_state_ceiling", "maturity",
+            "format",
+            "version",
+            "family",
+            "approximation",
+            "coordinate_dimension",
+            "coordinate_unit",
+            "kernel",
+            "mean_prior_mean",
+            "mean_prior_sd",
+            "amplitude_prior_sd",
+            "length_scale_prior_sd_um",
+            "noise_prior_sd",
+            "jitter",
+            "inducing_initialization",
+            "inducing_constraint",
+            "fit_state_ceiling",
+            "maturity",
         },
         "model",
     )
@@ -82,12 +97,12 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
     integer(model["coordinate_dimension"], "model.dimension", 1, 1)
     exact(model["coordinate_unit"], "micrometre", "model.unit")
     exact(model["kernel"], "matern_3_2", "model.kernel")
-    mean_prior_mean = num(model["mean_prior_mean"], "model.mean prior mean")
-    mean_prior_sd = num(model["mean_prior_sd"], "model.mean prior SD")
-    amplitude_prior_sd = num(model["amplitude_prior_sd"], "model.amplitude prior")
-    length_prior_sd = num(model["length_scale_prior_sd_um"], "model.length prior")
-    noise_prior_sd = num(model["noise_prior_sd"], "model.noise prior")
-    jitter = num(model["jitter"], "model.jitter")
+    mean_prior_mean = number(model["mean_prior_mean"], "model.mean prior mean")
+    mean_prior_sd = number(model["mean_prior_sd"], "model.mean prior SD")
+    amplitude_prior_sd = number(model["amplitude_prior_sd"], "model.amplitude prior")
+    length_prior_sd = number(model["length_scale_prior_sd_um"], "model.length prior")
+    noise_prior_sd = number(model["noise_prior_sd"], "model.noise prior")
+    jitter = number(model["jitter"], "model.jitter")
     if min(mean_prior_sd, amplitude_prior_sd, length_prior_sd, noise_prior_sd, jitter) <= 0.0:
         raise ContractError("prior scales and jitter must be positive")
     exact(model["inducing_initialization"], "coordinate_quantiles", "model.initialization")
@@ -103,8 +118,13 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
     for index, value in enumerate(observations):
         row = obj(value, {"observation_id", "x_um", "value"}, f"observations[{index}]")
         row_id = row["observation_id"]
-        coordinate = num(row["x_um"], "observation coordinate")
-        if not isinstance(row_id, str) or not row_id or row_id.strip() != row_id or (observation_ids and row_id <= observation_ids[-1]):
+        coordinate = number(row["x_um"], "observation coordinate")
+        if (
+            not isinstance(row_id, str)
+            or not row_id
+            or row_id.strip() != row_id
+            or (observation_ids and row_id <= observation_ids[-1])
+        ):
             raise ContractError("observation IDs must be exact and strictly increasing")
         bits = np.float64(coordinate).view(np.uint64).item()
         if bits in coordinate_bits:
@@ -112,7 +132,7 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
         coordinate_bits.add(bits)
         observation_ids.append(row_id)
         x.append(coordinate)
-        y.append(num(row["value"], "observation value"))
+        y.append(number(row["value"], "observation value"))
     predictions = request["predictions"]
     if not isinstance(predictions, list) or not 1 <= len(predictions) <= 2_048:
         raise ContractError("predictions must contain 1-2048 rows")
@@ -120,30 +140,71 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
     for index, value in enumerate(predictions):
         row = obj(value, {"prediction_id", "x_um"}, f"predictions[{index}]")
         row_id = row["prediction_id"]
-        if not isinstance(row_id, str) or not row_id or row_id.strip() != row_id or (prediction_ids and row_id <= prediction_ids[-1]):
+        if (
+            not isinstance(row_id, str)
+            or not row_id
+            or row_id.strip() != row_id
+            or (prediction_ids and row_id <= prediction_ids[-1])
+        ):
             raise ContractError("prediction IDs must be exact and strictly increasing")
         prediction_ids.append(row_id)
-        x_new.append(num(row["x_um"], "prediction coordinate"))
+        x_new.append(number(row["x_um"], "prediction coordinate"))
 
-    inference = obj(request["inference"], {"inducing_points", "starts", "iterations", "learning_rate", "posterior_draws", "maximum_cross_start_prediction_rmse", "maximum_tail_relative_change", "seed"}, "inference")
+    inference = obj(
+        request["inference"],
+        {
+            "inducing_points",
+            "starts",
+            "iterations",
+            "learning_rate",
+            "posterior_draws",
+            "maximum_cross_start_prediction_rmse",
+            "maximum_tail_relative_change",
+            "seed",
+        },
+        "inference",
+    )
     inducing_points = integer(inference["inducing_points"], "inference.inducing points", 3, 64)
     starts = integer(inference["starts"], "inference.starts", 2, 4)
     iterations = integer(inference["iterations"], "inference.iterations", 1_000, 100_000)
-    learning_rate = num(inference["learning_rate"], "inference.learning rate")
+    learning_rate = number(inference["learning_rate"], "inference.learning rate")
     posterior_draws = integer(inference["posterior_draws"], "inference.draws", 500, 10_000)
-    maximum_cross_start_prediction_rmse = num(inference["maximum_cross_start_prediction_rmse"], "inference.stability RMSE")
-    maximum_tail_relative_change = num(inference["maximum_tail_relative_change"], "inference.tail change")
+    maximum_cross_start_prediction_rmse = number(
+        inference["maximum_cross_start_prediction_rmse"], "inference.stability RMSE"
+    )
+    maximum_tail_relative_change = number(
+        inference["maximum_tail_relative_change"], "inference.tail change"
+    )
     seed = integer(inference["seed"], "inference.seed", 0, 2**64 - 1)
-    if inducing_points >= len(x) or not 0.0 < learning_rate <= 0.1 or maximum_cross_start_prediction_rmse <= 0.0 or not 0.0 < maximum_tail_relative_change <= 1.0:
+    if (
+        inducing_points >= len(x)
+        or not 0.0 < learning_rate <= 0.1
+        or maximum_cross_start_prediction_rmse <= 0.0
+        or not 0.0 < maximum_tail_relative_change <= 1.0
+    ):
         raise ContractError("inducing count or learning rate is invalid")
-    resources = obj(request["resources"], {"maximum_observations", "maximum_predictions", "maximum_inducing_points", "maximum_variational_work", "maximum_output_bytes", "timeout_seconds"}, "resources")
+    resources = obj(
+        request["resources"],
+        {
+            "maximum_observations",
+            "maximum_predictions",
+            "maximum_inducing_points",
+            "maximum_variational_work",
+            "maximum_output_bytes",
+            "timeout_seconds",
+        },
+        "resources",
+    )
     max_n = integer(resources["maximum_observations"], "resources.observations", 8, 2_000)
     max_p = integer(resources["maximum_predictions"], "resources.predictions", 1, 2_048)
     max_m = integer(resources["maximum_inducing_points"], "resources.inducing", 3, 64)
     max_work = integer(resources["maximum_variational_work"], "resources.work", 1, 5_000_000_000)
     integer(resources["maximum_output_bytes"], "resources.output", 1, 1_048_576)
     integer(resources["timeout_seconds"], "resources.timeout", 1, 3_600)
-    work = starts * iterations * (len(x) * inducing_points**2 + inducing_points**3) + starts * posterior_draws * len(x_new) * inducing_points**2
+    work = (
+        starts * iterations * (len(x) * inducing_points**2 + inducing_points**3)
+        + starts * posterior_draws * len(x_new) * inducing_points**2
+    )
     if len(x) > max_n or len(x_new) > max_p or inducing_points > max_m or work > max_work:
         raise ContractError("request exceeds variational resource limits")
     return {
@@ -169,20 +230,19 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
 
 
 def seed_for(seed: int, purpose: str, index: int = 0) -> int:
-    digest = hashlib.sha256(f"marklab-pymc-vigp-v1\0{seed}\0{purpose}\0{index}".encode()).digest()
-    return int.from_bytes(digest[:4], "little")
-
-
-def summary(draws: np.ndarray) -> dict[str, float]:
-    return {
-        "mean": float(draws.mean()),
-        "sd": float(draws.std(ddof=1)),
-        "interval_lower": float(np.quantile(draws, 0.025)),
-        "interval_upper": float(np.quantile(draws, 0.975)),
-    }
+    return derive_seed("marklab-pymc-vigp-v1", seed, purpose, index)
 
 
 def run_start(config: dict[str, Any], start_index: int) -> dict[str, Any]:
+    """Fit one ADVI start of the VFE inducing-point GP and draw from the approximation.
+
+    Likelihood: ``y ~ Normal(f(x), noise_sd)`` with the VFE approximation of a GP
+    ``f ~ GP(mean, amplitude^2 * Matern32(length_scale_um))`` at inducing locations ``Z``.
+    Priors: ``mean ~ Normal(mean_prior_mean, mean_prior_sd)``, ``amplitude``,
+    ``length_scale_um``, and ``noise_sd ~ HalfNormal`` with the request scales, and ordered
+    ``Z ~ Normal(q, spacing)`` around the observed-coordinate quantiles ``q``. The posterior is
+    approximated by mean-field ADVI with Adam.
+    """
     quantiles = np.quantile(config["x"], np.linspace(0.0, 1.0, config["inducing_points"] + 2)[1:-1])
     spacing = max(float(np.ptp(config["x"])) / (config["inducing_points"] + 1), 1e-3)
     with pm.Model():
@@ -238,7 +298,7 @@ def run_start(config: dict[str, Any], start_index: int) -> dict[str, Any]:
     window = min(200, max(10, len(history) // 10))
     initial_elbo = float(-history[:window].mean())
     final_elbo = float(-history[-window:].mean())
-    first_tail = float(-history[-window:-window // 2].mean())
+    first_tail = float(-history[-window : -window // 2].mean())
     second_tail = float(-history[-window // 2 :].mean())
     tail_change = abs(second_tail - first_tail) / max(abs(first_tail), 1.0)
     arrays = {
@@ -266,6 +326,7 @@ def run_start(config: dict[str, Any], start_index: int) -> dict[str, Any]:
 
 
 def prior_predictive_finite(config: dict[str, Any]) -> bool:
+    """Simulate 100 exact-GP prior predictive draws with NumPy and check they are finite."""
     rng = np.random.default_rng(seed_for(config["seed"], "prior"))
     for _ in range(100):
         mean = rng.normal(config["mean_prior_mean"], config["mean_prior_sd"])
@@ -300,7 +361,11 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     for index, prediction_id in enumerate(config["prediction_ids"]):
         draws = selected["prediction_draws"][..., index]
         predictions.append(
-            {"prediction_id": prediction_id, "x_um": float(config["x_new"][index]), **summary(draws)}
+            {
+                "prediction_id": prediction_id,
+                "x_um": float(config["x_new"][index]),
+                **summary(draws, flatten=False),
+            }
         )
     replicated = selected["replicated_draws"]
     replicated_means = replicated.mean(axis=-1)
@@ -321,20 +386,12 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         )
     )
     return {
-        "format": "marklab.pymc_variational_gp_worker_result",
+        "format": RESULT_FORMAT,
         "version": 1,
-        "backend": {
-            "name": "pymc",
-            "version": pm.__version__,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("pymc", pm.__version__, lock_sha, worker_sha),
         "request_sha256": request_sha,
         "fit_state": "approximate_only" if approximation_pass else "nonconverged",
-        "posterior": {
-            name: summary(arrays[name]) for name in ["mean", "amplitude", "length_scale_um", "noise_sd"]
-        },
+        "posterior": {name: summary(arrays[name], flatten=False) for name in PARAMETERS},
         "inducing_locations_um": [float(value) for value in inducing_locations],
         "predictions": predictions,
         "diagnostics": {
@@ -366,23 +423,12 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
 
 
 def main() -> None:
-    if pm.__version__ != PYMC_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("PyMC or Python version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha = hashlib.sha256(raw).hexdigest()
-    result = fit(validate(json.loads(raw), lock_sha, worker_sha), request_sha, lock_sha, worker_sha)
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    require_versions(pymc=pm.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(16 * MIB)
+    config = validate(json.loads(raw), lock_sha, worker_sha)
+    write_result(fit(config, sha256_hex(raw), lock_sha, worker_sha))
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(f"marklab PyMC worker failed: {type(error).__name__}: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
+    run_worker(main, "marklab PyMC worker failed")

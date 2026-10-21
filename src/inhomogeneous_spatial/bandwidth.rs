@@ -1,6 +1,9 @@
-use marklab_workflow::ContentDigest;
+use crate::result_vocabulary::{
+    BandwidthSelectionMethod, BandwidthSelectionObjective, BandwidthTieBreak,
+};
+use marklab_project::ContentDigest;
 
-use crate::common::summation::kahan_add;
+use marklab_numerics::summation::neumaier_sum;
 
 use crate::{ObservationWindow2D, Pattern};
 
@@ -75,9 +78,9 @@ pub fn analyze_selected_inhomogeneous_spatial_pattern(
     let artifact_digest = selection_digest(pattern, window, config, &candidates, selected_index);
     Ok(SelectedInhomogeneousSpatialResult {
         selection: GaussianBandwidthSelectionSummary {
-            method: "leave_one_out_log_likelihood".into(),
-            objective: "maximize_mean_log_leave_one_out_event_intensity".into(),
-            tie_break: "smallest_bandwidth_um".into(),
+            method: BandwidthSelectionMethod::LeaveOneOutLogLikelihood,
+            objective: BandwidthSelectionObjective::MaximizeMeanLogLeaveOneOutEventIntensity,
+            tie_break: BandwidthTieBreak::SmallestBandwidthUm,
             selection_uses_spatial_curve: false,
             selected_index,
             selected_bandwidth_um,
@@ -101,12 +104,13 @@ pub(super) fn score_candidate(
     let starting_evaluations = counters.intensity_evaluations;
     let fitted = fit_event_intensity(pattern, grid, candidate, counters)?;
     let (minimum, maximum) = extrema(&fitted.observed_intensities)?;
-    let mut log_sum = 0.0;
-    let mut correction = 0.0;
-    for intensity in fitted.observed_intensities {
-        kahan_add(&mut log_sum, &mut correction, intensity.ln());
-    }
-    let score = (log_sum + correction) / pattern.len() as f64;
+    let log_sum = neumaier_sum(
+        fitted
+            .observed_intensities
+            .iter()
+            .map(|intensity| intensity.ln()),
+    );
+    let score = log_sum / pattern.len() as f64;
     if !score.is_finite() {
         return Err(InhomogeneousSpatialError::Dependency(
             "bandwidth leave-one-out score is non-finite".into(),

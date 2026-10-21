@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 use crate::{graph_spectral_workflow, CanonicalGraphNode, GraphError, GraphSpectralSpec};
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -48,7 +49,7 @@ pub struct GraphDiffusionWaveletResult {
     pub nodes: Vec<CanonicalGraphNode>,
     pub tree: DiffusionWaveletTree,
     pub transform: DiffusionWaveletTransformResult,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn graph_diffusion_wavelet_workflow(
@@ -184,6 +185,6 @@ pub fn graph_diffusion_wavelet_workflow(
             detail_by_level,
             reconstruction_max_abs_error,
         },
-        claim_status: "experimental_exact_symmetric_diffusion_wavelet",
+        claim_status: ClaimStatus::ExperimentalExactSymmetricDiffusionWavelet,
     })
 }

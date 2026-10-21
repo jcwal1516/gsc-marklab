@@ -46,7 +46,7 @@ fn the_cli_and_library_share_the_same_study_and_resume_across_processes() {
             .success()
             .stderr(predicates::str::contains(expected));
     }
-    let expected = marklab::analyze_multiplex_study(&bytes).unwrap();
+    let expected = marklab::pathology::analyze_multiplex_study(&bytes).unwrap();
     let mut expected = serde_json::to_vec_pretty(&expected).unwrap();
     expected.push(b'\n');
     assert_eq!(fs::read(first.join("result.json")).unwrap(), expected);

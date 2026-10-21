@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 #[cfg(test)]
 use crate::{
     data::Pattern,
-    periodogram::{fft2::fft2_power_spectrum, raster::centered_mark_raster},
+    periodogram::{fft2::fft2_power_spectrum, raster::RasterAssignmentPlan},
 };
 
 pub fn hann_weight(index: usize, len: usize) -> f64 {
@@ -31,7 +31,10 @@ pub fn hann_tapered_raster_periodogram(
     cell_size_um: f64,
     low_k_shells: usize,
 ) -> Option<HannTaperedPeriodogramSummary> {
-    let (spec, mut raster) = centered_mark_raster(pattern, cell_size_um)?;
+    let plan = RasterAssignmentPlan::new(pattern, cell_size_um)?;
+    let mut raster = Vec::with_capacity(plan.pixel_count());
+    plan.fill_centered_binary_marks(&pattern.mark, &mut raster)?;
+    let spec = plan.spec();
     if spec.width < 3 || spec.height < 3 {
         return None;
     }

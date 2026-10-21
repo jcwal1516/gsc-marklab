@@ -4,6 +4,7 @@ use crate::{
     filter::spectral_filter, graph_spectral_workflow, CanonicalGraphNode, GraphError,
     GraphSpectralSpec,
 };
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -33,7 +34,7 @@ pub struct GraphWaveletResult {
     pub scaling_coefficients: Vec<f64>,
     pub scaling_energy: f64,
     pub jacobi_rotations: usize,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn graph_wavelet_workflow(spec: GraphWaveletSpec) -> Result<GraphWaveletResult, GraphError> {
@@ -101,6 +102,6 @@ pub fn graph_wavelet_workflow(spec: GraphWaveletSpec) -> Result<GraphWaveletResu
         scaling_coefficients,
         scaling_energy,
         jacobi_rotations: graph.work.jacobi_rotations,
-        claim_status: "experimental_exact_small_graph_wavelet",
+        claim_status: ClaimStatus::ExperimentalExactSmallGraphWavelet,
     })
 }

@@ -21,14 +21,14 @@ impl ScalarMarkModality {
     }
 }
 
-/// Bounded scalar units needed by the current compatibility columns.
+/// Bounded scalar units of the supported mark columns.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScalarMarkUnit {
     /// Nominal category code with an explicit ordered codebook.
     Categorical,
     /// Dimensionless binary or probability value.
     Unitless,
-    /// Square micrometres for the existing nucleus-area column.
+    /// Square micrometres, for the nucleus-area column.
     SquareMicrometer,
     /// Complete dimensionless class-probability vector.
     ProbabilitySimplex,
@@ -322,7 +322,7 @@ impl ScalarMarkColumn {
 
     /// Bind one verified cell-embedding artifact to exact ordered MarkTable rows.
     ///
-    /// The matrix remains owned by the existing embedding table/artifact store; this column retains
+    /// The matrix remains owned by the embedding table/artifact store; this column retains
     /// metadata and row identity only.
     pub fn vector_artifact_ref(
         declaration: VectorArtifactRefMarkDeclaration,

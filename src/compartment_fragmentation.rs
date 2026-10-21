@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use crate::common::{finite::canonical_zero, summation::kahan_add};
+use marklab_numerics::summation::neumaier_sum;
 
-use crate::BinaryCompartmentPartition2D;
+use crate::common::finite::canonical_zero;
+
+use crate::compartments::BinaryCompartmentPartition2D;
 
 /// Exact vector-polygon fragmentation summary for one compartment role.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -83,17 +85,10 @@ fn summarize(
     total_area: f64,
     perimeter: f64,
 ) -> CompartmentFragmentationSummary {
-    let mut entropy = 0.0;
-    let mut correction = 0.0;
-    for area in component_areas {
+    let entropy = canonical_zero(neumaier_sum(component_areas.iter().map(|area| {
         let probability = area / total_area;
-        kahan_add(
-            &mut entropy,
-            &mut correction,
-            -probability * probability.ln(),
-        );
-    }
-    let entropy = canonical_zero(entropy + correction);
+        -probability * probability.ln()
+    })));
     let normalized = if component_count > 1 {
         entropy / (component_count as f64).ln()
     } else {

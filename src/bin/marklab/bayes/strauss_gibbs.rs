@@ -1,27 +1,27 @@
-use std::path::PathBuf;
-
 use marklab_bayes::{
     simulate_strauss_birth_death, RectangularWindow, StraussBirthDeathError, StraussBirthDeathSpec,
 };
 
-use super::{publish_json, BayesCliError};
+use super::cli_schema::SimulateStraussBirthDeathArgs;
+use super::{publish_json, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    xmin_um: f64,
-    ymin_um: f64,
-    xmax_um: f64,
-    ymax_um: f64,
-    beta_per_um2: f64,
-    gamma: f64,
-    interaction_radius_um: f64,
-    iterations: u32,
-    burn_in: u32,
-    seed: u64,
-    maximum_points: u32,
-    maximum_neighbor_visits: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: SimulateStraussBirthDeathArgs) -> Result<(), CliError> {
+    let SimulateStraussBirthDeathArgs {
+        xmin_um,
+        ymin_um,
+        xmax_um,
+        ymax_um,
+        beta_per_um2,
+        gamma,
+        interaction_radius_um,
+        iterations,
+        burn_in,
+        seed,
+        maximum_points,
+        maximum_neighbor_visits,
+        out,
+    } = args;
+    let output_path = out;
     let result = simulate_strauss_birth_death(StraussBirthDeathSpec {
         window: RectangularWindow {
             xmin_um,
@@ -42,10 +42,10 @@ pub(super) fn run(
     publish_json(&output_path, &result)
 }
 
-fn map_error(error: StraussBirthDeathError) -> BayesCliError {
+fn map_error(error: StraussBirthDeathError) -> CliError {
     match error {
         StraussBirthDeathError::InvalidSpec(message)
-        | StraussBirthDeathError::Resource(message) => BayesCliError::Input(message),
-        StraussBirthDeathError::Numerical(message) => BayesCliError::Backend(message),
+        | StraussBirthDeathError::Resource(message) => CliError::Input(message),
+        StraussBirthDeathError::Numerical(message) => CliError::Backend(message),
     }
 }

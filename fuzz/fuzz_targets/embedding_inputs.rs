@@ -3,12 +3,7 @@
 use std::{str::FromStr, sync::OnceLock};
 
 use libfuzzer_sys::fuzz_target;
-use marklab::{
-    ArtifactId, CellId, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, FrameTransform, HierarchyId,
-    HierarchyNode, ImageCoordinateConvention, PatchId, PatientId, RegionId, ReplicationRole,
-    SlideId, SpatialAxis, TransformId, TransformMatrix,
-};
+use marklab::{CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace, CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, PatchId, PatientId, RegionId, ReplicationRole, SlideId, SpatialAxis, TransformId, TransformMatrix, workflow::{ArtifactId, ContentDigest}};
 use marklab_embeddings::{
     preflight_cell_embedding_row_link_arrow_bytes, preflight_cell_embedding_row_link_parquet_bytes,
     preflight_cell_embedding_table_arrow_bytes, preflight_cell_embedding_table_parquet_bytes,

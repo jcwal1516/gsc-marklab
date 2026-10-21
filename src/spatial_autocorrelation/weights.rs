@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use marklab_workflow::ContentDigest;
+use marklab_numerics::summation::{neumaier_sum, NeumaierSum};
+use marklab_project::ContentDigest;
 
 use crate::geom::spatial_index::SpatialIndex2D;
 
@@ -29,7 +30,9 @@ impl RadiusWeights {
             let neighbors = index
                 .within_radius(row, radius_um)
                 .map_err(|error| GlobalMoranError::Geometry(error.to_string()))?;
-            if neighbors.is_empty() {
+            if neighbors.is_empty()
+                && policy != GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates
+            {
                 return Err(GlobalMoranError::IsolatedPoint { row });
             }
             degrees.push(neighbors.len());
@@ -42,10 +45,17 @@ impl RadiusWeights {
                 edges.push((row, neighbor.index));
             }
         }
-        let mut digest_fields = Vec::<Vec<u8>>::with_capacity(edges.len() + 3);
+        if edges.is_empty() {
+            return Err(GlobalMoranError::NoSpatialEdges);
+        }
+        let mut digest_fields = Vec::<Vec<u8>>::with_capacity(edges.len() + 4);
         digest_fields.push(b"marklab-global-moran-radius-weights-v1".to_vec());
         digest_fields.push(radius_um.to_bits().to_be_bytes().to_vec());
         digest_fields.push(policy.wire_name().as_bytes().to_vec());
+        if policy == GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates {
+            // Trailing zero rows change the statistic even though they add no edges.
+            digest_fields.push(usize_to_u64(index.len())?.to_be_bytes().to_vec());
+        }
         for (left, right) in &edges {
             let mut edge = Vec::with_capacity(16);
             edge.extend_from_slice(&usize_to_u64(*left)?.to_be_bytes());
@@ -65,21 +75,23 @@ impl RadiusWeights {
         if values.windows(2).all(|pair| pair[0] == pair[1]) {
             return Err(GlobalMoranError::ZeroVariance);
         }
-        let mean = compensated_sum(values.iter().copied()) / values.len() as f64;
+        let mean = neumaier_sum(values.iter().copied()) / values.len() as f64;
         let centered = values.iter().map(|value| value - mean).collect::<Vec<_>>();
-        let denominator = compensated_sum(centered.iter().map(|value| value * value));
+        let denominator = neumaier_sum(centered.iter().map(|value| value * value));
         if !denominator.is_finite() || denominator <= 0.0 {
             return Err(GlobalMoranError::NumericalFailure);
         }
-        let numerator = compensated_sum(self.edges.iter().map(|(left, right)| {
+        let numerator = neumaier_sum(self.edges.iter().map(|(left, right)| {
             let weight = match self.policy {
-                GlobalMoranWeightPolicy::BinarySymmetric => 1.0,
+                GlobalMoranWeightPolicy::BinarySymmetric
+                | GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates => 1.0,
                 GlobalMoranWeightPolicy::RowStandardized => 1.0 / self.degrees[*left] as f64,
             };
             weight * centered[*left] * centered[*right]
         }));
         let weight_sum = match self.policy {
-            GlobalMoranWeightPolicy::BinarySymmetric => self.edges.len() as f64,
+            GlobalMoranWeightPolicy::BinarySymmetric
+            | GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates => self.edges.len() as f64,
             GlobalMoranWeightPolicy::RowStandardized => values.len() as f64,
         };
         let statistic = values.len() as f64 * numerator / (weight_sum * denominator);
@@ -94,24 +106,26 @@ impl RadiusWeights {
         if values.windows(2).all(|pair| pair[0] == pair[1]) {
             return Err(GlobalMoranError::ZeroVariance);
         }
-        let mean = compensated_sum(values.iter().copied()) / values.len() as f64;
-        let denominator = compensated_sum(values.iter().map(|value| {
+        let mean = neumaier_sum(values.iter().copied()) / values.len() as f64;
+        let denominator = neumaier_sum(values.iter().map(|value| {
             let centered = value - mean;
             centered * centered
         }));
         if !denominator.is_finite() || denominator <= 0.0 {
             return Err(GlobalMoranError::NumericalFailure);
         }
-        let numerator = compensated_sum(self.edges.iter().map(|(left, right)| {
+        let numerator = neumaier_sum(self.edges.iter().map(|(left, right)| {
             let weight = match self.policy {
-                GlobalMoranWeightPolicy::BinarySymmetric => 1.0,
+                GlobalMoranWeightPolicy::BinarySymmetric
+                | GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates => 1.0,
                 GlobalMoranWeightPolicy::RowStandardized => 1.0 / self.degrees[*left] as f64,
             };
             let difference = values[*left] - values[*right];
             weight * difference * difference
         }));
         let weight_sum = match self.policy {
-            GlobalMoranWeightPolicy::BinarySymmetric => self.edges.len() as f64,
+            GlobalMoranWeightPolicy::BinarySymmetric
+            | GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates => self.edges.len() as f64,
             GlobalMoranWeightPolicy::RowStandardized => values.len() as f64,
         };
         let statistic = (values.len() as f64 - 1.0) * numerator / (2.0 * weight_sum * denominator);
@@ -133,9 +147,9 @@ impl RadiusWeights {
                 observed: values.len().min(strata.len()),
             });
         }
-        let mean = compensated_sum(values.iter().copied()) / values.len() as f64;
+        let mean = neumaier_sum(values.iter().copied()) / values.len() as f64;
         let centered = values.iter().map(|value| value - mean).collect::<Vec<_>>();
-        let denominator = compensated_sum(centered.iter().map(|value| value * value));
+        let denominator = neumaier_sum(centered.iter().map(|value| value * value));
         if !denominator.is_finite() || denominator <= 0.0 {
             return Err(GlobalMoranError::NumericalFailure);
         }
@@ -143,7 +157,7 @@ impl RadiusWeights {
         for (&stratum, &value) in strata.iter().zip(&centered) {
             moments.entry(stratum).or_default().add(value)?;
         }
-        let expected_moran_numerator = compensated_sum(self.edges.iter().map(|(left, right)| {
+        let expected_moran_numerator = neumaier_sum(self.edges.iter().map(|(left, right)| {
             let left_moments = &moments[&strata[*left]];
             let right_moments = &moments[&strata[*right]];
             let product = if strata[*left] == strata[*right] {
@@ -153,7 +167,7 @@ impl RadiusWeights {
             };
             self.edge_weight(*left) * product
         }));
-        let expected_geary_numerator = compensated_sum(self.edges.iter().map(|(left, right)| {
+        let expected_geary_numerator = neumaier_sum(self.edges.iter().map(|(left, right)| {
             let left_moments = &moments[&strata[*left]];
             let right_moments = &moments[&strata[*right]];
             let squared_difference = if strata[*left] == strata[*right] {
@@ -177,14 +191,16 @@ impl RadiusWeights {
 
     fn edge_weight(&self, source: usize) -> f64 {
         match self.policy {
-            GlobalMoranWeightPolicy::BinarySymmetric => 1.0,
+            GlobalMoranWeightPolicy::BinarySymmetric
+            | GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates => 1.0,
             GlobalMoranWeightPolicy::RowStandardized => 1.0 / self.degrees[source] as f64,
         }
     }
 
     fn weight_sum(&self, point_count: usize) -> f64 {
         match self.policy {
-            GlobalMoranWeightPolicy::BinarySymmetric => self.edges.len() as f64,
+            GlobalMoranWeightPolicy::BinarySymmetric
+            | GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates => self.edges.len() as f64,
             GlobalMoranWeightPolicy::RowStandardized => point_count as f64,
         }
     }
@@ -193,10 +209,8 @@ impl RadiusWeights {
 #[derive(Default)]
 struct BlockMoments {
     count: usize,
-    sum: f64,
-    sum_correction: f64,
-    square_sum: f64,
-    square_correction: f64,
+    sum: NeumaierSum,
+    square_sum: NeumaierSum,
 }
 
 impl BlockMoments {
@@ -205,51 +219,30 @@ impl BlockMoments {
             .count
             .checked_add(1)
             .ok_or(GlobalMoranError::SizeOverflow)?;
-        compensated_add(&mut self.sum, &mut self.sum_correction, value);
-        compensated_add(
-            &mut self.square_sum,
-            &mut self.square_correction,
-            value * value,
-        );
+        self.sum.add(value);
+        self.square_sum.add(value * value);
         Ok(())
     }
 
     fn mean(&self) -> f64 {
-        self.sum / self.count as f64
+        self.sum.total() / self.count as f64
     }
 
     fn mean_square(&self) -> f64 {
-        self.square_sum / self.count as f64
+        self.square_sum.total() / self.count as f64
     }
 
     fn distinct_product_mean(&self) -> f64 {
         debug_assert!(self.count > 1);
-        (self.sum * self.sum - self.square_sum) / (self.count * (self.count - 1)) as f64
+        let (sum, square_sum) = (self.sum.total(), self.square_sum.total());
+        (sum * sum - square_sum) / (self.count * (self.count - 1)) as f64
     }
 
     fn distinct_squared_difference_mean(&self) -> f64 {
         debug_assert!(self.count > 1);
-        2.0 * (self.square_sum - self.sum * self.sum / self.count as f64) / (self.count - 1) as f64
+        let (sum, square_sum) = (self.sum.total(), self.square_sum.total());
+        2.0 * (square_sum - sum * sum / self.count as f64) / (self.count - 1) as f64
     }
-}
-
-fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
-    let mut sum = 0.0;
-    let mut correction = 0.0;
-    for value in values {
-        let adjusted = value - correction;
-        let next = sum + adjusted;
-        correction = (next - sum) - adjusted;
-        sum = next;
-    }
-    sum
-}
-
-fn compensated_add(sum: &mut f64, correction: &mut f64, value: f64) {
-    let adjusted = value - *correction;
-    let next = *sum + adjusted;
-    *correction = (next - *sum) - adjusted;
-    *sum = next;
 }
 
 fn usize_to_u64(value: usize) -> Result<u64, GlobalMoranError> {
@@ -266,12 +259,22 @@ mod tests {
         let strata = [0_u32, 0, 1, 1];
         let permutations = [[0, 1, 2, 3], [0, 1, 3, 2], [1, 0, 2, 3], [1, 0, 3, 2]];
 
-        for policy in [
-            GlobalMoranWeightPolicy::BinarySymmetric,
-            GlobalMoranWeightPolicy::RowStandardized,
+        for (policy, x) in [
+            (
+                GlobalMoranWeightPolicy::BinarySymmetric,
+                [0.0, 1.0, 2.0, 3.0],
+            ),
+            (
+                GlobalMoranWeightPolicy::RowStandardized,
+                [0.0, 1.0, 2.0, 3.0],
+            ),
+            (
+                GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates,
+                [0.0, 1.0, 2.0, 10.0],
+            ),
         ] {
-            let weights = RadiusWeights::build(&[0.0, 1.0, 2.0, 3.0], &[0.0; 4], 1.1, policy, 6)
-                .expect("line weights");
+            let weights =
+                RadiusWeights::build(&x, &[0.0; 4], 1.1, policy, 6).expect("line weights");
             let expected_moran = permutations
                 .iter()
                 .map(|order| {

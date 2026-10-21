@@ -3,7 +3,9 @@ use std::collections::{BTreeSet, HashSet};
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::{linalg, matern_covariance::matern32_1d};
+use marklab_numerics::dense;
+
+use marklab_numerics::kernel::matern32;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct FieldCoordinate1D {
@@ -78,16 +80,15 @@ pub fn low_rank_predictive_process(
     let mut kmm = vec![0.0; dimension * dimension];
     for row in 0..dimension {
         for column in 0..dimension {
-            kmm[row * dimension + column] = matern32_1d(
-                spec.knots[row].x_um,
-                spec.knots[column].x_um,
+            kmm[row * dimension + column] = matern32(
+                (spec.knots[row].x_um - spec.knots[column].x_um).abs(),
                 spec.amplitude,
                 spec.length_scale_um,
             );
         }
         kmm[row * dimension + row] += spec.jitter;
     }
-    let kmm_cholesky = linalg::cholesky(&kmm, dimension)
+    let kmm_cholesky = dense::cholesky(&kmm, dimension)
         .ok_or_else(|| PredictiveProcessError::Numerical("Kmm is not positive definite".into()))?;
     let mut knm = Vec::with_capacity(spec.coordinates.len() * dimension);
     let mut low_rank_diagonal = Vec::with_capacity(spec.coordinates.len());
@@ -98,15 +99,14 @@ pub fn low_rank_predictive_process(
             .knots
             .iter()
             .map(|knot| {
-                matern32_1d(
-                    coordinate.x_um,
-                    knot.x_um,
+                matern32(
+                    (coordinate.x_um - knot.x_um).abs(),
                     spec.amplitude,
                     spec.length_scale_um,
                 )
             })
             .collect::<Vec<_>>();
-        let solved = linalg::solve_lower(&kmm_cholesky, dimension, &row);
+        let solved = dense::solve_lower(&kmm_cholesky, dimension, &row);
         let low_rank = solved.iter().map(|value| value * value).sum::<f64>();
         let residual = exact_variance - low_rank;
         let tolerance = 1e-10 * exact_variance.max(1.0);

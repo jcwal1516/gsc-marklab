@@ -1,11 +1,17 @@
+use crate::result_vocabulary::{
+    CompartmentInterfaceEventPolicy, EdgeCorrection, InhomogeneousNullModel,
+    IntensityBoundaryCorrection, IntensityCrossFit, IntensityEstimator, SpatialRandomizationUnit,
+};
 use crate::{
     classical::{sample_conditional_csr, window_summary, SpatialGeometryPlan2D},
     common::{
         finite::canonical_zero,
         seeds::{derive_seed, SeedEndpoint},
     },
+    compartments::BinaryCompartmentPartition2D,
     permutation::envelopes::GlobalEnvelope,
-    BinaryCompartmentPartition2D, ClassicalSpatialError, ClassicalSpatialLimits, Pattern,
+    spatial::{ClassicalSpatialError, ClassicalSpatialLimits},
+    Pattern,
 };
 
 use super::{
@@ -55,6 +61,16 @@ pub fn analyze_piecewise_compartment_spatial_pattern(
     pattern: &Pattern,
     partition: &BinaryCompartmentPartition2D,
     config: &PiecewiseCompartmentSpatialConfig,
+) -> Result<PiecewiseCompartmentSpatialResult, InhomogeneousSpatialError> {
+    analyze_piecewise_compartment_spatial_pattern_capturing(pattern, partition, config, None)
+}
+
+/// [`analyze_piecewise_compartment_spatial_pattern`], optionally retaining the null curves.
+pub(crate) fn analyze_piecewise_compartment_spatial_pattern_capturing(
+    pattern: &Pattern,
+    partition: &BinaryCompartmentPartition2D,
+    config: &PiecewiseCompartmentSpatialConfig,
+    capture: Option<&mut super::NullCurveCapture>,
 ) -> Result<PiecewiseCompartmentSpatialResult, InhomogeneousSpatialError> {
     if pattern.len() < 2 {
         return Err(InhomogeneousSpatialError::InsufficientPoints);
@@ -148,6 +164,10 @@ pub fn analyze_piecewise_compartment_spatial_pattern(
         &jointly_eligible,
         config,
     )?;
+    if let Some(capture) = capture {
+        capture.simulated = simulated;
+        capture.jointly_eligible = jointly_eligible;
+    }
     let compartment_queries = fitted.roles.len();
     let intensity = into_piecewise_intensity_summary(pattern, partition, fitted);
     Ok(PiecewiseCompartmentSpatialResult {
@@ -155,7 +175,7 @@ pub fn analyze_piecewise_compartment_spatial_pattern(
         timepoint: pattern.meta.timepoint.clone(),
         window: window_summary(partition.observation_window().descriptor()),
         intensity,
-        edge_correction: "standard_border_inverse_intensity_ratio".into(),
+        edge_correction: EdgeCorrection::StandardBorderInverseIntensityRatio,
         configuration_digest: piecewise_configuration_digest(config).to_string(),
         compartment_queries,
         observed_pair_visits,
@@ -164,9 +184,10 @@ pub fn analyze_piecewise_compartment_spatial_pattern(
         limits: config.limits,
         curve: observed.points,
         inference: InhomogeneousSpatialInference {
-            null_model: "fixed_binary_compartment_counts_uniform_within_exact_partition".into(),
-            randomization_unit: "whole_location_pattern_conditioned_on_binary_compartment_counts"
-                .into(),
+            null_model:
+                InhomogeneousNullModel::FixedBinaryCompartmentCountsUniformWithinExactPartition,
+            randomization_unit:
+                SpatialRandomizationUnit::WholeLocationPatternConditionedOnBinaryCompartmentCounts,
             p_global: envelope.p_global,
             erl_depth: envelope.erl_depth,
             critical_depth: envelope.critical_depth,
@@ -175,6 +196,7 @@ pub fn analyze_piecewise_compartment_spatial_pattern(
             seed: config.seed,
             alpha: config.alpha,
             null_draws: counters.null_draws,
+            support_redraws: None,
         },
     })
 }
@@ -195,10 +217,10 @@ pub(super) fn into_piecewise_intensity_summary(
         &fitted.point_values,
     );
     PiecewiseCompartmentIntensitySummary {
-        estimator: "piecewise_constant_binary_compartment".into(),
-        cross_fit: "leave_one_out_within_compartment".into(),
-        boundary_correction: "exact_compartment_area".into(),
-        interface_event_policy: "reject".into(),
+        estimator: IntensityEstimator::PiecewiseConstantBinaryCompartment,
+        cross_fit: IntensityCrossFit::LeaveOneOutWithinCompartment,
+        boundary_correction: IntensityBoundaryCorrection::ExactCompartmentArea,
+        interface_event_policy: CompartmentInterfaceEventPolicy::Reject,
         partition_digest: descriptor.logical_digest.to_string(),
         artifact_digest: artifact_digest.to_string(),
         negative: PiecewiseCompartmentIntensityLevel {

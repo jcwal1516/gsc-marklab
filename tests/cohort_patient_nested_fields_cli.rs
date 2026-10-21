@@ -91,7 +91,7 @@ fn nested_field_inference_keeps_slides_inside_patients() {
         result["population_inference"]["permutation_unit"],
         "whole_patient_label"
     );
-    assert_eq!(result["population_inference"]["permutations_completed"], 31);
+    assert_eq!(result["population_inference"]["permutations_requested"], 31);
 }
 
 #[test]

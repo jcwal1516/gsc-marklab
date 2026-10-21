@@ -5,6 +5,7 @@ use crate::{
     filter::{heat_chebyshev_coefficients, heat_grid_error, spectral_filter},
     graph_spectral_workflow, GraphError, GraphSpectralSpec,
 };
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -32,7 +33,7 @@ pub struct GraphChebyshevHeatResult {
     pub exact_signal: Vec<f64>,
     pub maximum_signal_error: f64,
     pub matrix_vector_products: usize,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn graph_chebyshev_heat_workflow(
@@ -129,6 +130,6 @@ pub fn graph_chebyshev_heat_workflow(
         exact_signal,
         maximum_signal_error,
         matrix_vector_products: selected_order,
-        claim_status: "experimental_verified_small_graph_approximation",
+        claim_status: ClaimStatus::ExperimentalVerifiedSmallGraphApproximation,
     })
 }

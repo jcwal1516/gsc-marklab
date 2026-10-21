@@ -1,8 +1,11 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNormalization, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection,
+};
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use thiserror::Error;
 
-use crate::{ClassicalWindowSummary, ScalarMarkId};
+use crate::{marks::ScalarMarkId, spatial::ClassicalWindowSummary};
 
 /// Exact resource ceilings for one continuous mark-correlation workflow.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -174,14 +177,12 @@ pub struct ContinuousMarkCorrelationGeometrySummary {
     pub point_count: usize,
     /// Directed pairs retained through the maximum radius.
     pub directed_pair_count: usize,
-    /// Geometry construction count for observed plus null evaluation.
-    pub geometry_build_count: usize,
     /// Point/window geometry identity.
     pub geometry_digest: ContentDigest,
     /// Ordered directed pair-plan identity.
     pub pair_plan_digest: ContentDigest,
     /// Named edge correction.
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     /// Conservative retained-byte estimate including ERL workspace.
     pub estimated_storage_bytes: usize,
 }
@@ -203,21 +204,17 @@ pub struct ContinuousMarkCorrelationComponentInference {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuousMarkCorrelationInferenceSummary {
     /// Exact null family.
-    pub null_model: String,
+    pub null_model: MarkNullModel,
     /// Atomic row moved by each permutation.
-    pub permutation_unit: String,
+    pub permutation_unit: MarkPermutationUnit,
     /// Two-sided alternative.
-    pub alternative: String,
+    pub alternative: marklab_cohort::InferenceAlternative,
     /// Declared multiplicity family.
-    pub multiplicity: String,
+    pub multiplicity: MultiplicityCorrection,
     /// Correlation ERL inference when at least one radius is eligible.
     pub correlation: Option<ContinuousMarkCorrelationComponentInference>,
     /// Requested permutations.
     pub permutations_requested: usize,
-    /// Attempted permutations.
-    pub permutations_attempted: usize,
-    /// Completed permutations.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
     /// Family-wise alpha.
@@ -240,8 +237,8 @@ pub struct ContinuousMarkCorrelationResult {
     /// Exact observation-window summary.
     pub window: ClassicalWindowSummary,
     /// Named formula and global-mean policy.
-    pub normalization: String,
-    /// Global arithmetic mark mean over all admitted rows.
+    pub normalization: MarkNormalization,
+    /// Global arithmetic mark mean over all accepted rows.
     pub global_mark_mean: f64,
     /// Global population variance used for the constant-mark guard.
     pub global_mark_population_variance: f64,
@@ -302,7 +299,7 @@ pub enum ContinuousMarkCorrelationError {
     /// Checked arithmetic overflowed.
     #[error("continuous mark-correlation size arithmetic overflow")]
     SizeOverflow,
-    /// An existing typed geometry or inference owner failed.
+    /// Geometry or inference failed.
     #[error("continuous mark-correlation dependency failed: {reason}")]
     Dependency { reason: String },
 }

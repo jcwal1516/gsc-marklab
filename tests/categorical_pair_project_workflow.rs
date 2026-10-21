@@ -1,16 +1,20 @@
-#![allow(dead_code)]
-
 use marklab::{
-    execute_algorithm_with_store, ArtifactRef, ArtifactSchema, BinaryMarkDeclaration, CacheStatus,
-    CategoricalPairAnalysisNode, CategoricalPairConfig, CategoricalPairLimits,
-    CategoricalPairResult, DeclaredScalarPatternInput, DurableProject, DurableProjectLimits,
-    HistologicCompartmentMarkDeclaration, LocalScheduler, MarkTable, MeasurementStatus,
-    MissingnessPolicy, NativeRuntimeProvenance, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    SchedulerLimits, WorkflowGraph,
+    marks::{
+        BinaryMarkDeclaration, CategoricalPairAnalysisNode, CategoricalPairConfig,
+        CategoricalPairLimits, CategoricalPairResult, DeclaredScalarPatternInput,
+        HistologicCompartmentMarkDeclaration, MarkTable, MissingnessPolicy, ScalarMarkColumn,
+        ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 use tempfile::TempDir;
 
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 use support::*;
@@ -152,7 +156,7 @@ fn run_once(
         &graph,
         &node,
         &scheduler,
-        ArtifactSchema::new("marklab.categorical_pair", 1).expect("schema"),
+        ArtifactSchema::new("marklab.categorical_pair", 2).expect("schema"),
         runtime(),
         &fixture.store,
     )

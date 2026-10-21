@@ -1,7 +1,7 @@
-mod preflight;
-mod profile;
+pub(crate) mod preflight;
+pub(crate) mod profile;
 mod publication;
-mod reader;
+pub(crate) mod reader;
 mod writer;
 
 pub use preflight::{preflight_patch_region_link_arrow_bytes, PatchRegionArrowPreflight};

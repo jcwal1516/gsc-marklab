@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::Write,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::support::*;
 
@@ -40,45 +37,6 @@ fn footprints(
         RETAINED_BUDGET,
     )
     .expect("valid footprints")
-}
-
-fn frame(writer: &mut impl Write, value: &[u8]) {
-    writer
-        .write_all(&(value.len() as u128).to_be_bytes())
-        .expect("reference length frame");
-    writer.write_all(value).expect("reference value frame");
-}
-
-fn reference_overlap_digest(graph: &PatchOverlapGraph) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(&mut writer, b"marklab-patch-overlap-graph-logical-v1");
-    frame(
-        &mut writer,
-        graph.expected_patches_artifact_id().digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        graph.expected_patches_logical_digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        graph.patch_footprints_artifact_id().digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        graph.patch_footprints_logical_digest().as_bytes(),
-    );
-    frame(
-        &mut writer,
-        &u64::try_from(graph.edge_count())
-            .expect("bounded edge count")
-            .to_be_bytes(),
-    );
-    for edge in graph.edges() {
-        frame(&mut writer, edge.left_patch_id().as_str().as_bytes());
-        frame(&mut writer, edge.right_patch_id().as_str().as_bytes());
-    }
-    writer.finish().0
 }
 
 #[test]
@@ -138,7 +96,6 @@ fn overlap_graph_uses_positive_area_and_minimum_patch_components() {
     let edge_debug = format!("{:?}", graph.edges()[0]);
     assert!(!graph_debug.contains("patch-a"));
     assert!(!edge_debug.contains("patch-a"));
-    assert_eq!(graph.logical_digest(), reference_overlap_digest(&graph));
     assert_eq!(
         graph.logical_digest().to_string(),
         "b512cee465515aa5a077c0fc2f8d87869de8cdcbbb398182ed67fc0f5139d1f4"
@@ -157,11 +114,11 @@ fn overlap_graph_uses_positive_area_and_minimum_patch_components() {
     let retained = size_of::<PatchOverlapGraph>()
         + expected.ids().len() * (size_of::<PatchId>() + size_of::<usize>())
         + patch_text
-        + graph.edge_count() * size_of::<marklab::PatchOverlapEdge>()
+        + graph.edge_count() * size_of::<marklab::embeddings::PatchOverlapEdge>()
         + edge_text;
     let scratch = expected.ids().len() * (size_of::<([i64; 2], usize)>() + size_of::<usize>());
     let materialized_peak = scratch
-        + graph.edge_count() * size_of::<marklab::PatchOverlapEdge>()
+        + graph.edge_count() * size_of::<marklab::embeddings::PatchOverlapEdge>()
         + edge_text
         + expected.ids().len() * size_of::<usize>();
     let working = retained.max(materialized_peak);

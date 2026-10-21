@@ -4,12 +4,12 @@ use crate::{
             patch_region_dependencies, patch_region_metadata, validate_patch_region_domain,
             PATCH_REGION_METADATA_KEYS,
         },
-        MultiscaleColumnarError, SpatialArrowFailure,
+        ArrowIpcFailure, ColumnarError,
     },
     multiscale::physical::{SpatialArtifactRole, SpatialPhysicalEncoding},
     PatchRegionLink,
 };
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::datatypes::Schema;
 use arrow_ipc::{Endianness, Type};
 
 use super::super::physical::validate_required_utf8_field;
@@ -22,16 +22,10 @@ pub(super) fn dependencies(link: &PatchRegionLink) -> [marklab_project::Artifact
     patch_region_dependencies(link)
 }
 
-pub(super) fn schema(link: &PatchRegionLink) -> Result<Schema, MultiscaleColumnarError> {
+pub(super) fn schema(link: &PatchRegionLink) -> Result<Schema, ColumnarError> {
     validate_patch_region_domain(link)?;
     Ok(Schema::new_with_metadata(
-        vec![
-            Field::new("patch_id", DataType::Utf8, false),
-            Field::new("region_id", DataType::Utf8, false),
-            Field::new("relation", DataType::Utf8, false),
-            Field::new("overlap_numerator", DataType::UInt64, false),
-            Field::new("overlap_denominator", DataType::UInt64, false),
-        ],
+        crate::columnar::multiscale::patch_region_fields(),
         metadata(link).into_iter().collect(),
     ))
 }
@@ -39,19 +33,19 @@ pub(super) fn schema(link: &PatchRegionLink) -> Result<Schema, MultiscaleColumna
 pub(super) fn validate_flatbuffer_schema(
     schema: arrow_ipc::Schema<'_>,
     link: &PatchRegionLink,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     if schema.endianness() != Endianness::Little
         || schema
             .features()
             .is_some_and(|features| !features.is_empty())
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let fields = schema
         .fields()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidSchema))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     if fields.len() != FIELD_COUNT {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     validate_required_utf8_field(fields.get(0), "patch_id")?;
     validate_required_utf8_field(fields.get(1), "region_id")?;
@@ -69,42 +63,36 @@ fn metadata(link: &PatchRegionLink) -> [(String, String); 13] {
 fn validate_metadata(
     entries: Option<flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<arrow_ipc::KeyValue<'_>>>>,
     link: &PatchRegionLink,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let expected = metadata(link);
     let entries =
-        entries.ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+        entries.ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
     if entries.len() != PATCH_REGION_METADATA_KEYS.len() {
-        return Err(arrow_failure(
-            SpatialArrowFailure::InvalidApplicationMetadata,
-        ));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
     }
     let mut total = 0_usize;
     for (entry, (expected_key, expected_value)) in entries.iter().zip(expected) {
         let key = entry
             .key()
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
         let value = entry
             .value()
-            .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidApplicationMetadata))?;
+            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
         total = total
             .checked_add(key.len())
             .and_then(|sum| sum.checked_add(value.len()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if key != expected_key || value != expected_value || value.is_empty() {
-            return Err(arrow_failure(
-                SpatialArrowFailure::InvalidApplicationMetadata,
-            ));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
         }
     }
     if total > METADATA_LIMIT {
-        return Err(arrow_failure(
-            SpatialArrowFailure::InvalidApplicationMetadata,
-        ));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
     }
     Ok(())
 }
 
-fn validate_u64(field: arrow_ipc::Field<'_>, name: &str) -> Result<(), MultiscaleColumnarError> {
+fn validate_u64(field: arrow_ipc::Field<'_>, name: &str) -> Result<(), ColumnarError> {
     let integer = field.type_as_int();
     if field.name() != Some(name)
         || field.nullable()
@@ -118,7 +106,7 @@ fn validate_u64(field: arrow_ipc::Field<'_>, name: &str) -> Result<(), Multiscal
         || field.type_type() != Type::Int
         || integer.is_none_or(|integer| integer.bitWidth() != 64 || integer.is_signed())
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     Ok(())
 }
@@ -127,6 +115,6 @@ pub(super) fn role() -> SpatialArtifactRole {
     SpatialArtifactRole::PatchRegion
 }
 
-pub(super) fn arrow_failure(reason: SpatialArrowFailure) -> MultiscaleColumnarError {
-    MultiscaleColumnarError::Arrow { reason }
+pub(super) fn arrow_failure(reason: ArrowIpcFailure) -> ColumnarError {
+    ColumnarError::Arrow { reason }
 }

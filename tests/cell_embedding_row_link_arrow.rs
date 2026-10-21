@@ -9,15 +9,20 @@ use std::{
 };
 
 use marklab::{
-    preflight_cell_embedding_row_link_arrow_bytes, publish_cell_embedding_row_link_arrow,
-    validate_cell_embedding_row_link_arrow_bytes,
-    validate_cell_embedding_row_link_arrow_from_store, write_cell_embedding_row_link_arrow,
-    ArrowIpcFailure, ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord,
-    ArtifactRef, ArtifactSchema, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, CellId,
-    CohortHierarchy, ContentDigest, EmbeddingColumnarBudgets, EmbeddingColumnarError,
-    ExpectedCellSet, HierarchyId, HierarchyNode, LocalArtifactStore, PatientId,
-    PublicationDisposition, ReplicationRole, SlideId, StoreId, TableColumn, TableColumnType,
-    TableFormat, TableManifest, TableScalarType, VerifiedReaderError,
+    embeddings::{
+        preflight_cell_embedding_row_link_arrow_bytes, publish_cell_embedding_row_link_arrow,
+        validate_cell_embedding_row_link_arrow_bytes,
+        validate_cell_embedding_row_link_arrow_from_store, write_cell_embedding_row_link_arrow,
+        ArrowIpcFailure, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, ColumnarError,
+        EmbeddingColumnarBudgets, ExpectedCellSet,
+    },
+    workflow::{
+        ArtifactDraft, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef,
+        ArtifactSchema, ContentDigest, LocalArtifactStore, PublicationDisposition, StoreId,
+        TableColumn, TableColumnType, TableFormat, TableManifest, TableScalarType,
+        VerifiedReaderError,
+    },
+    CellId, CohortHierarchy, HierarchyId, HierarchyNode, PatientId, ReplicationRole, SlideId,
 };
 use tempfile::TempDir;
 
@@ -553,7 +558,7 @@ fn row_link_arrow_preflight_rejects_framing_footer_and_file_budget_drift() {
     bad_magic[0] = 0;
     assert!(matches!(
         preflight_cell_embedding_row_link_arrow_bytes(&bad_magic, &expected, &row_link, budgets(),),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidMagic,
         })
     ));
@@ -567,7 +572,7 @@ fn row_link_arrow_preflight_rejects_framing_footer_and_file_budget_drift() {
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidMagic,
         })
     ));
@@ -583,7 +588,7 @@ fn row_link_arrow_preflight_rejects_framing_footer_and_file_budget_drift() {
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidFooterLength,
         })
     ));
@@ -593,7 +598,7 @@ fn row_link_arrow_preflight_rejects_framing_footer_and_file_budget_drift() {
     bad_eos[footer_start - 1] = 1;
     assert!(matches!(
         preflight_cell_embedding_row_link_arrow_bytes(&bad_eos, &expected, &row_link, budgets(),),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidFooterLength,
         })
     ));
@@ -606,7 +611,7 @@ fn row_link_arrow_preflight_rejects_framing_footer_and_file_budget_drift() {
     );
     assert!(matches!(
         preflight_cell_embedding_row_link_arrow_bytes(&bytes, &expected, &row_link, too_small,),
-        Err(EmbeddingColumnarError::FileByteBudgetExceeded { .. })
+        Err(ColumnarError::FileByteBudgetExceeded { .. })
     ));
 }
 
@@ -619,7 +624,7 @@ fn row_link_arrow_preflight_rejects_absent_empty_record_batch_vector() {
     clear_footer_record_batches(&mut bytes);
     assert!(matches!(
         preflight_cell_embedding_row_link_arrow_bytes(&bytes, &expected, &row_link, budgets(),),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidFooter,
         })
     ));
@@ -641,7 +646,7 @@ fn row_link_arrow_preflight_rejects_block_node_buffer_schema_and_metadata_drift(
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBlock,
         })
     ));
@@ -658,7 +663,7 @@ fn row_link_arrow_preflight_rejects_block_node_buffer_schema_and_metadata_drift(
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBlock,
         })
     ));
@@ -672,7 +677,7 @@ fn row_link_arrow_preflight_rejects_block_node_buffer_schema_and_metadata_drift(
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::DictionaryBatch,
         })
     ));
@@ -688,7 +693,7 @@ fn row_link_arrow_preflight_rejects_block_node_buffer_schema_and_metadata_drift(
     .expect_err("footer custom metadata");
     assert!(matches!(
         error,
-        EmbeddingColumnarError::Arrow {
+        ColumnarError::Arrow {
             reason: ArrowIpcFailure::FileCustomMetadata,
         }
     ));
@@ -704,7 +709,7 @@ fn row_link_arrow_preflight_rejects_block_node_buffer_schema_and_metadata_drift(
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidFieldNodes,
         })
     ));
@@ -723,7 +728,7 @@ fn row_link_arrow_preflight_rejects_block_node_buffer_schema_and_metadata_drift(
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBuffers,
         })
     ));
@@ -737,7 +742,7 @@ fn row_link_arrow_preflight_rejects_block_node_buffer_schema_and_metadata_drift(
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBuffers,
         })
     ));
@@ -759,7 +764,7 @@ fn row_link_arrow_preflight_rejects_block_node_buffer_schema_and_metadata_drift(
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidSchema,
         })
     ));
@@ -782,7 +787,7 @@ fn row_link_arrow_preflight_rejects_block_node_buffer_schema_and_metadata_drift(
     .expect_err("metadata drift");
     assert!(matches!(
         error,
-        EmbeddingColumnarError::Arrow {
+        ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidApplicationMetadata,
         }
     ));
@@ -833,7 +838,7 @@ fn row_link_arrow_preflight_enforces_exact_nullable_bitmap_and_private_fillers()
         drift[validity.start] ^= mask;
         assert!(matches!(
             preflight_cell_embedding_row_link_arrow_bytes(&drift, &expected, &row_link, budgets(),),
-            Err(EmbeddingColumnarError::Arrow {
+            Err(ColumnarError::Arrow {
                 reason: ArrowIpcFailure::InvalidBuffers,
             })
         ));
@@ -850,7 +855,7 @@ fn row_link_arrow_preflight_enforces_exact_nullable_bitmap_and_private_fillers()
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidComponent,
         })
     ));
@@ -867,7 +872,7 @@ fn row_link_arrow_preflight_enforces_exact_nullable_bitmap_and_private_fillers()
             &row_link,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidComponent,
         })
     ));
@@ -882,7 +887,7 @@ fn row_link_arrow_preflight_enforces_exact_nullable_bitmap_and_private_fillers()
             .expect_err("wrong cell");
     assert!(matches!(
         error,
-        EmbeddingColumnarError::Arrow {
+        ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidCellOrder,
         }
     ));
@@ -916,7 +921,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
     );
     assert!(matches!(
         write_cell_embedding_row_link_arrow(&mut Vec::new(), &row_link, one_file_byte_short),
-        Err(EmbeddingColumnarError::FileByteBudgetExceeded { .. })
+        Err(ColumnarError::FileByteBudgetExceeded { .. })
     ));
 
     let row_group_required = match preflight_cell_embedding_row_link_arrow_bytes(
@@ -930,7 +935,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
             generous.maximum_decoded_bytes(),
         ),
     ) {
-        Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded {
+        Err(ColumnarError::RowGroupByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -956,7 +961,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
                 generous.maximum_decoded_bytes(),
             ),
         ),
-        Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded { .. })
+        Err(ColumnarError::RowGroupByteBudgetExceeded { .. })
     ));
 
     let decoded_required = match preflight_cell_embedding_row_link_arrow_bytes(
@@ -970,7 +975,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
             0,
         ),
     ) {
-        Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
+        Err(ColumnarError::DecodedByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -987,7 +992,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
                 0,
             ),
         ),
-        Err(EmbeddingColumnarError::DecodedByteBudgetExceeded {
+        Err(ColumnarError::DecodedByteBudgetExceeded {
             required,
             maximum: 0,
         }) if required == decoded_required
@@ -1014,7 +1019,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
             generous.maximum_decoded_bytes(),
         ),
     ) {
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+        Err(ColumnarError::RetainedByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -1031,7 +1036,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
             generous.maximum_decoded_bytes(),
         ),
     ) {
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum })
+        Err(ColumnarError::RetainedByteBudgetExceeded { required, maximum })
             if maximum == footer_retained_required && required > maximum =>
         {
             required
@@ -1058,7 +1063,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
                 generous.maximum_decoded_bytes(),
             ),
         ),
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { .. })
+        Err(ColumnarError::RetainedByteBudgetExceeded { .. })
     ));
 
     let root = TempDir::new().expect("reader budget store root");
@@ -1076,7 +1081,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
         &row_link,
         exact_retained,
     ) {
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum })
+        Err(ColumnarError::RetainedByteBudgetExceeded { required, maximum })
             if maximum == block_retained_required && required > maximum =>
         {
             required
@@ -1110,7 +1115,7 @@ fn row_link_arrow_writer_and_preflight_enforce_exact_resource_edges() {
                 generous.maximum_decoded_bytes(),
             ),
         ),
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, maximum })
+        Err(ColumnarError::RetainedByteBudgetExceeded { required, maximum })
             if required == reader_retained_required && maximum == reader_retained_required - 1
     ));
 }
@@ -1122,7 +1127,7 @@ fn row_link_arrow_writer_charges_many_batch_retained_peak_at_exact_edge() {
         EmbeddingColumnarBudgets::new(64 * 1024 * 1024, 0, 64 * 1024 * 1024, 64 * 1024 * 1024);
     let required =
         match write_cell_embedding_row_link_arrow(&mut Vec::new(), &row_link, zero_retained) {
-            Err(EmbeddingColumnarError::RetainedByteBudgetExceeded {
+            Err(ColumnarError::RetainedByteBudgetExceeded {
                 required,
                 maximum: 0,
             }) => required,
@@ -1147,7 +1152,7 @@ fn row_link_arrow_writer_charges_many_batch_retained_peak_at_exact_edge() {
                 64 * 1024 * 1024,
             ),
         ),
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { .. })
+        Err(ColumnarError::RetainedByteBudgetExceeded { .. })
     ));
 }
 
@@ -1347,11 +1352,7 @@ fn row_link_arrow_reader_rejects_every_record_binding_surface_without_leaking_va
             budgets(),
         )
         .unwrap_err();
-        assert_eq!(
-            error,
-            EmbeddingColumnarError::ArtifactBindingMismatch,
-            "{label}"
-        );
+        assert_eq!(error, ColumnarError::ArtifactBindingMismatch, "{label}");
     }
     let metadata_error = validate_cell_embedding_row_link_arrow_bytes(
         &bytes,
@@ -1425,7 +1426,7 @@ fn row_link_arrow_borrowed_and_managed_readers_reject_the_same_hostile_block() {
     assert_eq!(managed_error, borrowed_error);
     assert!(matches!(
         managed_error,
-        EmbeddingColumnarError::Arrow {
+        ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBlock,
         }
     ));

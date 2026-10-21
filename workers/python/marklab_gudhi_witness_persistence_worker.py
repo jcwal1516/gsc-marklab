@@ -1,26 +1,37 @@
 #!/usr/bin/env python3
+"""GUDHI worker for witness-complex persistence on farthest-point landmarks."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import gudhi
 
-GUDHI_VERSION = "3.13.0"
-
-
-class ContractError(Exception):
-    pass
-
-
-def exact(actual, expected, label):
-    if actual != expected:
-        raise ContractError(f"{label} mismatch")
+from marklab_worker_support import versions
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    exact,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
+from marklab_worker_support.topology import (
+    boundary_of_boundary_residual,
+    filtration_simplices,
+    persistence_by_dimension,
+    sorted_filtration,
+)
 
 
 def squared_distance(left, right):
-    return sum((a - b) ** 2 for a, b in zip(left, right))
+    return sum((a - b) ** 2 for a, b in zip(left, right, strict=False))
 
 
 def select_landmarks(points, count):
@@ -42,57 +53,15 @@ def select_landmarks(points, count):
     return selected, math.sqrt(coverage_square)
 
 
-def oriented_boundary(simplex):
-    return [
-        (simplex[:index] + simplex[index + 1 :], 1 if index % 2 == 0 else -1)
-        for index in range(len(simplex))
-    ]
-
-
 def filtration_result(tree, request, landmark_ids):
-    raw = [
-        (tuple(sorted(int(vertex) for vertex in simplex)), float(value))
-        for simplex, value in tree.get_filtration()
-        if len(simplex) - 1 <= request["maximum_dimension"]
-    ]
-    raw.sort(key=lambda item: (item[1], len(item[0]), item[0]))
+    raw = sorted_filtration(tree, request["maximum_dimension"])
     if len(raw) > request["maximum_simplices"]:
         raise ContractError("witness filtration exceeds maximum_simplices")
-    positions = {simplex: index for index, (simplex, _) in enumerate(raw)}
-    counts = [0] * (request["maximum_dimension"] + 1)
-    simplices = []
-    for position, (simplex, value) in enumerate(raw):
-        if not math.isfinite(value):
-            raise ContractError("witness filtration value is non-finite")
-        boundary = []
-        if len(simplex) > 1:
-            for face, _ in oriented_boundary(simplex):
-                if face not in positions or positions[face] >= position or raw[positions[face]][1] > value:
-                    raise ContractError("witness face order is invalid")
-                boundary.append(positions[face])
-        dimension = len(simplex) - 1
-        counts[dimension] += 1
-        simplices.append(
-            {
-                "vertex_ids": [landmark_ids[index] for index in simplex],
-                "dimension": dimension,
-                "filtration_alpha_squared": value,
-                "boundary_indices": boundary,
-            }
-        )
+    simplices, counts = filtration_simplices(
+        raw, landmark_ids, request["maximum_dimension"], "witness"
+    )
     prime = request["coefficient_field"]
-    maximum_residual = 0
-    for simplex, _ in raw:
-        if len(simplex) <= 2:
-            continue
-        coefficients = {}
-        for face, face_coefficient in oriented_boundary(simplex):
-            for subface, subface_coefficient in oriented_boundary(face):
-                coefficients[subface] = (
-                    coefficients.get(subface, 0)
-                    + face_coefficient * subface_coefficient
-                ) % prime
-        maximum_residual = max(maximum_residual, *(abs(value) for value in coefficients.values()))
+    maximum_residual = boundary_of_boundary_residual(raw, prime)
     if maximum_residual != 0:
         raise ContractError("boundary of boundary is nonzero")
     return {
@@ -107,54 +76,15 @@ def filtration_result(tree, request, landmark_ids):
     }
 
 
-def persistence_result(tree, request):
-    tree.compute_persistence(
-        homology_coeff_field=request["coefficient_field"],
-        min_persistence=-1.0,
-        persistence_dim_max=True,
-    )
-    dimensions = []
-    for dimension in range(request["maximum_dimension"] + 1):
-        finite_pairs = []
-        essential_births = []
-        for birth, death in tree.persistence_intervals_in_dimension(dimension):
-            birth = float(birth)
-            death = float(death)
-            if math.isinf(death):
-                essential_births.append(birth)
-            elif death >= birth:
-                finite_pairs.append({"birth": birth, "death": death})
-            else:
-                raise ContractError("persistence pair has death before birth")
-        finite_pairs.sort(key=lambda pair: (pair["birth"], pair["death"]))
-        essential_births.sort()
-        dimensions.append(
-            {
-                "dimension": dimension,
-                "finite_pairs": finite_pairs,
-                "essential_births": essential_births,
-                "essential_count": len(essential_births),
-            }
-        )
-    return {
-        "algorithm": "gudhi_simplex_tree_persistent_cohomology",
-        "essential_death_policy": "separate_birth_list_no_json_infinity",
-        "by_dimension": dimensions,
-    }
-
-
 def main():
-    if gudhi.__version__ != GUDHI_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("GUDHI or Python version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if not request_bytes or len(request_bytes) > 16 * 1024 * 1024:
-        raise ContractError("request is empty or too large")
+    require_versions(gudhi=gudhi.__version__)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
     exact(request["format"], "marklab.gudhi_witness_persistence_request", "format")
     exact(request["version"], 1, "version")
     exact(request["backend"]["name"], "gudhi", "backend.name")
-    exact(request["backend"]["version"], GUDHI_VERSION, "backend.version")
-    exact(request["backend"]["python_version"], "3.12", "backend.python_version")
+    exact(request["backend"]["version"], versions.GUDHI, "backend.version")
+    exact(request["backend"]["python_version"], versions.PYTHON, "backend.python_version")
     exact(request["landmark_method"], "farthest_point", "landmark_method")
     exact(request["nu"], 0, "nu")
     points = [point["coordinates_um"] for point in request["points"]]
@@ -172,7 +102,7 @@ def main():
         "format": "marklab.witness_persistence",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "points": request["points"],
         "landmark_ids": landmark_ids,
         "approximation": {
@@ -182,16 +112,13 @@ def main():
             "max_scale_um": math.sqrt(request["max_scale_square"]),
         },
         "filtration": filtration_result(tree, request, landmark_ids),
-        "persistence": persistence_result(tree, request),
+        "persistence": persistence_by_dimension(
+            tree, request["coefficient_field"], request["maximum_dimension"]
+        ),
         "claim_status": "experimental_witness_approximation",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-        print(f"topology worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "topology worker contract error", errors=CONTRACT_ERRORS)

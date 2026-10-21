@@ -4,7 +4,7 @@ use crate::{
     config::AnalysisConfig,
     data::Pattern,
     errors::{MarklabError, Result},
-    periodogram::raster::centered_mark_raster,
+    periodogram::raster::RasterAssignmentPlan,
 };
 
 pub fn write_analysis_intermediates(
@@ -109,9 +109,13 @@ fn write_kgrid(_dir: &Path, _pattern: &Pattern, _config: &AnalysisConfig) -> Res
 }
 
 fn write_residual_raster(dir: &Path, pattern: &Pattern) -> Result<()> {
-    let (spec, raster) = centered_mark_raster(pattern, pattern.window.d_nn_mean_um.max(1.0))
-        .ok_or_else(|| MarklabError::Compute("could not build residual raster".into()))?;
-    let bytes = npy_f32_2d(&raster, spec.height, spec.width);
+    let unavailable = || MarklabError::Compute("could not build residual raster".into());
+    let plan = RasterAssignmentPlan::new(pattern, pattern.window.d_nn_mean_um.max(1.0))
+        .ok_or_else(unavailable)?;
+    let mut raster = Vec::with_capacity(plan.pixel_count());
+    plan.fill_centered_binary_marks(&pattern.mark, &mut raster)
+        .ok_or_else(unavailable)?;
+    let bytes = npy_f32_2d(&raster, plan.spec().height, plan.spec().width);
     let path = dir.join("residual_raster.npy");
     fs::write(&path, bytes).map_err(|source| MarklabError::io(&path, source))?;
     Ok(())

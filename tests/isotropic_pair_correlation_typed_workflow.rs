@@ -1,8 +1,14 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_isotropic_pair_correlation, IsotropicPairCorrelationConfig, IsotropicSpatialError,
-    IsotropicSpatialLimits, ObservationWindow2D, ObservationWindowLimits,
-    PairCorrelationPointStatus, Pattern, PatternMeta,
+    spatial::{
+        analyze_isotropic_pair_correlation, IsotropicPairCorrelationConfig, IsotropicSpatialError,
+        IsotropicSpatialLimits, PairCorrelationPointStatus,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn pattern(x: Vec<f64>, y: Vec<f64>) -> Pattern {
@@ -10,16 +16,12 @@ fn pattern(x: Vec<f64>, y: Vec<f64>) -> Pattern {
         x.clone(),
         y,
         vec![0; x.len()],
-        PatternMeta {
-            case_id: "isotropic-g-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("isotropic-g-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "isotropic-g-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("isotropic-g-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -101,6 +103,9 @@ fn compact_support_and_exact_arc_work_memory_boundaries_are_explicit() {
         PairCorrelationPointStatus::NoPairsInKernelSupport
     );
     assert_eq!(endpoint.geometry.observed_visible_arc_evaluations, 0);
+    assert_eq!(endpoint.curve[0].g, Some(0.0));
+    assert!(endpoint.curve[0].inference_eligible);
+    assert!(endpoint.inference.is_some());
 
     let points = pattern(vec![2.0, 3.0], vec![2.0, 2.0]);
     let exact = analyze_isotropic_pair_correlation(
@@ -171,7 +176,10 @@ fn rectangle_isotropic_g_matches_visible_arc_hand_oracle() {
     )
     .expect("isotropic g");
 
-    assert_eq!(result.correction, "isotropic");
+    assert_eq!(
+        result.correction,
+        marklab::spatial::EdgeCorrection::Isotropic
+    );
     let point = &result.curve[0];
     assert_eq!(point.directed_pairs_in_support, 2);
     assert_eq!(point.visible_arc_evaluations, 2);

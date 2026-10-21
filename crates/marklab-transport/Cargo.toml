@@ -1,0 +1,17 @@
+[package]
+name = "marklab-transport"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Optimal transport requests, results and deterministic solvers for Marklab"
+
+[lib]
+bench = false
+
+[dependencies]
+marklab-core.workspace = true
+marklab-numerics.workspace = true
+serde.workspace = true
+thiserror.workspace = true

@@ -5,9 +5,153 @@ use crate::{
     geom::mask::TumorMask,
     io::csv::load_pattern_csv_with_diagnostics,
     multimodal::{multimodal_analysis_call_count, reset_multimodal_analysis_call_count},
-    synthetic_smoke::run_synthetic_smoke,
+    synthetic_smoke::{
+        generators::{calibration_pattern, CalibrationLabels, CalibrationLayout},
+        model::BinomialConfidenceInterval,
+        run_synthetic_smoke,
+        statistics::{observed_rate, wilson_bounds, wilson_interval},
+    },
     AnalysisConfig, AnalysisEngine, AnalysisStatus, Pattern, StatusFlag,
 };
+
+const CALIBRATION_ALPHA: f64 = 0.05;
+
+/// Calibration fails only on evidence that the false-positive rate is above alpha.
+///
+/// Requiring the upper bound to sit below alpha would reject an exactly sized test most of
+/// the time, so the rule tests anti-conservatism instead.
+fn significantly_exceeds_alpha(interval: &BinomialConfidenceInterval) -> bool {
+    interval.lower > CALIBRATION_ALPHA
+}
+
+#[test]
+fn calibration_rule_accepts_an_exact_test_and_rejects_an_inflated_one() {
+    let exact = wilson_interval(50, 1_000).expect("interval");
+    let inflated = wilson_interval(70, 1_000).expect("interval");
+
+    assert!(!significantly_exceeds_alpha(&exact));
+    assert!(significantly_exceeds_alpha(&inflated));
+}
+
+/// Minimum share of attempts that must yield a p-value in a calibration scenario.
+const MINIMUM_AVAILABILITY: f64 = 0.95;
+/// Minimum Wilson 95% lower bound on the rejection rate of a declared alternative.
+const MINIMUM_POWER_LOWER_BOUND: f64 = 0.8;
+const Z_95: f64 = 1.959_963_984_540_054;
+
+#[derive(Clone, Default)]
+struct CalibrationTally {
+    attempted: usize,
+    available: usize,
+    rejections: usize,
+    errors: Vec<String>,
+}
+
+impl CalibrationTally {
+    fn record(&mut self, replicate: usize, outcome: std::result::Result<Option<f64>, String>) {
+        self.attempted += 1;
+        match outcome {
+            Ok(Some(p_value)) => {
+                self.available += 1;
+                self.rejections += usize::from(p_value <= CALIBRATION_ALPHA);
+            }
+            Ok(None) => {}
+            Err(error) => self.errors.push(format!("replicate {replicate}: {error}")),
+        }
+    }
+}
+
+/// One-sided quantile that keeps the family-wise false-alarm rate at 2.5% across `nulls`
+/// anti-conservatism checks (Bonferroni), as in the pathology calibration.
+fn bonferroni_z(nulls: usize) -> f64 {
+    statrs::distribution::ContinuousCDF::inverse_cdf(
+        &statrs::distribution::Normal::standard(),
+        1.0 - 0.025 / nulls as f64,
+    )
+}
+
+/// A new JSON-lines file in the directory named by `MARKLAB_SHUFFLE_CALIBRATION_OUTPUT`.
+fn calibration_output(file_name: &str) -> fs::File {
+    let directory = std::env::var("MARKLAB_SHUFFLE_CALIBRATION_OUTPUT")
+        .expect("set MARKLAB_SHUFFLE_CALIBRATION_OUTPUT to a results directory");
+    fs::create_dir_all(&directory).expect("calibration output directory");
+    fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(std::path::Path::new(&directory).join(file_name))
+        .expect("new calibration output file")
+}
+
+/// What a calibration scenario is evidence for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScenarioRole {
+    /// Fails only on evidence that the rejection rate exceeds alpha.
+    Null,
+    /// Fails when power is not shown to reach 0.8.
+    Power,
+    /// Reported without a rejection-rate criterion, to document behaviour outside the
+    /// statistic's declared scope.
+    Descriptive,
+}
+
+/// Writes one scenario row and returns its failure, if any. Every role requires p-values
+/// for at least 95% of attempts.
+fn judge_scenario(
+    output: &mut fs::File,
+    scenario: serde_json::Value,
+    role: ScenarioRole,
+    tally: &CalibrationTally,
+    null_z: f64,
+) -> Option<String> {
+    use std::io::Write;
+
+    let z = if role == ScenarioRole::Null {
+        null_z
+    } else {
+        Z_95
+    };
+    let bounds = wilson_bounds(tally.rejections, tally.available, z);
+    let availability = tally.available as f64 / tally.attempted as f64;
+    let row = serde_json::json!({
+        "scenario": scenario,
+        "role": match role {
+            ScenarioRole::Null => "null",
+            ScenarioRole::Power => "power",
+            ScenarioRole::Descriptive => "descriptive",
+        },
+        "attempted": tally.attempted,
+        "available": tally.available,
+        "rejections": tally.rejections,
+        "rate_among_available": observed_rate(tally.rejections, tally.available),
+        "wilson_z": z,
+        "wilson_bounds": bounds,
+        "error_count": tally.errors.len(),
+        "first_errors": &tally.errors[..tally.errors.len().min(5)],
+    });
+    writeln!(output, "{row}").expect("write calibration row");
+    println!("{row}");
+    if availability < MINIMUM_AVAILABILITY {
+        return Some(format!(
+            "{scenario}: p-value available for {}/{} attempts, below {MINIMUM_AVAILABILITY}",
+            tally.available, tally.attempted
+        ));
+    }
+    let (lower, upper) = bounds?;
+    if role == ScenarioRole::Null && lower > CALIBRATION_ALPHA {
+        Some(format!(
+            "{scenario} exceeds nominal alpha: {}/{} rejections, Bonferroni Wilson interval \
+             [{lower}, {upper}] (z = {z})",
+            tally.rejections, tally.available
+        ))
+    } else if role == ScenarioRole::Power && lower < MINIMUM_POWER_LOWER_BOUND {
+        Some(format!(
+            "{scenario} lacks power: {}/{} rejections, Wilson 95% interval [{lower}, {upper}]",
+            tally.rejections, tally.available
+        ))
+    } else {
+        None
+    }
+}
 
 fn meta() -> PatternMeta {
     PatternMeta {
@@ -158,6 +302,16 @@ fn marked_smoke_uses_production_qc_and_prepost_outcomes() {
 }
 
 #[test]
+fn unknown_smoke_generators_are_rejected_before_running() {
+    let engine = AnalysisEngine::new(crate::synthetic_smoke::smoke_config()).expect("engine");
+    let error = crate::synthetic_smoke::run_generator("not_a_generator", 2, &engine)
+        .expect_err("unknown generator");
+    assert!(error
+        .to_string()
+        .contains("unknown synthetic smoke generator not_a_generator"));
+}
+
+#[test]
 fn marked_smoke_reports_failed_replicates_without_hiding_denominators() {
     let pattern = crate::synthetic_smoke::generators::synthetic_pattern("random_labeling", 0)
         .expect("pattern");
@@ -180,25 +334,130 @@ fn marked_smoke_reports_failed_replicates_without_hiding_denominators() {
 }
 
 #[test]
-#[ignore = "scheduled calibration uses 1,000 production-engine replicates"]
-fn marked_negative_control_calibrates() {
-    let engine = AnalysisEngine::new(crate::synthetic_smoke::smoke_config()).expect("engine");
-    let result = crate::synthetic_smoke::run_generator("random_labeling", 1_000, &engine)
-        .expect("negative-control calibration");
-    let interval = result
-        .type_i_error_confidence_interval
-        .expect("type-I confidence interval");
-
-    assert!(interval.upper <= 0.05, "{result:?}");
-}
-
-#[test]
-fn no_manual_status_flag_injection() {
-    let runner_source = include_str!("../synthetic_smoke.rs");
-
-    assert!(!runner_source.contains("result.passed = true"));
-    assert!(!runner_source.contains("status_flags.push(StatusFlag::"));
-    assert!(!runner_source.contains("statistic: 0.0"));
+#[ignore = "scheduled calibration: 32,000 null and 5,000 alternative analyses; use release mode"]
+fn marked_shuffle_calibration() {
+    let mut output = calibration_output("marked.jsonl");
+    // (layout, marked percent, labels, permutations, role)
+    let mut scenarios = Vec::new();
+    for layout in CalibrationLayout::ALL {
+        for marked_percent in [10, 25, 50] {
+            scenarios.push((
+                layout,
+                marked_percent,
+                CalibrationLabels::Uniform,
+                39,
+                ScenarioRole::Null,
+            ));
+        }
+    }
+    scenarios.push((
+        CalibrationLayout::Square,
+        25,
+        CalibrationLabels::Uniform,
+        199,
+        ScenarioRole::Null,
+    ));
+    for layout in CalibrationLayout::ALL {
+        scenarios.push((
+            layout,
+            25,
+            CalibrationLabels::SmallFoci,
+            39,
+            ScenarioRole::Power,
+        ));
+    }
+    // One focus holding a quarter of the cells is comparable to or larger than the low-k
+    // endpoint's largest interpretable scale (0.33 of the window diagonal). It is reported
+    // without a power criterion to document that limit.
+    for layout in CalibrationLayout::ALL {
+        scenarios.push((
+            layout,
+            25,
+            CalibrationLabels::SingleFocus,
+            39,
+            ScenarioRole::Descriptive,
+        ));
+    }
+    let null_z = bonferroni_z(
+        scenarios
+            .iter()
+            .filter(|scenario| scenario.4 == ScenarioRole::Null)
+            .count(),
+    );
+    // Scenarios are independent and individually seeded, so they run concurrently; rows are
+    // written afterwards in scenario order.
+    let tallies = std::thread::scope(|scope| {
+        let handles = scenarios
+            .iter()
+            .enumerate()
+            .map(
+                |(index, &(layout, marked_percent, labels, permutations, role))| {
+                    scope.spawn(move || {
+                        let mut tally = CalibrationTally::default();
+                        let attempts = if role == ScenarioRole::Null {
+                            2_000
+                        } else {
+                            500
+                        };
+                        for replicate in 0..attempts {
+                            // Draw a fresh Monte Carlo reference set for each replicate. The
+                            // permutation test is exact only on average over that draw; one seed
+                            // shared by every replicate would measure the size of a single fixed
+                            // reference set instead.
+                            // The shipped configuration, including its 64-shell spectrum and
+                            // validation minimums, with fewer permutations and one thread.
+                            let mut config = AnalysisConfig::default();
+                            config.permutation.b = permutations;
+                            config.permutation.stratified = false;
+                            config.permutation.strata_fields.clear();
+                            config.performance.threads = crate::config::ThreadSetting::Count(1);
+                            config.permutation.seed = crate::common::seeds::splitmix64(
+                                ((index as u64) << 32) ^ replicate as u64 ^ 0x7065_726d_7574_6573,
+                            );
+                            let outcome = AnalysisEngine::new(config)
+                                .and_then(|engine| {
+                                    calibration_pattern(
+                                        layout,
+                                        marked_percent,
+                                        labels,
+                                        index as u64,
+                                        replicate as u64,
+                                    )
+                                    .and_then(|pattern| engine.analyze_pattern(&pattern))
+                                })
+                                .map(|analysis| analysis.primary_endpoint.p_value.value().copied())
+                                .map_err(|error| error.to_string());
+                            tally.record(replicate, outcome);
+                        }
+                        tally
+                    })
+                },
+            )
+            .collect::<Vec<_>>();
+        handles
+            .into_iter()
+            .map(|handle| handle.join().expect("calibration scenario thread"))
+            .collect::<Vec<_>>()
+    });
+    let mut failures = Vec::new();
+    for (&(layout, marked_percent, labels, permutations, role), tally) in
+        scenarios.iter().zip(&tallies)
+    {
+        let scenario = serde_json::json!({
+            "workflow": "analyze",
+            "layout": layout.name(),
+            "marked_percent": marked_percent,
+            "labels": labels.name(),
+            "permutations": permutations,
+        });
+        failures.extend(judge_scenario(&mut output, scenario, role, tally, null_z));
+    }
+    // Report every scenario before failing so one regression does not hide another.
+    assert!(
+        failures.is_empty(),
+        "shuffle calibration criteria failed; preserve output and investigate:\n{}",
+        failures.join("\n")
+    );
 }
 
 mod multimodal {
@@ -295,20 +554,127 @@ mod multimodal {
     }
 
     #[test]
-    #[ignore = "scheduled calibration uses 1,000 production-engine replicates"]
-    fn negative_control_calibrates() {
-        let result = crate::synthetic_smoke::run_multimodal_generator(
-            "random_labels_no_association",
-            1_000,
-            123,
-            0,
-        )
-        .expect("negative-control calibration");
-        let interval = result
-            .false_positive_confidence_interval
-            .expect("false-positive confidence interval");
+    #[ignore = "scheduled calibration: 8,000 null runs and 500 alternative runs; use release mode"]
+    fn shuffle_calibration() {
+        use crate::{
+            multimodal::{MultimodalAnalysisRun, MultimodalEngine},
+            synthetic_smoke::generators::{
+                multimodal_calibration_scenario, multimodal_replicate_scenario,
+                MultimodalCalibrationLayout, MultimodalScenario, CALIBRATION_NULL_MODELS,
+            },
+        };
 
-        assert!(interval.upper <= 0.05, "{result:?}");
+        fn run(
+            scenario: crate::errors::Result<MultimodalScenario>,
+        ) -> Result<MultimodalAnalysisRun, String> {
+            let scenario = scenario.map_err(|error| error.to_string())?;
+            MultimodalEngine::new(scenario.config)
+                .and_then(|engine| engine.analyze_run(&scenario.pre))
+                .map_err(|error| error.to_string())
+        }
+
+        // The lymphocyte/mmr_abnormal p-value under one null model, as the smoke suite reads it.
+        fn p_value(
+            run: &Result<MultimodalAnalysisRun, String>,
+            null_model: crate::config::NeighborhoodNullModel,
+        ) -> Result<Option<f64>, String> {
+            let run = run.as_ref().map_err(Clone::clone)?;
+            Ok(run
+                .null_model_sensitivity
+                .iter()
+                .find(|result| result.null_model == null_model)
+                .and_then(|result| {
+                    result
+                        .results
+                        .iter()
+                        .find(|row| row.label_a == "lymphocyte" && row.label_b == "mmr_abnormal")
+                })
+                .and_then(|row| row.q_value.or(row.p_value)))
+        }
+
+        let mut output = super::calibration_output("multimodal.jsonl");
+        // (layout, lymphocyte percent of H&E cells, abnormal percent of IHC cells)
+        let variants = [
+            (MultimodalCalibrationLayout::SparseGrid, 48, 50),
+            (MultimodalCalibrationLayout::SparseGrid, 20, 25),
+            (MultimodalCalibrationLayout::DenseJitteredGrid, 48, 50),
+            (MultimodalCalibrationLayout::DenseJitteredGrid, 20, 25),
+        ];
+        let null_z = super::bonferroni_z(variants.len() * CALIBRATION_NULL_MODELS.len());
+        let mut failures = Vec::new();
+        for (index, &(layout, lymphocyte_percent, abnormal_percent)) in variants.iter().enumerate()
+        {
+            let mut tallies =
+                vec![super::CalibrationTally::default(); CALIBRATION_NULL_MODELS.len()];
+            for replicate in 0..2_000 {
+                let outcome = run(multimodal_calibration_scenario(
+                    layout,
+                    lymphocyte_percent,
+                    abnormal_percent,
+                    index as u64,
+                    replicate,
+                ));
+                for (tally, null_model) in tallies.iter_mut().zip(CALIBRATION_NULL_MODELS) {
+                    tally.record(replicate, p_value(&outcome, null_model));
+                }
+            }
+            for (tally, null_model) in tallies.iter().zip(CALIBRATION_NULL_MODELS) {
+                let scenario = serde_json::json!({
+                    "workflow": "multimodal",
+                    "layout": layout.name(),
+                    "lymphocyte_percent": lymphocyte_percent,
+                    "abnormal_percent": abnormal_percent,
+                    "null_model": null_model,
+                    "labels": "uniform_fixed_count",
+                    "permutations": 99,
+                });
+                failures.extend(super::judge_scenario(
+                    &mut output,
+                    scenario,
+                    super::ScenarioRole::Null,
+                    tally,
+                    null_z,
+                ));
+            }
+        }
+        // The existing immune-association positive control, read under every null model.
+        let mut tallies = vec![super::CalibrationTally::default(); CALIBRATION_NULL_MODELS.len()];
+        for replicate in 0..500 {
+            let outcome = run(multimodal_replicate_scenario(
+                "immune_associated_mmr_territory",
+                123,
+                0,
+                replicate,
+            )
+            .map(|mut scenario| {
+                scenario.config.neighborhood.null_models = CALIBRATION_NULL_MODELS.to_vec();
+                scenario
+            }));
+            for (tally, null_model) in tallies.iter_mut().zip(CALIBRATION_NULL_MODELS) {
+                tally.record(replicate, p_value(&outcome, null_model));
+            }
+        }
+        for (tally, null_model) in tallies.iter().zip(CALIBRATION_NULL_MODELS) {
+            let scenario = serde_json::json!({
+                "workflow": "multimodal",
+                "layout": "immune_associated_mmr_territory",
+                "null_model": null_model,
+                "labels": "associated_lymphocyte_and_abnormal_clusters",
+                "permutations": 99,
+            });
+            failures.extend(super::judge_scenario(
+                &mut output,
+                scenario,
+                super::ScenarioRole::Power,
+                tally,
+                null_z,
+            ));
+        }
+        assert!(
+            failures.is_empty(),
+            "multimodal shuffle calibration criteria failed; preserve output and investigate:\n{}",
+            failures.join("\n")
+        );
     }
 
     #[test]

@@ -1,16 +1,21 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{
         BackendContract, DiagnosticPolicy, WorkerResourceLimits, MODEL_FORMAT, MODEL_VERSION,
         PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
     sar_fit::design_full_rank,
-    BayesError, FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary,
-    SarScalarSummary, WorkerBackend,
+    BayesError, FitState, NutsSamplingSpec, PosteriorDiagnostics, SamplingSummary, ScalarSummary,
+    WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SpatialCoefficientObservation {
@@ -21,6 +26,16 @@ pub struct SpatialCoefficientObservation {
     pub spatial_predictor: f64,
 }
 
+/// Gaussian regression with a sum-zero spatial deviation in one coefficient.
+///
+/// The likelihood is `y_i ~ Normal(alpha + gamma * g_i + s_i * (beta_0 + d_i),
+/// known_noise_sd)`. The intercept has `Normal(intercept_prior_mean, intercept_prior_sd)`
+/// prior; `gamma` and `beta_0` have independent `Normal(0, coefficient_prior_sd)` priors. The
+/// Matérn-3/2 deviation uses `d = B L z`, `z ~ Normal(0, I)`, and `L = chol(B' K B)`, where
+/// `B` is the supplied orthonormal sum-zero basis and `K` includes diagonal jitter. Amplitude
+/// and length scale have half-normal priors with the supplied scales. Normal arguments are
+/// SDs; the projection separates the mean coefficient from its spatial deviation.
+///
 #[derive(Clone, Debug)]
 pub struct SpatialVaryingCoefficientSpec {
     pub global_predictor_name: String,
@@ -52,8 +67,8 @@ pub struct SpatialVaryingCoefficientModelIr {
     pub length_scale_prior_sd_um: f64,
     pub known_noise_sd: f64,
     pub jitter: f64,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -79,7 +94,7 @@ impl SpatialVaryingCoefficientWorkerRequest {
     ) -> Result<Self, BayesError> {
         sampling.validate()?;
         validate_spec(&mut spec)?;
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "spatial coefficient worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -104,7 +119,7 @@ impl SpatialVaryingCoefficientWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -124,8 +139,8 @@ impl SpatialVaryingCoefficientWorkerRequest {
                 length_scale_prior_sd_um: spec.length_scale_prior_sd_um,
                 known_noise_sd: spec.known_noise_sd,
                 jitter: spec.jitter,
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             centering_basis: helmert_basis(dimension),
             observations: spec.observations,
@@ -227,11 +242,11 @@ fn helmert_basis(dimension: usize) -> Vec<f64> {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SpatialCoefficientPosterior {
-    pub intercept: SarScalarSummary,
-    pub global_coefficient: SarScalarSummary,
-    pub spatial_mean_coefficient: SarScalarSummary,
-    pub amplitude: SarScalarSummary,
-    pub length_scale_um: SarScalarSummary,
+    pub intercept: ScalarSummary,
+    pub global_coefficient: ScalarSummary,
+    pub spatial_mean_coefficient: ScalarSummary,
+    pub amplitude: ScalarSummary,
+    pub length_scale_um: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -239,8 +254,8 @@ pub struct SpatialCoefficientPosterior {
 pub struct SpatialCoefficientFieldSummary {
     pub coordinate_id: String,
     pub x_um: f64,
-    pub deviation: SarScalarSummary,
-    pub varying_coefficient: SarScalarSummary,
+    pub deviation: ScalarSummary,
+    pub varying_coefficient: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -264,7 +279,7 @@ pub struct SpatialVaryingCoefficientWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: SpatialCoefficientPosterior,
     pub coefficient_field: Vec<SpatialCoefficientFieldSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: SpatialCoefficientPosteriorPredictive,
 }
 
@@ -277,11 +292,7 @@ impl SpatialVaryingCoefficientWorkerResult {
         if self.fit_state == FitState::ApproximateOnly
             || self.format != "marklab.pymc_spatial_varying_coefficient_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
         {
             return Err(BayesError::WorkerContract(
@@ -410,9 +421,9 @@ impl SpatialVaryingCoefficientWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -426,7 +437,7 @@ impl SpatialVaryingCoefficientWorkerResult {
     }
 }
 
-fn validate_scalar(summary: &SarScalarSummary, positive: bool) -> Result<(), BayesError> {
+fn validate_scalar(summary: &ScalarSummary, positive: bool) -> Result<(), BayesError> {
     if !finite(&[
         summary.mean,
         summary.sd,
@@ -457,12 +468,12 @@ pub struct SpatialVaryingCoefficientFit {
     pub model: SpatialVaryingCoefficientModelIr,
     pub input: SpatialCoefficientInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: SpatialCoefficientPosterior,
     pub constraints: Vec<&'static str>,
     pub coefficient_field: Vec<SpatialCoefficientFieldSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: SpatialCoefficientPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,

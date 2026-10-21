@@ -1,12 +1,12 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, NutsSamplingSpec, PoissonExposureObservation, PoissonInlaInputIdentity,
-    PoissonInlaSpec, PoissonInlaWorkerRequest, PoissonInlaWorkerResult,
+    json_sha256, sha256_hex, PoissonExposureObservation, PoissonInlaInputIdentity, PoissonInlaSpec,
+    PoissonInlaWorkerRequest, PoissonInlaWorkerResult,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::PoissonLognormalInlaArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -16,33 +16,26 @@ struct ObservationRow {
     exposure: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    latent_mean: f64,
-    tau_shape: f64,
-    tau_rate: f64,
-    log_tau_min: f64,
-    log_tau_max: f64,
-    grid_points: u32,
-    endpoint_mass_limit: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: PoissonLognormalInlaArgs) -> Result<(), CliError> {
+    let PoissonLognormalInlaArgs {
+        input,
+        latent_mean,
+        tau_shape,
+        tau_rate,
+        log_tau_min,
+        log_tau_max,
+        grid_points,
+        endpoint_mass_limit,
+        timeout_seconds,
+        out,
+        nuts,
+    } = args;
+    let input_path = input;
+    let sampling = nuts.spec();
+    let output_path = out;
     let observations = read_observations(&input_path)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_scipy_pytensor_pymc_inla_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_scipy_pytensor_pymc_inla_worker.py")?;
     let request = PoissonInlaWorkerRequest::new(
         PoissonInlaSpec {
             latent_mean,
@@ -55,14 +48,14 @@ pub(super) fn run(
             observations,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let identity = PoissonInlaInputIdentity {
         path: input_path.display().to_string(),
         region_count: request.observations.len(),
-        observations_sha256: sha256_hex(&serde_json::to_vec(&request.observations)?),
+        observations_sha256: json_sha256(&request.observations)?,
     };
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
@@ -77,10 +70,8 @@ pub(super) fn run(
     publish_json(&output_path, &result.into_fit(request, identity))
 }
 
-fn read_observations(
-    path: &std::path::Path,
-) -> Result<Vec<PoissonExposureObservation>, BayesCliError> {
-    super::input_file::validate_regular_file(
+fn read_observations(path: &std::path::Path) -> Result<Vec<PoissonExposureObservation>, CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "Poisson INLA input must be a regular file within the 16 MiB limit",
@@ -91,7 +82,7 @@ fn read_observations(
         .iter()
         .eq(["region_id", "count", "exposure"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "Poisson INLA headers must be exactly: region_id,count,exposure".into(),
         ));
     }
@@ -104,7 +95,7 @@ fn read_observations(
             exposure: row.exposure,
         });
         if observations.len() > 16 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "Poisson INLA region count exceeds 16".into(),
             ));
         }

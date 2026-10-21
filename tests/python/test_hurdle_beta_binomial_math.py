@@ -1,11 +1,10 @@
 import importlib.util
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 import numpy as np
 from scipy.stats import betabinom
-
 
 WORKER_DIRECTORY = Path(__file__).resolve().parents[2] / "workers" / "python"
 MODULE_PATH = WORKER_DIRECTORY / "marklab_pymc_hurdle_beta_binomial_group_worker.py"
@@ -14,7 +13,9 @@ MODULE_PATH = WORKER_DIRECTORY / "marklab_pymc_hurdle_beta_binomial_group_worker
 def load_module():
     sys.path.insert(0, str(WORKER_DIRECTORY))
     try:
-        spec = importlib.util.spec_from_file_location("hurdle_beta_binomial_worker", MODULE_PATH)
+        spec = importlib.util.spec_from_file_location(
+            "hurdle_beta_binomial_worker", MODULE_PATH
+        )
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
         spec.loader.exec_module(module)
@@ -50,7 +51,7 @@ class HurdleBetaBinomialExpectationTest(unittest.TestCase):
         np.testing.assert_allclose(actual, expected, rtol=2e-14, atol=2e-14)
         self.assertTrue(np.all(actual > probabilities[:, None]))
 
-    def test_chain_draw_shape_and_extreme_admitted_parameters_remain_finite(self):
+    def test_chain_draw_shape_and_extreme_valid_parameters_remain_finite(self):
         worker = load_module()
         probabilities = np.asarray([[1e-12, 0.5], [1.0 - 1e-12, 0.9]])
         concentrations = np.asarray([[1e-3, 1e6], [1e-2, 1e4]])

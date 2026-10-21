@@ -1,14 +1,18 @@
 #![forbid(unsafe_code)]
 
+use marklab_core::backend::ClaimStatus;
 use serde::Serialize;
 use thiserror::Error;
 
 mod agent_competition;
 mod competition;
 mod level_set;
+mod matern_cluster;
 mod mechanistic;
 mod reaction_diffusion;
 mod summary_matching;
+mod thomas;
+mod thomas_minimum_contrast;
 mod vascular_transport;
 
 pub use agent_competition::{
@@ -25,6 +29,10 @@ pub use level_set::{
     evolve_interface_level_set, LevelSetInterfaceDiagnostics, LevelSetResult, LevelSetSnapshot,
     LevelSetSolverDiagnostics, LevelSetSpec, LevelSetStateCell,
 };
+pub use matern_cluster::{
+    simulate_matern_cluster_process, MaternClusterBoundary, MaternClusterProcessError,
+    MaternClusterProcessResult, MaternClusterProcessSpec,
+};
 pub use mechanistic::{
     simulate_mechanistic_tissue, MechanisticCouplingDiagnostics, MechanisticIntervalSummary,
     MechanisticTissueResult, MechanisticTissueSpec,
@@ -38,6 +46,18 @@ pub use summary_matching::{
     soft_pair_histogram, summary_matching_loss, SoftHistogramNormalization, SoftPairHistogramBin,
     SoftPairHistogramResult, SummaryLossComponent, SummaryMatchingLossResult,
     SummaryMatchingResult, SummaryMatchingSpec, SummaryPoint, SummaryWindow,
+};
+pub use thomas::{
+    simulate_thomas_process, NeymanScottCounts, NeymanScottOffspring, NeymanScottParent,
+    ThomasCounts, ThomasOffspring, ThomasParent, ThomasProcessError, ThomasProcessResult,
+    ThomasProcessSpec, ThomasTruncation,
+};
+pub use thomas_minimum_contrast::{
+    ThomasKCurveRow, ThomasLikelihoodComparison, ThomasMinimumContrastBounds,
+    ThomasMinimumContrastCurveFitRow, ThomasMinimumContrastFitSummary,
+    ThomasMinimumContrastInputIdentity, ThomasMinimumContrastModelIr,
+    ThomasMinimumContrastResources, ThomasMinimumContrastResult, ThomasMinimumContrastSpec,
+    ThomasMinimumContrastWorkerRequest, ThomasMinimumContrastWorkerResult,
 };
 pub use vascular_transport::{
     simulate_vascular_transport, MappedUptakeCell, MappedVesselSource, UptakeCell,
@@ -122,7 +142,7 @@ pub struct GrowthFrontResult {
     pub solver: GrowthFrontSolverDiagnostics,
     pub differentiability_status: &'static str,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 #[derive(Debug, Error)]
@@ -279,7 +299,7 @@ pub fn simulate_growth_front(spec: GrowthFrontSpec) -> Result<GrowthFrontResult,
         },
         differentiability_status: "piecewise_differentiable_except_front_extraction",
         random_seed_namespace: "deterministic_no_stochastic_source",
-        claim_status: "experimental_mechanistic_simulation_not_tumor_forecast",
+        claim_status: ClaimStatus::ExperimentalMechanisticSimulationNotTumorForecast,
     })
 }
 
@@ -420,4 +440,36 @@ fn front_position(positions: &[f64], density: &[f64], threshold: f64) -> Option<
             }
         })
         .next_back()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uniform_logistic_growth_matches_the_closed_form() {
+        let result = simulate_growth_front(GrowthFrontSpec {
+            initial: [0.0, 1.0, 2.0]
+                .map(|position_um| GrowthFrontInitialPoint {
+                    position_um,
+                    density: 0.25,
+                })
+                .into(),
+            diffusion_um2_per_time: 0.0,
+            growth_rate_per_time: 1.0,
+            carrying_capacity: 1.0,
+            final_time: 1.0986122886681098,
+            time_step: 0.1,
+            front_threshold_fraction: 0.5,
+            record_every_steps: 2,
+            maximum_cell_steps: 1000,
+        })
+        .expect("uniform logistic growth");
+
+        for row in &result.final_state {
+            assert!((row.density - 0.5).abs() < 1e-12);
+        }
+        assert_eq!(result.front_status, "unavailable_no_threshold_crossing");
+        assert_eq!(result.solver.positivity_violations, 0);
+    }
 }

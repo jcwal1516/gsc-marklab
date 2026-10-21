@@ -16,15 +16,15 @@ use crate::columnar::parquet::schema::{
 use crate::{CellEmbeddingRowLink, ExpectedCellSet};
 
 use super::super::super::{
-    enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
-    EmbeddingColumnarBudgets, EmbeddingColumnarError, ParquetFailure,
+    enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget, ColumnarError,
+    EmbeddingColumnarBudgets, ParquetFailure,
 };
 use super::{
     super::{
         compact::{is_canonical_compact, BoundedCompactProtocol, CompactLimits},
         preflight::{
             estimate_raw_preflight_bytes, estimate_stock_metadata_bytes,
-            footer_compact_limits_with_metadata, read_level_varint,
+            footer_compact_limits_with_metadata,
         },
         profile::{
             CREATED_BY, MAXIMUM_APPLICATION_METADATA_BYTES, MAXIMUM_FOOTER_BYTES,
@@ -39,8 +39,8 @@ use super::{
 mod file_metadata;
 mod footer;
 mod levels;
-mod pages;
-mod schema;
+pub(in crate::columnar::parquet) mod pages;
+pub(in crate::columnar::parquet) mod schema;
 
 pub(super) use footer::{
     preflight_cell_embedding_row_link_parquet_reader,
@@ -92,11 +92,10 @@ pub fn preflight_cell_embedding_row_link_parquet_bytes(
     expected: &ExpectedCellSet,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingRowLinkParquetPreflight, EmbeddingColumnarError> {
-    let encoded_byte_len =
-        u64::try_from(bytes.len()).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<CellEmbeddingRowLinkParquetPreflight, ColumnarError> {
+    let encoded_byte_len = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     if encoded_byte_len > budgets.maximum_file_bytes() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed: encoded_byte_len,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -111,8 +110,8 @@ pub fn preflight_cell_embedding_row_link_parquet_bytes(
     )
 }
 
-fn parquet_failure(reason: ParquetFailure) -> EmbeddingColumnarError {
-    EmbeddingColumnarError::Parquet { reason }
+fn parquet_failure(reason: ParquetFailure) -> ColumnarError {
+    ColumnarError::Parquet { reason }
 }
 
 #[cfg(test)]

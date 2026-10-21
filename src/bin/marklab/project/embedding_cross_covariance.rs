@@ -1,17 +1,17 @@
-use std::{fs, io, path::PathBuf};
+use std::{borrow::Cow, io};
 
-use marklab_bayes::{embedding_cross_covariance_by_distance, EmbeddingCrossCovarianceSpec};
-use marklab_workflow::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalScheduler, MarklabProject, NodeError, NodeId,
-    NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
+use marklab_embeddings::analysis::{
+    embedding_cross_covariance_by_distance, EmbeddingCrossCovarianceSpec,
 };
+use marklab_project::ContentDigest;
+use marklab_workflow::NodeError;
 use serde::{Deserialize, Serialize};
 
+use super::cli_schema::EmbeddingCrossCovarianceByDistanceProjectArgs;
 use super::{
-    bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
-    MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES,
-    PROJECT_LEDGER_RECORDS, PROJECT_RECORD_BYTES,
+    bayes,
+    durable::{self, Codec, NodeContract, Source, SourceNode},
+    CliError, MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES,
 };
 
 const INPUT_KIND: &str = "application/vnd.marklab.source.embedding-points-csv;version=1";
@@ -21,21 +21,22 @@ const OUTPUT_KIND: &str =
 const IMPLEMENTATION_IDENTITY: &str =
     "marklab-project-embedding-cross-covariance-by-distance-node-v1";
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    project_path: PathBuf,
-    input_path: PathBuf,
-    bins_path: PathBuf,
-    output_path: PathBuf,
-    maximum_points: usize,
-    maximum_dimension: usize,
-    maximum_pair_visits: u64,
-    maximum_matrix_elements: u64,
-    memory_budget_mib: usize,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: EmbeddingCrossCovarianceByDistanceProjectArgs) -> Result<(), CliError> {
+    let EmbeddingCrossCovarianceByDistanceProjectArgs {
+        project: project_path,
+        input: input_path,
+        bins: bins_path,
+        out: output_path,
+        maximum_points,
+        maximum_dimension,
+        maximum_pair_visits,
+        maximum_matrix_elements,
+        memory_budget_mib,
+    } = args;
+    const LABEL: &str = "embedding cross-covariance sources";
     let memory_bytes = memory_budget_mib
         .checked_mul(1024 * 1024)
-        .ok_or_else(|| BayesCliError::Input("--memory-budget-mib is too large".into()))?;
+        .ok_or_else(|| CliError::Input("--memory-budget-mib is too large".into()))?;
     if maximum_points < 2
         || maximum_dimension < 2
         || maximum_pair_visits == 0
@@ -43,25 +44,21 @@ pub(super) fn run(
         || maximum_matrix_elements > 250_000_000
         || memory_bytes == 0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "embedding cross-covariance limits must admit two points and two dimensions, with positive bounded work and memory"
                 .into(),
         ));
     }
 
-    let paths = SourcePaths {
-        input: input_path,
-        bins: bins_path,
-    };
-    let before = source_artifacts(&paths)?;
-    let input_bytes = read_bounded(&paths.input, memory_bytes)?;
-    let bins_bytes = read_bounded(&paths.bins, memory_bytes)?;
+    let sources = Source::identify_all([input_path, bins_path], &[INPUT_KIND, BINS_KIND])?;
+    let input_bytes = read_bounded(sources[0].path(), memory_bytes)?;
+    let bins_bytes = read_bounded(sources[1].path(), memory_bytes)?;
     let source_bytes = input_bytes
         .len()
         .checked_add(bins_bytes.len())
-        .ok_or_else(|| BayesCliError::Input("embedding source-byte total overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("embedding source-byte total overflowed".into()))?;
     if source_bytes > memory_bytes {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "embedding source files exceed the retained-memory budget".into(),
         ));
     }
@@ -78,22 +75,15 @@ pub(super) fn run(
     )?;
     let retained = retained_bytes(source_bytes, points.len(), feature_names.len(), bins.len())?;
     if retained > memory_bytes {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "embedding cross-covariance retained-memory estimate {retained} exceeds budget {memory_bytes}"
         )));
     }
-    let after = source_artifacts(&paths)?;
-    if before != after {
-        return Err(BayesCliError::Input(
-            "embedding cross-covariance sources changed while prepared".into(),
-        ));
-    }
+    Source::ensure_all_unchanged(&sources, LABEL)?;
 
-    let input_sha256 = after[0].digest().to_string();
-    let bins_sha256 = after[1].digest().to_string();
-    let node = EmbeddingCrossCovarianceProjectNode::new(
-        paths,
-        after.clone(),
+    let input_sha256 = sources[0].artifact().digest().to_string();
+    let bins_sha256 = sources[1].artifact().digest().to_string();
+    let (analysis, contract) = EmbeddingCrossCovariance::new(
         EmbeddingCrossCovarianceSpec {
             points,
             feature_names,
@@ -108,80 +98,39 @@ pub(super) fn run(
         maximum_dimension,
         memory_budget_mib,
     )?;
-    let runtime = native_runtime_provenance()?;
-    let limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
-    )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let mut durable = DurableProject::open_or_create(&project_path, limits)
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    for artifact in &after {
-        project
-            .register_reference(artifact.clone())
-            .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    }
-    let graph = WorkflowGraph::new([node.spec().clone()])
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
-    })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let execution = execute_algorithm(
-        &mut durable,
-        &mut project,
-        &graph,
+    let node = SourceNode::new(
+        contract,
+        LABEL,
+        sources,
+        analysis,
+        EmbeddingCrossCovariance::execute,
+        |analysis, output| analysis.validate(output).map_err(NodeError::decode),
+    )?;
+
+    let run = durable::execute_node(
+        &project_path,
         &node,
-        &scheduler,
-        ArtifactSchema::new("marklab.embedding_cross_covariance", 1)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        runtime,
+        ("marklab.embedding_cross_covariance", 1),
+        MAXIMUM_RESULT_BYTES,
+    )?;
+    durable::publish(
+        "embedding-cross-covariance-by-distance",
+        &output_path,
+        &run.output,
+        run.cache_status,
     )
-    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    bayes::publish_json(&output_path, &execution.output)?;
-    let cache_status = match execution.cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project embedding-cross-covariance-by-distance cache_status={cache_status}");
-    Ok(())
 }
 
-#[derive(Clone)]
-struct SourcePaths {
-    input: PathBuf,
-    bins: PathBuf,
-}
-
-fn source_artifacts(paths: &SourcePaths) -> Result<Vec<ArtifactRef>, BayesCliError> {
-    Ok(vec![
-        source_artifact(&paths.input, INPUT_KIND)?,
-        source_artifact(&paths.bins, BINS_KIND)?,
-    ])
-}
-
-fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
+fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, CliError> {
     let maximum = (MAXIMUM_INPUT_BYTES as usize).min(memory_bytes);
-    if !metadata.is_file() || metadata.len() > maximum as u64 {
-        return Err(BayesCliError::Input(format!(
+    crate::input_file::read_regular_file(
+        path,
+        maximum as u64,
+        &format!(
             "embedding source must be a regular file within {maximum} bytes: {}",
             path.display()
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+        ),
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -191,7 +140,6 @@ struct CrossCovarianceRequirements {
     stored_matrix_elements: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 fn preflight(
     points: usize,
     dimension: usize,
@@ -200,59 +148,59 @@ fn preflight(
     maximum_dimension: usize,
     maximum_pair_visits: u64,
     maximum_matrix_elements: u64,
-) -> Result<CrossCovarianceRequirements, BayesCliError> {
+) -> Result<CrossCovarianceRequirements, CliError> {
     if !(2..=10_000).contains(&points) || !(2..=4_096).contains(&dimension) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "object count or embedding dimension is outside the supported bounds".into(),
         ));
     }
     if !(1..=256).contains(&bins) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "distance bin count is outside 1..=256".into(),
         ));
     }
     if points > maximum_points {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "point count exceeds maximum_points {maximum_points}"
         )));
     }
     if dimension > maximum_dimension {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "embedding dimension exceeds maximum_dimension {maximum_dimension}"
         )));
     }
-    let point_count = u64::try_from(points)
-        .map_err(|_| BayesCliError::Input("point count exceeds u64".into()))?;
+    let point_count =
+        u64::try_from(points).map_err(|_| CliError::Input("point count exceeds u64".into()))?;
     let pair_visits = point_count
         .checked_mul(point_count.saturating_sub(1))
         .and_then(|value| value.checked_div(2))
-        .ok_or_else(|| BayesCliError::Input("pair count overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("pair count overflowed".into()))?;
     if pair_visits > maximum_pair_visits {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "{pair_visits} unordered pair visits exceed maximum_pair_visits {maximum_pair_visits}"
         )));
     }
     let dimension = u64::try_from(dimension)
-        .map_err(|_| BayesCliError::Input("embedding dimension exceeds u64".into()))?;
+        .map_err(|_| CliError::Input("embedding dimension exceeds u64".into()))?;
     let elements_per_matrix = dimension
         .checked_mul(dimension)
-        .ok_or_else(|| BayesCliError::Input("matrix size overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("matrix size overflowed".into()))?;
     let stored_matrix_elements = elements_per_matrix
         .checked_mul(
             u64::try_from(bins)
-                .map_err(|_| BayesCliError::Input("distance bin count exceeds u64".into()))?,
+                .map_err(|_| CliError::Input("distance bin count exceeds u64".into()))?,
         )
-        .ok_or_else(|| BayesCliError::Input("matrix artifact size overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("matrix artifact size overflowed".into()))?;
     if stored_matrix_elements > 1_000_000 {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "{stored_matrix_elements} stored matrix elements exceed the fixed ceiling 1000000"
         )));
     }
     let matrix_operations = elements_per_matrix
         .checked_mul(pair_visits)
-        .ok_or_else(|| BayesCliError::Input("matrix work overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("matrix work overflowed".into()))?;
     if matrix_operations > maximum_matrix_elements {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "{matrix_operations} pair-matrix element operations exceed maximum_matrix_elements {maximum_matrix_elements}"
         )));
     }
@@ -263,23 +211,15 @@ fn preflight(
     })
 }
 
-struct EmbeddingCrossCovarianceProjectNode {
-    spec: NodeSpec,
-    paths: SourcePaths,
-    input_artifacts: Vec<ArtifactRef>,
+struct EmbeddingCrossCovariance {
     analysis: EmbeddingCrossCovarianceSpec,
     requirements: CrossCovarianceRequirements,
     input_sha256: String,
     bins_sha256: String,
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
 }
 
-impl EmbeddingCrossCovarianceProjectNode {
-    #[allow(clippy::too_many_arguments)]
+impl EmbeddingCrossCovariance {
     fn new(
-        paths: SourcePaths,
-        input_artifacts: Vec<ArtifactRef>,
         analysis: EmbeddingCrossCovarianceSpec,
         requirements: CrossCovarianceRequirements,
         input_sha256: String,
@@ -287,12 +227,7 @@ impl EmbeddingCrossCovarianceProjectNode {
         maximum_points: usize,
         maximum_dimension: usize,
         memory_budget_mib: usize,
-    ) -> Result<Self, BayesCliError> {
-        if input_artifacts.len() != 2 {
-            return Err(BayesCliError::Input(
-                "embedding cross-covariance source identities are incomplete".into(),
-            ));
-        }
+    ) -> Result<(Self, NodeContract), CliError> {
         let configuration_digest = ContentDigest::from_framed([
             b"marklab-embedding-cross-covariance-configuration-v1".as_slice(),
             maximum_points.to_string().as_bytes(),
@@ -306,28 +241,24 @@ impl EmbeddingCrossCovarianceProjectNode {
             analysis.maximum_pair_visits, analysis.maximum_matrix_elements
         )
         .into_bytes();
-        Ok(Self {
-            spec: NodeSpec::new(
-                NodeId::new("embedding-cross-covariance")
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
-                "embedding_cross_covariance_by_distance",
-                1,
-                Vec::new(),
-            )
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-            paths,
-            input_artifacts,
-            analysis,
-            requirements,
-            input_sha256,
-            bins_sha256,
-            configuration_digest,
-            execution_policy,
-        })
-    }
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
+        Ok((
+            Self {
+                analysis,
+                requirements,
+                input_sha256,
+                bins_sha256,
+            },
+            NodeContract {
+                id: "embedding-cross-covariance",
+                kind: "embedding_cross_covariance_by_distance",
+                version: 1,
+                configuration_digest,
+                execution_policy: Cow::Owned(execution_policy),
+                implementation_identity: IMPLEMENTATION_IDENTITY,
+                output_kind: OUTPUT_KIND,
+                codec: Codec::ExactFloatJson,
+            },
+        ))
     }
 
     fn validate(&self, output: &CrossCovarianceDocument) -> io::Result<()> {
@@ -390,39 +321,8 @@ impl EmbeddingCrossCovarianceProjectNode {
         }
         Ok(())
     }
-}
 
-impl WorkflowNode for EmbeddingCrossCovarianceProjectNode {
-    type Output = CrossCovarianceDocument;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.input_artifacts
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        let current = source_artifacts(&self.paths).map_err(NodeError::input)?;
-        if current != self.input_artifacts {
-            return Err(NodeError::input(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "embedding cross-covariance source identity changed",
-            )));
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: IMPLEMENTATION_IDENTITY,
-        }
-    }
-
-    fn execute(&self) -> Result<Self::Output, NodeError> {
+    fn execute(&self) -> Result<CrossCovarianceDocument, NodeError> {
         let result = embedding_cross_covariance_by_distance(self.analysis.clone())
             .map_err(NodeError::execution)?;
         Ok(CrossCovarianceDocument {
@@ -466,22 +366,6 @@ impl WorkflowNode for EmbeddingCrossCovarianceProjectNode {
                     .collect(),
             },
         })
-    }
-
-    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        self.validate(output).map_err(NodeError::encoding)?;
-        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
-    }
-
-    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let output: CrossCovarianceDocument =
-            marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
-        self.validate(&output).map_err(NodeError::decode)?;
-        Ok(output)
-    }
-
-    fn output_kind(&self) -> &'static str {
-        OUTPUT_KIND
     }
 }
 
@@ -628,23 +512,23 @@ fn retained_bytes(
     points: usize,
     dimension: usize,
     bins: usize,
-) -> Result<usize, BayesCliError> {
+) -> Result<usize, CliError> {
     let point_values = points
         .checked_mul(dimension)
         .and_then(|value| value.checked_mul(std::mem::size_of::<f64>()))
-        .ok_or_else(|| BayesCliError::Input("embedding point memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("embedding point memory overflowed".into()))?;
     let matrix_values = dimension
         .checked_mul(dimension)
         .and_then(|value| value.checked_mul(bins))
         .and_then(|value| value.checked_mul(32))
-        .ok_or_else(|| BayesCliError::Input("cross-covariance matrix memory overflowed".into()))?;
+        .ok_or_else(|| CliError::Input("cross-covariance matrix memory overflowed".into()))?;
     source_bytes
         .checked_add(point_values.saturating_mul(2))
         .and_then(|value| value.checked_add(matrix_values))
         .and_then(|value| value.checked_add(points.saturating_mul(128)))
         .and_then(|value| value.checked_add(bins.saturating_mul(512)))
         .ok_or_else(|| {
-            BayesCliError::Input("embedding cross-covariance memory estimate overflowed".into())
+            CliError::Input("embedding cross-covariance memory estimate overflowed".into())
         })
 }
 

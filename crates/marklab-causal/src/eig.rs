@@ -3,6 +3,7 @@ use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::CausalError;
+use marklab_core::backend::ClaimStatus;
 
 const MAXIMUM_LIKELIHOOD_EVALUATIONS: u64 = 250_000_000;
 const MAXIMUM_OUTER_VALUES: usize = 1_000_000;
@@ -50,7 +51,7 @@ pub struct GaussianEigResult {
     pub absolute_bias_against_analytic: f64,
     pub likelihood_evaluations: u64,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl<'de> Deserialize<'de> for GaussianEigResult {
@@ -85,7 +86,7 @@ impl<'de> Deserialize<'de> for GaussianEigResult {
             || owned.simulator != "linear_gaussian_design"
             || owned.likelihood != "known_noise_normal"
             || owned.random_seed_namespace != "gaussian_eig_v1_chacha20_box_muller"
-            || owned.claim_status != "analytic_scalar_design_utility_only"
+            || owned.claim_status != ClaimStatus::AnalyticScalarDesignUtilityOnly.as_str()
         {
             return Err(serde::de::Error::custom(
                 "unexpected Gaussian EIG result identity",
@@ -108,7 +109,7 @@ impl<'de> Deserialize<'de> for GaussianEigResult {
             absolute_bias_against_analytic: owned.absolute_bias_against_analytic,
             likelihood_evaluations: owned.likelihood_evaluations,
             random_seed_namespace: "gaussian_eig_v1_chacha20_box_muller",
-            claim_status: "analytic_scalar_design_utility_only",
+            claim_status: ClaimStatus::AnalyticScalarDesignUtilityOnly,
         })
     }
 }
@@ -201,7 +202,7 @@ pub fn estimate_gaussian_expected_information_gain(
         absolute_bias_against_analytic: signed_bias.abs(),
         likelihood_evaluations: work,
         random_seed_namespace: "gaussian_eig_v1_chacha20_box_muller",
-        claim_status: "analytic_scalar_design_utility_only",
+        claim_status: ClaimStatus::AnalyticScalarDesignUtilityOnly,
     })
 }
 

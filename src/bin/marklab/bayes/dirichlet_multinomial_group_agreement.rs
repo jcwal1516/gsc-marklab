@@ -1,78 +1,34 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, DirichletMultinomialGroupAgreementPolicy, DirichletMultinomialGroupAgreementResult,
-    NumpyroDirichletMultinomialGroupWorkerRequest, NumpyroDirichletMultinomialGroupWorkerResult,
-    NutsSamplingSpec,
+    DirichletMultinomialGroupAgreementPolicy, DirichletMultinomialGroupAgreementResult,
 };
 
-use super::{dirichlet_multinomial_group, publish_json, run_worker, BayesCliError};
+use super::cli_schema::DirichletMultinomialGroupAgreementArgs;
+use super::{cross_backend, dirichlet_multinomial_group, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    logit_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    concentration_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    maximum_standardized_difference: f64,
-    minimum_probability_tolerance: f64,
-    minimum_concentration_tolerance: f64,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let prepared = dirichlet_multinomial_group::prepare(
-        input_path,
-        reference_group,
-        comparison_group,
-        logit_prior_sd,
-        group_effect_prior_sd,
-        concentration_prior_sd,
-        sampling,
-        timeout_seconds,
-    )?;
-    let pymc = dirichlet_multinomial_group::execute(&prepared)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path =
-        worker_directory.join("marklab_numpyro_dirichlet_multinomial_group_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
-    let numpyro_request = NumpyroDirichletMultinomialGroupWorkerRequest::new(
-        prepared.request.clone(),
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
-    )?;
-    let request_bytes = serde_json::to_vec(&numpyro_request)?;
-    let request_sha256 = sha256_hex(&request_bytes);
-    let result_bytes = run_worker(
-        repository,
-        "marklab_numpyro_dirichlet_multinomial_group_worker.py",
-        &request_bytes,
-        timeout_seconds,
-    )?;
-    let numpyro: NumpyroDirichletMultinomialGroupWorkerResult =
-        serde_json::from_slice(&result_bytes)?;
-    let numpyro = numpyro.into_validated_payload(&numpyro_request, &request_sha256)?;
-    let result = DirichletMultinomialGroupAgreementResult::new(
-        prepared.request,
-        prepared.input_identity,
-        pymc,
-        numpyro,
-        DirichletMultinomialGroupAgreementPolicy {
-            maximum_standardized_difference,
-            minimum_probability_tolerance,
-            minimum_concentration_tolerance,
+pub(super) fn run(args: DirichletMultinomialGroupAgreementArgs) -> Result<(), CliError> {
+    let DirichletMultinomialGroupAgreementArgs {
+        model,
+        maximum_standardized_difference,
+        minimum_probability_tolerance,
+        minimum_concentration_tolerance,
+        out: output_path,
+    } = args;
+    let prepared = dirichlet_multinomial_group::prepare(model)?;
+    cross_backend::agreement(
+        prepared,
+        &output_path,
+        |request, input_identity, pymc, numpyro| {
+            Ok(DirichletMultinomialGroupAgreementResult::new(
+                request,
+                input_identity,
+                pymc,
+                numpyro,
+                DirichletMultinomialGroupAgreementPolicy {
+                    maximum_standardized_difference,
+                    minimum_probability_tolerance,
+                    minimum_concentration_tolerance,
+                },
+            )?)
         },
-    )?;
-    publish_json(&output_path, &result)
+    )
 }

@@ -1,5 +1,6 @@
+use crate::result_vocabulary::{EdgeCorrection, VariogramInferenceStatus, VariogramMultiplicity};
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use thiserror::Error;
 
 use crate::scalar_mark::ScalarMarkId;
@@ -148,7 +149,7 @@ impl ScalarVariogramInferenceDesign {
     }
 }
 
-/// Conditioning admitted for scalar-semivariogram random labeling.
+/// Conditioning supported for scalar-semivariogram random labeling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ScalarVariogramConditioning {
     /// Permute complete scalar values across every row.
@@ -224,9 +225,9 @@ pub struct ScalarVariogramResult {
     /// Observed lag curve.
     pub curve: Vec<ScalarVariogramRow>,
     /// Explicit edge-correction status.
-    pub edge_correction: &'static str,
+    pub edge_correction: EdgeCorrection,
     /// Explicit inference status.
-    pub inference_status: &'static str,
+    pub inference_status: VariogramInferenceStatus,
 }
 
 /// One observed semivariance row with its simultaneous global envelope.
@@ -267,12 +268,10 @@ pub struct ScalarVariogramInferenceResult {
     pub conditioning: ScalarVariogramConditioning,
     /// Requested permutations.
     pub permutations_requested: usize,
-    /// Completed permutations.
-    pub permutations_completed: usize,
     /// Deterministic seed.
     pub seed: u64,
     /// Curve-family multiplicity policy.
-    pub multiplicity_policy: &'static str,
+    pub multiplicity_policy: VariogramMultiplicity,
 }
 
 /// Invalid scalar-semivariogram input, plan, resource, or numerical state.

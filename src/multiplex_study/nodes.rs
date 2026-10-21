@@ -1,13 +1,13 @@
+use super::model::Availability;
 use super::{
-    admission::{PreparedSlide, PreparedStudy},
     analyze_slide, invalid,
     model::{MultiplexStudyResult, SlideResult},
+    preparation::{PreparedSlide, PreparedStudy},
     reduction,
 };
 use crate::{exact_float_json, Result};
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, NodeError, NodeId, NodeSpec, WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 
 pub(super) struct SlideNode<'a> {
     spec: NodeSpec,
@@ -63,8 +63,8 @@ impl<'a> SlideNode<'a> {
             {
                 return Err(invalid("cached slide channel binding or counts mismatch"));
             }
-            match channel.status.as_str() {
-                "available"
+            match channel.status {
+                Availability::Available
                     if channel.reason.is_none()
                         && channel.moran_i.is_some_and(f64::is_finite)
                         && channel
@@ -73,7 +73,7 @@ impl<'a> SlideNode<'a> {
                         && channel.observed_rows >= 3
                         && channel.directed_edges > 0
                         && channel.weights_digest.is_some() => {}
-                "unavailable"
+                Availability::Unavailable
                     if channel.moran_i.is_none()
                         && channel.geary_c.is_none()
                         && channel.reason.as_deref().is_some_and(|reason| {
@@ -81,6 +81,7 @@ impl<'a> SlideNode<'a> {
                                 reason,
                                 "insufficient_observed_points"
                                     | "isolated_observed_point"
+                                    | "no_spatial_edges"
                                     | "zero_variance"
                                     | "numerical_failure"
                             )
@@ -275,7 +276,7 @@ impl WorkflowNode for CohortNode<'_> {
         Ok(())
     }
     fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial { configuration_digest: self.study.recipe_digest, execution_policy: b"serial;equal-slide-patient-mean;complete-family-max-t;no-silent-exclusions;experimental", implementation_identity: "marklab-multiplex-study-v1" }
+        CacheKeyMaterial { configuration_digest: self.study.recipe_digest, execution_policy: b"serial;equal-slide-patient-mean;complete-family-max-t;no-silent-exclusions;experimental", implementation_identity: "marklab-multiplex-study-v2" }
     }
     fn execute(&self) -> std::result::Result<Self::Output, NodeError> {
         reduction::reduce(self.study, self.slides.to_vec()).map_err(NodeError::execution)

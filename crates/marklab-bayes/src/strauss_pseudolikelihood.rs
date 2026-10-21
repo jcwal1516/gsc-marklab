@@ -1,12 +1,28 @@
+use crate::is_worker_timeout;
+use marklab_numerics::relative_eq;
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::backend_versions::SCIPY_BACKEND;
+use crate::ClaimStatus;
 use crate::{
     model::{BackendContract, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
     BayesError, FitState, RectangularWindow, StraussPoint, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
-const SCIPY_BACKEND_VERSION: &str = "scipy-1.18.1";
+const RELATIVE_TOLERANCE: f64 = 1e-8;
 
+/// Berman-Turner weighted Poisson pseudolikelihood for an inhibitory Strauss process.
+///
+/// The conditional intensity is `beta * gamma^z`, where `z` counts neighbours within the
+/// declared interaction radius. The worker minimizes `sum_i w_i * (exp(eta_i) - y_i *
+/// eta_i)`, with `eta_i = log(beta) + z_i * log(gamma)`, response `1 / w_i` at data nodes,
+/// and zero at dummy nodes. It optimizes within the declared log-parameter bounds with `gamma
+/// <= 1`. No prior is used; inverse Fisher information and a spatial-block sandwich supply
+/// the reported uncertainty estimates.
+///
 #[derive(Clone, Debug)]
 pub struct StraussPseudolikelihoodSpec {
     pub points: Vec<StraussPoint>,
@@ -31,8 +47,8 @@ pub struct StraussPseudolikelihoodModelIr {
     pub quadrature: &'static str,
     pub pair_boundary: &'static str,
     pub uncertainty: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -130,8 +146,8 @@ impl StraussPseudolikelihoodWorkerRequest {
             version: WORKER_REQUEST_VERSION,
             backend: BackendContract {
                 name: "scipy",
-                version: SCIPY_BACKEND_VERSION,
-                python_version: "3.12",
+                version: SCIPY_BACKEND,
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -141,8 +157,8 @@ impl StraussPseudolikelihoodWorkerRequest {
                 quadrature: "berman_turner_observed_plus_one_midpoint_dummy_per_cell",
                 pair_boundary: "euclidean_distance_less_than_or_equal_radius",
                 uncertainty: "model_hessian_and_two_by_two_window_block_sandwich",
-                backend_capability: "bounded_weighted_poisson_optimization",
-                maturity: "experimental_pseudolikelihood",
+                backend_capability: BackendCapability::BoundedWeightedPoissonOptimization,
+                maturity: ModelMaturity::ExperimentalPseudolikelihood,
             },
             window: spec.window,
             interaction_radius_um: spec.interaction_radius_um,
@@ -192,11 +208,13 @@ fn validate_spec(spec: &StraussPseudolikelihoodSpec, timeout: u64) -> Result<(),
         || spec.gamma_max > 1.0
         || spec.coarse_grid_x == 0
         || spec.coarse_grid_y == 0
+        || spec.fine_grid_x == 0
+        || spec.fine_grid_y == 0
         || !spec.fine_grid_x.is_multiple_of(spec.coarse_grid_x)
         || !spec.fine_grid_y.is_multiple_of(spec.coarse_grid_y)
         || !(10..=100_000).contains(&spec.maximum_iterations)
         || !(1..=100_000_000).contains(&spec.maximum_neighbor_visits)
-        || !(1..=3_600).contains(&timeout)
+        || !is_worker_timeout(timeout)
     {
         return Err(BayesError::InvalidSpec(
             "Strauss pseudolikelihood inputs, nested grids, bounds, or resources are invalid"
@@ -396,11 +414,7 @@ impl StraussPseudolikelihoodWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != "marklab.scipy_strauss_pseudolikelihood_worker_result"
             || self.version != 1
-            || self.backend.name != "scipy"
-            || self.backend.version != SCIPY_BACKEND_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
         {
             return Err(BayesError::WorkerContract(
@@ -409,15 +423,18 @@ impl StraussPseudolikelihoodWorkerResult {
         }
         validate_fit(&self.coarse_fit, &request.coarse, &request.bounds)?;
         validate_fit(&self.fine_fit, &request.fine, &request.bounds)?;
-        if !close(
+        if !relative_eq(
             self.refinement.absolute_beta_difference,
             (self.coarse_fit.beta_per_um2 - self.fine_fit.beta_per_um2).abs(),
-        ) || !close(
+            RELATIVE_TOLERANCE,
+        ) || !relative_eq(
             self.refinement.absolute_gamma_difference,
             (self.coarse_fit.gamma - self.fine_fit.gamma).abs(),
-        ) || !close(
+            RELATIVE_TOLERANCE,
+        ) || !relative_eq(
             self.refinement.absolute_objective_difference,
             (self.coarse_fit.objective - self.fine_fit.objective).abs(),
+            RELATIVE_TOLERANCE,
         ) {
             return Err(BayesError::WorkerContract(
                 "Strauss pseudolikelihood refinement arithmetic mismatch".into(),
@@ -451,9 +468,9 @@ impl StraussPseudolikelihoodWorkerResult {
             bounds: request.bounds,
             fit_state: self.fit_state,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_pseudolikelihood"
+                ClaimStatus::ExperimentalPseudolikelihood
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             coarse_fit: self.coarse_fit,
             fine_fit: self.fine_fit,
@@ -489,8 +506,8 @@ fn validate_fit(
         .all(f64::is_finite)
         || !(bounds.beta_min_per_um2..=bounds.beta_max_per_um2).contains(&fit.beta_per_um2)
         || !(bounds.gamma_min..=bounds.gamma_max).contains(&fit.gamma)
-        || !close(fit.log_beta, fit.beta_per_um2.ln())
-        || !close(fit.log_gamma, fit.gamma.ln())
+        || !relative_eq(fit.log_beta, fit.beta_per_um2.ln(), RELATIVE_TOLERANCE)
+        || !relative_eq(fit.log_gamma, fit.gamma.ln(), RELATIVE_TOLERANCE)
         || fit.objective >= fit.initial_objective
         || fit.gradient_norm < 0.0
         || fit.hessian_condition < 1.0
@@ -500,10 +517,15 @@ fn validate_fit(
         || fit.robust_se_log_gamma <= 0.0
         || fit.evaluations == 0
         || fit.message.is_empty()
-        || !close(fit.weight_sum_um2, resolution.weight_sum_um2)
-        || !close(
+        || !relative_eq(
+            fit.weight_sum_um2,
+            resolution.weight_sum_um2,
+            RELATIVE_TOLERANCE,
+        )
+        || !relative_eq(
             fit.objective,
             objective(&resolution.rows, fit.log_beta, fit.log_gamma),
+            RELATIVE_TOLERANCE,
         )
     {
         return Err(BayesError::WorkerContract(
@@ -520,10 +542,6 @@ fn objective(rows: &[StraussPseudolikelihoodRow], log_beta: f64, log_gamma: f64)
             row.weight_um2 * (eta.exp() - row.response * eta)
         })
         .sum()
-}
-
-fn close(actual: f64, expected: f64) -> bool {
-    (actual - expected).abs() <= 1e-8 * actual.abs().max(expected.abs()).max(1.0)
 }
 
 #[derive(Debug, Serialize)]
@@ -544,9 +562,48 @@ pub struct StraussPseudolikelihoodResult {
     pub interaction_radius_um: f64,
     pub bounds: StraussPseudolikelihoodBounds,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub coarse_fit: StraussPseudolikelihoodFitSummary,
     pub fine_fit: StraussPseudolikelihoodFitSummary,
     pub refinement: StraussPseudolikelihoodRefinement,
     pub request_sha256: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn request_rejects_zero_fine_grid_before_building_cells() {
+        let result = StraussPseudolikelihoodWorkerRequest::new(
+            StraussPseudolikelihoodSpec {
+                points: vec![StraussPoint {
+                    point_id: "p0".into(),
+                    x_um: 1.0,
+                    y_um: 1.0,
+                }],
+                window: RectangularWindow {
+                    xmin_um: 0.0,
+                    ymin_um: 0.0,
+                    xmax_um: 10.0,
+                    ymax_um: 10.0,
+                },
+                interaction_radius_um: 2.0,
+                coarse_grid_x: 2,
+                coarse_grid_y: 2,
+                fine_grid_x: 0,
+                fine_grid_y: 4,
+                beta_min_per_um2: 0.0001,
+                beta_max_per_um2: 1.0,
+                gamma_min: 0.001,
+                gamma_max: 1.0,
+                maximum_iterations: 100,
+                maximum_neighbor_visits: 100_000,
+            },
+            "lock".into(),
+            "worker".into(),
+            30,
+        );
+        assert!(matches!(result, Err(BayesError::InvalidSpec(_))));
+    }
 }

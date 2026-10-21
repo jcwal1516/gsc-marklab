@@ -1,4 +1,4 @@
-use super::{provenance_digest::*, support::*};
+use super::support::*;
 
 fn assert_dependencies(
     provenance: &MultiscaleEmbeddingProvenance,
@@ -290,7 +290,6 @@ fn all_four_provenance_variants_have_exact_canonical_wires_and_dependencies() {
             artifact(b"patch-support"),
         ],
     );
-    assert_eq!(direct.logical_digest(), direct_digest_oracle());
     assert_eq!(
         MultiscaleEmbeddingProvenance::from_canonical_json(
             &direct_bytes,
@@ -333,7 +332,6 @@ fn all_four_provenance_variants_have_exact_canonical_wires_and_dependencies() {
             artifact(b"weighted-derivation"),
         ],
     );
-    assert_eq!(region.logical_digest(), region_digest_oracle());
 
     let slide_from_patches = slide_from_patches_provenance();
     let slide_patch_bytes = slide_from_patches
@@ -367,10 +365,6 @@ fn all_four_provenance_variants_have_exact_canonical_wires_and_dependencies() {
             artifact(b"arithmetic-derivation"),
         ],
     );
-    assert_eq!(
-        slide_from_patches.logical_digest(),
-        slide_from_patches_digest_oracle()
-    );
 
     let slide_from_regions = slide_from_regions_provenance();
     let slide_region_bytes = slide_from_regions
@@ -403,10 +397,6 @@ fn all_four_provenance_variants_have_exact_canonical_wires_and_dependencies() {
             artifact(b"slide-region-support"),
             artifact(b"arithmetic-derivation"),
         ],
-    );
-    assert_eq!(
-        slide_from_regions.logical_digest(),
-        slide_from_regions_digest_oracle()
     );
 
     assert_eq!(

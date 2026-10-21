@@ -1,13 +1,13 @@
+use crate::result_vocabulary::{EdgeCorrection, InhomogeneousNullModel, SpatialRandomizationUnit};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 use serde::Serialize;
 
 use crate::{
-    workflow::pattern_artifact, InhomogeneousSpatialPointStatus, ObservationWindow2D, Pattern,
+    marked_workflow::pattern_artifact, spatial::InhomogeneousSpatialPointStatus,
+    ObservationWindow2D, Pattern,
 };
 
 use super::{
@@ -208,7 +208,7 @@ pub(super) fn validate(
         || result.timepoint != pattern.meta.timepoint
         || result.window.logical_digest != descriptor.logical_digest.to_string()
         || result.window.area_um2.to_bits() != descriptor.area_um2.to_bits()
-        || result.edge_correction != "standard_border_inverse_intensity_ratio"
+        || result.edge_correction != EdgeCorrection::StandardBorderInverseIntensityRatio
         || result.configuration_digest != configuration_digest(config).to_string()
         || result.limits != config.limits()
         || result.estimated_storage_bytes > config.limits().maximum_retained_bytes
@@ -216,8 +216,9 @@ pub(super) fn validate(
         || result.total_pair_visits > config.limits().maximum_pair_visits
         || result.intensity_evaluations > config.limits().maximum_intensity_evaluations
         || result.curve.len() != config.radii_um().len()
-        || result.inference.null_model != "fixed_gridded_inhomogeneous_binomial"
-        || result.inference.randomization_unit != "whole_location_pattern_conditioned_on_count"
+        || result.inference.null_model != InhomogeneousNullModel::FixedGriddedInhomogeneousBinomial
+        || result.inference.randomization_unit
+            != SpatialRandomizationUnit::WholeLocationPatternConditionedOnCount
         || result.inference.simulations_completed != config.simulations()
         || result.inference.seed != config.seed()
         || result.inference.alpha.to_bits() != config.alpha().to_bits()

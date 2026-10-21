@@ -1,29 +1,13 @@
 use crate::validation::all_finite;
+pub use marklab_core::backend::{FitState, WorkerBackend};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{model::PYMC_VERSION, BayesError, NormalMeanWorkerRequest};
+use crate::ClaimStatus;
+use crate::{BayesError, NormalMeanWorkerRequest};
 
 const WORKER_RESULT_FORMAT: &str = "marklab.pymc_worker_result";
 const WORKER_RESULT_VERSION: u32 = 1;
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum FitState {
-    Complete,
-    Nonconverged,
-    ApproximateOnly,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct WorkerBackend {
-    pub name: String,
-    pub version: String,
-    pub python_version: String,
-    pub environment_lock_sha256: String,
-    pub worker_sha256: String,
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -32,6 +16,43 @@ pub struct SamplingSummary {
     pub tune_per_chain: u32,
     pub draws_per_chain: u32,
     pub completed_draws: u64,
+}
+
+/// Posterior mean, standard deviation and central credible interval of one quantity.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ScalarSummary {
+    pub mean: f64,
+    pub sd: f64,
+    pub interval_lower: f64,
+    pub interval_upper: f64,
+}
+
+/// Posterior summary of one scalar quantity with the Monte Carlo standard error of its mean.
+///
+/// `mcse_mean` is estimated from that quantity's own chains, not from the worst parameter's
+/// effective sample size. Models with a cross-backend agreement workflow report it so each
+/// agreement tolerance reflects the sampling error of the quantity being compared.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct McseScalarSummary {
+    pub mean: f64,
+    pub sd: f64,
+    pub interval_lower: f64,
+    pub interval_upper: f64,
+    pub mcse_mean: f64,
+}
+
+impl McseScalarSummary {
+    /// The summary without its Monte Carlo standard error.
+    pub fn scalar(&self) -> ScalarSummary {
+        ScalarSummary {
+            mean: self.mean,
+            sd: self.sd,
+            interval_lower: self.interval_lower,
+            interval_upper: self.interval_upper,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -46,7 +67,7 @@ pub struct NormalMeanPosterior {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct NormalMeanDiagnostics {
+pub struct PosteriorDiagnostics {
     pub prior_predictive_finite: bool,
     pub posterior_finite: bool,
     pub r_hat: f64,
@@ -80,7 +101,7 @@ pub struct WorkerResult {
     pub fit_state: FitState,
     pub sampling: SamplingSummary,
     pub posterior: NormalMeanPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: NormalMeanPosteriorPredictive,
 }
 
@@ -101,12 +122,7 @@ impl WorkerResult {
                 self.format, self.version
             )));
         }
-        if self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
-        {
+        if !self.backend.matches(&request.backend) {
             return Err(BayesError::WorkerContract(
                 "worker backend identity does not match the request".into(),
             ));
@@ -204,9 +220,9 @@ impl WorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -233,10 +249,10 @@ pub struct NormalMeanFit {
     pub model: crate::NormalMeanModelIr,
     pub input: NormalMeanInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: NormalMeanPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: NormalMeanPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,

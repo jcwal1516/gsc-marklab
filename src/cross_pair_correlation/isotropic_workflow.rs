@@ -4,14 +4,15 @@ use super::{
     workflow::window_artifact,
     IsotropicCategoricalCrossPairCorrelationResult,
 };
+use crate::result_vocabulary::EdgeCorrection;
 use crate::{
-    workflow::pattern_artifact, DeclaredScalarPatternInput, ObservationWindow2D,
-    PairCorrelationKernel, PairCorrelationPointStatus,
+    marked_workflow::pattern_artifact,
+    marks::DeclaredScalarPatternInput,
+    spatial::{PairCorrelationKernel, PairCorrelationPointStatus},
+    ObservationWindow2D,
 };
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{CacheKeyMaterial, NodeError, NodeId, NodeSpec, WorkflowNode};
 use serde::Serialize;
 use std::io;
 
@@ -47,7 +48,7 @@ impl<'a> IsotropicCategoricalCrossPairCorrelationAnalysisNode<'a> {
             window,
             config,
             format!(
-                "marklab/{};adapter=isotropic-categorical-cross-g-node-v2",
+                "marklab/{};adapter=isotropic-categorical-cross-g-node-v3",
                 env!("CARGO_PKG_VERSION")
             ),
             Vec::new(),
@@ -108,7 +109,7 @@ impl WorkflowNode for IsotropicCategoricalCrossPairCorrelationAnalysisNode<'_> {
     fn input_artifacts(&self) -> &[ArtifactRef] {
         &self.inputs
     }
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
     fn verify_input_content(&self) -> Result<(), NodeError> {
@@ -171,7 +172,7 @@ struct ConfigArtifact<'a> {
     seed: u64,
     alpha: f64,
     categorical_limits: [usize; 5],
-    isotropic_limits: crate::IsotropicSpatialLimits,
+    isotropic_limits: crate::spatial::IsotropicSpatialLimits,
     logical_digest: String,
 }
 
@@ -207,7 +208,7 @@ fn validate(
     config: &IsotropicCategoricalCrossPairCorrelationConfig,
 ) -> io::Result<()> {
     let base = config.base();
-    if result.edge_correction != "isotropic"
+    if result.edge_correction != EdgeCorrection::Isotropic
         || result.kernel != PairCorrelationKernel::Epanechnikov
         || result.bandwidth_um.to_bits() != base.bandwidth_um().to_bits()
         || result.source_level != base.source_level()
@@ -225,7 +226,11 @@ fn validate(
         ));
     }
     for (point, radius) in result.curve.iter().zip(base.radii_um()) {
-        let available = point.status == PairCorrelationPointStatus::Available;
+        let available = point.status == PairCorrelationPointStatus::Available
+            || (point.status == PairCorrelationPointStatus::NoPairsInKernelSupport
+                && point.directed_source_target_pairs_in_support == 0
+                && point.inverse_visible_arc_weighted_kernel_sum == 0.0
+                && point.cross_g == Some(0.0));
         if point.radius_um.to_bits() != radius.to_bits()
             || point.visible_arc_evaluations != point.directed_source_target_pairs_in_support
             || point.cross_g.is_some() != available

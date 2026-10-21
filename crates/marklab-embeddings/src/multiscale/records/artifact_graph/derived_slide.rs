@@ -27,7 +27,6 @@ impl MultiscaleEmbeddingProvenance {
     ///
     /// Returns a role-only error for provenance variant, record, dependency, payload, managed
     /// availability, receipt, lineage, algorithm, or dimension drift.
-    #[allow(clippy::too_many_arguments)]
     pub fn validate_derived_slide_from_patches_artifact_graph(
         &self,
         provenance_artifact_id: ArtifactId,
@@ -61,7 +60,6 @@ impl MultiscaleEmbeddingProvenance {
     ///
     /// Returns a role-only error for provenance variant, record, dependency, payload, managed
     /// availability, receipt, lineage, algorithm, or dimension drift.
-    #[allow(clippy::too_many_arguments)]
     pub fn validate_derived_slide_from_regions_artifact_graph(
         &self,
         provenance_artifact_id: ArtifactId,

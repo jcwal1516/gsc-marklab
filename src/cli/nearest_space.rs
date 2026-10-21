@@ -1,21 +1,19 @@
 use std::path::PathBuf;
 
 use crate::{
-    execute_algorithm,
     geom::{mask::TumorMask, window::ObservationWindowLimits},
     output::{NearestSpaceOutputContext, NearestSpaceOutputWriter},
-    ArtifactRef, ArtifactSchema, DurableProject, DurableProjectLimits, LocalScheduler,
-    MarklabError, MarklabProject, NearestSpaceAnalysisNode, NearestSpaceConfig, NearestSpaceLimits,
-    NodeId, ObservationWindow2D, Pattern, PatternLoader, Result, SchedulerLimits, WorkflowGraph,
+    spatial::{NearestSpaceAnalysisNode, NearestSpaceConfig, NearestSpaceLimits},
+    workflow::{
+        execute_algorithm, ArtifactRef, ArtifactSchema, DurableProject, DurableProjectLimits,
+        LocalScheduler, MarklabProject, NodeId, SchedulerLimits, WorkflowGraph,
+    },
+    MarklabError, ObservationWindow2D, Pattern, PatternLoader, Result,
 };
 
 use super::{classical, NearestSpaceRequest};
 
 const MAXIMUM_RADII: usize = 4_096;
-const PROJECT_CONTROL_BYTES: usize = 1024 * 1024;
-const PROJECT_LEDGER_BYTES: usize = 16 * 1024 * 1024;
-const PROJECT_LEDGER_RECORDS: usize = 10_000;
-const PROJECT_RECORD_BYTES: usize = 64 * 1024;
 const CELL_SOURCE_KIND: &str = "application/vnd.marklab.source.cell-table;version=1";
 const WINDOW_SOURCE_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";
 
@@ -42,14 +40,8 @@ pub(super) fn run(request: NearestSpaceRequest) -> Result<()> {
 pub(super) fn run_project(project_path: PathBuf, request: NearestSpaceRequest) -> Result<()> {
     let (prepared, source_artifacts) = prepare_project(&request)?;
     let runtime = classical::native_runtime_provenance()?;
-    let project_limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        prepared.memory_bytes,
-    )
-    .map_err(|error| MarklabError::Validation(error.to_string()))?;
+    let project_limits = DurableProjectLimits::for_object_bytes(prepared.memory_bytes)
+        .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let mut durable = DurableProject::open_or_create(&project_path, project_limits)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
     classical::report_recovery(&durable);
@@ -122,7 +114,7 @@ fn prepare(request: &NearestSpaceRequest) -> Result<PreparedNearestSpace> {
         classical::read_bounded_utf8(&request.mask, window_limits.maximum_input_bytes)?;
     let window = ObservationWindow2D::from_geojson_str(&window_text, window_limits)
         .map_err(|error| MarklabError::Geometry(error.to_string()))?;
-    let mask = TumorMask::from_observation_window(window.clone());
+    let mask = TumorMask::from_geojson_str(&window_text)?;
     let pattern = PatternLoader::new(&mask).load_classical(&request.cells)?;
     let radii = (1..=request.r_steps)
         .map(|index| request.r_max_um * (index as f64 / request.r_steps as f64))
@@ -198,7 +190,7 @@ fn scheduler(memory_bytes: usize) -> Result<LocalScheduler> {
 fn write_output(
     request: &NearestSpaceRequest,
     command: &'static str,
-    run: crate::NodeRun<crate::NearestSpaceResult>,
+    run: crate::workflow::NodeRun<crate::spatial::NearestSpaceResult>,
 ) -> Result<()> {
     NearestSpaceOutputWriter::write(
         &run.output,

@@ -4,6 +4,7 @@ use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
 
 use crate::{LongitudinalError, QuadraticFunction};
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -59,7 +60,7 @@ pub struct ScalarParticleSmootherResult {
     pub filtering_steps: Vec<ParticleFilteringStep>,
     pub smoothed_trajectories: Vec<SmoothedParticleTrajectory>,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn particle_filter_and_smooth(
@@ -166,7 +167,7 @@ pub fn particle_filter_and_smooth(
         filtering_steps,
         smoothed_trajectories,
         random_seed_namespace: "scalar_particle_smoother_v1_chacha20",
-        claim_status: "finite_particle_approximation_only",
+        claim_status: ClaimStatus::FiniteParticleApproximationOnly,
     })
 }
 

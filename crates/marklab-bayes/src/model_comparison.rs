@@ -1,6 +1,7 @@
 use serde::Serialize;
 
-use crate::{validation::is_lower_hex_sha256 as sha256, BayesError, PsisLooResult};
+use crate::ClaimStatus;
+use crate::{validation::is_sha256, BayesError, PsisLooResult};
 
 pub struct PsisLooComparisonInput {
     pub path: String,
@@ -44,7 +45,7 @@ pub struct BayesianModelComparisonResult {
     pub models: Vec<ComparedModel>,
     pub pairwise: Vec<PairwiseElpdDifference>,
     pub models_requiring_refit_or_kfold: Vec<String>,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn compare_psis_loo_models(
@@ -57,7 +58,7 @@ pub fn compare_psis_loo_models(
     }
     for input in &inputs {
         if input.path.is_empty()
-            || !sha256(&input.artifact_sha256)
+            || !is_sha256(&input.artifact_sha256)
             || input.result.validate_published().is_err()
         {
             return Err(BayesError::InvalidSpec(
@@ -180,6 +181,6 @@ pub fn compare_psis_loo_models(
         models,
         pairwise,
         models_requiring_refit_or_kfold,
-        claim_status: "experimental_predictive_comparison",
+        claim_status: ClaimStatus::ExperimentalPredictiveComparison,
     })
 }

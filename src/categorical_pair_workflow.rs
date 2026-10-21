@@ -1,38 +1,46 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection,
+};
+use crate::workflow_codec::{invalid, nearly_equal, parse_status, unit_interval};
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::{io, str::FromStr};
 
-use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_data::CoordinateFrameId;
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::{Deserialize, Serialize};
 
-use crate::measurement_status_wire::{name as status_name, parse as parse_measurement_status};
+use crate::measurement_status_wire::name as status_name;
 use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
     categorical_pair::{configuration_digest, CategoricalPairConfig},
-    workflow::pattern_artifact,
-    CategoricalPairComponentInference, CategoricalPairGeometrySummary,
-    CategoricalPairInferenceSummary, CategoricalPairLimits, CategoricalPairPoint,
-    CategoricalPairPointStatus, CategoricalPairResult, ClassicalWindowSummary,
-    DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
+    marked_workflow::pattern_artifact,
+    marks::{
+        CategoricalPairComponentInference, CategoricalPairGeometrySummary,
+        CategoricalPairInferenceSummary, CategoricalPairLimits, CategoricalPairPoint,
+        CategoricalPairPointStatus, CategoricalPairResult, DeclaredScalarPatternInput,
+        ScalarMarkId,
+    },
+    scalar_mark::COMPARTMENT_MARK_ID,
+    spatial::ClassicalWindowSummary,
+    ObservationWindow2D,
 };
 
 const NODE_KIND: &str = "categorical_mark_connection_cross_k";
 const CONFIG_KIND: &str = "application/vnd.marklab.categorical-pair-config+json;version=1";
-const RESULT_KIND: &str = "application/vnd.marklab.categorical-pair-result+json;version=1";
-const EXECUTION_POLICY: &[u8] = b"serial;exact-rstar;retained-directed-pairs;standard-border;complete-row-random-labeling;two-component-erl";
-const IMPLEMENTATION: &str = "categorical-pair-analysis-node-v2";
+const RESULT_KIND: &str = "application/vnd.marklab.categorical-pair-result+json;version=3";
+const EXECUTION_POLICY: &[u8] = b"serial;exact-rstar;retained-directed-pairs;standard-border-cross-k-l;complete-row-random-labeling;two-component-erl";
+const IMPLEMENTATION: &str = "categorical-pair-analysis-node-v4";
 
 /// Exact typed categorical pair workflow node with store-verified MarkTable provenance.
 pub struct CategoricalPairAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<CategoricalPairAnalysis<'a>>,
+}
+
+struct CategoricalPairAnalysis<'a> {
     input: &'a DeclaredScalarPatternInput<'a>,
     window: &'a ObservationWindow2D,
     config: &'a CategoricalPairConfig,
-    inputs: [ArtifactRef; 4],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> CategoricalPairAnalysisNode<'a> {
@@ -57,73 +65,58 @@ impl<'a> CategoricalPairAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 2, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter={IMPLEMENTATION}",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            window,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter={IMPLEMENTATION}",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: CategoricalPairAnalysis {
+                    input,
+                    window,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(EXECUTION_POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     /// Return the exact versioned node specification.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for CategoricalPairAnalysisNode<'_> {
+impl NodeAnalysis for CategoricalPairAnalysis<'_> {
     type Output = CategoricalPairResult;
+    type Inputs = [ArtifactRef; 4];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let pattern = pattern_artifact(self.input.pattern())?;
-        self.inputs[0]
-            .verify_identity(pattern.digest(), pattern.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 0, &pattern)?;
         let declared = self
             .input
             .declared_artifact_ref()
             .map_err(NodeError::input)?;
-        self.inputs[1]
-            .verify_identity(declared.digest(), declared.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 1, &declared)?;
         let window = window_artifact(self.window)?;
-        self.inputs[2]
-            .verify_identity(window.digest(), window.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 2, &window)?;
         let config = config_artifact(self.config)?;
-        self.inputs[3]
-            .verify_identity(config.digest(), config.byte_len())
-            .map_err(NodeError::input)
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: EXECUTION_POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_input(inputs, 3, &config)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::categorical_mark_connection_cross_k(self.input, self.window, self.config)
+        crate::marks::categorical_mark_connection_cross_k(self.input, self.window, self.config)
             .map_err(NodeError::execution)
     }
 
@@ -139,7 +132,7 @@ impl WorkflowNode for CategoricalPairAnalysisNode<'_> {
             .input
             .mark_table()
             .ok_or_else(|| NodeError::decode(invalid("typed MarkTable is absent")))?;
-        let mark_id = ScalarMarkId::new("histologic_compartment").map_err(NodeError::decode)?;
+        let mark_id = ScalarMarkId::new(COMPARTMENT_MARK_ID).map_err(NodeError::decode)?;
         let levels = table
             .categorical_levels(&mark_id)
             .ok_or_else(|| NodeError::decode(invalid("decoded categorical levels are absent")))?;
@@ -188,9 +181,9 @@ impl WorkflowNode for CategoricalPairAnalysisNode<'_> {
             Some("point count")
         } else if result.window.logical_digest != descriptor.logical_digest.to_string() {
             Some("window digest")
-        } else if !same(result.window.area_um2, descriptor.area_um2) {
+        } else if !nearly_equal(result.window.area_um2, descriptor.area_um2) {
             Some("window area")
-        } else if !same(result.window.perimeter_um, descriptor.perimeter_um) {
+        } else if !nearly_equal(result.window.perimeter_um, descriptor.perimeter_um) {
             Some("window perimeter")
         } else if result.curve.len() != self.config.radii_um().len() {
             Some("radius count")
@@ -216,6 +209,8 @@ impl WorkflowNode for CategoricalPairAnalysisNode<'_> {
         RESULT_KIND
     }
 }
+
+crate::workflow_node::impl_workflow_node!(CategoricalPairAnalysisNode<'_> => CategoricalPairResult);
 
 pub(crate) fn encode_result(output: &CategoricalPairResult) -> io::Result<Box<[u8]>> {
     validate_result(output)?;
@@ -313,10 +308,9 @@ struct ResultWire {
 struct GeometryWire {
     point_count: usize,
     directed_pair_count: usize,
-    geometry_build_count: usize,
     geometry_digest: String,
     pair_plan_digest: String,
-    edge_correction: String,
+    edge_correction: EdgeCorrection,
     estimated_storage_bytes: usize,
 }
 
@@ -332,27 +326,30 @@ struct PointWire {
     source_target_pairs_in_shell: usize,
     connection_probability: Option<f64>,
     cross_k: Option<f64>,
+    cross_l: Option<f64>,
     theoretical_cross_k: f64,
+    theoretical_cross_l: f64,
     connection_inference_eligible: bool,
     lower_connection: Option<f64>,
     upper_connection: Option<f64>,
     cross_k_inference_eligible: bool,
     lower_cross_k: Option<f64>,
     upper_cross_k: Option<f64>,
+    lower_cross_l: Option<f64>,
+    upper_cross_l: Option<f64>,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct InferenceWire {
-    null_model: String,
-    permutation_unit: String,
-    alternative: String,
-    multiplicity: String,
+    null_model: MarkNullModel,
+    permutation_unit: MarkPermutationUnit,
+    #[serde(with = "crate::result_vocabulary::AlternativeWire")]
+    alternative: marklab_cohort::InferenceAlternative,
+    multiplicity: MultiplicityCorrection,
     connection: Option<ComponentWire>,
     cross_k: Option<ComponentWire>,
     permutations_requested: usize,
-    permutations_attempted: usize,
-    permutations_completed: usize,
     seed: u64,
     alpha: f64,
     permutation_pair_evaluations: usize,
@@ -370,7 +367,7 @@ struct ComponentWire {
 impl From<&CategoricalPairResult> for ResultWire {
     fn from(value: &CategoricalPairResult) -> Self {
         Self {
-            format: "marklab.categorical-pair/1".into(),
+            format: "marklab.categorical-pair/2".into(),
             mark_id: value.mark_id.as_str().into(),
             measurement_status: status_name(value.measurement_status).into(),
             coordinate_frame_id: value.coordinate_frame_id.as_str().into(),
@@ -383,10 +380,9 @@ impl From<&CategoricalPairResult> for ResultWire {
             geometry: GeometryWire {
                 point_count: value.geometry.point_count,
                 directed_pair_count: value.geometry.directed_pair_count,
-                geometry_build_count: value.geometry.geometry_build_count,
                 geometry_digest: value.geometry.geometry_digest.to_string(),
                 pair_plan_digest: value.geometry.pair_plan_digest.to_string(),
-                edge_correction: value.geometry.edge_correction.clone(),
+                edge_correction: value.geometry.edge_correction,
                 estimated_storage_bytes: value.geometry.estimated_storage_bytes,
             },
             configuration_digest: value.configuration_digest.to_string(),
@@ -413,13 +409,17 @@ impl From<&CategoricalPairPoint> for PointWire {
             source_target_pairs_in_shell: value.source_target_pairs_in_shell,
             connection_probability: value.connection_probability,
             cross_k: value.cross_k,
+            cross_l: value.cross_l,
             theoretical_cross_k: value.theoretical_cross_k,
+            theoretical_cross_l: value.theoretical_cross_l,
             connection_inference_eligible: value.connection_inference_eligible,
             lower_connection: value.lower_connection,
             upper_connection: value.upper_connection,
             cross_k_inference_eligible: value.cross_k_inference_eligible,
             lower_cross_k: value.lower_cross_k,
             upper_cross_k: value.upper_cross_k,
+            lower_cross_l: value.lower_cross_l,
+            upper_cross_l: value.upper_cross_l,
         }
     }
 }
@@ -427,15 +427,13 @@ impl From<&CategoricalPairPoint> for PointWire {
 impl From<&CategoricalPairInferenceSummary> for InferenceWire {
     fn from(value: &CategoricalPairInferenceSummary) -> Self {
         Self {
-            null_model: value.null_model.clone(),
-            permutation_unit: value.permutation_unit.clone(),
-            alternative: value.alternative.clone(),
-            multiplicity: value.multiplicity.clone(),
+            null_model: value.null_model,
+            permutation_unit: value.permutation_unit,
+            alternative: value.alternative,
+            multiplicity: value.multiplicity,
             connection: value.connection.as_ref().map(ComponentWire::from),
             cross_k: value.cross_k.as_ref().map(ComponentWire::from),
             permutations_requested: value.permutations_requested,
-            permutations_attempted: value.permutations_attempted,
-            permutations_completed: value.permutations_completed,
             seed: value.seed,
             alpha: value.alpha,
             permutation_pair_evaluations: value.permutation_pair_evaluations,
@@ -458,7 +456,7 @@ impl TryFrom<ResultWire> for CategoricalPairResult {
     type Error = io::Error;
 
     fn try_from(value: ResultWire) -> Result<Self, Self::Error> {
-        if value.format != "marklab.categorical-pair/1" {
+        if value.format != "marklab.categorical-pair/2" {
             return Err(invalid("unsupported categorical pair result format"));
         }
         Ok(Self {
@@ -476,7 +474,6 @@ impl TryFrom<ResultWire> for CategoricalPairResult {
             geometry: CategoricalPairGeometrySummary {
                 point_count: value.geometry.point_count,
                 directed_pair_count: value.geometry.directed_pair_count,
-                geometry_build_count: value.geometry.geometry_build_count,
                 geometry_digest: ContentDigest::from_str(&value.geometry.geometry_digest)
                     .map_err(|error| invalid(error.to_string()))?,
                 pair_plan_digest: ContentDigest::from_str(&value.geometry.pair_plan_digest)
@@ -516,13 +513,17 @@ impl TryFrom<PointWire> for CategoricalPairPoint {
             source_target_pairs_in_shell: value.source_target_pairs_in_shell,
             connection_probability: value.connection_probability,
             cross_k: value.cross_k,
+            cross_l: value.cross_l,
             theoretical_cross_k: value.theoretical_cross_k,
+            theoretical_cross_l: value.theoretical_cross_l,
             connection_inference_eligible: value.connection_inference_eligible,
             lower_connection: value.lower_connection,
             upper_connection: value.upper_connection,
             cross_k_inference_eligible: value.cross_k_inference_eligible,
             lower_cross_k: value.lower_cross_k,
             upper_cross_k: value.upper_cross_k,
+            lower_cross_l: value.lower_cross_l,
+            upper_cross_l: value.upper_cross_l,
         })
     }
 }
@@ -539,8 +540,6 @@ impl TryFrom<InferenceWire> for CategoricalPairInferenceSummary {
             connection: value.connection.map(Into::into),
             cross_k: value.cross_k.map(Into::into),
             permutations_requested: value.permutations_requested,
-            permutations_attempted: value.permutations_attempted,
-            permutations_completed: value.permutations_completed,
             seed: value.seed,
             alpha: value.alpha,
             permutation_pair_evaluations: value.permutation_pair_evaluations,
@@ -560,27 +559,24 @@ impl From<ComponentWire> for CategoricalPairComponentInference {
 }
 
 fn validate_result(result: &CategoricalPairResult) -> io::Result<()> {
-    if result.mark_id.as_str() != "histologic_compartment"
+    if result.mark_id.as_str() != COMPARTMENT_MARK_ID
         || result.source_level == result.target_level
         || result.source_count == 0
         || result.target_count == 0
         || result.source_count.saturating_add(result.target_count) > result.geometry.point_count
         || result.geometry.point_count < result.source_count.max(result.target_count)
         || result.geometry.directed_pair_count > result.limits.maximum_directed_pairs
-        || result.geometry.geometry_build_count != 1
-        || result.geometry.edge_correction != "standard_border_reduced_sample"
+        || result.geometry.edge_correction != EdgeCorrection::StandardBorderReducedSample
         || result.geometry.estimated_storage_bytes > result.limits.maximum_retained_bytes
         || result.curve.is_empty()
         || result.curve.len() > result.limits.maximum_radii
         || result.inference.permutations_requested == 0
-        || result.inference.permutations_attempted != result.inference.permutations_requested
-        || result.inference.permutations_completed != result.inference.permutations_requested
         || result.inference.permutation_pair_evaluations
             > result.limits.maximum_permutation_pair_evaluations
-        || result.inference.null_model != "random_labeling"
-        || result.inference.permutation_unit != "complete_categorical_row"
-        || result.inference.alternative != "two_sided"
-        || result.inference.multiplicity != "separate_componentwise_erl_families"
+        || result.inference.null_model != MarkNullModel::RandomLabeling
+        || result.inference.permutation_unit != MarkPermutationUnit::CompleteCategoricalRow
+        || result.inference.alternative != marklab_cohort::InferenceAlternative::TwoSided
+        || result.inference.multiplicity != MultiplicityCorrection::SeparateComponentwiseErlFamilies
         || !result.inference.alpha.is_finite()
         || result.inference.alpha <= 0.0
         || result.inference.alpha >= 1.0
@@ -605,10 +601,11 @@ fn validate_result(result: &CategoricalPairResult) -> io::Result<()> {
             || point.shell_lower_um.to_bits() != previous.to_bits()
             || point.source_target_pairs_in_shell > point.directed_pairs_in_shell
             || point.directed_source_target_pairs > result.geometry.directed_pair_count
-            || !same(
+            || !nearly_equal(
                 point.theoretical_cross_k,
                 std::f64::consts::PI * point.radius_um.powi(2),
             )
+            || !nearly_equal(point.theoretical_cross_l, point.radius_um)
         {
             return Err(invalid("invalid categorical pair curve identity"));
         }
@@ -619,7 +616,7 @@ fn validate_result(result: &CategoricalPairResult) -> io::Result<()> {
                     return Err(invalid("available connection lacks a value"));
                 };
                 if point.directed_pairs_in_shell == 0
-                    || !same(
+                    || !nearly_equal(
                         connection,
                         point.source_target_pairs_in_shell as f64
                             / point.directed_pairs_in_shell as f64,
@@ -635,6 +632,9 @@ fn validate_result(result: &CategoricalPairResult) -> io::Result<()> {
             }
         }
         if let Some(cross_k) = point.cross_k {
+            let Some(cross_l) = point.cross_l else {
+                return Err(invalid("directed cross-L is missing with cross-K"));
+            };
             if point.eligible_source_centers == 0 {
                 return Err(invalid("directed cross-K has no eligible source"));
             }
@@ -644,11 +644,17 @@ fn validate_result(result: &CategoricalPairResult) -> io::Result<()> {
                 .ok_or_else(|| invalid("categorical pair count overflow"))?;
             let expected = result.window.area_um2 * point.directed_source_target_pairs as f64
                 / denominator as f64;
-            if !cross_k.is_finite() || cross_k < 0.0 || !same(cross_k, expected) {
-                return Err(invalid("invalid directed cross-K value"));
+            if !cross_k.is_finite()
+                || cross_k < 0.0
+                || !nearly_equal(cross_k, expected)
+                || !cross_l.is_finite()
+                || cross_l < 0.0
+                || !nearly_equal(cross_l, (cross_k / std::f64::consts::PI).sqrt())
+            {
+                return Err(invalid("invalid directed cross-K/L value"));
             }
-        } else if point.eligible_source_centers != 0 {
-            return Err(invalid("directed cross-K is missing with eligible sources"));
+        } else if point.eligible_source_centers != 0 || point.cross_l.is_some() {
+            return Err(invalid("directed cross-K/L availability is inconsistent"));
         }
         connection_eligible += validate_envelope(
             point.connection_inference_eligible,
@@ -662,6 +668,21 @@ fn validate_result(result: &CategoricalPairResult) -> io::Result<()> {
             point.upper_cross_k,
             point.cross_k,
         )?;
+        match (
+            point.cross_k_inference_eligible,
+            point.lower_cross_k,
+            point.upper_cross_k,
+            point.lower_cross_l,
+            point.upper_cross_l,
+        ) {
+            (true, Some(lower_k), Some(upper_k), Some(lower_l), Some(upper_l))
+                if lower_k >= 0.0
+                    && upper_k >= 0.0
+                    && nearly_equal(lower_l, (lower_k / std::f64::consts::PI).sqrt())
+                    && nearly_equal(upper_l, (upper_k / std::f64::consts::PI).sqrt()) => {}
+            (false, None, None, None, None) => {}
+            _ => return Err(invalid("invalid directed cross-L envelope")),
+        }
     }
     let expected_connection_denominator = result
         .geometry
@@ -670,7 +691,7 @@ fn validate_result(result: &CategoricalPairResult) -> io::Result<()> {
         .ok_or_else(|| invalid("categorical pair count overflow"))?;
     let expected_connection = result.source_count as f64 * result.target_count as f64
         / expected_connection_denominator as f64;
-    if !same(result.expected_random_label_connection, expected_connection) {
+    if !nearly_equal(result.expected_random_label_connection, expected_connection) {
         return Err(invalid("invalid random-label connection expectation"));
     }
     validate_component(
@@ -729,23 +750,4 @@ fn validate_component(
         None if eligible == 0 => Ok(()),
         _ => Err(invalid("invalid categorical pair component inference")),
     }
-}
-
-fn parse_status(value: &str) -> io::Result<MeasurementStatus> {
-    parse_measurement_status(value).ok_or_else(|| invalid("invalid measurement status"))
-}
-
-fn unit_interval(value: f64) -> bool {
-    value.is_finite() && (0.0..=1.0).contains(&value)
-}
-
-fn same(left: f64, right: f64) -> bool {
-    left == right
-        || (left.is_finite()
-            && right.is_finite()
-            && (left - right).abs() <= 16.0 * f64::EPSILON * left.abs().max(right.abs()).max(1.0))
-}
-
-fn invalid(message: impl Into<String>) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message.into())
 }

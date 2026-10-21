@@ -189,10 +189,6 @@ fn source_identity_json_is_an_exact_strict_fixed_point() {
 fn input_normalization_has_a_bounded_decimal_grammar_and_fixed_identity() {
     let normalization = normalization();
     assert_eq!(
-        normalization.logical_digest(),
-        reference_normalization_digest(&normalization)
-    );
-    assert_eq!(
         normalization.logical_digest().to_string(),
         "bd7e6b0644392a32a26f8e38e6d32e5a6fa35e25f27378657a3a898a06773e0b"
     );

@@ -5,6 +5,8 @@ use crate::{
     graph_sparse_radius_heat_workflow, GraphError, GraphNodeInput, GraphSparseRadiusHeatResult,
     GraphSparseRadiusHeatSpec,
 };
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -45,7 +47,7 @@ pub struct SparseRadiusHeatPerturbationResult {
 pub struct GraphSparseRadiusHeatStabilityResult {
     pub format: String,
     pub version: u32,
-    pub statistical_unit: String,
+    pub statistical_unit: StatisticalUnit,
     pub reference: String,
     pub perturbation_rule: String,
     pub finite_result_policy: String,
@@ -61,7 +63,7 @@ pub struct GraphSparseRadiusHeatStabilityResult {
     pub minimum_edge_count: u64,
     pub maximum_edge_count: u64,
     pub stable_under_declared_threshold: bool,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 impl GraphSparseRadiusHeatStabilityResult {
@@ -100,11 +102,11 @@ impl GraphSparseRadiusHeatStabilityResult {
             .fold(self.baseline.edge_count, u64::max);
         if self.format != "marklab.graph_sparse_radius_heat_stability"
             || self.version != 1
-            || self.statistical_unit != "one_specimen_graph"
+            || self.statistical_unit != StatisticalUnit::OneSpecimenGraph
             || self.reference != "unperturbed_coordinates_with_fixed_node_ids_and_signals"
             || self.perturbation_rule != "sha256_uniform_independent_axis_jitter"
             || self.finite_result_policy != "reject_non_finite_input_or_output"
-            || self.claim_status != "coordinate_perturbation_stability_diagnostic"
+            || self.claim_status != ClaimStatus::CoordinatePerturbationStabilityDiagnostic
             || self.seed != spec.seed
             || self.perturbation_replicates != spec.perturbation_replicates
             || self.perturbations.len() != spec.perturbation_replicates
@@ -254,7 +256,7 @@ pub fn graph_sparse_radius_heat_stability_workflow(
     Ok(GraphSparseRadiusHeatStabilityResult {
         format: "marklab.graph_sparse_radius_heat_stability".into(),
         version: 1,
-        statistical_unit: "one_specimen_graph".into(),
+        statistical_unit: StatisticalUnit::OneSpecimenGraph,
         reference: "unperturbed_coordinates_with_fixed_node_ids_and_signals".into(),
         perturbation_rule: "sha256_uniform_independent_axis_jitter".into(),
         finite_result_policy: "reject_non_finite_input_or_output".into(),
@@ -271,7 +273,7 @@ pub fn graph_sparse_radius_heat_stability_workflow(
         maximum_edge_count,
         stable_under_declared_threshold: maximum_relative_l2_change
             <= spec.maximum_relative_l2_change,
-        claim_status: "coordinate_perturbation_stability_diagnostic".into(),
+        claim_status: ClaimStatus::CoordinatePerturbationStabilityDiagnostic,
     })
 }
 

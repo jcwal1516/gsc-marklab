@@ -7,10 +7,10 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{effects::read_effects, publication::publish_json, CohortError};
+use super::{effects::read_effects, publication::publish_json, CohortError, NoninferiorityArgs};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
-pub(super) enum CliDirection {
+pub(crate) enum CliDirection {
     HigherIsBetter,
     LowerIsBetter,
 }
@@ -24,14 +24,15 @@ impl From<CliDirection> for NoninferiorityDirection {
     }
 }
 
-pub(super) fn run(
-    input: PathBuf,
-    direction: CliDirection,
-    margin: f64,
-    alpha: f64,
-    margin_rationale: String,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run(args: NoninferiorityArgs) -> Result<(), CohortError> {
+    let NoninferiorityArgs {
+        input,
+        direction,
+        margin,
+        alpha,
+        margin_rationale,
+        out,
+    } = args;
     let prepared = prepare(input, direction.into(), margin, alpha, margin_rationale)?;
     publish_json(&out, &execute(&prepared)?)
 }

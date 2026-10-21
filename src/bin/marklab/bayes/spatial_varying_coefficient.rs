@@ -1,12 +1,14 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use marklab_bayes::{
-    sha256_hex, NutsSamplingSpec, SpatialCoefficientInputIdentity, SpatialCoefficientObservation,
-    SpatialVaryingCoefficientSpec, SpatialVaryingCoefficientWorkerRequest,
-    SpatialVaryingCoefficientWorkerResult,
+    json_sha256, sha256_hex, NutsSamplingSpec, SpatialCoefficientInputIdentity,
+    SpatialCoefficientObservation, SpatialVaryingCoefficientSpec,
+    SpatialVaryingCoefficientWorkerRequest, SpatialVaryingCoefficientWorkerResult,
 };
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::SpatialVaryingCoefficientArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 pub(crate) struct Prepared {
     request: SpatialVaryingCoefficientWorkerRequest,
@@ -21,9 +23,9 @@ impl Prepared {
         &self.request_bytes
     }
 
-    pub(crate) fn validate_output(&self, output: &serde_json::Value) -> Result<(), BayesCliError> {
+    pub(crate) fn validate_output(&self, output: &serde_json::Value) -> Result<(), CliError> {
         let object = output.as_object().ok_or_else(|| {
-            BayesCliError::Backend("spatial coefficient cached result is not an object".into())
+            CliError::Backend("spatial coefficient cached result is not an object".into())
         })?;
         let expected_keys = [
             "backend",
@@ -82,7 +84,7 @@ impl Prepared {
                     })
             })
         {
-            return Err(BayesCliError::Backend(
+            return Err(CliError::Backend(
                 "spatial coefficient cached result identity or shape differs".into(),
             ));
         }
@@ -90,23 +92,26 @@ impl Prepared {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    global_predictor_name: String,
-    spatial_predictor_name: String,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_sd: f64,
-    amplitude_prior_sd: f64,
-    length_scale_prior_sd_um: f64,
-    known_noise_sd: f64,
-    jitter: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let prepared = prepare(
+pub(super) fn run(args: SpatialVaryingCoefficientArgs) -> Result<(), CliError> {
+    let SpatialVaryingCoefficientArgs {
+        input,
+        global_predictor_name,
+        spatial_predictor_name,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        coefficient_prior_sd,
+        amplitude_prior_sd,
+        length_scale_prior_sd_um,
+        known_noise_sd,
+        jitter,
+        timeout_seconds,
+        out,
+        nuts,
+    } = args;
+    let input_path = input;
+    let sampling = nuts.spec();
+    let output_path = out;
+    let prepared = prepare(Parameters {
         input_path,
         global_predictor_name,
         spatial_predictor_name,
@@ -119,39 +124,47 @@ pub(super) fn run(
         jitter,
         sampling,
         timeout_seconds,
-    )?;
+    })?;
     publish_json(&output_path, &execute(&prepared)?)
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn prepare(
-    input_path: PathBuf,
-    global_predictor_name: String,
-    spatial_predictor_name: String,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_sd: f64,
-    amplitude_prior_sd: f64,
-    length_scale_prior_sd_um: f64,
-    known_noise_sd: f64,
-    jitter: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-) -> Result<Prepared, BayesCliError> {
+pub(crate) struct Parameters {
+    pub(crate) input_path: PathBuf,
+    pub(crate) global_predictor_name: String,
+    pub(crate) spatial_predictor_name: String,
+    pub(crate) intercept_prior_mean: f64,
+    pub(crate) intercept_prior_sd: f64,
+    pub(crate) coefficient_prior_sd: f64,
+    pub(crate) amplitude_prior_sd: f64,
+    pub(crate) length_scale_prior_sd_um: f64,
+    pub(crate) known_noise_sd: f64,
+    pub(crate) jitter: f64,
+    pub(crate) sampling: NutsSamplingSpec,
+    pub(crate) timeout_seconds: u64,
+}
+
+pub(crate) fn prepare(parameters: Parameters) -> Result<Prepared, CliError> {
+    let Parameters {
+        input_path,
+        global_predictor_name,
+        spatial_predictor_name,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        coefficient_prior_sd,
+        amplitude_prior_sd,
+        length_scale_prior_sd_um,
+        known_noise_sd,
+        jitter,
+        sampling,
+        timeout_seconds,
+    } = parameters;
     let observations =
         read_observations(&input_path, &global_predictor_name, &spatial_predictor_name)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_spatial_varying_coefficient_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(
+        repository,
+        "marklab_pymc_spatial_varying_coefficient_worker.py",
+    )?;
     let request = SpatialVaryingCoefficientWorkerRequest::new(
         SpatialVaryingCoefficientSpec {
             global_predictor_name,
@@ -166,13 +179,13 @@ pub(crate) fn prepare(
             observations,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let identity = SpatialCoefficientInputIdentity {
         path: input_path.display().to_string(),
-        observations_sha256: sha256_hex(&serde_json::to_vec(&request.observations)?),
+        observations_sha256: json_sha256(&request.observations)?,
     };
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
@@ -187,8 +200,8 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &Prepared,
-) -> Result<marklab_bayes::SpatialVaryingCoefficientFit, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<marklab_bayes::SpatialVaryingCoefficientFit, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_spatial_varying_coefficient_worker.py",
@@ -206,8 +219,8 @@ fn read_observations(
     path: &std::path::Path,
     global_predictor_name: &str,
     spatial_predictor_name: &str,
-) -> Result<Vec<SpatialCoefficientObservation>, BayesCliError> {
-    super::input_file::validate_regular_file(
+) -> Result<Vec<SpatialCoefficientObservation>, CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "spatial coefficient input must be a regular file within the 16 MiB limit",
@@ -220,7 +233,7 @@ fn read_observations(
         global_predictor_name,
         spatial_predictor_name,
     ]) {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "spatial coefficient headers must be exactly: coordinate_id,x_um,y,{global_predictor_name},{spatial_predictor_name}"
         )));
     }
@@ -229,7 +242,7 @@ fn read_observations(
         let record = record?;
         let parse = |index: usize, field: &str| {
             record[index].parse::<f64>().map_err(|_| {
-                BayesCliError::Input(format!("spatial coefficient {field} must be numeric"))
+                CliError::Input(format!("spatial coefficient {field} must be numeric"))
             })
         };
         observations.push(SpatialCoefficientObservation {
@@ -240,7 +253,7 @@ fn read_observations(
             spatial_predictor: parse(4, spatial_predictor_name)?,
         });
         if observations.len() > 64 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "spatial coefficient observation count exceeds 64".into(),
             ));
         }

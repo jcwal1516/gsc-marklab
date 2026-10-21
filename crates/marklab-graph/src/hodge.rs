@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::GraphError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -70,7 +71,7 @@ pub struct SimplicialHodgeResult {
     pub filter_step: f64,
     pub filtered_flow: Vec<f64>,
     pub clique_triples_evaluated: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn simplicial_hodge_workflow(
@@ -269,7 +270,7 @@ pub fn simplicial_hodge_workflow(
         filter_step: spec.filter_step,
         filtered_flow,
         clique_triples_evaluated: triples_evaluated,
-        claim_status: "experimental_simplicial_edge_flow",
+        claim_status: ClaimStatus::ExperimentalSimplicialEdgeFlow,
     })
 }
 
@@ -370,49 +371,11 @@ fn solve_with_last_zero_gauge(matrix: &[Vec<f64>], rhs: &[f64]) -> Result<Vec<f6
 }
 
 fn solve(matrix: &[Vec<f64>], rhs: &[f64]) -> Result<Vec<f64>, GraphError> {
-    if rhs.is_empty() {
-        return Ok(Vec::new());
-    }
-    let size = rhs.len();
-    let mut augmented = matrix
-        .iter()
-        .zip(rhs)
-        .map(|(row, rhs)| {
-            let mut row = row.clone();
-            row.push(*rhs);
-            row
-        })
-        .collect::<Vec<_>>();
-    for pivot in 0..size {
-        let selected = (pivot..size)
-            .max_by(|left, right| {
-                augmented[*left][pivot]
-                    .abs()
-                    .total_cmp(&augmented[*right][pivot].abs())
-            })
-            .expect("pivot range");
-        if augmented[selected][pivot].abs() <= 1e-12 {
-            return Err(GraphError::Invalid(
-                "Hodge least-squares system is rank deficient for this specialization".into(),
-            ));
-        }
-        augmented.swap(pivot, selected);
-        let diagonal = augmented[pivot][pivot];
-        for value in &mut augmented[pivot][pivot..=size] {
-            *value /= diagonal;
-        }
-        let pivot_values = augmented[pivot][pivot..=size].to_vec();
-        for (row_index, row) in augmented.iter_mut().enumerate() {
-            if row_index == pivot {
-                continue;
-            }
-            let factor = row[pivot];
-            for (value, pivot_value) in row[pivot..=size].iter_mut().zip(&pivot_values) {
-                *value -= factor * pivot_value;
-            }
-        }
-    }
-    Ok(augmented.iter().map(|row| row[size]).collect())
+    marklab_numerics::dense::gauss_jordan_solve(matrix, rhs).ok_or_else(|| {
+        GraphError::Invalid(
+            "Hodge least-squares system is rank deficient for this specialization".into(),
+        )
+    })
 }
 
 fn dot(left: &[f64], right: &[f64]) -> f64 {

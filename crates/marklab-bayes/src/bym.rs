@@ -1,17 +1,32 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{
         BackendContract, DiagnosticPolicy, WorkerResourceLimits, MODEL_FORMAT, MODEL_VERSION,
         PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
     sar_fit::design_full_rank,
-    BayesError, FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary,
-    SarCoefficientSummary, SarScalarSummary, WorkerBackend,
+    BayesError, FitState, NutsSamplingSpec, PosteriorDiagnostics, SamplingSummary,
+    SarCoefficientSummary, ScalarSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
+/// Poisson BYM disease-mapping model with separate spatial and independent SDs.
+///
+/// The likelihood is `count_i ~ Poisson(expected_i * exp(alpha + X_i beta + s_i + u_i))`. The
+/// intercept prior is `Normal(intercept_prior_mean, intercept_prior_sd)` and each coefficient
+/// has `Normal(0, coefficient_prior_sd)` prior. Independent half-normal priors with the
+/// supplied scales govern `sigma_s` and `sigma_u`. The worker uses non-centred effects `s =
+/// sigma_s T z` and `u = sigma_u v`, with independent standard-normal `z` and `v`. The
+/// supplied ICAR transform `T` constrains the structured effect to sum to zero within each
+/// connected component.
+///
 #[derive(Clone, Debug)]
 pub struct BymFitSpec {
     pub region_ids: Vec<String>,
@@ -44,8 +59,8 @@ pub struct BymModelIr {
     pub coefficient_prior_sd: f64,
     pub structured_sd_prior: f64,
     pub unstructured_sd_prior: f64,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -78,7 +93,7 @@ impl BymFitWorkerRequest {
     ) -> Result<Self, BayesError> {
         sampling.validate()?;
         validate_spec(&spec)?;
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "BYM worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -97,7 +112,7 @@ impl BymFitWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -114,8 +129,8 @@ impl BymFitWorkerRequest {
                 coefficient_prior_sd: spec.coefficient_prior_sd,
                 structured_sd_prior: spec.structured_sd_prior,
                 unstructured_sd_prior: spec.unstructured_sd_prior,
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             region_ids: spec.region_ids,
             weights_digest_sha256: spec.weights_digest_sha256,
@@ -255,10 +270,10 @@ fn validate_spec(spec: &BymFitSpec) -> Result<(), BayesError> {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct BymPosterior {
-    pub intercept: SarScalarSummary,
+    pub intercept: ScalarSummary,
     pub coefficients: Vec<SarCoefficientSummary>,
-    pub structured_sd: SarScalarSummary,
-    pub unstructured_sd: SarScalarSummary,
+    pub structured_sd: ScalarSummary,
+    pub unstructured_sd: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -267,9 +282,9 @@ pub struct BymRegionSummary {
     pub region_id: String,
     pub observed_count: u64,
     pub expected: f64,
-    pub structured_effect: SarScalarSummary,
-    pub unstructured_effect: SarScalarSummary,
-    pub relative_risk: SarScalarSummary,
+    pub structured_effect: ScalarSummary,
+    pub unstructured_effect: ScalarSummary,
+    pub relative_risk: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -293,7 +308,7 @@ pub struct BymFitWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: BymPosterior,
     pub regions: Vec<BymRegionSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: BymPosteriorPredictive,
 }
 
@@ -306,11 +321,7 @@ impl BymFitWorkerResult {
         if self.fit_state == FitState::ApproximateOnly
             || self.format != "marklab.pymc_bym_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
         {
             return Err(BayesError::WorkerContract(
@@ -433,9 +444,9 @@ impl BymFitWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -463,7 +474,7 @@ impl BymFitWorkerResult {
     }
 }
 
-fn validate_scalar(summary: &SarScalarSummary, positive: bool) -> Result<(), BayesError> {
+fn validate_scalar(summary: &ScalarSummary, positive: bool) -> Result<(), BayesError> {
     if !finite(&[
         summary.mean,
         summary.sd,
@@ -497,13 +508,13 @@ pub struct BymFitResult {
     pub model: BymModelIr,
     pub input: BymInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: BymPosterior,
     pub rank_deficiency: usize,
     pub constraints: Vec<String>,
     pub regions: Vec<BymRegionSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: BymPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,

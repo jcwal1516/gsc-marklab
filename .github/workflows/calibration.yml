@@ -5,14 +5,118 @@ on:
   schedule:
     - cron: "43 5 * * 1"
 
+permissions:
+  contents: read
+
 jobs:
   negative-controls:
+    runs-on: ubuntu-latest
+    # Run 04 took 24 minutes on a 12-core workstation with concurrent scenarios.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.99.0
+      - name: Marked and multimodal shuffle calibration across layouts and prevalences
+        env:
+          MARKLAB_SHUFFLE_CALIBRATION_OUTPUT: shuffle-calibration
+        run: >-
+          cargo test --release --locked --workspace --all-features shuffle_calibration
+          -- --ignored --nocapture --test-threads=1
+      - name: Save shuffle calibration results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: shuffle-calibration
+          path: shuffle-calibration
+          if-no-files-found: warn
+
+  pathology-studies:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: dtolnay/rust-toolchain@1.99.0
-      - name: Marked and multimodal 1,000-replicate production controls
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.99.0
+      - name: Prespecified pathology study calibration
+        env:
+          MARKLAB_STAT_CALIBRATION_OUTPUT: pathology-calibration.jsonl
         run: >-
-          cargo test --release --locked --workspace --all-features negative_control_calibrates
-          -- --ignored --nocapture --test-threads=1
+          cargo test --release --locked --package marklab --test pathology_studies_calibration
+          pathology_studies_prespecified_calibration -- --ignored --exact --nocapture --test-threads=1
+      - name: Save calibration results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pathology-calibration
+          path: pathology-calibration.jsonl
+          if-no-files-found: warn
+
+  spatstat-get-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.99.0
+      - uses: r-lib/actions/setup-r@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2.12.1
+        with:
+          r-version: 4.5.2
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@d3c5be51b12e724e68f33216ca3c148b66d5f0b6 # v2.12.1
+        with:
+          cache-version: reference-packages-v1
+          dependencies: NA
+          packages: |
+            cran::abind@1.4-8
+            cran::cli@3.6.5
+            cran::cluster@2.1.8.1
+            cran::cpp11@0.5.2
+            cran::deldir@2.0-4
+            cran::farver@2.1.2
+            cran::GET@1.0-9
+            cran::ggplot2@4.0.3
+            cran::glue@1.8.0
+            cran::goftest@1.2-3
+            cran::gridExtra@2.3.1
+            cran::gtable@0.3.6
+            cran::isoband@0.3.0
+            cran::jsonlite@2.0.0
+            cran::labeling@0.4.3
+            cran::lattice@0.22-7
+            cran::lifecycle@1.0.5
+            cran::Matrix@1.7-4
+            cran::nlme@3.1-168
+            cran::polyclip@1.10-7
+            cran::R6@2.6.1
+            cran::RColorBrewer@1.1-3
+            cran::rlang@1.2.0
+            cran::S7@0.2.2
+            cran::scales@1.4.0
+            cran::spatstat.data@3.1-9
+            cran::spatstat.explore@3.8-3
+            cran::spatstat.geom@3.8-3
+            cran::spatstat.random@3.5-2
+            cran::spatstat.sparse@3.2-0
+            cran::spatstat.univar@3.2-0
+            cran::spatstat.utils@3.2-5
+            cran::tensor@1.5.1
+            cran::vctrs@0.7.3
+            cran::viridisLite@0.4.3
+            cran::withr@3.0.2
+      - name: Build the reference target
+        run: cargo build --release --locked --package marklab --bin marklab
+      - name: Compare pathology L curves with spatstat and GET
+        run: >-
+          Rscript tests/fixtures/inhomogeneous_spatial/compare_spatstat.R
+          target/release/marklab spatstat-reference
+      - name: Save reference results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: spatstat-get-reference
+          path: spatstat-reference
+          if-no-files-found: warn

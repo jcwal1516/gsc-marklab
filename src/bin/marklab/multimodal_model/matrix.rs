@@ -1,3 +1,4 @@
+use marklab_bayes::is_worker_timeout;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -5,14 +6,15 @@ use std::{
 
 use marklab_topology::sha256_hex;
 
-use super::super::topology::{publish_json, read_input, run_worker, TopologyCliError};
+use super::super::topology::{publish_json, read_input, run_worker};
 use super::schema::{HierarchicalFactorSpec, MatrixFactorSpec, MofaSpec};
 use super::worker_assets;
+use crate::cli_error::CliError;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
-pub(super) fn run_hierarchical_factor(
-    input: PathBuf,
-    out: PathBuf,
-) -> Result<(), TopologyCliError> {
+pub(super) fn run_hierarchical_factor(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: HierarchicalFactorSpec = serde_json::from_slice(&bytes)?;
     validate_hierarchical_factor(&spec)?;
@@ -76,7 +78,7 @@ pub(super) fn run_hierarchical_factor(
     publish_json(&out, &result)
 }
 
-fn validate_hierarchical_factor(spec: &HierarchicalFactorSpec) -> Result<(), TopologyCliError> {
+fn validate_hierarchical_factor(spec: &HierarchicalFactorSpec) -> Result<(), CliError> {
     let mut entity_ids = HashSet::new();
     let entity_map = spec
         .entities
@@ -143,7 +145,7 @@ fn validate_hierarchical_factor(spec: &HierarchicalFactorSpec) -> Result<(), Top
         || spec.modalities.is_empty()
         || !valid_modalities
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "hierarchical factors require exact patient-specimen-region-cell parentage and level-matched measured or predicted modality attachments"
                 .into(),
         ));
@@ -151,7 +153,7 @@ fn validate_hierarchical_factor(spec: &HierarchicalFactorSpec) -> Result<(), Top
     Ok(())
 }
 
-pub(super) fn run_matrix_factor(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_matrix_factor(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: MatrixFactorSpec = serde_json::from_slice(&bytes)?;
     spec.rows
@@ -165,9 +167,9 @@ pub(super) fn run_matrix_factor(input: PathBuf, out: PathBuf) -> Result<(), Topo
             "name": "mofapy2",
             "version": "mofapy2-0.7.4",
             "h5py_version": "3.16.0",
-            "numpy_version": "2.4.6",
-            "scipy_version": "1.18.1",
-            "python_version": "3.12",
+            "numpy_version": NUMPY_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "LGPL-3.0",
             "environment_lock_sha256": assets.lock_sha256,
             "worker_sha256": assets.worker_sha256
@@ -195,14 +197,14 @@ pub(super) fn run_matrix_factor(input: PathBuf, out: PathBuf) -> Result<(), Topo
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_synthetic_bayesian_matrix_factorization"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "matrix factor result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_matrix_factor(spec: &MatrixFactorSpec) -> Result<(), TopologyCliError> {
+fn validate_matrix_factor(spec: &MatrixFactorSpec) -> Result<(), CliError> {
     let feature_count = spec.feature_names.len();
     let mut features = HashSet::new();
     let valid_features = spec.feature_names.iter().all(|name| {
@@ -237,9 +239,9 @@ fn validate_matrix_factor(spec: &MatrixFactorSpec) -> Result<(), TopologyCliErro
         || !(1..=feature_count.min(spec.rows.len() - 1)).contains(&spec.factors)
         || !(50..=10_000).contains(&spec.iterations)
         || !matches!(spec.convergence_mode.as_str(), "fast" | "medium" | "slow")
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "matrix factorization requires a bounded patient Gaussian matrix, exact identifiers, observed training values, masked evaluation values, and bounded fit controls"
                 .into(),
         ));
@@ -247,7 +249,7 @@ fn validate_matrix_factor(spec: &MatrixFactorSpec) -> Result<(), TopologyCliErro
     Ok(())
 }
 
-pub(super) fn run_mofa(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_mofa(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: MofaSpec = serde_json::from_slice(&bytes)?;
     spec.rows
@@ -261,9 +263,9 @@ pub(super) fn run_mofa(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliEr
             "name": "mofapy2",
             "version": "mofapy2-0.7.4",
             "h5py_version": "3.16.0",
-            "numpy_version": "2.4.6",
-            "scipy_version": "1.18.1",
-            "python_version": "3.12",
+            "numpy_version": NUMPY_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "LGPL-3.0",
             "environment_lock_sha256": assets.lock_sha256,
             "worker_sha256": assets.worker_sha256
@@ -289,14 +291,12 @@ pub(super) fn run_mofa(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliEr
         || result["design"]["validation_status"] != "passed"
         || result["claim_status"] != "experimental_synthetic_multiview_factor_model"
     {
-        return Err(TopologyCliError::Backend(
-            "MOFA result identity mismatch".into(),
-        ));
+        return Err(CliError::Backend("MOFA result identity mismatch".into()));
     }
     publish_json(&out, &result)
 }
 
-fn validate_mofa(spec: &MofaSpec) -> Result<(), TopologyCliError> {
+fn validate_mofa(spec: &MofaSpec) -> Result<(), CliError> {
     let train_count = spec.rows.iter().filter(|row| row.split == "train").count();
     let test_count = spec.rows.iter().filter(|row| row.split == "test").count();
     let total_features = spec
@@ -361,9 +361,9 @@ fn validate_mofa(spec: &MofaSpec) -> Result<(), TopologyCliError> {
         || !(1..=total_features.min(train_count - 1)).contains(&spec.maximum_factors)
         || !(50..=10_000).contains(&spec.iterations)
         || !matches!(spec.convergence_mode.as_str(), "fast" | "medium" | "slow")
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "MOFA requires valid measured patient Gaussian views, structural/MAR masks, train/held-out rows, and bounded fit controls"
                 .into(),
         ));

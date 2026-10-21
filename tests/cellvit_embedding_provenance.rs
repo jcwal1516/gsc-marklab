@@ -1,11 +1,14 @@
 use std::str::FromStr;
 
 use marklab::{
-    ArtifactId, CanonicalDecimal, CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts,
-    CellEmbeddingModelProvenance, CellEmbeddingProvenance, CellEmbeddingRowLink,
-    CellEmbeddingRowLinkEntry, CellEmbeddingTensorContract, CellId, CohortHierarchy, ContentDigest,
-    EmbeddingError, EmbeddingStatus, ExpectedCellSet, HierarchyId, HierarchyNode, PatientId,
-    ReplicationRole, SlideId,
+    embeddings::{
+        CanonicalDecimal, CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts,
+        CellEmbeddingModelProvenance, CellEmbeddingProvenance, CellEmbeddingRowLink,
+        CellEmbeddingRowLinkEntry, CellEmbeddingTensorContract, EmbeddingError, EmbeddingStatus,
+        ExpectedCellSet,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CellId, CohortHierarchy, HierarchyId, HierarchyNode, PatientId, ReplicationRole, SlideId,
 };
 
 fn artifact_id(label: &[u8]) -> ArtifactId {
@@ -375,7 +378,7 @@ fn provenance_json_distinguishes_missing_state_from_invalid_values() {
         Err(EmbeddingError::InvalidProvenanceJson)
     ));
     for invalid in [
-        encoded.replacen("\"version\":1", "\"version\":2", 1),
+        encoded.replacen("\"version\":1", "\"version\":3", 1),
         encoded.replacen(
             "nucleus_bbox_intersecting_token_mean",
             "unsupported_pooling",
@@ -392,6 +395,55 @@ fn provenance_json_distinguishes_missing_state_from_invalid_values() {
             Err(EmbeddingError::InvalidProvenanceJson)
         ));
     }
+}
+
+#[test]
+fn declared_model_provenance_preserves_non_cellvit_tensor_contract() {
+    let legacy = String::from_utf8(
+        provenance(artifact_id(b"row-link"))
+            .to_canonical_json()
+            .expect("legacy provenance"),
+    )
+    .unwrap();
+    let declared = legacy
+        .replacen("\"version\":1", "\"version\":2", 1)
+        .replace("cellvit_sam_h", "user_supplied_encoder")
+        .replace("\"output_dimension\":1280", "\"output_dimension\":768")
+        .replace("nucleus_bbox_intersecting_token_mean", "cell_mask_mean")
+        .replace(
+            "\"output_normalization\":{\"kind\":\"none\"}",
+            "\"output_normalization\":{\"kind\":\"l2\"}",
+        )
+        .replace(
+            "\"input_channel_order\":\"rgb\"",
+            "\"input_channel_order\":\"grayscale\"",
+        )
+        .replace("[\"0.485\",\"0.456\",\"0.406\"]", "[\"0.5\"]")
+        .replace("[\"0.229\",\"0.224\",\"0.225\"]", "[\"0.25\"]")
+        .replace("\"stain\":\"he\"", "\"stain\":\"ihc\"");
+    let decoded = CellEmbeddingProvenance::from_canonical_json(declared.as_bytes())
+        .expect("a declared model must not be forced into the CellViT tensor profile");
+    assert_eq!(decoded.output_dimension(), 768);
+    assert_eq!(decoded.to_canonical_json().unwrap(), declared.as_bytes());
+    for invalid in [
+        declared.replace(
+            "\"input_channel_std\":[\"0.25\"]",
+            "\"input_channel_std\":[\"0.25\",\"0.25\"]",
+        ),
+        declared.replace(
+            "\"input_channel_std\":[\"0.25\"]",
+            "\"input_channel_std\":[\"0\"]",
+        ),
+    ] {
+        assert!(CellEmbeddingProvenance::from_canonical_json(invalid.as_bytes()).is_err());
+    }
+    assert_eq!(
+        CellEmbeddingProvenance::from_canonical_json(legacy.as_bytes())
+            .unwrap()
+            .to_canonical_json()
+            .unwrap(),
+        legacy.as_bytes()
+    );
 }
 
 #[test]

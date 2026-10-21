@@ -1,6 +1,8 @@
 use thiserror::Error;
 
-use crate::{linalg, DiagonalPolicy, NormalizationPolicy, SymmetryPolicy, ValidatedSpatialWeights};
+use marklab_numerics::dense;
+
+use crate::{DiagonalPolicy, NormalizationPolicy, SymmetryPolicy, ValidatedSpatialWeights};
 
 #[derive(Clone, Debug)]
 pub struct IcarPlan {
@@ -52,7 +54,7 @@ pub fn build_icar_plan(weights: &ValidatedSpatialWeights) -> Result<IcarPlan, Ic
     let basis = component_helmert_basis(dimension, &components);
     let laplacian = laplacian(weights, dimension);
     let projected = project(&laplacian, dimension, &basis, constrained_dimension);
-    let lower = linalg::cholesky(&projected, constrained_dimension).ok_or_else(|| {
+    let lower = dense::cholesky(&projected, constrained_dimension).ok_or_else(|| {
         IcarPlanError::Numerical(
             "ICAR Laplacian is not positive definite on its constrained subspace".into(),
         )
@@ -61,11 +63,7 @@ pub fn build_icar_plan(weights: &ValidatedSpatialWeights) -> Result<IcarPlan, Ic
     for column in 0..constrained_dimension {
         let mut coordinates = vec![0.0; constrained_dimension];
         coordinates[column] = 1.0;
-        linalg::solve_upper_from_lower_transpose_in_place(
-            &lower,
-            constrained_dimension,
-            &mut coordinates,
-        );
+        dense::solve_lower_transpose_in_place(&lower, constrained_dimension, &mut coordinates);
         for row in 0..dimension {
             transform[row * constrained_dimension + column] = (0..constrained_dimension)
                 .map(|inner| basis[row * constrained_dimension + inner] * coordinates[inner])

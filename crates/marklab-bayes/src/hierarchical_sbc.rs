@@ -1,20 +1,22 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
-use std::collections::BTreeSet;
+use crate::validation::is_sha256;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::JAX_VERSION;
+use crate::backend_versions::NUMPYRO_VERSION;
+use crate::backend_versions::PYTHON_VERSION;
+use crate::sbc::{validate_sbc_replicates, SbcCalibration, SbcReplicateRow, SbcSamplerRow};
+use crate::ClaimStatus;
 use crate::{
     hierarchical::{GaussianHierarchyModelIr, GaussianHierarchySpec, HierarchicalPatientData},
     BackendContract, BayesError, DiagnosticPolicy, FitState, GaussianHierarchyWorkerRequest,
-    NutsSamplingSpec, WorkerBackend,
+    NutsSamplingSpec, SbcParameterDiagnostics, WorkerBackend,
 };
 
 const REQUEST_FORMAT: &str = "marklab.numpyro_hierarchical_sbc_worker_request";
 const RESULT_FORMAT: &str = "marklab.numpyro_hierarchical_sbc_worker_result";
-const NUMPYRO_VERSION: &str = "0.21.0";
-const JAX_VERSION: &str = "0.11.1";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct HierarchicalSbcCalibrationPolicy {
@@ -26,6 +28,19 @@ pub struct HierarchicalSbcCalibrationPolicy {
     pub minimum_rank_uniformity_p_value: f64,
     pub minimum_coverage: f64,
     pub maximum_coverage: f64,
+}
+
+impl SbcCalibration for HierarchicalSbcCalibrationPolicy {
+    fn replicates(&self) -> u32 {
+        self.replicates
+    }
+    fn rank_bins(&self) -> u32 {
+        self.rank_bins
+    }
+    fn passes(&self, diagnostic: &SbcParameterDiagnostics) -> bool {
+        diagnostic.rank_uniformity_p_value >= self.minimum_rank_uniformity_p_value
+            && (self.minimum_coverage..=self.maximum_coverage).contains(&diagnostic.coverage_90)
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -80,7 +95,7 @@ impl NumpyroHierarchySbcWorkerRequest {
             || minimum_coverage > maximum_coverage
             || !is_sha256(&environment_lock_sha256)
             || !is_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "hierarchical SBC inputs or calibration controls are invalid".into(),
@@ -134,7 +149,7 @@ impl NumpyroHierarchySbcWorkerRequest {
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -180,6 +195,35 @@ pub struct HierarchicalSbcReplicate {
     pub max_tree_depth_hits: u64,
 }
 
+impl SbcReplicateRow for HierarchicalSbcReplicate {
+    fn replicate(&self) -> u32 {
+        self.replicate
+    }
+    fn ranks(&self) -> Vec<(u32, bool)> {
+        vec![
+            (self.global_mean_rank, self.global_mean_covered),
+            (
+                self.between_patient_sd_rank,
+                self.between_patient_sd_covered,
+            ),
+        ]
+    }
+    fn truths_valid(&self) -> bool {
+        finite(&[self.true_global_mean, self.true_between_patient_sd])
+            && self.true_between_patient_sd > 0.0
+    }
+    fn sampler(&self) -> SbcSamplerRow {
+        SbcSamplerRow {
+            r_hat: self.r_hat,
+            ess_bulk: self.ess_bulk,
+            ess_tail: self.ess_tail,
+            minimum_ebfmi: None,
+            divergences: self.divergences,
+            max_tree_depth_hits: self.max_tree_depth_hits,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct HierarchicalSbcFailure {
@@ -189,18 +233,9 @@ pub struct HierarchicalSbcFailure {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct HierarchicalSbcParameterDiagnostics {
-    pub rank_histogram: Vec<u32>,
-    pub rank_uniformity_p_value: f64,
-    pub coverage_90: f64,
-    pub mean_normalized_rank: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct HierarchicalSbcDiagnostics {
-    pub global_mean: HierarchicalSbcParameterDiagnostics,
-    pub between_patient_sd: HierarchicalSbcParameterDiagnostics,
+    pub global_mean: SbcParameterDiagnostics,
+    pub between_patient_sd: SbcParameterDiagnostics,
 }
 
 #[derive(Debug, Deserialize)]
@@ -225,11 +260,7 @@ impl NumpyroHierarchySbcWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != RESULT_FORMAT
             || self.version != 1
-            || self.backend.name != "numpyro"
-            || self.backend.version != NUMPYRO_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.jax_version != JAX_VERSION
             || self.request_sha256 != request_sha256
             || self.replicates.len() + self.failures.len()
@@ -240,83 +271,19 @@ impl NumpyroHierarchySbcWorkerResult {
             ));
         }
         let posterior_draws = request.sampling.chains * request.sampling.draws_per_chain;
-        let mut dispositions = BTreeSet::new();
-        for replicate in &self.replicates {
-            if replicate.replicate >= request.calibration.replicates
-                || !dispositions.insert(replicate.replicate)
-                || replicate.global_mean_rank > posterior_draws
-                || replicate.between_patient_sd_rank > posterior_draws
-                || !finite(&[
-                    replicate.true_global_mean,
-                    replicate.true_between_patient_sd,
-                    replicate.r_hat,
-                    replicate.ess_bulk,
-                    replicate.ess_tail,
-                ])
-                || replicate.true_between_patient_sd <= 0.0
-                || replicate.r_hat <= 0.0
-                || replicate.ess_bulk <= 0.0
-                || replicate.ess_tail <= 0.0
-            {
-                return Err(BayesError::WorkerContract(
-                    "hierarchical SBC replicate is invalid".into(),
-                ));
-            }
-        }
-        for failure in &self.failures {
-            if failure.replicate >= request.calibration.replicates
-                || !dispositions.insert(failure.replicate)
-                || failure.reason.is_empty()
-                || failure.reason.len() > 512
-            {
-                return Err(BayesError::WorkerContract(
-                    "hierarchical SBC failure disposition is invalid".into(),
-                ));
-            }
-        }
-        if dispositions.len() != request.calibration.replicates as usize {
-            return Err(BayesError::WorkerContract(
-                "hierarchical SBC lacks complete replicate disposition".into(),
-            ));
-        }
-        for diagnostic in [
-            &self.diagnostics.global_mean,
-            &self.diagnostics.between_patient_sd,
-        ] {
-            if diagnostic.rank_histogram.len() != request.calibration.rank_bins as usize
-                || diagnostic.rank_histogram.iter().sum::<u32>() != self.replicates.len() as u32
-                || !finite(&[
-                    diagnostic.rank_uniformity_p_value,
-                    diagnostic.coverage_90,
-                    diagnostic.mean_normalized_rank,
-                ])
-                || !(0.0..=1.0).contains(&diagnostic.rank_uniformity_p_value)
-                || !(0.0..=1.0).contains(&diagnostic.coverage_90)
-                || !(0.0..=1.0).contains(&diagnostic.mean_normalized_rank)
-            {
-                return Err(BayesError::WorkerContract(
-                    "hierarchical SBC aggregate diagnostics are invalid".into(),
-                ));
-            }
-        }
-        let passes = self.failures.is_empty()
-            && [
+        validate_sbc_replicates(
+            &self.replicates,
+            &self.failures,
+            &[
                 &self.diagnostics.global_mean,
                 &self.diagnostics.between_patient_sd,
-            ]
-            .into_iter()
-            .all(|diagnostic| {
-                diagnostic.rank_uniformity_p_value
-                    >= request.calibration.minimum_rank_uniformity_p_value
-                    && (request.calibration.minimum_coverage..=request.calibration.maximum_coverage)
-                        .contains(&diagnostic.coverage_90)
-            });
-        if (self.fit_state == FitState::Complete) != passes {
-            return Err(BayesError::WorkerContract(
-                "hierarchical SBC fit state disagrees with calibration gates".into(),
-            ));
-        }
-        Ok(())
+            ],
+            &request.calibration,
+            posterior_draws,
+            &request.diagnostic_policy,
+            self.fit_state,
+        )
+        .map_err(|violation| violation.error("hierarchical"))
     }
 
     pub fn into_result(self, request: NumpyroHierarchySbcWorkerRequest) -> HierarchicalSbcResult {
@@ -334,9 +301,9 @@ impl NumpyroHierarchySbcWorkerResult {
             failures: self.failures,
             diagnostics: self.diagnostics,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_simulation_calibration"
+                ClaimStatus::ExperimentalSimulationCalibration
             } else {
-                "diagnostic_only_failed_calibration"
+                ClaimStatus::DiagnosticOnlyFailedCalibration
             },
             request_sha256: self.request_sha256,
         }
@@ -357,6 +324,6 @@ pub struct HierarchicalSbcResult {
     pub replicates: Vec<HierarchicalSbcReplicate>,
     pub failures: Vec<HierarchicalSbcFailure>,
     pub diagnostics: HierarchicalSbcDiagnostics,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }

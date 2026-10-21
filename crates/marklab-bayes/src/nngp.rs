@@ -3,7 +3,9 @@ use std::collections::{BTreeSet, HashSet};
 use serde::Serialize;
 use thiserror::Error;
 
-use crate::{linalg, matern_covariance::matern32_1d};
+use marklab_numerics::dense;
+
+use marklab_numerics::kernel::matern32;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct NngpObservation {
@@ -107,26 +109,26 @@ pub fn build_nngp(mut spec: NngpSpec) -> Result<NngpPlan, NngpError> {
         let mut covariance = vec![0.0; count * count];
         let mut cross = vec![0.0; count];
         for row in 0..count {
-            cross[row] = matern32_1d(
-                spec.observations[index].x_um,
-                spec.observations[neighbors[row]].x_um,
+            cross[row] = matern32(
+                (spec.observations[index].x_um - spec.observations[neighbors[row]].x_um).abs(),
                 spec.amplitude,
                 spec.length_scale_um,
             );
             for column in 0..count {
-                covariance[row * count + column] = matern32_1d(
-                    spec.observations[neighbors[row]].x_um,
-                    spec.observations[neighbors[column]].x_um,
+                covariance[row * count + column] = matern32(
+                    (spec.observations[neighbors[row]].x_um
+                        - spec.observations[neighbors[column]].x_um)
+                        .abs(),
                     spec.amplitude,
                     spec.length_scale_um,
                 );
             }
             covariance[row * count + row] += spec.jitter;
         }
-        let lower = linalg::cholesky(&covariance, count)
+        let lower = dense::cholesky(&covariance, count)
             .ok_or_else(|| NngpError::Numerical("covariance is not positive definite".into()))?;
-        let mut solved = linalg::solve_lower(&lower, count, &cross);
-        linalg::solve_upper_from_lower_transpose_in_place(&lower, count, &mut solved);
+        let mut solved = dense::solve_lower(&lower, count, &cross);
+        dense::solve_lower_transpose_in_place(&lower, count, &mut solved);
         let conditional = marginal_variance
             - cross
                 .iter()
@@ -195,18 +197,17 @@ pub fn full_gp_log_density(plan: &NngpPlan) -> Result<f64, NngpError> {
         .collect::<Vec<_>>();
     for row in 0..dimension {
         for column in 0..dimension {
-            covariance[row * dimension + column] = matern32_1d(
-                plan.observations[row].x_um,
-                plan.observations[column].x_um,
+            covariance[row * dimension + column] = matern32(
+                (plan.observations[row].x_um - plan.observations[column].x_um).abs(),
                 plan.amplitude,
                 plan.length_scale_um,
             );
         }
         covariance[row * dimension + row] += plan.jitter;
     }
-    let lower = linalg::cholesky(&covariance, dimension)
+    let lower = dense::cholesky(&covariance, dimension)
         .ok_or_else(|| NngpError::Numerical("covariance is not positive definite".into()))?;
-    let whitened = linalg::solve_lower(&lower, dimension, &centered);
+    let whitened = dense::solve_lower(&lower, dimension, &centered);
     let quadratic = whitened.iter().map(|value| value * value).sum::<f64>();
     let log_determinant = 2.0
         * (0..dimension)

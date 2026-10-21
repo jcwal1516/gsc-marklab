@@ -126,7 +126,7 @@ fn analyze_cli_writes_result_json_from_csv_and_geojson_mask() {
             .expect("valid json");
     let result = &document["analysis"]["result"];
 
-    assert_eq!(document["format_version"], "0.3");
+    assert_eq!(document["format_version"], "0.4");
     assert_eq!(document["provenance"]["program"], "marklab");
     assert_eq!(result["case_id"], "case_001");
     assert_eq!(result["timepoint"], "post");
@@ -615,6 +615,8 @@ fn profile_plan_cli_writes_external_profiler_commands() {
     assert!(text.contains("cargo bench"));
     assert!(text.contains("cargo bench --bench random_labeling_envelope"));
     assert!(text.contains("cargo bench --bench pattern_load"));
+    assert!(text.contains("cargo bench --bench spatial_stages"));
+    assert!(text.contains("cargo bench --bench patch_embeddings"));
 }
 
 #[test]
@@ -1035,7 +1037,7 @@ fn prepost_cli_writes_delta_result_with_safe_language() {
 
     let text = fs::read_to_string(delta_out.join("prepost.json")).expect("delta");
     let document: Value = serde_json::from_str(&text).expect("versioned delta");
-    assert_eq!(document["format_version"], "0.3");
+    assert_eq!(document["format_version"], "0.4");
     assert_eq!(document["analysis"]["kind"], "marked_prepost");
     let lower = text.to_lowercase();
     assert!(lower.contains("coarse-scale organization"));

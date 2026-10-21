@@ -78,10 +78,6 @@ pub struct CovariatePermutationResult {
     pub p_value: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Completed replicate count.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
     /// Prespecified alternative.
@@ -223,8 +219,6 @@ fn execute_covariate_freedman_lane(
         studentized_statistic: observed.target_statistic,
         p_value,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
         alternative: spec.alternative,
     })
@@ -382,58 +376,7 @@ pub(crate) fn fit_ols(
 }
 
 fn solve(matrix: &[Vec<f64>], rhs: &[f64]) -> Result<Vec<f64>, CohortInferenceError> {
-    let size = rhs.len();
-    let scale = matrix
-        .iter()
-        .flatten()
-        .map(|value| value.abs())
-        .fold(0.0_f64, f64::max)
-        .max(1.0);
-    let mut augmented = matrix
-        .iter()
-        .zip(rhs)
-        .map(|(row, value)| {
-            let mut row = row.clone();
-            row.push(*value);
-            row
-        })
-        .collect::<Vec<_>>();
-    for pivot in 0..size {
-        let selected = (pivot..size)
-            .max_by(|left, right| {
-                augmented[*left][pivot]
-                    .abs()
-                    .total_cmp(&augmented[*right][pivot].abs())
-            })
-            .expect("non-empty pivot range");
-        if augmented[selected][pivot].abs() <= 1e-12 * scale {
-            return Err(CohortInferenceError::InvalidInput(
-                "covariate model design is rank deficient".into(),
-            ));
-        }
-        augmented.swap(pivot, selected);
-        let diagonal = augmented[pivot][pivot];
-        for value in &mut augmented[pivot][pivot..=size] {
-            *value /= diagonal;
-        }
-        for row in 0..size {
-            if row == pivot {
-                continue;
-            }
-            let factor = augmented[row][pivot];
-            let pivot_values = augmented[pivot][pivot..=size].to_vec();
-            for (value, pivot_value) in augmented[row][pivot..=size].iter_mut().zip(pivot_values) {
-                *value -= factor * pivot_value;
-            }
-        }
-    }
-    let solution = augmented.iter().map(|row| row[size]).collect::<Vec<_>>();
-    if solution.iter().any(|value| !value.is_finite()) {
-        return Err(CohortInferenceError::NumericalFailure(
-            "covariate model solve produced a non-finite coefficient".into(),
-        ));
-    }
-    Ok(solution)
+    crate::numeric::solve_design(matrix, rhs, "covariate")
 }
 
 pub(crate) fn inference_alternative(alternative: PermutationAlternative) -> InferenceAlternative {

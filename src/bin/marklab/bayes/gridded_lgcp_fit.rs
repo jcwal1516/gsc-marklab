@@ -1,56 +1,20 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, GriddedLgcpFitInputIdentity, GriddedLgcpFitSpec, GriddedLgcpFitWorkerRequest,
-    GriddedLgcpFitWorkerResult, GriddedLgcpSpec, NutsSamplingSpec, RectangularWindow,
+    json_sha256, sha256_hex, GriddedLgcpFitInputIdentity, GriddedLgcpFitSpec,
+    GriddedLgcpFitWorkerRequest, GriddedLgcpFitWorkerResult, GriddedLgcpSpec, RectangularWindow,
 };
 
+use super::cli_schema::SimulateGriddedLgcpPosteriorPredictiveArgs;
+use super::cli_schema::{FitGriddedLgcpArgs, GriddedLgcpModelArgs};
+use super::worker_identity;
 use super::{
     inhomogeneous_poisson::{read_events, read_quadrature},
-    publish_json, run_worker, BayesCliError,
+    publish_json, run_worker, CliError,
 };
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    events_path: PathBuf,
-    grid_path: PathBuf,
-    xmin_um: f64,
-    ymin_um: f64,
-    xmax_um: f64,
-    ymax_um: f64,
-    grid_x: u32,
-    grid_y: u32,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_mean: f64,
-    coefficient_prior_sd: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let prepared = prepare(
-        events_path,
-        grid_path,
-        xmin_um,
-        ymin_um,
-        xmax_um,
-        ymax_um,
-        grid_x,
-        grid_y,
-        intercept_prior_mean,
-        intercept_prior_sd,
-        coefficient_prior_mean,
-        coefficient_prior_sd,
-        field_amplitude,
-        field_length_scale_um,
-        jitter,
-        sampling,
-        timeout_seconds,
-        None,
-    )?;
+pub(super) fn run(args: FitGriddedLgcpArgs) -> Result<(), CliError> {
+    let FitGriddedLgcpArgs { model, out } = args;
+    let output_path = out;
+    let prepared = prepare(None, model)?;
     let result = execute(&prepared)?;
     publish_json(
         &output_path,
@@ -58,49 +22,20 @@ pub(super) fn run(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn run_predictive(
-    events_path: PathBuf,
-    grid_path: PathBuf,
-    xmin_um: f64,
-    ymin_um: f64,
-    xmax_um: f64,
-    ymax_um: f64,
-    grid_x: u32,
-    grid_y: u32,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_mean: f64,
-    coefficient_prior_sd: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-    sampling: NutsSamplingSpec,
-    replicates: u32,
-    prediction_seed: u64,
-    maximum_total_points: u64,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+    args: SimulateGriddedLgcpPosteriorPredictiveArgs,
+) -> Result<(), CliError> {
+    let SimulateGriddedLgcpPosteriorPredictiveArgs {
+        model,
+        replicates,
+        prediction_seed,
+        maximum_total_points,
+        out,
+    } = args;
+    let output_path = out;
     let prepared = prepare(
-        events_path,
-        grid_path,
-        xmin_um,
-        ymin_um,
-        xmax_um,
-        ymax_um,
-        grid_x,
-        grid_y,
-        intercept_prior_mean,
-        intercept_prior_sd,
-        coefficient_prior_mean,
-        coefficient_prior_sd,
-        field_amplitude,
-        field_length_scale_um,
-        jitter,
-        sampling,
-        timeout_seconds,
         Some((replicates, prediction_seed, maximum_total_points)),
+        model,
     )?;
     let result = execute(&prepared)?;
     publish_json(
@@ -117,43 +52,36 @@ pub(crate) struct PreparedGriddedLgcpFit {
     pub(crate) timeout_seconds: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
-    events_path: PathBuf,
-    grid_path: PathBuf,
-    xmin_um: f64,
-    ymin_um: f64,
-    xmax_um: f64,
-    ymax_um: f64,
-    grid_x: u32,
-    grid_y: u32,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_mean: f64,
-    coefficient_prior_sd: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
     prediction: Option<(u32, u64, u64)>,
-) -> Result<PreparedGriddedLgcpFit, BayesCliError> {
+    model: GriddedLgcpModelArgs,
+) -> Result<PreparedGriddedLgcpFit, CliError> {
+    let GriddedLgcpModelArgs {
+        events: events_path,
+        grid: grid_path,
+        xmin_um,
+        ymin_um,
+        xmax_um,
+        ymax_um,
+        grid_x,
+        grid_y,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        coefficient_prior_mean,
+        coefficient_prior_sd,
+        field_amplitude,
+        field_length_scale_um,
+        jitter,
+        nuts,
+        timeout_seconds,
+    } = model;
+    let sampling = nuts.spec();
     let events = read_events(&events_path)?;
     let grid = read_quadrature(&grid_path)?;
-    let events_sha256 = sha256_hex(&serde_json::to_vec(&events)?);
-    let grid_sha256 = sha256_hex(&serde_json::to_vec(&grid)?);
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_gridded_lgcp_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let events_sha256 = json_sha256(&events)?;
+    let grid_sha256 = json_sha256(&grid)?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_pymc_gridded_lgcp_worker.py")?;
     let mut request = GriddedLgcpFitWorkerRequest::new(
         GriddedLgcpFitSpec {
             construction: GriddedLgcpSpec {
@@ -177,8 +105,8 @@ pub(crate) fn prepare(
             },
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     if let Some((replicates, seed, maximum_total_points)) = prediction {
@@ -203,8 +131,8 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedGriddedLgcpFit,
-) -> Result<GriddedLgcpFitWorkerResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<GriddedLgcpFitWorkerResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_gridded_lgcp_worker.py",

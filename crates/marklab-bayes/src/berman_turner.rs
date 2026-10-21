@@ -1,3 +1,4 @@
+use marklab_numerics::summation::neumaier_sum;
 use serde::Serialize;
 use thiserror::Error;
 
@@ -215,8 +216,8 @@ fn validate_resolution(
             coefficient,
         )?);
     }
-    let weight_sum = compensated_sum(table.iter().map(|node| node.weight_um2))?;
-    let weighted_objective = compensated_sum(
+    let weight_sum = finite_sum(table.iter().map(|node| node.weight_um2))?;
+    let weighted_objective = finite_sum(
         table
             .iter()
             .map(|node| node.weighted_objective_contribution),
@@ -284,26 +285,10 @@ fn make_node(
     })
 }
 
-fn compensated_sum(values: impl Iterator<Item = f64>) -> Result<f64, BermanTurnerError> {
-    let mut sum = 0.0;
-    let mut correction = 0.0;
-    for value in values {
-        let next = sum + value;
-        if sum.abs() >= value.abs() {
-            correction += (sum - next) + value;
-        } else {
-            correction += (value - next) + sum;
-        }
-        sum = next;
-        if !sum.is_finite() || !correction.is_finite() {
-            return Err(BermanTurnerError::Numerical(
-                "Berman-Turner accumulation is non-finite".into(),
-            ));
-        }
-    }
-    let result = sum + correction;
-    if result.is_finite() {
-        Ok(result)
+fn finite_sum(values: impl Iterator<Item = f64>) -> Result<f64, BermanTurnerError> {
+    let sum = neumaier_sum(values);
+    if sum.is_finite() {
+        Ok(sum)
     } else {
         Err(BermanTurnerError::Numerical(
             "Berman-Turner accumulation is non-finite".into(),

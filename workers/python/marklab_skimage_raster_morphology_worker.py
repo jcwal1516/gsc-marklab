@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
+"""scikit-image worker for Minkowski functionals of a binary raster under dilation and erosion."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import scipy
@@ -12,12 +15,20 @@ from scipy import ndimage
 from skimage.measure import euler_number, perimeter_crofton
 from skimage.morphology import disk
 
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def functionals(mask, pixel_size, connectivity, directions):
+    """Area, Crofton perimeter, and Euler characteristic of ``mask`` in physical units."""
     area = float(np.count_nonzero(mask)) * pixel_size**2
     perimeter = float(perimeter_crofton(mask, directions=directions)) * pixel_size
     euler = int(euler_number(mask, connectivity=1 if connectivity == 4 else 2))
@@ -34,11 +45,8 @@ def functionals(mask, pixel_size, connectivity, directions):
 
 
 def main():
-    if skimage.__version__ != "0.26.0" or scipy.__version__ != "1.18.1":
-        raise ContractError("scikit-image or SciPy version drift")
-    if sys.version_info[:2] != (3, 12):
-        raise ContractError("Python version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
+    require_versions(scikit_image=skimage.__version__, scipy=scipy.__version__)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
     if request["format"] != "marklab.skimage_raster_morphology_request" or request["version"] != 1:
         raise ContractError("request identity mismatch")
@@ -48,7 +56,12 @@ def main():
     pixel_size = float(request["pixel_size_um"])
     connectivity = request["connectivity"]
     directions = request["crofton_directions"]
-    if not math.isfinite(pixel_size) or pixel_size <= 0 or connectivity not in (4, 8) or directions not in (2, 4):
+    if (
+        not math.isfinite(pixel_size)
+        or pixel_size <= 0
+        or connectivity not in (4, 8)
+        or directions not in (2, 4)
+    ):
         raise ContractError("raster conventions are invalid")
     radii = request["radii_um"]
     if not radii or radii != sorted(set(radii)) or radii[0] != 0.0:
@@ -79,20 +92,15 @@ def main():
         "format": "marklab.raster_morphology",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "representation": "binary_raster",
         "pixel_size_um": pixel_size,
         "baseline": baseline,
         "curves": curves,
         "claim_status": "experimental_supplied_binary_raster",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-        print(f"morphology worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "morphology worker contract error", errors=CONTRACT_ERRORS)

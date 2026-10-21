@@ -103,10 +103,22 @@ fn mean_nearest_neighbor_distance_uses_each_points_closest_neighbor() {
         mean_nearest_neighbor_distance(&[0.0, 3.0, 10.0], &[0.0, 4.0, 0.0]).expect("distance");
 
     assert_abs_diff_eq!(
-        distance,
+        distance.expect("two or more points"),
         (5.0 + 5.0 + (65.0_f64).sqrt()) / 3.0,
         epsilon = 1e-12
     );
+}
+
+#[test]
+fn mean_nearest_neighbor_distance_reports_index_errors_instead_of_absence() {
+    assert_eq!(
+        mean_nearest_neighbor_distance(&[1.0], &[2.0]).expect("one point"),
+        None
+    );
+    assert!(matches!(
+        mean_nearest_neighbor_distance(&[0.0, f64::NAN], &[0.0, 1.0]),
+        Err(crate::MarklabError::Geometry(_))
+    ));
 }
 
 #[test]
@@ -239,18 +251,45 @@ fn deterministic_query_order() {
 
 #[test]
 fn spatial_index_rejects_invalid_coordinates_and_queries() {
-    assert!(SpatialIndex2D::new(&[0.0], &[]).is_err());
-    assert!(SpatialIndex2D::new(&[f64::NAN], &[0.0]).is_err());
-    assert!(SpatialIndex2D::new(&[0.0], &[f64::INFINITY]).is_err());
+    fn geometry_message<T: std::fmt::Debug>(result: crate::errors::Result<T>) -> String {
+        match result {
+            Err(crate::errors::MarklabError::Geometry(message)) => message,
+            other => panic!("expected a geometry error, got {other:?}"),
+        }
+    }
+    let lengths = "coordinate lengths differ";
+    let finite_point = "point 0 must have finite coordinates";
+    let out_of_bounds = "index 2 is out of bounds";
+    let radius = "radius must be finite and non-negative";
+    let finite_query = "query point must have finite coordinates";
 
     let index = SpatialIndex2D::new(&[0.0, 1.0], &[0.0, 0.0]).expect("index");
-    assert!(index.nearest_neighbor(2).is_err());
-    assert!(index.k_nearest(2, 1).is_err());
-    assert!(index.within_radius(2, 1.0).is_err());
-    assert!(index.within_radius(0, -1.0).is_err());
-    assert!(index.within_radius(0, f64::NAN).is_err());
-    assert!(index.points_within_radius(f64::NAN, 0.0, 1.0).is_err());
-    assert!(index.points_within_radius(0.0, 0.0, -1.0).is_err());
+    for (message, expected) in [
+        (geometry_message(SpatialIndex2D::new(&[0.0], &[])), lengths),
+        (
+            geometry_message(SpatialIndex2D::new(&[f64::NAN], &[0.0])),
+            finite_point,
+        ),
+        (
+            geometry_message(SpatialIndex2D::new(&[0.0], &[f64::INFINITY])),
+            finite_point,
+        ),
+        (geometry_message(index.nearest_neighbor(2)), out_of_bounds),
+        (geometry_message(index.k_nearest(2, 1)), out_of_bounds),
+        (geometry_message(index.within_radius(2, 1.0)), out_of_bounds),
+        (geometry_message(index.within_radius(0, -1.0)), radius),
+        (geometry_message(index.within_radius(0, f64::NAN)), radius),
+        (
+            geometry_message(index.points_within_radius(f64::NAN, 0.0, 1.0)),
+            finite_query,
+        ),
+        (
+            geometry_message(index.points_within_radius(0.0, 0.0, -1.0)),
+            radius,
+        ),
+    ] {
+        assert!(message.contains(expected), "{message:?} lacks {expected:?}");
+    }
 }
 
 fn spatial_index_cases() -> Vec<Vec<[f64; 2]>> {

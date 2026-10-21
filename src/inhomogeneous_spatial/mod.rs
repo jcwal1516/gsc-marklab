@@ -21,6 +21,8 @@ mod pair;
 pub(crate) mod study_fit;
 mod types;
 pub(crate) use analysis::analyze_inhomogeneous_spatial_pattern_with_policy;
+pub(crate) use compartment_analysis::analyze_piecewise_compartment_spatial_pattern_capturing;
+pub(crate) use compartment_g::analyze_piecewise_compartment_pair_correlation_capturing;
 pub(crate) use g::analyze_inhomogeneous_pair_correlation_with_policy;
 pub(crate) mod workflow;
 
@@ -59,6 +61,7 @@ pub use g_types::{
 };
 pub use g_workflow::InhomogeneousPairCorrelationAnalysisNode;
 pub(crate) use identity::configuration_digest;
+pub(crate) use types::NullCurveCapture;
 pub use types::{
     InhomogeneousIntensityGridPoint, InhomogeneousIntensityPoint, InhomogeneousIntensitySummary,
     InhomogeneousSpatialConfig, InhomogeneousSpatialError, InhomogeneousSpatialInference,

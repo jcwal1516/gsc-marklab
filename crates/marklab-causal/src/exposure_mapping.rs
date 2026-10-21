@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::CausalError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -50,7 +51,16 @@ pub struct UnitExposureValue {
     pub treatment: bool,
     pub scalar_value: Option<f64>,
     pub vector_value: Option<Vec<f64>>,
-    pub status: &'static str,
+    pub status: ExposureValueStatus,
+}
+
+marklab_core::vocabulary_enum! {
+    /// Whether a unit's exposure value could be constructed.
+    pub enum ExposureValueStatus {
+        Available => "available",
+        AvailableDeclaredField => "available_declared_field",
+        UnavailableIsolatedUnit => "unavailable_isolated_unit",
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -63,7 +73,7 @@ pub struct ExposureMappingResult {
     pub radii_um: Vec<f64>,
     pub exposures: Vec<UnitExposureValue>,
     pub directed_edge_visits: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 struct Neighbor {
@@ -117,7 +127,7 @@ pub fn compute_spatial_exposure_mapping(
         radii_um: spec.radii_um,
         exposures,
         directed_edge_visits: visits,
-        claim_status: "exposure_construction_only",
+        claim_status: ClaimStatus::ExposureConstructionOnly,
     })
 }
 
@@ -134,7 +144,7 @@ fn map_unit(
                     .any(|neighbor| spec.units[neighbor.index].treatment),
             )),
             None,
-            "available",
+            ExposureValueStatus::Available,
         ),
         ExposureMappingKind::CountTreated => (
             Some(
@@ -144,7 +154,7 @@ fn map_unit(
                     .count() as f64,
             ),
             None,
-            "available",
+            ExposureValueStatus::Available,
         ),
         ExposureMappingKind::WeightedFractionTreated => {
             let denominator = neighbors
@@ -152,14 +162,18 @@ fn map_unit(
                 .map(|neighbor| neighbor.weight)
                 .sum::<f64>();
             if denominator == 0.0 {
-                (None, None, "unavailable_isolated_unit")
+                (None, None, ExposureValueStatus::UnavailableIsolatedUnit)
             } else {
                 let numerator = neighbors
                     .iter()
                     .filter(|neighbor| spec.units[neighbor.index].treatment)
                     .map(|neighbor| neighbor.weight)
                     .sum::<f64>();
-                (Some(numerator / denominator), None, "available")
+                (
+                    Some(numerator / denominator),
+                    None,
+                    ExposureValueStatus::Available,
+                )
             }
         }
         ExposureMappingKind::GaussianDistanceDecay => {
@@ -169,7 +183,7 @@ fn map_unit(
                 .filter(|neighbor| spec.units[neighbor.index].treatment)
                 .map(|neighbor| (-0.5 * (neighbor.distance_um / bandwidth).powi(2)).exp())
                 .sum::<f64>();
-            (Some(value), None, "available")
+            (Some(value), None, ExposureValueStatus::Available)
         }
         ExposureMappingKind::MultiscaleCountTreated => {
             let values = spec
@@ -184,12 +198,12 @@ fn map_unit(
                         .count() as f64
                 })
                 .collect();
-            (None, Some(values), "available")
+            (None, Some(values), ExposureValueStatus::Available)
         }
         ExposureMappingKind::ContinuousField => (
             unit.continuous_field_value,
             None,
-            "available_declared_field",
+            ExposureValueStatus::AvailableDeclaredField,
         ),
     };
     if scalar_value.is_some_and(|value| !value.is_finite())

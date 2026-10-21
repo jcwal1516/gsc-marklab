@@ -1,16 +1,18 @@
 use std::{path::Path, thread};
 
+use marklab_project::{
+    ArtifactRecordError, ArtifactSchema, DurableProject, DurableProjectError, DurableProjectLimits,
+    MarklabProject, NativeRuntimeProvenance, ProjectError,
+};
 use marklab_workflow::{
-    execute_algorithm, ArtifactRecordError, ArtifactSchema, DurableProject, DurableProjectError,
-    DurableProjectLimits, ExecuteAlgorithmError, LocalScheduler, MarklabProject,
-    NativeRuntimeProvenance, NodeError, NodeId, NodeRun, ProjectError, SchedulerLimits,
-    WorkflowError, WorkflowGraph, WorkflowNode,
+    execute_algorithm, ExecuteAlgorithmError, LocalScheduler, NodeError, NodeId, NodeRun,
+    SchedulerLimits, WorkflowError, WorkflowGraph, WorkflowNode,
 };
 use thiserror::Error;
 
 use crate::{
-    AnalysisConfig, MarkedAnalysisNode, MarkedPatternResult, MarkedPrePostNode, Pattern,
-    PrePostResult, ThreadSetting,
+    workflow::{MarkedAnalysisNode, MarkedPrePostNode},
+    AnalysisConfig, MarkedPatternResult, Pattern, PrePostResult, ThreadSetting,
 };
 
 const PRE_NODE_ID: &str = "marked-pre";
@@ -98,7 +100,7 @@ impl MarkedPrePostDagPlan {
         self.memory_mib_per_root
     }
 
-    /// Combined pre/post Pattern rows admitted by the plan.
+    /// Combined pre/post Pattern rows accepted by the plan.
     pub fn total_pattern_rows(&self) -> usize {
         self.total_pattern_rows
     }
@@ -184,7 +186,7 @@ pub fn plan_marked_prepost_dag(
 /// Independent roots run concurrently only when the declared node/thread/memory plan admits both.
 /// Every node shard delegates cache keys, objects, pending-intent recovery, ledger entries, and head
 /// updates to [`DurableProject`]. Root outputs are then merged into one in-memory project solely so
-/// the existing scheduler can verify both exact dependency edges before comparison.
+/// the scheduler can verify both exact dependency edges before comparison.
 #[allow(clippy::too_many_arguments)]
 pub fn execute_marked_prepost_dag(
     root: &Path,

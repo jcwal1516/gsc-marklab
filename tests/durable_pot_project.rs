@@ -3,7 +3,7 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
 fn project_fgw_command(project: &Path, input: &Path, output: &Path) -> Command {
     project_fgw_command_with_alpha(project, input, output, "0.5")

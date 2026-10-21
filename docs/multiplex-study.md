@@ -9,8 +9,10 @@ averages the slides of each patient, so every patient counts once, then tests ev
 across patients with a Max-T correction for the number of markers tested. A run saves its
 progress and can resume after an interruption.
 
-This workflow is experimental: it is tested on synthetic data but not yet validated on real
-studies. It runs entirely in Rust; no Python environment is needed.
+This workflow is **Experimental**: synthetic known answers are supplemented by an executed
+[Schürch CODEX patient-cohort comparison](validation-schurch.md), including independent
+Moran/Geary and patient Max-T calculations. This does not establish calibration across
+tissue shapes or clinical validity. It runs entirely in Rust; no Python environment is needed.
 
 ## Run the example
 
@@ -65,7 +67,7 @@ guesses scale, alignment, cell type, patient or sampling unit from a file name o
 coordinates.
 
 **Design** fixes, before the run: which channels to test, the neighbor radius, the neighbor
-weights (binary or row-standardized), the seed, the number of permutations and the
+weights (strict binary, binary including isolates, or row-standardized), the seed, the number of permutations and the
 family-wise significance level. Each channel uses the cells that have a value for it. Each
 patient's value is the mean of their slides, and patients are shuffled between groups for
 the test. Each group needs at least two patients. Markers measured on the same cells are
@@ -77,8 +79,12 @@ For each channel on each slide, Moran's I and Geary's C use the same neighbor gr
 from the cells that have that marker. Missing values change the graph, and so change what
 is being measured.
 
-A slide result is unavailable if there are fewer than three observed cells, an observed
-cell has no neighbors, all values are the same, or the calculation fails. If a slide result
+A slide result is unavailable if there are fewer than three observed cells, all values
+are the same, or the calculation fails. Strict `binary_symmetric` and `row_standardized`
+weights also reject any observed cell without neighbors. The explicit
+`binary_symmetric_including_isolates` policy retains these cells in centering and variance
+with zero spatial weights; it requires at least one edge. See the
+[weight conventions](public-api.md#spatial-autocorrelation-weights). If a slide result
 needed for the patient test is unavailable, the patient test for that marker does not run;
 no slide, patient or marker is dropped silently. If the patient-level Max-T test fails, its
 diagnostics are kept and no replicate counts are invented. The report states how strong a
@@ -99,7 +105,8 @@ Tests compare Moran's I and Geary's C with independent calculations on small gra
 cover the patient-level test, missing data across several channels, suppression of
 conclusions when a slide is missing, ID, unit and limit errors, studies with 65 slides,
 recomputation after a slide changes, resuming in a new process, and all-or-nothing output.
-Nothing here shows biological or clinical validity.
+The [public cohort check](validation-schurch.md) adds real-data execution and numerical
+agreement; it does not show clinical validity.
 
 Other label types, ROI weighting, covariates, spatial permutation nulls and custom graphs
 are available in other Marklab workflows or not yet supported.
@@ -109,10 +116,38 @@ and `--columns`. Its `--verify path/to/result.json` option checks the edge count
 number of patients and slides, and that the result is available before you trust a timing.
 A fresh run and a resumed run must give identical scientific JSON. Record the build
 profile, hardware, repeated timings and memory, and do not extrapolate from a regular grid
-to irregular whole-slide tissue. [Measured workloads](multiplex-study-measurements.md)
-reports runs at 72 and 60,000 cells.
+to irregular whole-slide tissue.
 
 ## Python and AnnData
+
+The Python client also accepts cell tables through `cell_table_slide`. It consumes an
+iterator of row mappings, such as `csv.DictReader`, and produces the same slide record as
+the AnnData adapter. Declare the source columns and the physical scale explicitly:
+
+```python
+import csv
+from marklab_client import cell_table_slide
+
+with open("cells.csv", newline="") as stream:
+    slide = cell_table_slide(
+        csv.DictReader(stream),
+        slide_id="region-01", patient_id="patient-01", group="reference",
+        coordinate_frame_id="region-01-um", window=window_geojson,
+        channels=channels, cell_id_column="CellID", x_column="X", y_column="Y",
+        coordinate_scale_um=(0.5, 0.5),  # declared micrometres per source unit
+        channel_columns={"CD3": "CD3_intensity", "cell_type": "phenotype"},
+    )
+```
+
+The scale above is an example, not a calibration for any particular instrument. Split a
+multi-region table by its complete image identity first; region names can repeat across
+slides or tissue arrays. Supply the patient, group, channel declarations and actual
+observation window. The adapter never infers these from filenames or cell positions.
+Empty strings and `None` are missing marker values; numeric zero remains observed.
+Unknown categories, repeated cell IDs, missing columns, non-finite coordinates or markers,
+and materialization beyond the declared limits are errors. The client keeps source IDs,
+positions and measurements aligned when sorting them. This is explicit column mapping,
+not automatic support for every segmentation tool's native output.
 
 Add `clients/python` to your Python path and import the module:
 

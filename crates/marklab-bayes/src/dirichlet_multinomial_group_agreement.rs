@@ -1,15 +1,18 @@
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
 use serde::{Deserialize, Serialize};
 
+use crate::agreement_metric::AgreementVerdict;
+use crate::agreement_metric::{compare_parameter, ParameterAgreement};
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::is_sha256;
+use crate::AgreementStatus;
+use crate::ClaimStatus;
 use crate::{
     hierarchical_agreement::{JAX_VERSION, NUMPYRO_VERSION},
-    sha256_hex, BackendContract, BayesError, BetaBinomialParameterAgreement,
-    DirichletMultinomialClassPosterior, DirichletMultinomialGroupInputIdentity,
-    DirichletMultinomialGroupModelIr, DirichletMultinomialGroupPosterior,
-    DirichletMultinomialGroupPosteriorPredictive, DirichletMultinomialGroupWorkerRequest,
-    DirichletMultinomialGroupWorkerResult, FitState, NormalMeanDiagnostics, SamplingSummary,
-    SarScalarSummary, WorkerBackend,
+    json_sha256, BackendContract, BayesError, DirichletMultinomialClassPosterior,
+    DirichletMultinomialGroupInputIdentity, DirichletMultinomialGroupModelIr,
+    DirichletMultinomialGroupPosterior, DirichletMultinomialGroupPosteriorPredictive,
+    DirichletMultinomialGroupWorkerRequest, DirichletMultinomialGroupWorkerResult, FitState,
+    McseScalarSummary, PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
 
 const REQUEST_FORMAT: &str = "marklab.numpyro_dirichlet_multinomial_group_worker_request";
@@ -36,14 +39,14 @@ impl NumpyroDirichletMultinomialGroupWorkerRequest {
                 "NumPyro Dirichlet-multinomial identities must be SHA-256 digests".into(),
             ));
         }
-        let source_request_sha256 = sha256_hex(&serde_json::to_vec(&source_request)?);
+        let source_request_sha256 = json_sha256(&source_request)?;
         Ok(Self {
             format: REQUEST_FORMAT,
             version: 1,
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -66,7 +69,7 @@ pub struct NumpyroDirichletMultinomialGroupWorkerResult {
     fit_state: FitState,
     sampling: SamplingSummary,
     posterior: DirichletMultinomialGroupPosterior,
-    diagnostics: NormalMeanDiagnostics,
+    diagnostics: PosteriorDiagnostics,
     posterior_predictive: DirichletMultinomialGroupPosteriorPredictive,
 }
 
@@ -133,15 +136,15 @@ impl DirichletMultinomialGroupAgreementPolicy {
 #[derive(Debug, Serialize)]
 pub struct DirichletMultinomialClassAgreement {
     pub class_id: String,
-    pub reference_probability: BetaBinomialParameterAgreement,
-    pub comparison_probability: BetaBinomialParameterAgreement,
-    pub difference_comparison_minus_reference: BetaBinomialParameterAgreement,
+    pub reference_probability: ParameterAgreement,
+    pub comparison_probability: ParameterAgreement,
+    pub difference_comparison_minus_reference: ParameterAgreement,
 }
 
 #[derive(Debug, Serialize)]
 pub struct DirichletMultinomialGroupAgreementComparison {
     pub classes: Vec<DirichletMultinomialClassAgreement>,
-    pub concentration: BetaBinomialParameterAgreement,
+    pub concentration: ParameterAgreement,
     pub maximum_standardized_difference: f64,
     pub minimum_probability_tolerance: f64,
     pub minimum_concentration_tolerance: f64,
@@ -154,7 +157,7 @@ pub struct DirichletMultinomialGroupBackendSummary {
     pub fit_state: FitState,
     pub sampling: SamplingSummary,
     pub posterior: DirichletMultinomialGroupPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: DirichletMultinomialGroupPosteriorPredictive,
 }
 
@@ -165,12 +168,12 @@ pub struct DirichletMultinomialGroupAgreementResult {
     pub model: DirichletMultinomialGroupModelIr,
     pub input: DirichletMultinomialGroupInputIdentity,
     pub fit_state: FitState,
-    pub agreement_status: &'static str,
+    pub agreement_status: AgreementStatus,
     pub pymc: DirichletMultinomialGroupBackendSummary,
     pub numpyro: DirichletMultinomialGroupBackendSummary,
     pub comparison: DirichletMultinomialGroupAgreementComparison,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 impl DirichletMultinomialGroupAgreementResult {
@@ -192,42 +195,28 @@ impl DirichletMultinomialGroupAgreementResult {
             .classes
             .iter()
             .zip(&numpyro.posterior.classes)
-            .map(|(left, right)| compare_class(left, &pymc, right, &numpyro, policy))
+            .map(|(left, right)| compare_class(left, right, policy))
             .collect::<Result<Vec<_>, _>>()?;
         let concentration = compare_parameter(
             &pymc.posterior.concentration,
-            &pymc,
             &numpyro.posterior.concentration,
-            &numpyro,
+            policy.maximum_standardized_difference,
             policy.minimum_concentration_tolerance,
-            policy,
         );
-        let fits_complete =
-            pymc.fit_state == FitState::Complete && numpyro.fit_state == FitState::Complete;
         let agrees = classes.iter().all(|class| {
             class.reference_probability.passes
                 && class.comparison_probability.passes
                 && class.difference_comparison_minus_reference.passes
         }) && concentration.passes;
-        let available = fits_complete && agrees;
+        let verdict = AgreementVerdict::new(pymc.fit_state, numpyro.fit_state, agrees);
         let seed = source_request.sampling.seed;
         Ok(Self {
             format: "marklab.bayesian_dirichlet_multinomial_group_cross_backend_agreement",
             version: 1,
             model: source_request.model,
             input,
-            fit_state: if fits_complete {
-                FitState::Complete
-            } else {
-                FitState::Nonconverged
-            },
-            agreement_status: if available {
-                "agree_within_monte_carlo_error"
-            } else if fits_complete {
-                "diagnostic_only_backend_disagreement"
-            } else {
-                "diagnostic_only_nonconverged"
-            },
+            fit_state: verdict.fit_state,
+            agreement_status: verdict.agreement_status,
             pymc: summarize(pymc),
             numpyro: summarize(numpyro),
             comparison: DirichletMultinomialGroupAgreementComparison {
@@ -238,20 +227,14 @@ impl DirichletMultinomialGroupAgreementResult {
                 minimum_concentration_tolerance: policy.minimum_concentration_tolerance,
             },
             seed,
-            claim_status: if available {
-                "experimental_cross_backend_validation"
-            } else {
-                "diagnostic_only_cross_backend_validation"
-            },
+            claim_status: verdict.claim_status,
         })
     }
 }
 
 fn compare_class(
     pymc: &DirichletMultinomialClassPosterior,
-    pymc_result: &DirichletMultinomialGroupWorkerResult,
     numpyro: &DirichletMultinomialClassPosterior,
-    numpyro_result: &DirichletMultinomialGroupWorkerResult,
     policy: DirichletMultinomialGroupAgreementPolicy,
 ) -> Result<DirichletMultinomialClassAgreement, BayesError> {
     if pymc.class_id != numpyro.class_id {
@@ -259,14 +242,12 @@ fn compare_class(
             "Dirichlet-multinomial backend class identities differ".into(),
         ));
     }
-    let compare = |left: &SarScalarSummary, right: &SarScalarSummary| {
+    let compare = |left: &McseScalarSummary, right: &McseScalarSummary| {
         compare_parameter(
             left,
-            pymc_result,
             right,
-            numpyro_result,
+            policy.maximum_standardized_difference,
             policy.minimum_probability_tolerance,
-            policy,
         )
     };
     Ok(DirichletMultinomialClassAgreement {
@@ -283,24 +264,6 @@ fn compare_class(
     })
 }
 
-fn compare_parameter(
-    pymc: &SarScalarSummary,
-    pymc_result: &DirichletMultinomialGroupWorkerResult,
-    numpyro: &SarScalarSummary,
-    numpyro_result: &DirichletMultinomialGroupWorkerResult,
-    minimum_tolerance: f64,
-    policy: DirichletMultinomialGroupAgreementPolicy,
-) -> BetaBinomialParameterAgreement {
-    compare_beta_binomial_parameter(
-        pymc,
-        pymc_result.diagnostics.ess_bulk,
-        numpyro,
-        numpyro_result.diagnostics.ess_bulk,
-        policy.maximum_standardized_difference,
-        minimum_tolerance,
-    )
-}
-
 fn summarize(
     result: DirichletMultinomialGroupWorkerResult,
 ) -> DirichletMultinomialGroupBackendSummary {
@@ -314,4 +277,3 @@ fn summarize(
         posterior_predictive: result.posterior_predictive,
     }
 }
-use crate::agreement_metric::compare_beta_binomial_parameter;

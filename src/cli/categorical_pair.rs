@@ -1,10 +1,16 @@
 use std::path::PathBuf;
 
 use crate::{
-    categorical_pair_workflow, execute_algorithm_with_store, ArtifactSchema,
-    CategoricalPairAnalysisNode, CategoricalPairConfig, CategoricalPairLimits,
-    DeclaredScalarPatternInput, LocalScheduler, MarklabError, NodeId, Result, SchedulerLimits,
-    WorkflowGraph,
+    categorical_pair_workflow,
+    marks::{
+        CategoricalPairAnalysisNode, CategoricalPairConfig, CategoricalPairLimits,
+        DeclaredScalarPatternInput,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactSchema, LocalScheduler, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MarklabError, Result,
 };
 
 use super::{
@@ -12,19 +18,49 @@ use super::{
     classical::native_runtime_provenance,
 };
 
-pub(super) struct Request {
+#[derive(clap::Args, Debug)]
+pub struct Request {
+    /// Durable project directory that caches results.
+    #[arg(long)]
     pub project: PathBuf,
+    /// Cell table (CSV or Parquet).
+    #[arg(long)]
     pub cells: PathBuf,
+    /// Tissue mask (GeoJSON).
+    #[arg(long)]
     pub mask: PathBuf,
+    /// New JSON file for the result; it must not already exist.
+    #[arg(long)]
     pub out: PathBuf,
+    /// Compartment level of the source cells.
+    #[arg(long)]
     pub source_level: String,
+    /// Compartment level of the target cells.
+    #[arg(long)]
     pub target_level: String,
+    /// Comma-separated radii in µm.
+    #[arg(long, value_delimiter = ',')]
     pub radii_um: Vec<f64>,
+    /// Number of label permutations.
+    #[arg(long)]
     pub permutations: usize,
+    /// Random seed; the same seed gives the same result.
+    #[arg(long)]
     pub seed: u64,
+    /// Significance level.
+    #[arg(long)]
     pub alpha: f64,
+    /// Memory budget in MiB.
+    #[arg(long)]
     pub memory_budget_mib: usize,
+    /// Maximum number of cell pairs visited.
+    #[arg(long = "max-pair-visits", value_name = "MAX_PAIR_VISITS")]
     pub maximum_pair_visits: usize,
+    /// Maximum number of pair evaluations across null replicates.
+    #[arg(
+        long = "max-null-pair-evaluations",
+        value_name = "MAX_NULL_PAIR_EVALUATIONS"
+    )]
     pub maximum_null_pair_evaluations: usize,
 }
 
@@ -83,7 +119,7 @@ pub(super) fn run_project(request: Request) -> Result<()> {
         &graph,
         &node,
         &scheduler,
-        ArtifactSchema::new("marklab.categorical_pair", 1)
+        ArtifactSchema::new("marklab.categorical_pair", 2)
             .map_err(|error| MarklabError::Validation(error.to_string()))?,
         native_runtime_provenance()?,
         &prepared.store,

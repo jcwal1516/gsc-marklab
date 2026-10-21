@@ -38,7 +38,7 @@ impl VerifiedPatchFootprintArtifact {
         context: &PatchEmbeddingContext,
         footprints: &PatchFootprintSet,
         graph: VerifiedDirectPatchEmbeddingArtifactGraph,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         if artifact_id != graph.patch_footprints_artifact_id
             || footprints.expected_patches_artifact_id() != graph.expected_patches_artifact_id
             || footprints.expected_patches_logical_digest() != graph.expected_patches_logical_digest
@@ -46,7 +46,7 @@ impl VerifiedPatchFootprintArtifact {
             || context.logical_digest() != graph.patch_context_logical_digest
             || footprints.logical_digest() != graph.patch_footprints_logical_digest
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             artifact_id,
@@ -54,7 +54,7 @@ impl VerifiedPatchFootprintArtifact {
             patch_context_artifact_id: graph.patch_context_artifact_id,
             logical_digest: footprints.logical_digest(),
             row_count: u64::try_from(footprints.row_count())
-                .map_err(|_| crate::columnar::MultiscaleColumnarError::SizeOverflow)?,
+                .map_err(|_| crate::columnar::ColumnarError::SizeOverflow)?,
         })
     }
 
@@ -102,7 +102,7 @@ impl VerifiedPatchOverlapArtifact {
         overlap: &PatchOverlapGraph,
         verified_footprints: VerifiedPatchFootprintArtifact,
         graph: VerifiedDirectPatchEmbeddingArtifactGraph,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         if artifact_id != graph.patch_overlap_artifact_id
             || overlap.logical_digest() != graph.patch_overlap_logical_digest
             || overlap.expected_patches_artifact_id() != graph.expected_patches_artifact_id
@@ -116,7 +116,7 @@ impl VerifiedPatchOverlapArtifact {
             || verified_footprints.patch_context_artifact_id != graph.patch_context_artifact_id
             || verified_footprints.logical_digest != graph.patch_footprints_logical_digest
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             artifact_id,
@@ -125,7 +125,7 @@ impl VerifiedPatchOverlapArtifact {
             footprint_artifact_id: graph.patch_footprints_artifact_id,
             logical_digest: overlap.logical_digest(),
             row_count: u64::try_from(overlap.edge_count())
-                .map_err(|_| crate::columnar::MultiscaleColumnarError::SizeOverflow)?,
+                .map_err(|_| crate::columnar::ColumnarError::SizeOverflow)?,
         })
     }
 
@@ -163,11 +163,11 @@ impl VerifiedCellPatchBindings {
     fn new(
         link: &CellPatchLink,
         graph: VerifiedCellPatchInputArtifactGraph,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         let assignment_count = u64::try_from(link.assignment_count())
-            .map_err(|_| crate::columnar::MultiscaleColumnarError::SizeOverflow)?;
+            .map_err(|_| crate::columnar::ColumnarError::SizeOverflow)?;
         let edge_count = u64::try_from(link.edge_count())
-            .map_err(|_| crate::columnar::MultiscaleColumnarError::SizeOverflow)?;
+            .map_err(|_| crate::columnar::ColumnarError::SizeOverflow)?;
         if graph.mode != link.mode()
             || graph.expected_cells_artifact_id != link.expected_cells_artifact_id()
             || graph.expected_patches_artifact_id != link.expected_patches_artifact_id()
@@ -178,7 +178,7 @@ impl VerifiedCellPatchBindings {
             || graph.assignment_count != assignment_count
             || graph.edge_count != edge_count
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             mode: graph.mode,
@@ -230,7 +230,7 @@ impl VerifiedCellPatchAssignmentArtifact {
         artifact_id: ArtifactId,
         link: &CellPatchLink,
         graph: VerifiedCellPatchInputArtifactGraph,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         Ok(Self {
             artifact_id,
             bindings: VerifiedCellPatchBindings::new(link, graph)?,
@@ -276,7 +276,7 @@ impl VerifiedCellPatchEdgeArtifact {
         artifact_id: ArtifactId,
         link: &CellPatchLink,
         graph: VerifiedCellPatchInputArtifactGraph,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         Ok(Self {
             artifact_id,
             bindings: VerifiedCellPatchBindings::new(link, graph)?,
@@ -329,10 +329,10 @@ impl VerifiedCellPatchLinkArtifact {
     pub fn from_verified_halves(
         assignment: VerifiedCellPatchAssignmentArtifact,
         edge: VerifiedCellPatchEdgeArtifact,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         if assignment.artifact_id == edge.artifact_id || !assignment.bindings.matches(edge.bindings)
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             assignment_artifact_id: assignment.artifact_id,
@@ -392,9 +392,9 @@ impl VerifiedPatchRegionLinkArtifact {
         artifact_id: ArtifactId,
         link: &PatchRegionLink,
         graph: VerifiedPatchRegionInputArtifactGraph,
-    ) -> Result<Self, crate::columnar::MultiscaleColumnarError> {
+    ) -> Result<Self, crate::columnar::ColumnarError> {
         let nonzero_relation_count = u64::try_from(link.nonzero_relation_count())
-            .map_err(|_| crate::columnar::MultiscaleColumnarError::SizeOverflow)?;
+            .map_err(|_| crate::columnar::ColumnarError::SizeOverflow)?;
         if graph.expected_patches_artifact_id != link.expected_patches_artifact_id()
             || graph.expected_regions_artifact_id != link.expected_regions_artifact_id()
             || graph.patch_context_artifact_id != link.patch_context_artifact_id()
@@ -407,7 +407,7 @@ impl VerifiedPatchRegionLinkArtifact {
             || graph.assessed_pair_count != link.assessed_pair_count()
             || graph.nonzero_relation_count != nonzero_relation_count
         {
-            return Err(crate::columnar::MultiscaleColumnarError::ArtifactBindingMismatch);
+            return Err(crate::columnar::ColumnarError::ArtifactBindingMismatch);
         }
         Ok(Self {
             artifact_id,

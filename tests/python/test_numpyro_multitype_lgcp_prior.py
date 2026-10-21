@@ -1,11 +1,10 @@
 import importlib.util
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-
 
 WORKER_DIRECTORY = Path(__file__).resolve().parents[2] / "workers" / "python"
 sys.path.insert(0, str(WORKER_DIRECTORY))
@@ -46,9 +45,9 @@ def configuration(intercept_mean):
             "patient_sd_scale": 0.1,
             "pattern_sd_scale": 0.1,
         },
-        "request": {"nodes": [
-            {"x_um": x, "y_um": y} for y in (0.0, 1.0) for x in (0.0, 1.0)
-        ]},
+        "request": {
+            "nodes": [{"x_um": x, "y_um": y} for y in (0.0, 1.0) for x in (0.0, 1.0)]
+        },
         "amplitude_scale": 0.1,
         "length_scale": 1.0,
         "kernel_jitter": 1e-6,
@@ -69,9 +68,13 @@ class MultitypeLgcpPriorTest(unittest.TestCase):
         for name in WORKERS:
             worker = load_worker(name)
             with self.subTest(worker=name):
-                self.assertTrue(base.prior_is_finite(
-                    worker.make_model(configuration(1.0)), 8, worker.seed_for(13, "prior")
-                ))
+                self.assertTrue(
+                    base.prior_is_finite(
+                        worker.make_model(configuration(1.0)),
+                        8,
+                        worker.seed_for(13, "prior"),
+                    )
+                )
 
     def test_invalid_prior_counts_are_rejected_before_posterior_sampling(self):
         for name in WORKERS:
@@ -83,9 +86,15 @@ class MultitypeLgcpPriorTest(unittest.TestCase):
                     args = [configuration(intercept_mean), "request", "lock", "worker"]
                     if name == WORKERS[0]:
                         args.insert(2, "source")
-                    with patch.object(worker, "MCMC", side_effect=AssertionError("invalid prior reached NUTS")):
-                        with self.assertRaisesRegex(ValueError, "prior predictive"):
-                            worker.fit(*args)
+                    with (
+                        patch.object(
+                            worker,
+                            "MCMC",
+                            side_effect=AssertionError("invalid prior reached NUTS"),
+                        ),
+                        self.assertRaisesRegex(ValueError, "prior predictive"),
+                    ):
+                        worker.fit(*args)
 
 
 if __name__ == "__main__":

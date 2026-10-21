@@ -1,24 +1,27 @@
-use std::path::PathBuf;
-
-use marklab_bayes::{
+use marklab_bayes::sha256_hex;
+use marklab_graph::{
     graph_dirichlet_energy, graph_smoothness_permutation_test, local_embedding_roughness,
-    sha256_hex, GraphDirichletEnergyResult, GraphDirichletEnergySpec, GraphEnergyNormalization,
-    GraphLaplacian, GraphSignalEdge, GraphSignalError, GraphSignalNode,
-    GraphSmoothnessPermutationResult, GraphSmoothnessPermutationSpec,
-    LocalEmbeddingRoughnessResult, LocalEmbeddingRoughnessSpec, StratifiedGraphSignalNode,
+    GraphDirichletEnergyResult, GraphDirichletEnergySpec, GraphEnergyNormalization, GraphLaplacian,
+    GraphSignalEdge, GraphSignalError, GraphSignalNode, GraphSmoothnessPermutationResult,
+    GraphSmoothnessPermutationSpec, LocalEmbeddingRoughnessResult, LocalEmbeddingRoughnessSpec,
+    StratifiedGraphSignalNode,
 };
 use serde::Serialize;
 
-use super::{embedding_spatial, publish_json, BayesCliError};
+use super::cli_schema::GraphDirichletEnergyArgs;
+use super::cli_schema::GraphSmoothnessPermutationTestArgs;
+use super::cli_schema::LocalEmbeddingRoughnessArgs;
+use super::{embedding_spatial, publish_json, CliError};
 
-pub(super) fn run_energy(
-    nodes: PathBuf,
-    edges: PathBuf,
-    laplacian: String,
-    normalization: String,
-    maximum_component_edge_visits: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run_energy(args: GraphDirichletEnergyArgs) -> Result<(), CliError> {
+    let GraphDirichletEnergyArgs {
+        nodes,
+        edges,
+        laplacian,
+        normalization,
+        maximum_component_edge_visits,
+        out,
+    } = args;
     let node_bytes = embedding_spatial::read(&nodes)?;
     let edge_bytes = embedding_spatial::read(&edges)?;
     let (node_rows, feature_names) = read_nodes(&node_bytes)?;
@@ -42,13 +45,14 @@ pub(super) fn run_energy(
     )
 }
 
-pub(super) fn run_local(
-    nodes: PathBuf,
-    edges: PathBuf,
-    epsilon: f64,
-    maximum_component_edge_visits: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run_local(args: LocalEmbeddingRoughnessArgs) -> Result<(), CliError> {
+    let LocalEmbeddingRoughnessArgs {
+        nodes,
+        edges,
+        epsilon,
+        maximum_component_edge_visits,
+        out,
+    } = args;
     let node_bytes = embedding_spatial::read(&nodes)?;
     let edge_bytes = embedding_spatial::read(&edges)?;
     let (node_rows, feature_names) = read_nodes(&node_bytes)?;
@@ -71,16 +75,16 @@ pub(super) fn run_local(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run_smoothness(
-    nodes: PathBuf,
-    edges: PathBuf,
-    laplacian: String,
-    permutations: u32,
-    seed: u64,
-    maximum_component_edge_visits: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run_smoothness(args: GraphSmoothnessPermutationTestArgs) -> Result<(), CliError> {
+    let GraphSmoothnessPermutationTestArgs {
+        nodes,
+        edges,
+        laplacian,
+        permutations,
+        seed,
+        maximum_component_edge_visits,
+        out,
+    } = args;
     let node_bytes = embedding_spatial::read(&nodes)?;
     let edge_bytes = embedding_spatial::read(&edges)?;
     let (node_rows, feature_names) = read_stratified_nodes(&node_bytes)?;
@@ -105,14 +109,14 @@ pub(super) fn run_smoothness(
     )
 }
 
-fn read_nodes(bytes: &[u8]) -> Result<(Vec<GraphSignalNode>, Vec<String>), BayesCliError> {
+fn read_nodes(bytes: &[u8]) -> Result<(Vec<GraphSignalNode>, Vec<String>), CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
         .from_reader(bytes);
     let headers = reader.headers()?.clone();
     if headers.len() < 2 || headers.get(0) != Some("node_id") {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "graph signal nodes require node_id and signal_* columns".into(),
         ));
     }
@@ -127,7 +131,7 @@ fn read_nodes(bytes: &[u8]) -> Result<(Vec<GraphSignalNode>, Vec<String>), Bayes
         let signal = (1..record.len())
             .map(|index| {
                 record[index].parse::<f64>().map_err(|_| {
-                    BayesCliError::Input(format!(
+                    CliError::Input(format!(
                         "graph signal value in column {} is invalid",
                         &headers[index]
                     ))
@@ -144,7 +148,7 @@ fn read_nodes(bytes: &[u8]) -> Result<(Vec<GraphSignalNode>, Vec<String>), Bayes
 
 fn read_stratified_nodes(
     bytes: &[u8],
-) -> Result<(Vec<StratifiedGraphSignalNode>, Vec<String>), BayesCliError> {
+) -> Result<(Vec<StratifiedGraphSignalNode>, Vec<String>), CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -153,7 +157,7 @@ fn read_stratified_nodes(
     if headers.len() < 3
         || headers.iter().take(2).collect::<Vec<_>>() != ["node_id", "permutation_stratum"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "smoothness nodes require node_id,permutation_stratum and signal_* columns".into(),
         ));
     }
@@ -168,7 +172,7 @@ fn read_stratified_nodes(
         let signal = (2..record.len())
             .map(|index| {
                 record[index].parse::<f64>().map_err(|_| {
-                    BayesCliError::Input(format!(
+                    CliError::Input(format!(
                         "smoothness signal value in column {} is invalid",
                         &headers[index]
                     ))
@@ -184,13 +188,13 @@ fn read_stratified_nodes(
     Ok((nodes, feature_names))
 }
 
-fn read_edges(bytes: &[u8]) -> Result<Vec<GraphSignalEdge>, BayesCliError> {
+fn read_edges(bytes: &[u8]) -> Result<Vec<GraphSignalEdge>, CliError> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
         .from_reader(bytes);
     if reader.headers()?.iter().collect::<Vec<_>>() != ["left_node_id", "right_node_id", "weight"] {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "graph edge headers must be left_node_id,right_node_id,weight".into(),
         ));
     }
@@ -202,16 +206,16 @@ fn read_edges(bytes: &[u8]) -> Result<Vec<GraphSignalEdge>, BayesCliError> {
             right_node_id: record[1].to_owned(),
             weight: record[2]
                 .parse::<f64>()
-                .map_err(|_| BayesCliError::Input("graph edge weight is invalid".into()))?,
+                .map_err(|_| CliError::Input("graph edge weight is invalid".into()))?,
         });
     }
     Ok(edges)
 }
 
-fn map_error(error: GraphSignalError) -> BayesCliError {
+fn map_error(error: GraphSignalError) -> CliError {
     match error {
-        GraphSignalError::Invalid(message) => BayesCliError::Input(message),
-        GraphSignalError::Numeric(message) => BayesCliError::Backend(message),
+        GraphSignalError::Invalid(message) => CliError::Input(message),
+        GraphSignalError::Numeric(message) => CliError::Backend(message),
     }
 }
 

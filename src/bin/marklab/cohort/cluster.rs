@@ -6,7 +6,10 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publication::publish_json, validate_input_file, CliAlternative, CohortError};
+use super::{
+    publication::publish_json, validate_input_file, CliAlternative, ClusterPermutationArgs,
+    CohortError,
+};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,16 +20,16 @@ struct CsvRow {
     endpoint: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input: PathBuf,
-    group_a: String,
-    group_b: String,
-    permutations: usize,
-    seed: u64,
-    alternative: CliAlternative,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run(args: ClusterPermutationArgs) -> Result<(), CohortError> {
+    let ClusterPermutationArgs {
+        input,
+        group_a,
+        group_b,
+        permutations,
+        seed,
+        alternative,
+        out,
+    } = args;
     let records = read_records(&input)?;
     let result = cluster_level_permutation_test(
         &records,
@@ -84,7 +87,7 @@ struct Output {
     effect_group_a_minus_group_b: f64,
     studentized_statistic: f64,
     p_value: f64,
-    permutations: Permutations,
+    permutations: usize,
     seed: u64,
     alternative: CliAlternative,
 }
@@ -102,13 +105,6 @@ struct ClusterCounts {
     total: usize,
     group_a: usize,
     group_b: usize,
-}
-
-#[derive(Debug, Serialize)]
-struct Permutations {
-    requested: usize,
-    attempted: usize,
-    completed: usize,
 }
 
 impl Output {
@@ -150,11 +146,7 @@ impl Output {
             effect_group_a_minus_group_b: result.effect_group_a_minus_group_b,
             studentized_statistic: result.studentized_statistic,
             p_value: result.p_value,
-            permutations: Permutations {
-                requested: result.permutations_requested,
-                attempted: result.permutations_attempted,
-                completed: result.permutations_completed,
-            },
+            permutations: result.permutations_requested,
             seed: result.seed,
             alternative,
         }

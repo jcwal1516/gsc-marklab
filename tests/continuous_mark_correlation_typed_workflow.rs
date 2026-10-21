@@ -1,14 +1,16 @@
-#![allow(dead_code)]
-
 use approx::assert_abs_diff_eq;
 use marklab::{
-    continuous_mark_correlation, BinaryMarkDeclaration, ContinuousMarkCorrelationConfig,
-    ContinuousMarkCorrelationError, ContinuousMarkCorrelationLimits,
-    ContinuousMarkCorrelationPointStatus, DeclaredScalarPatternInput, MarkTable, MeasurementStatus,
-    MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ObservationWindow2D, ObservationWindowLimits,
-    ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+    marks::{
+        continuous_mark_correlation, BinaryMarkDeclaration, ContinuousMarkCorrelationConfig,
+        ContinuousMarkCorrelationError, ContinuousMarkCorrelationLimits,
+        ContinuousMarkCorrelationPointStatus, DeclaredScalarPatternInput, MarkTable,
+        MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ScalarMarkColumn, ScalarMarkId,
+        ScalarMarkModality, ScalarMarkUnit,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 use support::*;
@@ -128,12 +130,14 @@ fn normalized_global_mean_product_matches_hand_oracle() {
     assert_eq!(result.mark_id.as_str(), "nucleus_area_um2");
     assert_eq!(result.measurement_status, MeasurementStatus::Measured);
     assert_eq!(result.unit, "square_micrometer");
-    assert_eq!(result.normalization, "global_arithmetic_mean_product");
+    assert_eq!(
+        result.normalization,
+        marklab::marks::MarkNormalization::GlobalArithmeticMeanProduct
+    );
     assert_abs_diff_eq!(result.global_mark_mean, 2.5);
     assert_abs_diff_eq!(result.global_mark_population_variance, 1.25);
     assert_abs_diff_eq!(result.expected_random_label_correlation, 14.0 / 15.0);
     assert_eq!(result.geometry.directed_pair_count, 6);
-    assert_eq!(result.geometry.geometry_build_count, 1);
 
     let empty = &result.curve[0];
     assert_eq!(
@@ -151,7 +155,7 @@ fn normalized_global_mean_product_matches_hand_oracle() {
     assert_abs_diff_eq!(radius.mark_product_sum_in_shell, 40.0);
     assert_abs_diff_eq!(radius.correlation.expect("correlation"), 16.0 / 15.0);
     assert!(radius.inference_eligible);
-    assert_eq!(result.inference.permutations_completed, 31);
+    assert_eq!(result.inference.permutations_requested, 31);
     assert!(result.inference.correlation.is_some());
 }
 

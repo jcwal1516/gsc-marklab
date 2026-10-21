@@ -1,10 +1,18 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
-    DurableProjectLimits, InhomogeneousPairCorrelationAnalysisNode,
-    InhomogeneousPairCorrelationConfig, InhomogeneousPairCorrelationResult,
-    InhomogeneousSpatialConfig, InhomogeneousSpatialLimits, LocalScheduler, MarklabProject,
-    NativeRuntimeProvenance, NodeId, ObservationWindow2D, ObservationWindowLimits, Pattern,
-    PatternMeta, SchedulerLimits, WorkflowGraph,
+    spatial::{
+        InhomogeneousPairCorrelationAnalysisNode, InhomogeneousPairCorrelationConfig,
+        InhomogeneousPairCorrelationResult, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
+    },
+    workflow::{
+        execute_algorithm, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, MarklabProject, NativeRuntimeProvenance, NodeId,
+        SchedulerLimits, WorkflowGraph,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn runtime() -> NativeRuntimeProvenance {
@@ -31,16 +39,12 @@ fn run_once(
         vec![2.0, 3.0, 7.0, 9.0],
         vec![2.0, 2.0, 7.0, 7.0],
         vec![0; 4],
-        PatternMeta {
-            case_id: "durable-inhomogeneous-g".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("inhomogeneous-g-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "durable-inhomogeneous-g".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("inhomogeneous-g-slide".into()),
+        ),
     )
     .expect("pattern");
     let window = ObservationWindow2D::from_geojson_str(

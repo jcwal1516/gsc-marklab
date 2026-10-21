@@ -1,9 +1,15 @@
 use std::path::PathBuf;
 
 use crate::{
-    execute_algorithm_with_store, ArtifactSchema, LocalScheduler, MarklabError, NodeId, Result,
-    SchedulerLimits, TranslationPairCorrelationAnalysisNode, TranslationPairCorrelationConfig,
-    TranslationPairCorrelationResultDocument, TranslationSpatialLimits, WorkflowGraph,
+    spatial::{
+        TranslationPairCorrelationAnalysisNode, TranslationPairCorrelationConfig,
+        TranslationPairCorrelationResultDocument, TranslationSpatialLimits,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactSchema, LocalScheduler, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MarklabError, Result,
 };
 
 use super::{
@@ -11,21 +17,61 @@ use super::{
     inhomogeneous_project::{prepare, write_output, PrepareRequest, PreparedInhomogeneousProject},
 };
 
-pub(super) struct Request {
+#[derive(clap::Args, Debug)]
+pub struct Request {
+    /// Durable project directory that caches results.
+    #[arg(long)]
     pub project: PathBuf,
+    /// Cell table (CSV or Parquet).
+    #[arg(long)]
     pub cells: PathBuf,
+    /// Tissue mask (GeoJSON).
+    #[arg(long)]
     pub mask: PathBuf,
+    /// New JSON file for the result; it must not already exist.
+    #[arg(long)]
     pub out: PathBuf,
+    /// Comma-separated radii in µm.
+    #[arg(long, value_delimiter = ',')]
     pub radii_um: Vec<f64>,
+    /// Kernel bandwidth in µm.
+    #[arg(long)]
     pub bandwidth_um: f64,
+    /// Number of simulated null patterns.
+    #[arg(long)]
     pub simulations: usize,
+    /// Random seed; the same seed gives the same result.
+    #[arg(long)]
     pub seed: u64,
+    /// Significance level.
+    #[arg(long)]
     pub alpha: f64,
+    /// Memory budget in MiB.
+    #[arg(long)]
     pub memory_budget_mib: usize,
+    /// Maximum number of cell pairs visited.
+    #[arg(long = "max-pair-visits", value_name = "MAX_PAIR_VISITS")]
     pub maximum_pair_visits: usize,
+    /// Upper bound on overlap evaluations.
+    #[arg(
+        long = "max-overlap-evaluations",
+        value_name = "MAX_OVERLAP_EVALUATIONS"
+    )]
     pub maximum_overlap_evaluations: usize,
+    /// Upper bound on overlap candidate work.
+    #[arg(
+        long = "max-overlap-candidate-work",
+        value_name = "MAX_OVERLAP_CANDIDATE_WORK"
+    )]
     pub maximum_overlap_candidate_work: usize,
+    /// Upper bound on overlap output vertices.
+    #[arg(
+        long = "max-overlap-output-vertices",
+        value_name = "MAX_OVERLAP_OUTPUT_VERTICES"
+    )]
     pub maximum_overlap_output_vertices: usize,
+    /// Maximum number of random points drawn for CSR simulations.
+    #[arg(long = "max-csr-draws", value_name = "MAX_CSR_DRAWS")]
     pub maximum_csr_draws: usize,
 }
 
@@ -68,8 +114,9 @@ pub(super) fn run_project(request: Request) -> Result<()> {
     .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let runtime = native_runtime_provenance()?;
     let implementation_identity = format!(
-        "{};adapter=translation-pair-correlation-analysis-node-v1;geo=0.33.1",
-        runtime.implementation_identity()
+        "{};adapter=translation-pair-correlation-analysis-node-v5;{}",
+        runtime.implementation_identity(),
+        crate::common::GEO_IDENTITY
     );
     let source_artifacts = vec![
         source_artifact(

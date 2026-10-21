@@ -1,8 +1,9 @@
 //! Reproducible generator for the single-tile JPEG2000 TIFF fixture.
 //!
 //! Run with:
-//! `rustc generate_jp2k_tiff.rs -o /tmp/generate_jp2k_tiff &&
-//!  /tmp/generate_jp2k_tiff raw/rgb_lossless.j2k tiff/rgb_lossless_jp2k.tiff`
+//! `rustc tests/fixtures/wsi/generate_jp2k_tiff.rs -o target/generate_jp2k_tiff &&
+//!  target/generate_jp2k_tiff tests/fixtures/wsi/raw/rgb_lossless.j2k \
+//!  tests/fixtures/wsi/tiff/rgb_lossless_jp2k.tiff`
 
 use std::{convert::TryFrom, env, fs, io, path::Path};
 

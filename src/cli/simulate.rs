@@ -1,25 +1,50 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 #[cfg(feature = "parquet")]
 use crate::{io::parquet::write_filtered_pattern_export_parquet, Pattern, PatternMeta};
 use crate::{permutation::labels::permute_fixed_count, MarklabError, Result};
 
-#[path = "simulate/agent_competition.rs"]
 pub(super) mod agent_competition;
-#[path = "simulate/growth_front.rs"]
 pub(super) mod growth_front;
-#[path = "simulate/level_set.rs"]
 pub(super) mod level_set;
-#[path = "simulate/mechanistic_tissue.rs"]
 pub(super) mod mechanistic_tissue;
-#[path = "simulate/reaction_diffusion.rs"]
 pub(super) mod reaction_diffusion;
-#[path = "simulate/spatial_competition.rs"]
 pub(super) mod spatial_competition;
-#[path = "simulate/summary_matching.rs"]
 pub(super) mod summary_matching;
-#[path = "simulate/vascular_transport.rs"]
 pub(super) mod vascular_transport;
+
+/// Read a simulation input of at most 16 MiB. Special files are rejected before opening, the
+/// opened handle is checked again, and the read is capped, so a file that grows after the
+/// check cannot exceed the limit.
+pub(super) fn read_input(path: &Path, label: &str) -> Result<Vec<u8>> {
+    const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
+    let io_error = |source| MarklabError::io(path, source);
+    let not_regular = || MarklabError::Validation(format!("{label} input must be a regular file"));
+    let too_large = || MarklabError::Validation(format!("{label} input exceeds 16 MiB"));
+    if !fs::metadata(path).map_err(io_error)?.is_file() {
+        return Err(not_regular());
+    }
+    let file = fs::File::open(path).map_err(io_error)?;
+    let metadata = file.metadata().map_err(io_error)?;
+    if !metadata.is_file() {
+        return Err(not_regular());
+    }
+    if metadata.len() > MAXIMUM_INPUT_BYTES {
+        return Err(too_large());
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take(MAXIMUM_INPUT_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(io_error)?;
+    if bytes.len() as u64 > MAXIMUM_INPUT_BYTES {
+        return Err(too_large());
+    }
+    Ok(bytes)
+}
 
 pub(super) fn run(n: usize, p: f64, seed: u64, out: PathBuf) -> Result<()> {
     if !(0.0..=1.0).contains(&p) || !p.is_finite() {

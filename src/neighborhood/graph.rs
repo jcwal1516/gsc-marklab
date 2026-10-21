@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, mem::size_of};
 use crate::{
     errors::{MarklabError, Result},
     geom::spatial_index::{Neighbor, SpatialIndex2D},
+    memory_budget::enforce_storage_budget,
     multimodal::cells::FusedCell,
-    perf::counters::enforce_storage_budget,
 };
 
 #[cfg(test)]

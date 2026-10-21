@@ -1,4 +1,4 @@
-use marklab_workflow::ArtifactId;
+use marklab_project::ArtifactId;
 use thiserror::Error;
 
 use crate::errors::MarklabError;
@@ -266,7 +266,7 @@ pub enum DeclaredScalarInputError {
     /// Unchanged compatibility analysis failed.
     #[error("declared scalar analysis failed: {source}")]
     Analysis {
-        /// Existing compatibility-engine error.
+        /// Error from the marked-pattern analysis engine.
         #[source]
         source: MarklabError,
     },

@@ -3,7 +3,7 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-use marklab::InhomogeneousCategoricalCrossPairCorrelationResult;
+use marklab::spatial::InhomogeneousCategoricalCrossPairCorrelationResult;
 
 fn command(
     project: &Path,
@@ -126,7 +126,12 @@ slide-1:000000003,15,10,0,case-1,baseline,cellvit,true,true,slide-1,Inflammatory
             marklab::exact_float_json::decode(&fs::read(first).expect("result"))
                 .expect("typed exact-float result");
         assert_eq!(
-            result.edge_work.as_ref().expect("edge work").correction,
+            result
+                .edge_work
+                .as_ref()
+                .expect("edge work")
+                .correction
+                .as_str(),
             correction
         );
         assert!(result.curve[0].edge_measure_sum.expect("edge measure") > 0.0);

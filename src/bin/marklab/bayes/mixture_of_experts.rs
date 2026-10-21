@@ -1,22 +1,24 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
-use marklab_bayes::{
-    sha256_hex, MixtureOfExpertsPatient, MixtureOfExpertsSpec, MixtureOfExpertsWorkerRequest,
+use marklab_bayes::sha256_hex;
+use marklab_prediction::{
+    MixtureOfExpertsPatient, MixtureOfExpertsSpec, MixtureOfExpertsWorkerRequest,
     MixtureOfExpertsWorkerResult,
 };
 use serde::Serialize;
 
-use super::{embedding_spatial, publish_json, run_worker, BayesCliError};
+use super::cli_schema::MixtureOfExpertsFusionArgs;
+use super::{embedding_spatial, publish_json, run_worker, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input: PathBuf,
-    l2_penalty: f64,
-    entropy_regularization: f64,
-    ood_validation_quantile: f64,
-    timeout_seconds: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: MixtureOfExpertsFusionArgs) -> Result<(), CliError> {
+    let MixtureOfExpertsFusionArgs {
+        input,
+        l2_penalty,
+        entropy_regularization,
+        ood_validation_quantile,
+        timeout_seconds,
+        out,
+    } = args;
     let input_bytes = embedding_spatial::read(&input)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
@@ -26,7 +28,7 @@ pub(super) fn run(
         || headers.iter().take(4).collect::<Vec<_>>()
             != ["patient_id", "split", "expert_prediction_source", "label"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "mixture-of-experts CSV header differs".into(),
         ));
     }
@@ -57,7 +59,7 @@ pub(super) fn run(
             expert_prediction_source: row[2].into(),
             label: row[3]
                 .parse()
-                .map_err(|_| BayesCliError::Input("mixture label is invalid".into()))?,
+                .map_err(|_| CliError::Input("mixture label is invalid".into()))?,
             context: row
                 .iter()
                 .skip(4)
@@ -65,7 +67,7 @@ pub(super) fn run(
                 .map(|value| {
                     value
                         .parse()
-                        .map_err(|_| BayesCliError::Input("mixture context is invalid".into()))
+                        .map_err(|_| CliError::Input("mixture context is invalid".into()))
                 })
                 .collect::<Result<Vec<_>, _>>()?,
             expert_probabilities: row
@@ -76,23 +78,23 @@ pub(super) fn run(
                         Ok(None)
                     } else {
                         value.parse().map(Some).map_err(|_| {
-                            BayesCliError::Input("mixture expert probability is invalid".into())
+                            CliError::Input("mixture expert probability is invalid".into())
                         })
                     }
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         });
     }
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
+    let lock_bytes = fs::read(&lock_path).map_err(|source| CliError::Io {
         path: lock_path,
         source,
     })?;
     let worker_name = "marklab_scipy_mixture_of_experts_worker.py";
     let worker_path = worker_directory.join(worker_name);
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker_bytes = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;
@@ -151,10 +153,10 @@ struct Output {
     evaluation_split: &'static str,
     experts: Vec<String>,
     gating_features: Vec<String>,
-    model: marklab_bayes::MixtureGateModel,
-    calibrator: marklab_bayes::MixtureCalibrator,
+    model: marklab_prediction::MixtureGateModel,
+    calibrator: marklab_prediction::MixtureCalibrator,
     ood_threshold: f64,
-    predictions: Vec<marklab_bayes::MixturePrediction>,
-    metrics: marklab_bayes::MixtureMetrics,
+    predictions: Vec<marklab_prediction::MixturePrediction>,
+    metrics: marklab_prediction::MixtureMetrics,
     claim_status: &'static str,
 }

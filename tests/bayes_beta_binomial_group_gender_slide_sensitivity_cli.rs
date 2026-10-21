@@ -103,8 +103,21 @@ fn repeated_slide_hierarchy_reports_eleven_fit_prior_sensitivity() {
                     .unwrap()
                     .is_finite()
         }));
-    assert!(matches!(
-        result["sensitivity_status"].as_str().unwrap(),
-        "stable_within_declared_grid" | "sensitive_within_declared_grid"
-    ));
+    assert_eq!(
+        result["sensitivity_status"],
+        "sensitive_within_declared_grid"
+    );
+    let changed_prior = result["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|scenario| scenario["scenario_id"] == "slide_concentration_sd_upper")
+        .expect("declared prior scenario");
+    let shift = changed_prior["parameter_standardized_shifts"]["slide_concentration"]
+        .as_f64()
+        .unwrap();
+    assert!(
+        (2.7..=5.0).contains(&shift),
+        "unexpected signed shift: {shift}"
+    );
 }

@@ -1,16 +1,23 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::{validate_scalar_summary, SummarySupport};
+use crate::ClaimStatus;
+use crate::ScalarSummary;
 use crate::{
     model::{
         BackendContract, DiagnosticPolicy, MODEL_FORMAT, MODEL_VERSION, PYMC_VERSION,
         WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
-    BayesError, FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary, WorkerBackend,
+    BayesError, FitState, NutsSamplingSpec, PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct GpObservation {
@@ -25,6 +32,15 @@ pub struct GpPredictionCoordinate {
     pub x_um: f64,
 }
 
+/// One-dimensional Gaussian regression with a marginalized Matérn-3/2 field.
+///
+/// The worker uses `y ~ MVN(mu * 1, K + (sigma^2 + jitter) I)`, where `K_ij = a^2 (1 +
+/// sqrt(3) d_ij / ell) exp(-sqrt(3) d_ij / ell)` and distances are in micrometres.
+/// Independent priors are `mu ~ Normal(mean_prior_mean, mean_prior_sd)`, `a ~
+/// HalfNormal(amplitude_prior_sd)`, `ell ~ HalfNormal(length_scale_prior_sd_um)`, and `sigma
+/// ~ HalfNormal(noise_prior_sd)`. Normal and half-normal arguments here are scale parameters.
+/// NUTS samples the hyperparameters; predictions use the conditional Gaussian latent field.
+///
 #[derive(Clone, Debug)]
 pub struct ExactGpSpec {
     pub mean_prior_mean: f64,
@@ -52,8 +68,8 @@ pub struct ExactGpModelIr {
     pub noise_prior_sd: f64,
     pub jitter: f64,
     pub observation_unit: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -134,7 +150,7 @@ impl ExactGpWorkerRequest {
                 ));
             }
         }
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -163,7 +179,7 @@ impl ExactGpWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -181,8 +197,8 @@ impl ExactGpWorkerRequest {
                 noise_prior_sd: spec.noise_prior_sd,
                 jitter: spec.jitter,
                 observation_unit: "scalar_field_value",
-                backend_capability: "nuts_exact_dense_gp",
-                maturity: "experimental",
+                backend_capability: BackendCapability::NutsExactDenseGp,
+                maturity: ModelMaturity::Experimental,
             },
             observations: spec.observations,
             predictions: spec.predictions,
@@ -212,20 +228,11 @@ pub struct GpResourceLimits {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct GpScalarSummary {
-    pub mean: f64,
-    pub sd: f64,
-    pub interval_lower: f64,
-    pub interval_upper: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct GpPosterior {
-    pub mean: GpScalarSummary,
-    pub amplitude: GpScalarSummary,
-    pub length_scale_um: GpScalarSummary,
-    pub noise_sd: GpScalarSummary,
+    pub mean: ScalarSummary,
+    pub amplitude: ScalarSummary,
+    pub length_scale_um: ScalarSummary,
+    pub noise_sd: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -260,7 +267,7 @@ pub struct ExactGpWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: GpPosterior,
     pub predictions: Vec<GpPredictionSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GpPosteriorPredictive,
 }
 
@@ -277,11 +284,7 @@ impl ExactGpWorkerResult {
         }
         if self.format != "marklab.pymc_gp_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.predictions.len() != request.predictions.len()
         {
@@ -412,9 +415,9 @@ impl ExactGpWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -427,20 +430,8 @@ impl ExactGpWorkerResult {
     }
 }
 
-fn validate_scalar(value: &GpScalarSummary) -> Result<(), BayesError> {
-    if !finite(&[
-        value.mean,
-        value.sd,
-        value.interval_lower,
-        value.interval_upper,
-    ]) || value.sd <= 0.0
-        || value.interval_lower > value.interval_upper
-    {
-        return Err(BayesError::WorkerContract(
-            "invalid GP scalar summary".into(),
-        ));
-    }
-    Ok(())
+fn validate_scalar(value: &ScalarSummary) -> Result<(), BayesError> {
+    validate_scalar_summary(value, SummarySupport::Real, "invalid GP scalar summary")
 }
 
 #[derive(Debug, Serialize)]
@@ -460,11 +451,11 @@ pub struct ExactGpFit {
     pub model: ExactGpModelIr,
     pub input: ExactGpInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: GpPosterior,
     pub predictions: Vec<GpPredictionSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: GpPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,

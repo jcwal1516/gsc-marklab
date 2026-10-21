@@ -1,12 +1,19 @@
 use super::declared_embedding_support as embedding_support;
 use super::*;
 use marklab::{
-    declared_nucleus_area_cell_embedding_cross_covariance_energy, BinaryMarkDeclaration,
-    DeclaredNucleusAreaCellEmbeddingCrossCovarianceError,
-    DeclaredNucleusAreaCellEmbeddingCrossCovarianceStatus, DeclaredScalarInputError,
-    DeclaredScalarPatternInput, MarkTable, MarklabProject, MeasurementStatus, MissingnessPolicy,
-    NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration, ScalarMarkColumn, ScalarMarkId,
-    ScalarMarkModality, ScalarMarkUnit, VectorArtifactRefMarkDeclaration,
+    embeddings::{
+        declared_nucleus_area_cell_embedding_cross_covariance_energy,
+        DeclaredNucleusAreaCellEmbeddingCrossCovarianceError,
+        DeclaredNucleusAreaCellEmbeddingCrossCovarianceStatus,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarInputError, DeclaredScalarPatternInput, MarkTable,
+        MissingnessPolicy, NucleusAreaUm2MarkDeclaration, ProbabilityMarkDeclaration,
+        ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
+        VectorArtifactRefMarkDeclaration,
+    },
+    workflow::MarklabProject,
+    MeasurementStatus,
 };
 
 const DIMENSION: u32 = 1_280;

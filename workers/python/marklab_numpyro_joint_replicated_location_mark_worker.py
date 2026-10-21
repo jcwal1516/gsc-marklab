@@ -3,87 +3,116 @@
 
 from __future__ import annotations
 
-import csv
-import hashlib
-import io
 import json
 import math
-from pathlib import Path
 import sys
-from typing import Any, Callable
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
-import arviz as az
 import jax
 
 jax.config.update("jax_enable_x64", True)
+sys.path.append(str(Path(__file__).resolve().parent))
+
 import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
-from numpyro.infer import MCMC, NUTS
 
+from marklab_worker_support.joint_location import (
+    LOCATION_FIELDS,
+    combined_diagnostics,
+    diagnostics_complete,
+    finite,
+    parse_csv,
+    sample_model,
+    validate_request_header,
+    verified_csv,
+)
+from marklab_worker_support.posterior import summary, two_sided_tail
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    worker_digests,
+    write_result,
+)
 
 REQUEST_FORMAT = "marklab.numpyro_joint_replicated_location_mark_request"
 RESULT_FORMAT = "marklab.numpyro_joint_replicated_location_mark_result"
-NUMPYRO_VERSION = "0.21.0"
-JAX_VERSION = "0.11.1"
-LOCATION_FIELDS = (
-    "pattern_id", "patient_id", "group", "cohort", "node_id", "type_id", "x_um", "y_um",
-    "weight_um2", "window_area_um2", "covariate", "count", "window_sha256", "event_sha256",
-)
 MARK_FIELDS = ("pattern_id", "patient_id", "group", "point_id", "x_um", "y_um", "type_id")
-
-
-class ContractError(ValueError):
-    pass
+REQUEST_FIELDS = {
+    "format",
+    "version",
+    "backend",
+    "jax_version",
+    "location_csv",
+    "mark_csv",
+    "location_sha256",
+    "mark_sha256",
+    "reference_group",
+    "comparison_group",
+    "reference_type",
+    "neighbor_radius_um",
+    "priors",
+    "sampling",
+    "resources",
+}
+PRIOR_FIELDS = {
+    "location_sd",
+    "group_sd",
+    "patient_ecology_scale",
+    "mark_intercept_sd",
+    "mark_group_sd",
+    "mark_loading_sd",
+    "interaction_sd",
+}
+RESOURCE_FIELDS = {
+    "maximum_patients",
+    "maximum_patterns",
+    "maximum_types",
+    "maximum_location_rows",
+    "maximum_mark_points",
+    "maximum_neighbor_visits",
+    "neighbor_visits",
+    "maximum_draw_observation_work",
+    "draw_observation_work",
+    "maximum_working_bytes",
+    "estimated_working_bytes",
+    "maximum_tree_depth",
+    "timeout_seconds",
+    "maximum_output_bytes",
+}
 
 
 def rows(text: str, fields: tuple[str, ...], name: str) -> list[dict[str, str]]:
-    reader = csv.DictReader(io.StringIO(text))
-    if tuple(reader.fieldnames or ()) != fields:
+    header, result = parse_csv(text, name)
+    if header != fields:
         raise ContractError(f"{name} header differs")
-    result = list(reader)
-    if not result:
-        raise ContractError(f"{name} is empty")
-    return result
-
-
-def finite(value: str, name: str) -> float:
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{name} is nonfinite")
     return result
 
 
 def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[str, Any]:
-    expected = {
-        "format", "version", "backend", "jax_version", "location_csv", "mark_csv",
-        "location_sha256", "mark_sha256", "reference_group", "comparison_group",
-        "reference_type", "neighbor_radius_um", "priors", "sampling", "resources",
-    }
-    if not isinstance(request, dict) or set(request) != expected:
-        raise ContractError("request fields differ")
-    if request["format"] != REQUEST_FORMAT or request["version"] != 1:
-        raise ContractError("request identity differs")
-    backend = request["backend"]
-    if backend != {
-        "name": "numpyro", "version": NUMPYRO_VERSION, "python_version": "3.12",
-        "environment_lock_sha256": lock_sha, "worker_sha256": worker_sha,
-    } or request["jax_version"] != JAX_VERSION:
-        raise ContractError("backend identity differs")
-    location_text = request["location_csv"]
-    mark_text = request["mark_csv"]
-    if not isinstance(location_text, str) or not isinstance(mark_text, str):
-        raise ContractError("CSV payload differs")
-    if hashlib.sha256(location_text.encode()).hexdigest() != request["location_sha256"]:
-        raise ContractError("location digest differs")
-    if hashlib.sha256(mark_text.encode()).hexdigest() != request["mark_sha256"]:
-        raise ContractError("mark digest differs")
-    location = rows(location_text, LOCATION_FIELDS, "location")
-    marks = rows(mark_text, MARK_FIELDS, "mark")
+    validate_request_header(
+        request,
+        fields=REQUEST_FIELDS,
+        request_format=REQUEST_FORMAT,
+        version=1,
+        lock_sha=lock_sha,
+        worker_sha=worker_sha,
+    )
+    location = rows(verified_csv(request, "location"), LOCATION_FIELDS, "location")
+    marks = rows(verified_csv(request, "mark"), MARK_FIELDS, "mark")
     reference = request["reference_group"]
     comparison = request["comparison_group"]
-    if not all(isinstance(value, str) and value and value.strip() == value for value in (reference, comparison, request["reference_type"])):
+    identities = (reference, comparison, request["reference_type"])
+    if not all(isinstance(value, str) and value and value.strip() == value for value in identities):
         raise ContractError("group or type identity differs")
     if reference == comparison:
         raise ContractError("groups must differ")
@@ -91,27 +120,22 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
     if not math.isfinite(radius) or radius <= 0.0:
         raise ContractError("neighbor radius differs")
     priors = request["priors"]
-    if set(priors) != {
-        "location_sd", "group_sd", "patient_ecology_scale", "mark_intercept_sd",
-        "mark_group_sd", "mark_loading_sd", "interaction_sd",
-    } or any(not math.isfinite(float(value)) or float(value) <= 0.0 for value in priors.values()):
+    if set(priors) != PRIOR_FIELDS or any(
+        not math.isfinite(float(value)) or float(value) <= 0.0 for value in priors.values()
+    ):
         raise ContractError("prior controls differ")
     sampling = request["sampling"]
     if set(sampling) != {"chains", "tune", "draws", "target_accept", "seed"}:
         raise ContractError("sampling fields differ")
-    chains, tune, draws = int(sampling["chains"]), int(sampling["tune"]), int(sampling["draws"])
+    chains = int(sampling["chains"])
+    tune = int(sampling["tune"])
+    draws = int(sampling["draws"])
     if not 2 <= chains <= 8 or not 100 <= tune <= 100000 or not 100 <= draws <= 100000:
         raise ContractError("sampling bounds differ")
     if not 0.5 <= float(sampling["target_accept"]) < 1.0 or not 0 <= int(sampling["seed"]) < 2**64:
         raise ContractError("sampling controls differ")
     resources = request["resources"]
-    required = {
-        "maximum_patients", "maximum_patterns", "maximum_types", "maximum_location_rows",
-        "maximum_mark_points", "maximum_neighbor_visits", "neighbor_visits",
-        "maximum_draw_observation_work", "draw_observation_work", "maximum_working_bytes",
-        "estimated_working_bytes", "maximum_tree_depth", "timeout_seconds", "maximum_output_bytes",
-    }
-    if set(resources) != required:
+    if set(resources) != RESOURCE_FIELDS:
         raise ContractError("resource fields differ")
 
     patient_group: dict[str, str] = {}
@@ -120,14 +144,19 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
     types: set[str] = set()
     location_keys: set[tuple[str, str, str]] = set()
     for row in location:
-        patient, pattern, group, kind = row["patient_id"], row["pattern_id"], row["group"], row["type_id"]
+        patient = row["patient_id"]
+        pattern = row["pattern_id"]
+        group = row["group"]
+        kind = row["type_id"]
         if group not in (reference, comparison) or not patient or not pattern or not kind:
             raise ContractError("location identity differs")
         if patient in patient_group and patient_group[patient] != group:
             raise ContractError("patient group changes")
         if pattern in pattern_patient and pattern_patient[pattern] != patient:
             raise ContractError("pattern patient changes")
-        patient_group[patient], pattern_patient[pattern], pattern_group[pattern] = group, patient, group
+        patient_group[patient] = group
+        pattern_patient[pattern] = patient
+        pattern_group[pattern] = group
         types.add(kind)
         key = (pattern, row["node_id"], kind)
         if key in location_keys:
@@ -143,12 +172,16 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
     if type_ids[0] != request["reference_type"]:
         type_ids.remove(request["reference_type"])
         type_ids.insert(0, request["reference_type"])
+
     point_ids: set[str] = set()
     for row in marks:
         if row["point_id"] in point_ids:
             raise ContractError("duplicate point identity")
         point_ids.add(row["point_id"])
-        if pattern_patient.get(row["pattern_id"]) != row["patient_id"] or pattern_group.get(row["pattern_id"]) != row["group"]:
+        if (
+            pattern_patient.get(row["pattern_id"]) != row["patient_id"]
+            or pattern_group.get(row["pattern_id"]) != row["group"]
+        ):
             raise ContractError("mark/location hierarchy differs")
         if row["type_id"] not in types:
             raise ContractError("mark type differs")
@@ -158,7 +191,10 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
     patterns = sorted(pattern_patient)
     if set(patient_group.values()) != {reference, comparison}:
         raise ContractError("both groups are required")
-    patient_patterns = {patient: sorted(pattern for pattern, owner in pattern_patient.items() if owner == patient) for patient in patients}
+    patient_patterns = {
+        patient: sorted(pattern for pattern, owner in pattern_patient.items() if owner == patient)
+        for patient in patients
+    }
     if any(len(value) != 2 for value in patient_patterns.values()):
         raise ContractError("each patient requires exactly two patterns for fixed holdout")
     train = {value[0] for value in patient_patterns.values()}
@@ -171,59 +207,100 @@ def validate(request: dict[str, Any], lock_sha: str, worker_sha: str) -> dict[st
         or len(marks) > int(resources["maximum_mark_points"])
     ):
         raise ContractError("row/resource ceiling exceeded")
-    neighbor_visits = sum(
-        count * (count - 1)
-        for pattern in patterns
-        for count in [sum(row["pattern_id"] == pattern for row in marks)]
-    )
-    if neighbor_visits != int(resources["neighbor_visits"]) or neighbor_visits > int(resources["maximum_neighbor_visits"]):
+    neighbor_visits = 0
+    for pattern in patterns:
+        count = sum(row["pattern_id"] == pattern for row in marks)
+        neighbor_visits += count * (count - 1)
+    if neighbor_visits != int(resources["neighbor_visits"]) or neighbor_visits > int(
+        resources["maximum_neighbor_visits"]
+    ):
         raise ContractError("neighbor work differs")
     work = chains * draws * (len(location) + len(marks)) * 3
-    if work != int(resources["draw_observation_work"]) or work > int(resources["maximum_draw_observation_work"]):
+    if work != int(resources["draw_observation_work"]) or work > int(
+        resources["maximum_draw_observation_work"]
+    ):
         raise ContractError("draw-observation work differs")
-    estimated = (len(location) * 256 + len(marks) * 512 + neighbor_visits * 16 + 384 * 1024**2)
-    if estimated != int(resources["estimated_working_bytes"]) or estimated > int(resources["maximum_working_bytes"]):
+    estimated = len(location) * 256 + len(marks) * 512 + neighbor_visits * 16 + 384 * 1024**2
+    if estimated != int(resources["estimated_working_bytes"]) or estimated > int(
+        resources["maximum_working_bytes"]
+    ):
         raise ContractError("memory estimate differs")
     depth = int(resources["maximum_tree_depth"])
     if not 10 <= depth <= 14:
         raise ContractError("tree depth differs")
     return {
-        "request": request, "location": location, "marks": marks, "patients": patients,
-        "patterns": patterns, "patient_group": patient_group, "pattern_patient": pattern_patient,
-        "type_ids": type_ids, "train": train, "heldout": heldout, "chains": chains,
-        "tune": tune, "draws": draws, "target_accept": float(sampling["target_accept"]),
-        "seed": int(sampling["seed"]), "depth": depth,
+        "request": request,
+        "location": location,
+        "marks": marks,
+        "patients": patients,
+        "patterns": patterns,
+        "patient_group": patient_group,
+        "pattern_patient": pattern_patient,
+        "type_ids": type_ids,
+        "train": train,
+        "heldout": heldout,
+        "chains": chains,
+        "tune": tune,
+        "draws": draws,
+        "target_accept": float(sampling["target_accept"]),
+        "seed": int(sampling["seed"]),
+        "depth": depth,
     }
 
 
 def seed_for(seed: int, purpose: str) -> int:
-    return int.from_bytes(hashlib.sha256(f"marklab-joint-location-mark-v1\0{seed}\0{purpose}".encode()).digest()[:4], "little")
+    return derive_seed("marklab-joint-location-mark-v1", seed, purpose)
 
 
 def prepare_arrays(config: dict[str, Any]) -> dict[str, Any]:
+    """Aggregate location counts per node and build radius-neighbour mark features.
+
+    A mark's features are the type proportions among its neighbours within
+    ``neighbor_radius_um`` (zero when it has none); ``edges`` keeps the neighbour pairs.
+    """
     patient_index = {value: index for index, value in enumerate(config["patients"])}
     type_index = {value: index for index, value in enumerate(config["type_ids"])}
-    groups = np.asarray([config["patient_group"][patient] == config["request"]["comparison_group"] for patient in config["patients"]], dtype=float)
+    comparison = config["request"]["comparison_group"]
+    groups = np.asarray(
+        [config["patient_group"][patient] == comparison for patient in config["patients"]],
+        dtype=float,
+    )
     nodes: dict[tuple[str, str], dict[str, Any]] = {}
     for row in config["location"]:
         key = (row["pattern_id"], row["node_id"])
-        node = nodes.setdefault(key, {"pattern": row["pattern_id"], "patient": row["patient_id"], "weight": finite(row["weight_um2"], "weight"), "covariate": finite(row["covariate"], "covariate"), "count": 0})
-        node["count"] += int(row["count"])
+        if key not in nodes:
+            nodes[key] = {
+                "pattern": row["pattern_id"],
+                "patient": row["patient_id"],
+                "weight": finite(row["weight_um2"], "weight"),
+                "covariate": finite(row["covariate"], "covariate"),
+                "count": 0,
+            }
+        nodes[key]["count"] += int(row["count"])
     ordered_nodes = [nodes[key] for key in sorted(nodes)]
     result: dict[str, Any] = {"patient_groups": groups}
-    for split, selected_patterns in (("train", config["train"]), ("heldout", config["heldout"])):
+    splits = (("train", config["train"]), ("heldout", config["heldout"]))
+    for split, selected_patterns in splits:
         selected = [row for row in ordered_nodes if row["pattern"] in selected_patterns]
-        result[f"loc_{split}_patient"] = np.asarray([patient_index[row["patient"]] for row in selected], dtype=np.int64)
+        result[f"loc_{split}_patient"] = np.asarray(
+            [patient_index[row["patient"]] for row in selected], dtype=np.int64
+        )
         result[f"loc_{split}_weight"] = np.asarray([row["weight"] for row in selected], dtype=float)
-        result[f"loc_{split}_covariate"] = np.asarray([row["covariate"] for row in selected], dtype=float)
-        result[f"loc_{split}_count"] = np.asarray([row["count"] for row in selected], dtype=np.int64)
+        result[f"loc_{split}_covariate"] = np.asarray(
+            [row["covariate"] for row in selected], dtype=float
+        )
+        result[f"loc_{split}_count"] = np.asarray(
+            [row["count"] for row in selected], dtype=np.int64
+        )
+
     mark_rows: list[dict[str, Any]] = []
     edges: dict[str, list[tuple[int, int]]] = {pattern: [] for pattern in config["patterns"]}
-    by_pattern = {pattern: [row for row in config["marks"] if row["pattern_id"] == pattern] for pattern in config["patterns"]}
     radius2 = float(config["request"]["neighbor_radius_um"]) ** 2
     for pattern in config["patterns"]:
-        pattern_rows = by_pattern[pattern]
-        xy = np.asarray([[finite(row["x_um"], "x"), finite(row["y_um"], "y")] for row in pattern_rows])
+        pattern_rows = [row for row in config["marks"] if row["pattern_id"] == pattern]
+        xy = np.asarray(
+            [[finite(row["x_um"], "x"), finite(row["y_um"], "y")] for row in pattern_rows]
+        )
         kinds = np.asarray([type_index[row["type_id"]] for row in pattern_rows], dtype=np.int64)
         features = np.zeros((len(pattern_rows), len(type_index)), dtype=float)
         for left in range(len(pattern_rows)):
@@ -235,223 +312,382 @@ def prepare_arrays(config: dict[str, Any]) -> dict[str, Any]:
         degree = features.sum(axis=1)
         features /= np.maximum(degree[:, None], 1.0)
         for index, row in enumerate(pattern_rows):
-            mark_rows.append({"pattern": pattern, "patient": row["patient_id"], "type": kinds[index], "features": features[index], "local_index": index})
-    for split, selected_patterns in (("train", config["train"]), ("heldout", config["heldout"])):
+            mark_rows.append(
+                {
+                    "pattern": pattern,
+                    "patient": row["patient_id"],
+                    "type": kinds[index],
+                    "features": features[index],
+                    "local_index": index,
+                }
+            )
+    for split, selected_patterns in splits:
         selected = [row for row in mark_rows if row["pattern"] in selected_patterns]
-        result[f"mark_{split}_patient"] = np.asarray([patient_index[row["patient"]] for row in selected], dtype=np.int64)
+        result[f"mark_{split}_patient"] = np.asarray(
+            [patient_index[row["patient"]] for row in selected], dtype=np.int64
+        )
         result[f"mark_{split}_type"] = np.asarray([row["type"] for row in selected], dtype=np.int64)
-        result[f"mark_{split}_features"] = np.asarray([row["features"] for row in selected], dtype=float)
+        result[f"mark_{split}_features"] = np.asarray(
+            [row["features"] for row in selected], dtype=float
+        )
         result[f"mark_{split}_patterns"] = [row["pattern"] for row in selected]
-        result[f"mark_{split}_local"] = np.asarray([row["local_index"] for row in selected], dtype=np.int64)
+        result[f"mark_{split}_local"] = np.asarray(
+            [row["local_index"] for row in selected], dtype=np.int64
+        )
     result["edges"] = edges
     return result
 
 
+def training_location(data: dict[str, Any]) -> tuple[Any, Any, Any, Any]:
+    return tuple(
+        jnp.asarray(data[f"loc_train_{name}"])
+        for name in ("patient", "weight", "covariate", "count")
+    )
+
+
+def training_marks(data: dict[str, Any]) -> tuple[Any, Any, Any]:
+    return tuple(
+        jnp.asarray(data[f"mark_train_{name}"]) for name in ("patient", "type", "features")
+    )
+
+
 def joint_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], None]:
+    """Joint location/mark model sharing one patient ecology effect.
+
+    Locations: ``count ~ Poisson(weight * exp(intercept + group_effect * group + beta *
+    covariate + ecology[patient]))``. Marks: ``type ~ Categorical(logits)`` with reference type 0
+    and non-reference logits ``mark_intercept + mark_group * group + mark_loading *
+    ecology[patient] + features @ interaction.T``. Priors: ``ecology = ecology_sd * raw`` with
+    ``raw ~ Normal(0, 1)`` and ``ecology_sd ~ HalfNormal(patient_ecology_scale)``; location
+    intercept and covariate ``~ Normal(0, location_sd)``; location group ``~ Normal(0,
+    group_sd)``; mark intercepts, group effects, loadings, and interactions ``~ Normal(0, ...)``
+    with their own prior SDs.
+    """
     priors = config["request"]["priors"]
-    patients, types = len(config["patients"]), len(config["type_ids"])
+    patients = len(config["patients"])
+    types = len(config["type_ids"])
     group = jnp.asarray(data["patient_groups"])
-    lp, lw, lc, ly = map(jnp.asarray, (data["loc_train_patient"], data["loc_train_weight"], data["loc_train_covariate"], data["loc_train_count"]))
-    mp, mt, mf = map(jnp.asarray, (data["mark_train_patient"], data["mark_train_type"], data["mark_train_features"]))
+    location_patient, weight, covariate, count = training_location(data)
+    mark_patient, mark_type, features = training_marks(data)
+
     def model() -> None:
-        ecology_sd = numpyro.sample("patient_ecology_sd", dist.HalfNormal(priors["patient_ecology_scale"]))
-        ecology = numpyro.sample("patient_ecology_raw", dist.Normal(0, 1).expand([patients]).to_event(1)) * ecology_sd
-        li = numpyro.sample("location_intercept", dist.Normal(0, priors["location_sd"]))
-        lg = numpyro.sample("location_group", dist.Normal(0, priors["group_sd"]))
-        lc_beta = numpyro.sample("location_covariate", dist.Normal(0, priors["location_sd"]))
-        mi = numpyro.sample("mark_intercept", dist.Normal(0, priors["mark_intercept_sd"]).expand([types - 1]).to_event(1))
-        mg = numpyro.sample("mark_group", dist.Normal(0, priors["mark_group_sd"]).expand([types - 1]).to_event(1))
-        ml = numpyro.sample("mark_loading", dist.Normal(0, priors["mark_loading_sd"]).expand([types - 1]).to_event(1))
-        interaction = numpyro.sample("interaction", dist.Normal(0, priors["interaction_sd"]).expand([types - 1, types]).to_event(2))
-        loc_log = jnp.log(lw) + li + lg * group[lp] + lc_beta * lc + ecology[lp]
-        numpyro.sample("location_count", dist.Poisson(jnp.exp(loc_log)), obs=ly)
-        nonref = mi + mg * group[mp, None] + ml * ecology[mp, None] + mf @ interaction.T
-        logits = jnp.concatenate([jnp.zeros((len(mp), 1)), nonref], axis=1)
-        numpyro.sample("mark_type", dist.Categorical(logits=logits), obs=mt)
+        ecology_sd = numpyro.sample(
+            "patient_ecology_sd", dist.HalfNormal(priors["patient_ecology_scale"])
+        )
+        ecology_raw = numpyro.sample(
+            "patient_ecology_raw", dist.Normal(0, 1).expand([patients]).to_event(1)
+        )
+        ecology = ecology_raw * ecology_sd
+        location_intercept = numpyro.sample(
+            "location_intercept", dist.Normal(0, priors["location_sd"])
+        )
+        location_group = numpyro.sample("location_group", dist.Normal(0, priors["group_sd"]))
+        location_covariate = numpyro.sample(
+            "location_covariate", dist.Normal(0, priors["location_sd"])
+        )
+        mark_intercept = numpyro.sample(
+            "mark_intercept",
+            dist.Normal(0, priors["mark_intercept_sd"]).expand([types - 1]).to_event(1),
+        )
+        mark_group = numpyro.sample(
+            "mark_group", dist.Normal(0, priors["mark_group_sd"]).expand([types - 1]).to_event(1)
+        )
+        mark_loading = numpyro.sample(
+            "mark_loading",
+            dist.Normal(0, priors["mark_loading_sd"]).expand([types - 1]).to_event(1),
+        )
+        interaction = numpyro.sample(
+            "interaction",
+            dist.Normal(0, priors["interaction_sd"]).expand([types - 1, types]).to_event(2),
+        )
+        location_log = (
+            jnp.log(weight)
+            + location_intercept
+            + location_group * group[location_patient]
+            + location_covariate * covariate
+            + ecology[location_patient]
+        )
+        numpyro.sample("location_count", dist.Poisson(jnp.exp(location_log)), obs=count)
+        nonreference = (
+            mark_intercept
+            + mark_group * group[mark_patient, None]
+            + mark_loading * ecology[mark_patient, None]
+            + features @ interaction.T
+        )
+        logits = jnp.concatenate([jnp.zeros((len(mark_patient), 1)), nonreference], axis=1)
+        numpyro.sample("mark_type", dist.Categorical(logits=logits), obs=mark_type)
+
     return model
 
 
 def location_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], None]:
+    """Location-only baseline: the joint model's Poisson count likelihood alone.
+
+    ``count ~ Poisson(weight * exp(intercept + group_effect * group + beta * covariate +
+    effect[patient]))`` with ``effect = sd * raw``, ``raw ~ Normal(0, 1)``,
+    ``sd ~ HalfNormal(patient_ecology_scale)`` and the joint model's coefficient priors.
+    """
     priors = config["request"]["priors"]
     patients = len(config["patients"])
     group = jnp.asarray(data["patient_groups"])
-    lp, lw, lc, ly = map(jnp.asarray, (data["loc_train_patient"], data["loc_train_weight"], data["loc_train_covariate"], data["loc_train_count"]))
+    location_patient, weight, covariate, count = training_location(data)
+
     def model() -> None:
         sd = numpyro.sample("location_patient_sd", dist.HalfNormal(priors["patient_ecology_scale"]))
-        effect = numpyro.sample("location_patient_raw", dist.Normal(0, 1).expand([patients]).to_event(1)) * sd
+        raw = numpyro.sample(
+            "location_patient_raw", dist.Normal(0, 1).expand([patients]).to_event(1)
+        )
+        effect = raw * sd
         intercept = numpyro.sample("location_intercept", dist.Normal(0, priors["location_sd"]))
         beta_group = numpyro.sample("location_group", dist.Normal(0, priors["group_sd"]))
-        beta_cov = numpyro.sample("location_covariate", dist.Normal(0, priors["location_sd"]))
-        log_expected = jnp.log(lw) + intercept + beta_group * group[lp] + beta_cov * lc + effect[lp]
-        numpyro.sample("location_count", dist.Poisson(jnp.exp(log_expected)), obs=ly)
+        beta_covariate = numpyro.sample("location_covariate", dist.Normal(0, priors["location_sd"]))
+        log_expected = (
+            jnp.log(weight)
+            + intercept
+            + beta_group * group[location_patient]
+            + beta_covariate * covariate
+            + effect[location_patient]
+        )
+        numpyro.sample("location_count", dist.Poisson(jnp.exp(log_expected)), obs=count)
+
     return model
 
 
 def mark_model(config: dict[str, Any], data: dict[str, Any]) -> Callable[[], None]:
+    """Conditional-mark-only baseline with independent patient effects per non-reference type.
+
+    ``type ~ Categorical(logits)`` with reference type 0 and non-reference logits
+    ``intercept + group_effect * group + sd * raw[patient] + features @ interaction.T``;
+    ``sd ~ HalfNormal(patient_ecology_scale)`` per type, ``raw ~ Normal(0, 1)``, and the joint
+    model's coefficient priors.
+    """
     priors = config["request"]["priors"]
-    patients, types = len(config["patients"]), len(config["type_ids"])
+    patients = len(config["patients"])
+    types = len(config["type_ids"])
     group = jnp.asarray(data["patient_groups"])
-    mp, mt, mf = map(jnp.asarray, (data["mark_train_patient"], data["mark_train_type"], data["mark_train_features"]))
+    mark_patient, mark_type, features = training_marks(data)
+
     def model() -> None:
-        sd = numpyro.sample("mark_patient_sd", dist.HalfNormal(priors["patient_ecology_scale"]).expand([types - 1]).to_event(1))
-        raw = numpyro.sample("mark_patient_raw", dist.Normal(0, 1).expand([patients, types - 1]).to_event(2))
-        intercept = numpyro.sample("mark_intercept", dist.Normal(0, priors["mark_intercept_sd"]).expand([types - 1]).to_event(1))
-        beta_group = numpyro.sample("mark_group", dist.Normal(0, priors["mark_group_sd"]).expand([types - 1]).to_event(1))
-        interaction = numpyro.sample("interaction", dist.Normal(0, priors["interaction_sd"]).expand([types - 1, types]).to_event(2))
-        nonref = intercept + beta_group * group[mp, None] + sd * raw[mp] + mf @ interaction.T
-        logits = jnp.concatenate([jnp.zeros((len(mp), 1)), nonref], axis=1)
-        numpyro.sample("mark_type", dist.Categorical(logits=logits), obs=mt)
+        sd = numpyro.sample(
+            "mark_patient_sd",
+            dist.HalfNormal(priors["patient_ecology_scale"]).expand([types - 1]).to_event(1),
+        )
+        raw = numpyro.sample(
+            "mark_patient_raw", dist.Normal(0, 1).expand([patients, types - 1]).to_event(2)
+        )
+        intercept = numpyro.sample(
+            "mark_intercept",
+            dist.Normal(0, priors["mark_intercept_sd"]).expand([types - 1]).to_event(1),
+        )
+        beta_group = numpyro.sample(
+            "mark_group", dist.Normal(0, priors["mark_group_sd"]).expand([types - 1]).to_event(1)
+        )
+        interaction = numpyro.sample(
+            "interaction",
+            dist.Normal(0, priors["interaction_sd"]).expand([types - 1, types]).to_event(2),
+        )
+        nonreference = (
+            intercept
+            + beta_group * group[mark_patient, None]
+            + sd * raw[mark_patient]
+            + features @ interaction.T
+        )
+        logits = jnp.concatenate([jnp.zeros((len(mark_patient), 1)), nonreference], axis=1)
+        numpyro.sample("mark_type", dist.Categorical(logits=logits), obs=mark_type)
+
     return model
 
 
-def sample(config: dict[str, Any], model: Callable[[], None], purpose: str) -> tuple[dict[str, np.ndarray], dict[str, float | int]]:
-    sampler = MCMC(NUTS(model, target_accept_prob=config["target_accept"], max_tree_depth=config["depth"]),
-        num_warmup=config["tune"], num_samples=config["draws"], num_chains=config["chains"],
-        chain_method="sequential", progress_bar=False)
-    sampler.run(jax.random.PRNGKey(seed_for(config["seed"], purpose)), extra_fields=("diverging", "num_steps", "energy"))
-    samples = {name: np.asarray(value, dtype=float) for name, value in sampler.get_samples(group_by_chain=True).items()}
-    posterior = az.from_dict({"posterior": samples})
-    names = list(samples)
-    flat = lambda tree: np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
-    extra = sampler.get_extra_fields(group_by_chain=True)
-    energy = np.asarray(extra["energy"], dtype=float)
-    diagnostics = {
-        "r_hat": float(flat(az.rhat(posterior, var_names=names, method="rank")).max()),
-        "ess_bulk": float(flat(az.ess(posterior, var_names=names, method="bulk")).min()),
-        "ess_tail": float(flat(az.ess(posterior, var_names=names, method="tail")).min()),
-        "minimum_ebfmi": float(np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1))),
-        "divergences": int(np.asarray(extra["diverging"]).sum()),
-        "max_tree_depth_hits": int((np.asarray(extra["num_steps"]) >= 2**config["depth"] - 1).sum()),
-    }
-    return {name: value.reshape((-1, *value.shape[2:])) for name, value in samples.items()}, diagnostics
-
-
 def log_poisson(y: np.ndarray, log_mu: np.ndarray) -> np.ndarray:
-    return (y[None, :] * log_mu - np.exp(log_mu) - np.vectorize(math.lgamma)(y + 1)[None, :]).sum(axis=1)
+    """Per-draw Poisson log likelihood of counts ``y`` under ``(draw, node)`` log means."""
+    log_factorial = np.vectorize(math.lgamma)(y + 1)[None, :]
+    return (y[None, :] * log_mu - np.exp(log_mu) - log_factorial).sum(axis=1)
 
 
 def log_marks(y: np.ndarray, logits: np.ndarray) -> np.ndarray:
+    """Per-draw categorical log likelihood of types ``y`` under ``(draw, point, type)`` logits."""
     maximum = logits.max(axis=2, keepdims=True)
-    log_probability = logits - maximum - np.log(np.exp(logits - maximum).sum(axis=2, keepdims=True))
+    log_normalizer = np.log(np.exp(logits - maximum).sum(axis=2, keepdims=True))
+    log_probability = logits - maximum - log_normalizer
     return log_probability[:, np.arange(len(y)), y].sum(axis=1)
 
 
-def summary(values: np.ndarray) -> dict[str, float]:
-    values = np.asarray(values, dtype=float).reshape(-1)
-    return {"mean": float(values.mean()), "sd": float(values.std(ddof=1)),
-        "interval_lower": float(np.quantile(values, 0.025)), "interval_upper": float(np.quantile(values, 0.975))}
+def _summary(values: np.ndarray) -> dict[str, float]:
+    return summary(values, dtype=float)
 
 
-def tail(values: np.ndarray, observed: float) -> float:
-    return min(1.0, 2 * min(float(np.mean(values <= observed)), float(np.mean(values >= observed))))
-
-
-def evaluate(config: dict[str, Any], data: dict[str, Any], joint: dict[str, np.ndarray], location: dict[str, np.ndarray], mark: dict[str, np.ndarray]) -> tuple[dict[str, Any], dict[str, Any]]:
+def evaluate(
+    config: dict[str, Any],
+    data: dict[str, Any],
+    joint: dict[str, np.ndarray],
+    location: dict[str, np.ndarray],
+    mark: dict[str, np.ndarray],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Score held-out patterns under the joint and separate models; run predictive checks."""
     group = data["patient_groups"]
-    lp, lw, lc, ly = (data["loc_heldout_patient"], data["loc_heldout_weight"], data["loc_heldout_covariate"], data["loc_heldout_count"])
-    mp, mt, mf = (data["mark_heldout_patient"], data["mark_heldout_type"], data["mark_heldout_features"])
+    location_patient = data["loc_heldout_patient"]
+    weight = data["loc_heldout_weight"]
+    covariate = data["loc_heldout_covariate"]
+    count = data["loc_heldout_count"]
+    mark_patient = data["mark_heldout_patient"]
+    mark_type = data["mark_heldout_type"]
+    features = data["mark_heldout_features"]
+    log_weight = np.log(weight)[None, :]
+    location_group = group[location_patient][None, :]
+    mark_group = group[mark_patient][None, :, None]
+
     ecology = joint["patient_ecology_raw"] * joint["patient_ecology_sd"][:, None]
-    joint_loc_log = np.log(lw)[None, :] + joint["location_intercept"][:, None] + joint["location_group"][:, None] * group[lp][None, :] + joint["location_covariate"][:, None] * lc[None, :] + ecology[:, lp]
-    joint_nonref = joint["mark_intercept"][:, None, :] + joint["mark_group"][:, None, :] * group[mp][None, :, None] + joint["mark_loading"][:, None, :] * ecology[:, mp, None] + np.einsum("nf,dkf->dnk", mf, joint["interaction"])
-    joint_logits = np.concatenate([np.zeros((len(joint_nonref), len(mp), 1)), joint_nonref], axis=2)
+    joint_location_log = (
+        log_weight
+        + joint["location_intercept"][:, None]
+        + joint["location_group"][:, None] * location_group
+        + joint["location_covariate"][:, None] * covariate[None, :]
+        + ecology[:, location_patient]
+    )
+    joint_nonreference = (
+        joint["mark_intercept"][:, None, :]
+        + joint["mark_group"][:, None, :] * mark_group
+        + joint["mark_loading"][:, None, :] * ecology[:, mark_patient, None]
+        + np.einsum("nf,dkf->dnk", features, joint["interaction"])
+    )
+    joint_reference = np.zeros((len(joint_nonreference), len(mark_patient), 1))
+    joint_logits = np.concatenate([joint_reference, joint_nonreference], axis=2)
+
     location_effect = location["location_patient_raw"] * location["location_patient_sd"][:, None]
-    base_loc_log = np.log(lw)[None, :] + location["location_intercept"][:, None] + location["location_group"][:, None] * group[lp][None, :] + location["location_covariate"][:, None] * lc[None, :] + location_effect[:, lp]
+    baseline_location_log = (
+        log_weight
+        + location["location_intercept"][:, None]
+        + location["location_group"][:, None] * location_group
+        + location["location_covariate"][:, None] * covariate[None, :]
+        + location_effect[:, location_patient]
+    )
     mark_effect = mark["mark_patient_raw"] * mark["mark_patient_sd"][:, None, :]
-    base_nonref = mark["mark_intercept"][:, None, :] + mark["mark_group"][:, None, :] * group[mp][None, :, None] + mark_effect[:, mp, :] + np.einsum("nf,dkf->dnk", mf, mark["interaction"])
-    base_logits = np.concatenate([np.zeros((len(base_nonref), len(mp), 1)), base_nonref], axis=2)
-    joint_score = log_poisson(ly, joint_loc_log) + log_marks(mt, joint_logits)
-    location_score = log_poisson(ly, base_loc_log)
-    mark_score = log_marks(mt, base_logits)
+    baseline_nonreference = (
+        mark["mark_intercept"][:, None, :]
+        + mark["mark_group"][:, None, :] * mark_group
+        + mark_effect[:, mark_patient, :]
+        + np.einsum("nf,dkf->dnk", features, mark["interaction"])
+    )
+    baseline_reference = np.zeros((len(baseline_nonreference), len(mark_patient), 1))
+    baseline_logits = np.concatenate([baseline_reference, baseline_nonreference], axis=2)
+
+    joint_score = log_poisson(count, joint_location_log) + log_marks(mark_type, joint_logits)
+    location_score = log_poisson(count, baseline_location_log)
+    mark_score = log_marks(mark_type, baseline_logits)
     heldout = {
-        "joint": {"mean_log_predictive_density": float(joint_score.mean()), "uncertainty": summary(joint_score)},
-        "location_only": {"mean_log_predictive_density": float(location_score.mean()), "uncertainty": summary(location_score)},
-        "conditional_mark_only": {"mean_log_predictive_density": float(mark_score.mean()), "uncertainty": summary(mark_score)},
-        "joint_minus_separate_baselines": summary(joint_score - location_score - mark_score),
+        "joint": {
+            "mean_log_predictive_density": float(joint_score.mean()),
+            "uncertainty": _summary(joint_score),
+        },
+        "location_only": {
+            "mean_log_predictive_density": float(location_score.mean()),
+            "uncertainty": _summary(location_score),
+        },
+        "conditional_mark_only": {
+            "mean_log_predictive_density": float(mark_score.mean()),
+            "uncertainty": _summary(mark_score),
+        },
+        "joint_minus_separate_baselines": _summary(joint_score - location_score - mark_score),
     }
+
     rng = np.random.default_rng(seed_for(config["seed"], "heldout_ppc"))
-    replicated_counts = rng.poisson(np.exp(joint_loc_log))
+    replicated_counts = rng.poisson(np.exp(joint_location_log))
     probabilities = np.exp(joint_logits - joint_logits.max(axis=2, keepdims=True))
     probabilities /= probabilities.sum(axis=2, keepdims=True)
-    replicated_marks = np.asarray([[rng.choice(len(config["type_ids"]), p=probabilities[draw, row]) for row in range(len(mp))] for draw in range(len(probabilities))])
-    observed_count = float(ly.sum())
+    types = len(config["type_ids"])
+    replicated_marks = np.asarray(
+        [
+            [rng.choice(types, p=probabilities[draw, row]) for row in range(len(mark_patient))]
+            for draw in range(len(probabilities))
+        ]
+    )
+    observed_count = float(count.sum())
     count_values = replicated_counts.sum(axis=1).astype(float)
-    observed_prop = float(np.mean(mt == 0))
-    prop_values = np.mean(replicated_marks == 0, axis=1)
+    observed_proportion = float(np.mean(mark_type == 0))
+    proportion_values = np.mean(replicated_marks == 0, axis=1)
+
     def enrichment(values: np.ndarray) -> float:
+        """Fraction of held-out neighbour edges joining type 0 and type 1."""
         total, cross = 0, 0
         offset = 0
         for pattern in sorted(config["heldout"]):
-            n = sum(value == pattern for value in data["mark_heldout_patterns"])
+            size = sum(value == pattern for value in data["mark_heldout_patterns"])
             for left, right in data["edges"][pattern]:
                 total += 1
-                cross += int({int(values[offset + left]), int(values[offset + right])} == {0, 1})
-            offset += n
+                endpoint_types = {int(values[offset + left]), int(values[offset + right])}
+                cross += int(endpoint_types == {0, 1})
+            offset += size
         return cross / total if total else 0.0
-    observed_enrichment = enrichment(mt)
+
+    observed_enrichment = enrichment(mark_type)
     enrichment_values = np.asarray([enrichment(row) for row in replicated_marks])
     ppc = {
-        "total_count": {"observed": observed_count, "replicated_mean": float(count_values.mean()), "two_sided_tail_probability": tail(count_values, observed_count)},
-        "mark_proportions": {"observed": observed_prop, "replicated_mean": float(prop_values.mean()), "two_sided_tail_probability": tail(prop_values, observed_prop)},
-        "cross_type_enrichment": {"observed": observed_enrichment, "replicated_mean": float(enrichment_values.mean()), "two_sided_tail_probability": tail(enrichment_values, observed_enrichment)},
+        "total_count": {
+            "observed": observed_count,
+            "replicated_mean": float(count_values.mean()),
+            "two_sided_tail_probability": two_sided_tail(count_values, observed_count),
+        },
+        "mark_proportions": {
+            "observed": observed_proportion,
+            "replicated_mean": float(proportion_values.mean()),
+            "two_sided_tail_probability": two_sided_tail(proportion_values, observed_proportion),
+        },
+        "cross_type_enrichment": {
+            "observed": observed_enrichment,
+            "replicated_mean": float(enrichment_values.mean()),
+            "two_sided_tail_probability": two_sided_tail(enrichment_values, observed_enrichment),
+        },
     }
     return heldout, ppc
 
 
 def main() -> int:
-    if numpyro.__version__ != NUMPYRO_VERSION or jax.__version__ != JAX_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("backend version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(32 * 1024 * 1024 + 1)
-    if not raw or len(raw) > 32 * 1024 * 1024:
-        raise ContractError("request size differs")
-    request_sha = hashlib.sha256(raw).hexdigest()
+    require_versions(numpyro=numpyro.__version__, jax=jax.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(32 * MIB)
     config = validate(json.loads(raw), lock_sha, worker_sha)
     data = prepare_arrays(config)
-    joint, joint_diagnostics = sample(config, joint_model(config, data), "joint")
-    location, location_diagnostics = sample(config, location_model(config, data), "location")
-    mark, mark_diagnostics = sample(config, mark_model(config, data), "mark")
-    heldout, ppc = evaluate(config, data, joint, location, mark)
-    diagnostics = {
-        "maximum_r_hat": max(joint_diagnostics["r_hat"], location_diagnostics["r_hat"], mark_diagnostics["r_hat"]),
-        "minimum_bulk_ess": min(joint_diagnostics["ess_bulk"], location_diagnostics["ess_bulk"], mark_diagnostics["ess_bulk"]),
-        "minimum_tail_ess": min(joint_diagnostics["ess_tail"], location_diagnostics["ess_tail"], mark_diagnostics["ess_tail"]),
-        "minimum_ebfmi": min(joint_diagnostics["minimum_ebfmi"], location_diagnostics["minimum_ebfmi"], mark_diagnostics["minimum_ebfmi"]),
-        "divergences": sum(int(value["divergences"]) for value in (joint_diagnostics, location_diagnostics, mark_diagnostics)),
-        "max_tree_depth_hits": sum(int(value["max_tree_depth_hits"]) for value in (joint_diagnostics, location_diagnostics, mark_diagnostics)),
-    }
-    complete = bool(
-        diagnostics["maximum_r_hat"] <= 1.01
-        and diagnostics["minimum_bulk_ess"] >= 100.0
-        and diagnostics["minimum_tail_ess"] >= 100.0
-        and diagnostics["minimum_ebfmi"] >= 0.3
-        and diagnostics["divergences"] == 0
-        and diagnostics["max_tree_depth_hits"] == 0
+    seed = config["seed"]
+    joint, joint_diagnostics = sample_model(
+        config, joint_model(config, data), seed_for(seed, "joint")
     )
+    location, location_diagnostics = sample_model(
+        config, location_model(config, data), seed_for(seed, "location")
+    )
+    mark, mark_diagnostics = sample_model(config, mark_model(config, data), seed_for(seed, "mark"))
+    heldout, ppc = evaluate(config, data, joint, location, mark)
+    diagnostics = combined_diagnostics(joint_diagnostics, location_diagnostics, mark_diagnostics)
+    complete = diagnostics_complete(diagnostics)
+    mark_loadings = [
+        _summary(joint["mark_loading"][:, index]) for index in range(len(config["type_ids"]) - 1)
+    ]
     result = {
-        "format": RESULT_FORMAT, "version": 1,
-        "backend": {"name": "numpyro", "version": numpyro.__version__, "python_version": f"{sys.version_info.major}.{sys.version_info.minor}", "environment_lock_sha256": lock_sha, "worker_sha256": worker_sha},
-        "jax_version": jax.__version__, "request_sha256": request_sha,
-        "location_sha256": config["request"]["location_sha256"], "mark_sha256": config["request"]["mark_sha256"],
-        "patient_count": len(config["patients"]), "pattern_count": len(config["patterns"]),
-        "training_pattern_count": len(config["train"]), "heldout_pattern_count": len(config["heldout"]),
-        "type_ids": config["type_ids"], "training_pattern_ids": sorted(config["train"]),
+        "format": RESULT_FORMAT,
+        "version": 1,
+        "backend": backend_identity("numpyro", numpyro.__version__, lock_sha, worker_sha),
+        "jax_version": jax.__version__,
+        "request_sha256": sha256_hex(raw),
+        "location_sha256": config["request"]["location_sha256"],
+        "mark_sha256": config["request"]["mark_sha256"],
+        "patient_count": len(config["patients"]),
+        "pattern_count": len(config["patterns"]),
+        "training_pattern_count": len(config["train"]),
+        "heldout_pattern_count": len(config["heldout"]),
+        "type_ids": config["type_ids"],
+        "training_pattern_ids": sorted(config["train"]),
         "heldout_pattern_ids": sorted(config["heldout"]),
-        "joint_posterior": {"patient_ecology_sd": summary(joint["patient_ecology_sd"]), "mark_loadings": [summary(joint["mark_loading"][:, index]) for index in range(len(config["type_ids"]) - 1)]},
-        "heldout_comparison": heldout, "posterior_predictive": ppc, "diagnostics": diagnostics,
+        "joint_posterior": {
+            "patient_ecology_sd": _summary(joint["patient_ecology_sd"]),
+            "mark_loadings": mark_loadings,
+        },
+        "heldout_comparison": heldout,
+        "posterior_predictive": ppc,
+        "diagnostics": diagnostics,
         "fit_state": "complete" if complete else "nonconverged",
     }
-    output = json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")) + "\n"
-    if len(output.encode()) > int(config["request"]["resources"]["maximum_output_bytes"]):
-        raise ContractError("output ceiling exceeded")
-    sys.stdout.write(output)
+    write_result(result, max_bytes=int(config["request"]["resources"]["maximum_output_bytes"]))
     return 0
 
 
 if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except Exception as error:
-        print(f"marklab joint location-mark failed: {type(error).__name__}: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
+    run_worker(main, "marklab joint location-mark failed")

@@ -1,71 +1,59 @@
 #!/usr/bin/env python3
-"""Static NumPy/SciPy SBC worker for the conjugate normal-mean model."""
+"""NumPy/SciPy simulation-based calibration of the conjugate normal-mean model."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import scipy
 from scipy import stats
 
-BACKEND_VERSION = "numpy-2.4.6+scipy-1.18.1"
+sys.path.append(str(Path(__file__).resolve().parent))
 
+from marklab_worker_support import versions
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
+from marklab_worker_support.sbc import (
+    maximum_rank_ecdf_deviation,
+    rank_histogram,
+    rank_uniformity,
+)
 
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low}, {high}]")
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
+BACKEND_VERSION = f"numpy-{versions.NUMPY}+scipy-{versions.SCIPY}"
 
 
 def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
-    request = obj(
-        request, {"format", "version", "backend", "model", "sbc", "resources"}, "request"
-    )
+    request = obj(request, {"format", "version", "backend", "model", "sbc", "resources"}, "request")
     exact(request["format"], "marklab.pymc_worker_request", "request.format")
     integer(request["version"], "request.version", 1, 1)
-    backend = obj(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "backend",
+        name="numpy_scipy",
+        version=BACKEND_VERSION,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    exact(backend["name"], "numpy_scipy", "backend.name")
-    exact(backend["version"], BACKEND_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_digest, "backend.lock")
-    exact(backend["worker_sha256"], worker_digest, "backend.worker")
 
     model = obj(
         request["model"],
@@ -128,11 +116,7 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     p_minimum = number(sbc["uniformity_p_value_minimum"], "sbc.p_minimum")
     envelope_alpha = number(sbc["envelope_alpha"], "sbc.envelope_alpha")
     seed = integer(sbc["seed"], "sbc.seed", 0, 2**64 - 1)
-    if (
-        interval_probability != 0.95
-        or not 0.0 < p_minimum < 1.0
-        or not 0.0 < envelope_alpha < 1.0
-    ):
+    if interval_probability != 0.95 or not 0.0 < p_minimum < 1.0 or not 0.0 < envelope_alpha < 1.0:
         raise ContractError("SBC diagnostic controls are invalid")
 
     resources = obj(
@@ -162,13 +146,16 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
 
 
 def seed_for(seed: int, replicate: int, purpose: str) -> int:
-    digest = hashlib.sha256(
-        f"marklab-normal-mean-sbc-v1\0{seed}\0{replicate}\0{purpose}".encode()
-    ).digest()
-    return int.from_bytes(digest[:8], "little")
+    return derive_seed("marklab-normal-mean-sbc-v1", seed, replicate, purpose, width=8)
 
 
 def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
+    """Run SBC with exact posterior draws and summarize rank, ECDF, coverage, and z checks.
+
+    Model: ``y_i ~ Normal(mu, known_sigma)`` with ``mu ~ Normal(prior_mean, prior_sd)``. Each
+    replicate draws ``mu`` and the data from the prior, then independent draws from the exact
+    conjugate posterior; ties in the rank are broken uniformly at random.
+    """
     results: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
     prior_variance = config["prior_sd"] ** 2
@@ -177,6 +164,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         1.0 / prior_variance + config["observations"] / observation_variance
     )
     posterior_sd = math.sqrt(posterior_variance)
+    interval_half_width = float(stats.norm.ppf(0.975)) * posterior_sd
     shrinkage = 1.0 - posterior_variance / prior_variance
     for replicate in range(config["replicates"]):
         try:
@@ -191,16 +179,17 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
                 config["prior_mean"] / prior_variance
                 + float(observations.sum()) / observation_variance
             )
-            posterior_rng = np.random.default_rng(
-                seed_for(config["seed"], replicate, "posterior")
-            )
+            posterior_rng = np.random.default_rng(seed_for(config["seed"], replicate, "posterior"))
             posterior = posterior_rng.normal(
                 posterior_mean, posterior_sd, size=config["posterior_draws"]
             )
             less = int(np.count_nonzero(posterior < true_value))
             ties = int(np.count_nonzero(posterior == true_value))
             rank = less + int(posterior_rng.integers(0, ties + 1))
-            interval_lower, interval_upper = np.quantile(posterior, [0.025, 0.975])
+            # This posterior is analytic. Sample quantiles from a small number of draws
+            # do not form a 95% interval, even when the draws are exact.
+            interval_lower = posterior_mean - interval_half_width
+            interval_upper = posterior_mean + interval_half_width
             values = np.asarray(
                 [
                     true_value,
@@ -228,32 +217,18 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
                 }
             )
         except Exception as error:
-            failures.append(
-                {"replicate": replicate, "reason": f"{type(error).__name__}: {error}"}
-            )
+            failures.append({"replicate": replicate, "reason": f"{type(error).__name__}: {error}"})
     if len(results) < 2:
         raise ContractError("SBC produced fewer than two valid replicates")
 
     ranks = np.asarray([result["rank"] for result in results], dtype=np.int64)
-    histogram = np.zeros(config["histogram_bins"], dtype=np.int64)
-    for rank in ranks:
-        bin_index = int(rank) * config["histogram_bins"] // (config["posterior_draws"] + 1)
-        histogram[min(bin_index, config["histogram_bins"] - 1)] += 1
-    expected = len(results) / config["histogram_bins"]
-    chi_square = float(np.sum((histogram - expected) ** 2 / expected))
-    p_value = float(stats.chi2.sf(chi_square, config["histogram_bins"] - 1))
-    sorted_ranks = np.sort(ranks)
-    empirical_cdf = np.arange(1, len(results) + 1, dtype=np.float64) / len(results)
-    expected_cdf = (sorted_ranks + 1.0) / (config["posterior_draws"] + 1.0)
-    maximum_ecdf_deviation = float(np.max(np.abs(empirical_cdf - expected_cdf)))
-    ecdf_envelope = math.sqrt(
-        math.log(2.0 / config["envelope_alpha"]) / (2.0 * len(results))
-    )
+    histogram = rank_histogram(ranks, config["posterior_draws"], config["histogram_bins"])
+    chi_square, p_value = rank_uniformity(histogram, config["posterior_draws"])
+    maximum_ecdf_deviation = maximum_rank_ecdf_deviation(ranks, config["posterior_draws"])
+    ecdf_envelope = math.sqrt(math.log(2.0 / config["envelope_alpha"]) / (2.0 * len(results)))
     covered = np.asarray([result["covered"] for result in results], dtype=np.float64)
     coverage = float(covered.mean())
-    coverage_error = float(
-        (coverage - 0.95) / math.sqrt(0.95 * 0.05 / len(results))
-    )
+    coverage_error = float((coverage - 0.95) / math.sqrt(0.95 * 0.05 / len(results)))
     z_scores = np.asarray([result["z_score"] for result in results], dtype=np.float64)
     shrinkages = np.asarray([result["shrinkage"] for result in results], dtype=np.float64)
     failure_rate = len(failures) / config["replicates"]
@@ -268,13 +243,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     return {
         "format": "marklab.numpy_scipy_normal_mean_sbc_worker_result",
         "version": 1,
-        "backend": {
-            "name": "numpy_scipy",
-            "version": BACKEND_VERSION,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("numpy_scipy", BACKEND_VERSION, lock_sha, worker_sha),
         "request_sha256": request_sha,
         "fit_state": "complete" if complete else "nonconverged",
         "replicates": results,
@@ -298,27 +267,12 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
 
 
 def main() -> None:
-    if (
-        np.__version__ != "2.4.6"
-        or scipy.__version__ != "1.18.1"
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("NumPy, SciPy, or Python version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha = hashlib.sha256(raw).hexdigest()
-    result = fit(validate(json.loads(raw), lock_sha, worker_sha), request_sha, lock_sha, worker_sha)
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    require_versions(numpy=np.__version__, scipy=scipy.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(16 * MIB)
+    config = validate(json.loads(raw), lock_sha, worker_sha)
+    write_result(fit(config, sha256_hex(raw), lock_sha, worker_sha))
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(f"marklab SBC worker failed: {type(error).__name__}: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
+    run_worker(main, "marklab SBC worker failed")

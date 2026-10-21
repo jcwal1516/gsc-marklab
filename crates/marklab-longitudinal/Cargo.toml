@@ -1,17 +1,20 @@
 [package]
 name = "marklab-longitudinal"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Bounded longitudinal state-space workflows for Marklab"
+repository.workspace = true
+description = "Linear-Gaussian state-space models for longitudinal Marklab data"
 
 [lib]
 bench = false
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-thiserror = "2"
-rand = "=0.8.6"
-rand_chacha = "=0.3.1"
-rand_distr = "=0.4.3"
+marklab-core.workspace = true
+marklab-numerics.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+rand_distr.workspace = true

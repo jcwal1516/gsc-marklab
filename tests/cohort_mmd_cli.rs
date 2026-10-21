@@ -59,7 +59,7 @@ b-2,B,y,0\n",
     assert_eq!(result["kernel"]["kind"], "linear");
     assert_eq!(result["estimator"], "unbiased");
     assert_eq!(result["mmd_squared"], 11.0);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }
 
 #[test]
@@ -164,5 +164,5 @@ b-4,B,x,2,south\n",
     assert_eq!(result["design"]["block_count"], 2);
     assert_eq!(result["groups"]["group_a_patients"], 4);
     assert_eq!(result["groups"]["group_b_patients"], 4);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }

@@ -1,9 +1,11 @@
 #![forbid(unsafe_code)]
-//! Cohort-valid population inference for Marklab scientific workflows.
+//! Cohort-level hypothesis tests and population inference for Marklab.
 
 use std::collections::HashSet;
 
 use thiserror::Error;
+
+pub(crate) use marklab_numerics::summation::neumaier_sum;
 
 mod cluster;
 mod cluster_covariate;
@@ -204,10 +206,6 @@ pub struct PatientPermutationResult {
     pub p_value: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Successfully completed replicate count.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
     /// Prespecified alternative.
@@ -295,8 +293,6 @@ pub fn patient_level_permutation_test(
         studentized_statistic: observed.studentized,
         p_value,
         permutations_requested: design.permutations(),
-        permutations_attempted: design.permutations(),
-        permutations_completed: design.permutations(),
         seed: design.seed(),
         alternative: design.alternative(),
     })
@@ -380,18 +376,6 @@ fn validate_records(
     Ok(validated)
 }
 
-fn compensated_sum(values: impl IntoIterator<Item = f64>) -> f64 {
-    let mut sum = 0.0;
-    let mut correction = 0.0;
-    for value in values {
-        let adjusted = value - correction;
-        let next = sum + adjusted;
-        correction = (next - sum) - adjusted;
-        sum = next;
-    }
-    sum
-}
-
 fn derive_seed_in_namespace(base_seed: u64, namespace: u64, replicate: usize) -> u64 {
     splitmix64(splitmix64(base_seed ^ namespace) ^ replicate as u64)
 }
@@ -467,7 +451,7 @@ mod tests {
         assert_eq!(result.effect_group_a_minus_group_b, 7.0);
         assert!((result.studentized_statistic - 9.899_494_936_611_665).abs() < 1e-12);
         assert_eq!(result.p_value, 1.0);
-        assert_eq!(result.permutations_completed, 99);
+        assert_eq!(result.permutations_requested, 99);
     }
 
     #[test]

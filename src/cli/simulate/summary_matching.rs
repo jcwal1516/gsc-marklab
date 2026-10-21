@@ -5,14 +5,7 @@ use marklab_simulation::{summary_matching_loss, SimulationError, SummaryMatching
 use crate::{MarklabError, Result};
 
 pub(crate) fn run(input_path: PathBuf, output_path: PathBuf) -> Result<()> {
-    let metadata =
-        fs::metadata(&input_path).map_err(|source| MarklabError::io(&input_path, source))?;
-    if metadata.len() > 16 * 1024 * 1024 {
-        return Err(MarklabError::Validation(
-            "summary-matching input exceeds 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input_path).map_err(|source| MarklabError::io(&input_path, source))?;
+    let bytes = super::read_input(&input_path, "summary-matching")?;
     let spec: SummaryMatchingSpec = serde_json::from_slice(&bytes)?;
     let result = summary_matching_loss(spec).map_err(map)?;
     if let Some(parent) = output_path.parent() {

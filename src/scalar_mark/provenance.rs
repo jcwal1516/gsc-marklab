@@ -1,13 +1,13 @@
+use crate::measurement_status_wire::name as measurement_status_name;
 use std::collections::BTreeMap;
 
-use marklab_workflow::{ArtifactId, ArtifactRecord, ContentDigest, MarklabProject};
+use marklab_project::{ArtifactId, ArtifactRecord, ContentDigest, MarklabProject};
 
 use super::{
     declaration::{
-        measurement_status_name, BinaryMarkDeclaration, BinaryMarkOrigin,
-        HistologicCompartmentMarkDeclaration, NucleusAreaUm2MarkDeclaration,
-        OrdinalMarkDeclaration, ProbabilityMarkDeclaration, ProbabilitySimplexMarkDeclaration,
-        ProbabilityThresholdComparator, ScalarMarkValueKind,
+        BinaryMarkDeclaration, BinaryMarkOrigin, HistologicCompartmentMarkDeclaration,
+        NucleusAreaUm2MarkDeclaration, OrdinalMarkDeclaration, ProbabilityMarkDeclaration,
+        ProbabilitySimplexMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkValueKind,
     },
     DeclaredScalarInputError,
 };

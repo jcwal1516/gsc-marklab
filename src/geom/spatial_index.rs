@@ -1,9 +1,6 @@
 use rstar::{primitives::GeomWithData, RTree};
 
-use crate::{
-    common::stats::mean_all_finite,
-    errors::{MarklabError, Result},
-};
+use crate::errors::{MarklabError, Result};
 
 type IndexedPoint = GeomWithData<[f64; 2], usize>;
 
@@ -243,19 +240,27 @@ impl SpatialIndex2D {
     }
 }
 
-pub fn mean_nearest_neighbor_distance(x: &[f64], y: &[f64]) -> Option<f64> {
-    let index = SpatialIndex2D::new(x, y).ok()?;
+/// Mean distance from each point to its nearest neighbor, or `None` for fewer than two points.
+pub fn mean_nearest_neighbor_distance(x: &[f64], y: &[f64]) -> Result<Option<f64>> {
+    let index = SpatialIndex2D::new(x, y)?;
     if index.len() < 2 {
-        return None;
+        return Ok(None);
     }
-    mean_all_finite((0..index.len()).map(|point| {
-        index
-            .nearest_neighbor(point)
-            .ok()
-            .flatten()
-            .map(|neighbor| neighbor.distance_um)
-            .unwrap_or(f64::NAN)
-    }))
+    let mut sum = 0.0;
+    for point in 0..index.len() {
+        let neighbor = index.nearest_neighbor(point)?.ok_or_else(|| {
+            MarklabError::Geometry("a point in a multi-point index has no nearest neighbor".into())
+        })?;
+        sum += neighbor.distance_um;
+    }
+    let mean = sum / index.len() as f64;
+    if mean.is_finite() {
+        Ok(Some(mean))
+    } else {
+        Err(MarklabError::Geometry(
+            "mean nearest-neighbor distance is not finite".into(),
+        ))
+    }
 }
 
 fn validate_radius(radius_um: f64) -> Result<()> {

@@ -1,7 +1,7 @@
-mod preflight;
-mod profile;
+pub(in crate::columnar::parquet) mod preflight;
+pub(in crate::columnar::parquet) mod profile;
 mod publication;
-mod reader;
+pub(in crate::columnar::parquet) mod reader;
 mod writer;
 
 pub use preflight::{

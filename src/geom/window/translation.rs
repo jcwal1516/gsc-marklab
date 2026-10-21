@@ -16,6 +16,26 @@ impl ObservationWindow2D {
         if !displacement_x_um.is_finite() || !displacement_y_um.is_finite() {
             return Err(ObservationWindowError::NonFiniteTranslation);
         }
+        if let Some(area_um2) = analytic_rectangle_overlap(
+            &self.translation_geometry,
+            self.descriptor.bounds_um,
+            displacement_x_um,
+            displacement_y_um,
+        ) {
+            let output_vertices = usize::from(area_um2 > 0.0) * 5;
+            if output_vertices > maximum_output_vertices {
+                return Err(
+                    ObservationWindowError::TranslationOutputVertexLimitExceeded {
+                        observed: output_vertices,
+                        maximum: maximum_output_vertices,
+                    },
+                );
+            }
+            return Ok(TranslationOverlap2D {
+                area_um2: canonical_zero(area_um2),
+                output_vertices,
+            });
+        }
         let translated = translate_geo_multipolygon(
             &self.translation_geometry,
             displacement_x_um,
@@ -46,6 +66,52 @@ impl ObservationWindow2D {
             output_vertices,
         })
     }
+}
+
+fn analytic_rectangle_overlap(
+    geometry: &GeoMultiPolygon<f64>,
+    bounds: [f64; 4],
+    displacement_x_um: f64,
+    displacement_y_um: f64,
+) -> Option<f64> {
+    let [polygon] = geometry.0.as_slice() else {
+        return None;
+    };
+    if !polygon.interiors().is_empty() {
+        return None;
+    }
+    let coordinates = &polygon.exterior().0;
+    if coordinates.len() != 5 || coordinates.first() != coordinates.last() {
+        return None;
+    }
+    let [min_x, min_y, max_x, max_y] = bounds;
+    let mut corners = [false; 4];
+    for coordinate in &coordinates[..4] {
+        let x = if coordinate.x == min_x {
+            0
+        } else if coordinate.x == max_x {
+            1
+        } else {
+            return None;
+        };
+        let y = if coordinate.y == min_y {
+            0
+        } else if coordinate.y == max_y {
+            1
+        } else {
+            return None;
+        };
+        let corner = 2 * y + x;
+        if std::mem::replace(&mut corners[corner], true) {
+            return None;
+        }
+    }
+    if !corners.into_iter().all(std::convert::identity) {
+        return None;
+    }
+    let overlap_width = ((max_x - min_x) - displacement_x_um.abs()).max(0.0);
+    let overlap_height = ((max_y - min_y) - displacement_y_um.abs()).max(0.0);
+    Some(overlap_width * overlap_height)
 }
 
 fn translate_geo_multipolygon(

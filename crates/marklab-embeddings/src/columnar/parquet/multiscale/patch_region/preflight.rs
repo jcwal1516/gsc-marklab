@@ -34,7 +34,7 @@ use crate::columnar::{
             TRAILER_BYTES,
         },
     },
-    EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialParquetFailure,
+    ColumnarError, EmbeddingColumnarBudgets, ParquetFailure,
 };
 use crate::multiscale::physical::SpatialPhysicalEncoding;
 
@@ -96,8 +96,8 @@ pub fn preflight_patch_region_link_parquet_bytes(
     bytes: &[u8],
     link: &PatchRegionLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<PatchRegionParquetPreflight, MultiscaleColumnarError> {
-    let encoded = u64::try_from(bytes.len()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<PatchRegionParquetPreflight, ColumnarError> {
+    let encoded = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
     enforce_file_budget(encoded, budgets)?;
     let prepared = prepare_reader(
         &mut Cursor::new(bytes),
@@ -115,22 +115,22 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
     content_digest: ContentDigest,
     link: &PatchRegionLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<PreparedPatchRegionParquet, MultiscaleColumnarError> {
+) -> Result<PreparedPatchRegionParquet, ColumnarError> {
     enforce_file_budget(encoded_byte_len, budgets)?;
     validate_patch_region_domain(link)?;
     let row_count = link.nonzero_relation_count();
     enforce_decoded_budget(decoded_bytes(link)?, budgets)?;
     let minimum = u64::try_from(PARQUET_MAGIC.len() + TRAILER_BYTES)
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+        .map_err(|_| ColumnarError::SizeOverflow)?;
     if encoded_byte_len < minimum {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidMagic));
+        return Err(parquet_failure(ParquetFailure::InvalidMagic));
     }
     if reader
         .seek(SeekFrom::End(0))
-        .map_err(|_| parquet_failure(SpatialParquetFailure::ArtifactRead))?
+        .map_err(|_| parquet_failure(ParquetFailure::ArtifactRead))?
         != encoded_byte_len
     {
-        return Err(parquet_failure(SpatialParquetFailure::ArtifactRead));
+        return Err(parquet_failure(ParquetFailure::ArtifactRead));
     }
     let mut leading = [0_u8; 4];
     read_exact_at(reader, 0, &mut leading)?;
@@ -141,52 +141,52 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
         &mut trailer,
     )?;
     if &leading != PARQUET_MAGIC || trailer.get(4..) != Some(PARQUET_MAGIC) {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidMagic));
+        return Err(parquet_failure(ParquetFailure::InvalidMagic));
     }
-    let footer_len =
-        usize::try_from(u32::from_le_bytes(trailer[..4].try_into().map_err(
-            |_| parquet_failure(SpatialParquetFailure::InvalidFooterLength),
-        )?))
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
-    let file_len =
-        usize::try_from(encoded_byte_len).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+    let footer_len = usize::try_from(u32::from_le_bytes(
+        trailer[..4]
+            .try_into()
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidFooterLength))?,
+    ))
+    .map_err(|_| ColumnarError::SizeOverflow)?;
+    let file_len = usize::try_from(encoded_byte_len).map_err(|_| ColumnarError::SizeOverflow)?;
     let footer_length_offset = file_len
         .checked_sub(TRAILER_BYTES)
-        .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidFooterLength))?;
+        .ok_or_else(|| parquet_failure(ParquetFailure::InvalidFooterLength))?;
     let footer_start = validate_footer_length(footer_len, footer_length_offset)?;
     let expected_groups = row_count.div_ceil(ROW_GROUP_ROWS);
     let limits = footer_compact_limits(expected_groups)?;
     let raw_retained = estimate_raw_preflight_bytes(footer_len, limits)
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+        .map_err(|_| ColumnarError::SizeOverflow)?;
     let stock_retained = estimate_raw_preflight_bytes(MAXIMUM_FOOTER_BYTES, limits)
-        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?
+        .map_err(|_| ColumnarError::SizeOverflow)?
         .checked_mul(2)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let mut retained = raw_retained.max(stock_retained);
     enforce_retained_budget(retained, budgets)?;
     let mut footer = Vec::new();
-    footer.try_reserve_exact(footer_len).map_err(|_| {
-        MultiscaleColumnarError::AllocationFailed {
+    footer
+        .try_reserve_exact(footer_len)
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: footer_len,
-        }
-    })?;
+        })?;
     footer.resize(footer_len, 0);
     read_exact_at(
         reader,
-        u64::try_from(footer_start).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        u64::try_from(footer_start).map_err(|_| ColumnarError::SizeOverflow)?,
         &mut footer,
     )?;
     let mut protocol = BoundedCompactProtocol::new(&footer, limits);
     let raw = FileMetaData::read_from_in_protocol(&mut protocol)
-        .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidFooter))?;
+        .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?;
     if protocol
         .consumed_bytes()
-        .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidFooter))?
+        .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?
         != footer.len()
         || !is_canonical_compact(&raw, &footer)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidFooter))?
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?
     {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidFooter));
+        return Err(parquet_failure(ParquetFailure::InvalidFooter));
     }
     validate_metadata_tree(
         footer_start,
@@ -194,24 +194,22 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
         link,
         budgets,
         |start, end, column, group_start, rows| {
-            let chunk_len = end
-                .checked_sub(start)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            let chunk_len = end.checked_sub(start).ok_or(ColumnarError::SizeOverflow)?;
             let peak = raw_retained
                 .checked_add(chunk_len)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             retained = retained.max(peak);
             enforce_retained_budget(peak, budgets)?;
             let mut chunk = Vec::new();
-            chunk.try_reserve_exact(chunk_len).map_err(|_| {
-                MultiscaleColumnarError::AllocationFailed {
+            chunk
+                .try_reserve_exact(chunk_len)
+                .map_err(|_| ColumnarError::AllocationFailed {
                     requested: chunk_len,
-                }
-            })?;
+                })?;
             chunk.resize(chunk_len, 0);
             read_exact_at(
                 reader,
-                u64::try_from(start).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+                u64::try_from(start).map_err(|_| ColumnarError::SizeOverflow)?,
                 &mut chunk,
             )?;
             validate_pages(&chunk, start, start, end, column, group_start, rows, link)
@@ -220,7 +218,7 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
     let row_group_count = raw.row_groups.len();
     drop(raw);
     let stock = ParquetMetaDataReader::decode_metadata(&footer)
-        .map_err(|_| parquet_failure(SpatialParquetFailure::StockDecode))?;
+        .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
     if stock.memory_size() > stock_retained
         || stock.file_metadata().version() != 2
         || usize::try_from(stock.file_metadata().num_rows()).ok() != Some(row_count)
@@ -229,12 +227,11 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
         || stock.column_index().is_some()
         || stock.offset_index().is_some()
     {
-        return Err(parquet_failure(SpatialParquetFailure::StockDecode));
+        return Err(parquet_failure(ParquetFailure::StockDecode));
     }
     Ok(PreparedPatchRegionParquet {
-        row_count: u64::try_from(row_count).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
-        row_group_count: u32::try_from(row_group_count)
-            .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        row_count: u64::try_from(row_count).map_err(|_| ColumnarError::SizeOverflow)?,
+        row_group_count: u32::try_from(row_group_count).map_err(|_| ColumnarError::SizeOverflow)?,
         encoded_byte_len,
         content_digest,
         retained_preflight_bytes: retained,
@@ -248,16 +245,16 @@ fn validate_metadata_tree<F>(
     link: &PatchRegionLink,
     budgets: EmbeddingColumnarBudgets,
     page_validator: F,
-) -> Result<(), MultiscaleColumnarError>
+) -> Result<(), ColumnarError>
 where
-    F: FnMut(usize, usize, usize, usize, usize) -> Result<usize, MultiscaleColumnarError>,
+    F: FnMut(usize, usize, usize, usize, usize) -> Result<usize, ColumnarError>,
 {
     let expected_rows = link.nonzero_relation_count();
     if metadata.version != 2
         || usize::try_from(metadata.num_rows).ok() != Some(expected_rows)
         || metadata.row_groups.len() != expected_rows.div_ceil(ROW_GROUP_ROWS)
     {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidRowCount));
+        return Err(parquet_failure(ParquetFailure::InvalidRowCount));
     }
     validate_schema(&metadata.schema)?;
     validate_metadata(metadata, link)?;
@@ -277,7 +274,7 @@ where
                     .ne(std::iter::once(expected_path))
                 || usize::try_from(column_metadata.num_values).ok() != Some(rows)
             {
-                return Err(parquet_failure(SpatialParquetFailure::InvalidRowGroup));
+                return Err(parquet_failure(ParquetFailure::InvalidRowGroup));
             }
             Ok(())
         },
@@ -295,7 +292,30 @@ fn validate_pages(
     group_start_row: usize,
     group_rows: usize,
     link: &PatchRegionLink,
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
+    validate_pages_profile(
+        bytes,
+        base_offset,
+        start,
+        end,
+        column_index,
+        group_start_row,
+        group_rows,
+        Some(link),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(in crate::columnar::parquet) fn validate_pages_profile(
+    bytes: &[u8],
+    base_offset: usize,
+    start: usize,
+    end: usize,
+    column_index: usize,
+    group_start_row: usize,
+    group_rows: usize,
+    link: Option<&PatchRegionLink>,
+) -> Result<usize, ColumnarError> {
     let mut cursor = start;
     let mut page_count = 0_usize;
     let mut page_start_row = 0_usize;
@@ -303,43 +323,43 @@ fn validate_pages(
         let header_limit = cursor
             .checked_add(MAXIMUM_PAGE_HEADER_BYTES)
             .map(|value| value.min(end))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let window = absolute_slice(bytes, base_offset, cursor, header_limit)
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
         let mut protocol = BoundedCompactProtocol::new(window, page_limits());
         let header = PageHeader::read_from_in_protocol(&mut protocol)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let header_bytes = protocol
             .consumed_bytes()
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         if header_bytes == 0
             || header_bytes > MAXIMUM_PAGE_HEADER_BYTES
             || !is_canonical_compact(
                 &header,
                 window
                     .get(..header_bytes)
-                    .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?,
+                    .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?,
             )
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?
         {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
+            return Err(parquet_failure(ParquetFailure::InvalidPage));
         }
         let body_bytes = usize::try_from(header.compressed_page_size)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let uncompressed = usize::try_from(header.uncompressed_page_size)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let body_start = cursor
             .checked_add(header_bytes)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let page_end = body_start
             .checked_add(body_bytes)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let page = header
             .data_page_header_v2
             .as_ref()
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
         let rows = usize::try_from(page.num_rows)
-            .map_err(|_| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         if body_bytes > MAXIMUM_PAGE_BYTES
             || body_bytes != uncompressed
             || page_end > end
@@ -361,24 +381,30 @@ fn validate_pages(
                 .checked_add(rows)
                 .is_none_or(|value| value > group_rows)
         {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
+            return Err(parquet_failure(ParquetFailure::InvalidPage));
         }
         let body = absolute_slice(bytes, base_offset, body_start, page_end)
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
         let absolute_start = group_start_row
             .checked_add(page_start_row)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-        validate_plain_values(body, column_index, absolute_start, rows, link)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
+        if let Some(link) = link {
+            validate_plain_values(body, column_index, absolute_start, rows, link)?;
+        } else if column_index < 3 {
+            crate::columnar::parquet::read::validate_strings(body, rows)?;
+        } else {
+            crate::columnar::parquet::read::validate_fixed_width(body, rows, 8)?;
+        }
         page_start_row = page_start_row
             .checked_add(rows)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         page_count = page_count
             .checked_add(1)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         cursor = page_end;
     }
     if cursor != end || page_start_row != group_rows {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidPage));
+        return Err(parquet_failure(ParquetFailure::InvalidPage));
     }
     Ok(page_count)
 }
@@ -389,25 +415,25 @@ fn validate_plain_values(
     start: usize,
     rows: usize,
     link: &PatchRegionLink,
-) -> Result<(), MultiscaleColumnarError> {
-    let end = start
-        .checked_add(rows)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+) -> Result<(), ColumnarError> {
+    let end = start.checked_add(rows).ok_or(ColumnarError::SizeOverflow)?;
     let selected = link
         .nonzero_relations()
         .get(start..end)
-        .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidPage))?;
+        .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
     match column {
         0 => validate_plain_strings(bytes, selected.iter().map(|row| row.patch_id().as_str())),
         1 => validate_plain_strings(bytes, selected.iter().map(|row| row.region_id().as_str())),
         2 => validate_plain_strings(bytes, selected.iter().map(|row| row.relation().wire_name())),
         3 => validate_plain_u64(bytes, selected.iter().map(|row| row.numerator())),
         4 => validate_plain_u64(bytes, selected.iter().map(|row| row.denominator())),
-        _ => Err(parquet_failure(SpatialParquetFailure::InvalidPage)),
+        _ => Err(parquet_failure(ParquetFailure::InvalidPage)),
     }
 }
 
-fn validate_schema(schema: &[SchemaElement]) -> Result<(), MultiscaleColumnarError> {
+pub(in crate::columnar::parquet) fn validate_schema(
+    schema: &[SchemaElement],
+) -> Result<(), ColumnarError> {
     if schema.len() != COLUMN_COUNT + 1
         || !is_group(&schema[0], ROOT, COLUMN_COUNT as i32)
         || !is_utf8(&schema[1], "patch_id")
@@ -416,7 +442,7 @@ fn validate_schema(schema: &[SchemaElement]) -> Result<(), MultiscaleColumnarErr
         || !is_u64(&schema[4], "overlap_numerator")
         || !is_u64(&schema[5], "overlap_denominator")
     {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidSchema));
+        return Err(parquet_failure(ParquetFailure::InvalidSchema));
     }
     Ok(())
 }
@@ -438,83 +464,84 @@ fn is_u64(element: &SchemaElement, name: &str) -> bool {
         )
 }
 
-fn validate_metadata(
-    metadata: &FileMetaData,
-    link: &PatchRegionLink,
-) -> Result<(), MultiscaleColumnarError> {
+fn validate_metadata(metadata: &FileMetaData, link: &PatchRegionLink) -> Result<(), ColumnarError> {
     let entries = metadata
         .key_value_metadata
         .as_ref()
-        .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidMetadata))?;
+        .ok_or_else(|| parquet_failure(ParquetFailure::InvalidMetadata))?;
     let expected = patch_region_metadata(SpatialPhysicalEncoding::Parquet, link);
     if entries.len() != expected.len() {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidMetadata));
+        return Err(parquet_failure(ParquetFailure::InvalidMetadata));
     }
     let mut total = 0_usize;
     for (entry, (key, value)) in entries.iter().zip(expected) {
         let observed = entry
             .value
             .as_deref()
-            .ok_or_else(|| parquet_failure(SpatialParquetFailure::InvalidMetadata))?;
+            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidMetadata))?;
         total = total
             .checked_add(entry.key.len())
             .and_then(|sum| sum.checked_add(observed.len()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if entry.key != key || observed != value || observed.is_empty() {
-            return Err(parquet_failure(SpatialParquetFailure::InvalidMetadata));
+            return Err(parquet_failure(ParquetFailure::InvalidMetadata));
         }
     }
     if total > MAXIMUM_APPLICATION_METADATA_BYTES {
-        return Err(parquet_failure(SpatialParquetFailure::InvalidMetadata));
+        return Err(parquet_failure(ParquetFailure::InvalidMetadata));
     }
     Ok(())
 }
 
-fn column_profile(index: usize) -> Result<(Type, &'static str), MultiscaleColumnarError> {
+pub(in crate::columnar::parquet) fn column_profile(
+    index: usize,
+) -> Result<(Type, &'static str), ColumnarError> {
     match index {
         0 => Ok((Type::BYTE_ARRAY, "patch_id")),
         1 => Ok((Type::BYTE_ARRAY, "region_id")),
         2 => Ok((Type::BYTE_ARRAY, "relation")),
         3 => Ok((Type::INT64, "overlap_numerator")),
         4 => Ok((Type::INT64, "overlap_denominator")),
-        _ => Err(parquet_failure(SpatialParquetFailure::InvalidRowGroup)),
+        _ => Err(parquet_failure(ParquetFailure::InvalidRowGroup)),
     }
 }
 
-fn decoded_bytes(link: &PatchRegionLink) -> Result<u64, MultiscaleColumnarError> {
+fn decoded_bytes(link: &PatchRegionLink) -> Result<u64, ColumnarError> {
     link.nonzero_relations()
         .chunks(ROW_GROUP_ROWS)
         .try_fold(0_u64, |total, rows| {
             total
                 .checked_add(
                     u64::try_from(patch_region_decoded_bytes(rows)?)
-                        .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+                        .map_err(|_| ColumnarError::SizeOverflow)?,
                 )
-                .ok_or(MultiscaleColumnarError::SizeOverflow)
+                .ok_or(ColumnarError::SizeOverflow)
         })
 }
 
-fn footer_compact_limits(expected_groups: usize) -> Result<CompactLimits, MultiscaleColumnarError> {
+pub(in crate::columnar::parquet) fn footer_compact_limits(
+    expected_groups: usize,
+) -> Result<CompactLimits, ColumnarError> {
     let schema_elements = COLUMN_COUNT
         .checked_add(1)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let per_group_elements = COLUMN_COUNT
         .checked_mul(5)
         .and_then(|value| value.checked_add(1))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let top_level_elements = COLUMN_COUNT
         .checked_mul(2)
         .and_then(|value| value.checked_add(1))
         .and_then(|value| value.checked_add(PATCH_REGION_METADATA_KEYS.len()))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let maximum_total_elements = expected_groups
         .checked_mul(per_group_elements)
         .and_then(|value| value.checked_add(top_level_elements))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let maximum_fields = expected_groups
         .checked_mul(256)
         .and_then(|value| value.checked_add(256))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     Ok(CompactLimits {
         maximum_depth: 16,
         maximum_fields,

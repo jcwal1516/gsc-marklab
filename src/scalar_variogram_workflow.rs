@@ -1,30 +1,38 @@
+use crate::result_vocabulary::{EdgeCorrection, VariogramInferenceStatus, VariogramMultiplicity};
+use crate::workflow_codec::invalid;
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::{collections::BTreeSet, io, str::FromStr};
 
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::{Deserialize, Serialize};
 
 use crate::measurement_status_wire::parse as parse_measurement_status;
 use crate::{
+    autocorrelation::{
+        ScalarVariogramBin, ScalarVariogramConditioning, ScalarVariogramEnvelopeRow,
+        ScalarVariogramInferenceDesign, ScalarVariogramInferenceLimits,
+        ScalarVariogramInferenceResult, ScalarVariogramResult, ScalarVariogramRow,
+    },
+    marked_workflow::pattern_artifact,
+    scalar_mark::COMPARTMENT_MARK_ID,
     scalar_mark::{DeclaredScalarPatternInput, ScalarMarkId},
     scalar_variogram::pair_plan_digest,
     spatial_autocorrelation_workflow::window_artifact,
-    workflow::pattern_artifact,
-    ObservationWindow2D, ScalarVariogramBin, ScalarVariogramConditioning,
-    ScalarVariogramEnvelopeRow, ScalarVariogramInferenceDesign, ScalarVariogramInferenceLimits,
-    ScalarVariogramInferenceResult, ScalarVariogramResult, ScalarVariogramRow,
+    ObservationWindow2D,
 };
 
-const RESULT_KIND: &str = "application/vnd.marklab.scalar-variogram-inference+json;version=1";
+const RESULT_KIND: &str = "application/vnd.marklab.scalar-variogram-inference+json;version=2";
 const NODE_KIND: &str = "scalar_variogram_inference";
-const ADAPTER_REVISION: &str = "scalar-variogram-inference-workflow-v2";
+const ADAPTER_REVISION: &str = "scalar-variogram-inference-workflow-v3";
 
-/// Existing typed scalar-semivariogram inference exposed as one durable workflow node.
+/// Scalar-semivariogram inference as one durable workflow node.
 pub struct ScalarVariogramAnalysisNode<'input, 'pattern, 'window> {
-    spec: NodeSpec,
+    node: TypedNode<ScalarVariogramAnalysis<'input, 'pattern, 'window>>,
+}
+
+struct ScalarVariogramAnalysis<'input, 'pattern, 'window> {
     input: &'input DeclaredScalarPatternInput<'pattern>,
     window: &'window ObservationWindow2D,
     mark_id: ScalarMarkId,
@@ -32,10 +40,6 @@ pub struct ScalarVariogramAnalysisNode<'input, 'pattern, 'window> {
     design: ScalarVariogramInferenceDesign,
     limits: ScalarVariogramInferenceLimits,
     maximum_retained_bytes: usize,
-    inputs: [ArtifactRef; 3],
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
-    implementation_identity: String,
 }
 
 impl<'input, 'pattern, 'window> ScalarVariogramAnalysisNode<'input, 'pattern, 'window> {
@@ -75,47 +79,51 @@ impl<'input, 'pattern, 'window> ScalarVariogramAnalysisNode<'input, 'pattern, 'w
         let configuration =
             configuration_bytes(mark_id, bins, design, limits, maximum_retained_bytes);
         let execution_policy = execution_policy(design, limits, maximum_retained_bytes);
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_mark_id = mark_id.clone();
+        let node_bins = bins.to_vec().into_boxed_slice();
+        let node_design = design.clone();
+        let node_inputs = [pattern, declared, window_ref];
+        let node_configuration_digest = ContentDigest::from_bytes(&configuration);
+        let node_implementation_identity = format!(
+            "marklab/{};adapter={ADAPTER_REVISION}",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            window,
-            mark_id: mark_id.clone(),
-            bins: bins.to_vec().into_boxed_slice(),
-            design: design.clone(),
-            limits,
-            maximum_retained_bytes,
-            inputs: [pattern, declared, window_ref],
-            configuration_digest: ContentDigest::from_bytes(&configuration),
-            execution_policy,
-            implementation_identity: format!(
-                "marklab/{};adapter={ADAPTER_REVISION}",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: ScalarVariogramAnalysis {
+                    input,
+                    window,
+                    mark_id: node_mark_id,
+                    bins: node_bins,
+                    design: node_design,
+                    limits,
+                    maximum_retained_bytes,
+                },
+                inputs: node_inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Owned(execution_policy),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     /// Return the exact versioned source-node specification.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for ScalarVariogramAnalysisNode<'_, '_, '_> {
+impl NodeAnalysis for ScalarVariogramAnalysis<'_, '_, '_> {
     type Output = ScalarVariogramInferenceResult;
+    type Inputs = [ArtifactRef; 3];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let current = [
             pattern_artifact(self.input.pattern())?,
             self.input
@@ -123,24 +131,11 @@ impl WorkflowNode for ScalarVariogramAnalysisNode<'_, '_, '_> {
                 .map_err(NodeError::input)?,
             window_artifact(self.window)?,
         ];
-        for (bound, current) in self.inputs.iter().zip(current) {
-            bound
-                .verify_identity(current.digest(), current.byte_len())
-                .map_err(NodeError::input)?;
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_inputs(inputs, current)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::scalar_semivariogram_permutation(
+        crate::autocorrelation::scalar_semivariogram_permutation(
             self.input,
             self.window,
             &self.mark_id,
@@ -170,7 +165,9 @@ impl WorkflowNode for ScalarVariogramAnalysisNode<'_, '_, '_> {
     }
 }
 
-impl ScalarVariogramAnalysisNode<'_, '_, '_> {
+crate::workflow_node::impl_workflow_node!(ScalarVariogramAnalysisNode<'_, '_, '_> => ScalarVariogramInferenceResult);
+
+impl ScalarVariogramAnalysis<'_, '_, '_> {
     fn validate_decoded(&self, result: &ScalarVariogramInferenceResult) -> io::Result<()> {
         let table = self
             .input
@@ -207,7 +204,7 @@ impl ScalarVariogramAnalysisNode<'_, '_, '_> {
             match self.design.conditioning() {
                 ScalarVariogramConditioning::None => (None, None, 1),
                 ScalarVariogramConditioning::HistologicCompartment => {
-                    let id = ScalarMarkId::new("histologic_compartment")
+                    let id = ScalarMarkId::new(COMPARTMENT_MARK_ID)
                         .map_err(|_| invalid("invalid built-in conditioning mark ID"))?;
                     let codes = table
                         .categorical_values(&id)
@@ -227,8 +224,8 @@ impl ScalarVariogramAnalysisNode<'_, '_, '_> {
             || result.observed.pair_plan_digest != expected_pair_digest
             || result.observed.point_count != point_count
             || result.observed.pair_visits != pair_visits
-            || result.observed.edge_correction != "none_fixed_observed_locations"
-            || result.observed.inference_status != "observed_only_no_null"
+            || result.observed.edge_correction != EdgeCorrection::NoneFixedObservedLocations
+            || result.observed.inference_status != VariogramInferenceStatus::ObservedOnlyNoNull
             || point_count > observed_limits.maximum_points
             || pair_visits > observed_limits.maximum_pair_visits
             || work > self.limits.maximum_permutation_pair_evaluations()
@@ -237,14 +234,14 @@ impl ScalarVariogramAnalysisNode<'_, '_, '_> {
             || result.curve.len() != self.bins.len()
             || result.observed.curve.len() != self.bins.len()
             || result.permutations_requested != self.design.permutations()
-            || result.permutations_completed != self.design.permutations()
             || result.seed != self.design.seed()
             || result.alpha.to_bits() != self.design.alpha().to_bits()
             || result.conditioning != self.design.conditioning()
             || result.conditioning_mark_id != expected_conditioning_mark
             || result.conditioning_measurement_status != expected_conditioning_status
             || result.stratum_count != expected_strata
-            || result.multiplicity_policy != "two_sided_extreme_rank_length_global_envelope"
+            || result.multiplicity_policy
+                != VariogramMultiplicity::TwoSidedExtremeRankLengthGlobalEnvelope
             || !result.p_global.is_finite()
             || !(0.0..=1.0).contains(&result.p_global)
             || !result.observed_erl_depth.is_finite()
@@ -397,8 +394,8 @@ struct ScalarVariogramWire {
     point_count: u64,
     pair_visits: u64,
     observed_curve: Vec<ScalarVariogramRowWire>,
-    edge_correction: String,
-    inference_status: String,
+    edge_correction: EdgeCorrection,
+    inference_status: VariogramInferenceStatus,
     curve: Vec<ScalarVariogramEnvelopeWire>,
     p_global: f64,
     observed_erl_depth: f64,
@@ -410,9 +407,8 @@ struct ScalarVariogramWire {
     conditioning_measurement_status: Option<String>,
     conditioning: String,
     permutations_requested: u64,
-    permutations_completed: u64,
     seed: u64,
-    multiplicity_policy: String,
+    multiplicity_policy: VariogramMultiplicity,
 }
 
 impl From<&ScalarVariogramRow> for ScalarVariogramRowWire {
@@ -458,8 +454,8 @@ impl From<&ScalarVariogramInferenceResult> for ScalarVariogramWire {
                 .iter()
                 .map(ScalarVariogramRowWire::from)
                 .collect(),
-            edge_correction: value.observed.edge_correction.into(),
-            inference_status: value.observed.inference_status.into(),
+            edge_correction: value.observed.edge_correction,
+            inference_status: value.observed.inference_status,
             curve: value
                 .curve
                 .iter()
@@ -485,9 +481,8 @@ impl From<&ScalarVariogramInferenceResult> for ScalarVariogramWire {
                 .map(str::to_owned),
             conditioning: conditioning_name(value.conditioning).into(),
             permutations_requested: value.permutations_requested as u64,
-            permutations_completed: value.permutations_completed as u64,
             seed: value.seed,
-            multiplicity_policy: value.multiplicity_policy.into(),
+            multiplicity_policy: value.multiplicity_policy,
         }
     }
 }
@@ -497,9 +492,10 @@ impl TryFrom<ScalarVariogramWire> for ScalarVariogramInferenceResult {
 
     fn try_from(value: ScalarVariogramWire) -> Result<Self, Self::Error> {
         if value.format != "marklab.scalar-semivariogram-inference/1"
-            || value.edge_correction != "none_fixed_observed_locations"
-            || value.inference_status != "observed_only_no_null"
-            || value.multiplicity_policy != "two_sided_extreme_rank_length_global_envelope"
+            || value.edge_correction != EdgeCorrection::NoneFixedObservedLocations
+            || value.inference_status != VariogramInferenceStatus::ObservedOnlyNoNull
+            || value.multiplicity_policy
+                != VariogramMultiplicity::TwoSidedExtremeRankLengthGlobalEnvelope
         {
             return Err(invalid(
                 "unsupported scalar variogram result format or policy",
@@ -522,8 +518,8 @@ impl TryFrom<ScalarVariogramWire> for ScalarVariogramInferenceResult {
                 .into_iter()
                 .map(ScalarVariogramRow::try_from)
                 .collect::<io::Result<_>>()?,
-            edge_correction: "none_fixed_observed_locations",
-            inference_status: "observed_only_no_null",
+            edge_correction: EdgeCorrection::NoneFixedObservedLocations,
+            inference_status: VariogramInferenceStatus::ObservedOnlyNoNull,
         };
         let curve = value
             .curve
@@ -557,9 +553,8 @@ impl TryFrom<ScalarVariogramWire> for ScalarVariogramInferenceResult {
                 .transpose()?,
             conditioning: parse_conditioning(&value.conditioning)?,
             permutations_requested: to_usize(value.permutations_requested)?,
-            permutations_completed: to_usize(value.permutations_completed)?,
             seed: value.seed,
-            multiplicity_policy: "two_sided_extreme_rank_length_global_envelope",
+            multiplicity_policy: VariogramMultiplicity::TwoSidedExtremeRankLengthGlobalEnvelope,
         })
     }
 }
@@ -595,10 +590,6 @@ fn parse_conditioning(value: &str) -> io::Result<ScalarVariogramConditioning> {
 
 fn to_usize(value: u64) -> io::Result<usize> {
     usize::try_from(value).map_err(|_| invalid("scalar variogram count exceeds usize"))
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {

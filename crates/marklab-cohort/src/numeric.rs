@@ -1,4 +1,4 @@
-use crate::{compensated_sum, CohortInferenceError};
+use crate::{neumaier_sum, CohortInferenceError};
 
 pub(crate) struct MeanStandardError {
     pub(crate) count: usize,
@@ -16,7 +16,7 @@ pub(crate) fn mean_standard_error(
         ));
     }
     let mean = stable_mean(values)?;
-    let variance = compensated_sum(values.iter().map(|value| {
+    let variance = neumaier_sum(values.iter().map(|value| {
         let centered = value - mean;
         centered * centered
     })) / (values.len() - 1) as f64;
@@ -47,7 +47,7 @@ pub(crate) fn stable_mean(values: &[f64]) -> Result<f64, CohortInferenceError> {
     let mean = if scale == 0.0 {
         0.0
     } else {
-        (compensated_sum(values.iter().map(|value| value / scale)) / values.len() as f64) * scale
+        (neumaier_sum(values.iter().map(|value| value / scale)) / values.len() as f64) * scale
     };
     if !mean.is_finite() {
         return Err(CohortInferenceError::NumericalFailure(
@@ -119,7 +119,7 @@ fn stable_group_mean(values: &[f64], labels: &[bool], target_group_a: bool) -> (
     if scale == 0.0 {
         return (count, 0.0);
     }
-    let normalized_sum = compensated_sum(selected.map(|(value, _)| value / scale));
+    let normalized_sum = neumaier_sum(selected.map(|(value, _)| value / scale));
     (count, (normalized_sum / count as f64) * scale)
 }
 
@@ -130,7 +130,7 @@ fn sample_group_variance(
     mean: f64,
     count: usize,
 ) -> f64 {
-    compensated_sum(
+    neumaier_sum(
         values
             .iter()
             .zip(labels)
@@ -140,4 +140,21 @@ fn sample_group_variance(
                 centered * centered
             }),
     ) / (count - 1) as f64
+}
+
+/// Solve a model's normal equations, rejecting rank-deficient designs and non-finite fits.
+pub(crate) fn solve_design(
+    matrix: &[Vec<f64>],
+    rhs: &[f64],
+    model: &str,
+) -> Result<Vec<f64>, CohortInferenceError> {
+    let solution = marklab_numerics::dense::gauss_jordan_solve(matrix, rhs).ok_or_else(|| {
+        CohortInferenceError::InvalidInput(format!("{model} model design is rank deficient"))
+    })?;
+    if solution.iter().any(|value| !value.is_finite()) {
+        return Err(CohortInferenceError::NumericalFailure(format!(
+            "{model} model solve produced a non-finite coefficient"
+        )));
+    }
+    Ok(solution)
 }

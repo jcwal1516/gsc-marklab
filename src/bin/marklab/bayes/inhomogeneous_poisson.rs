@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 
 use marklab_bayes::{
-    inhomogeneous_poisson_log_likelihood, sha256_hex, InhomogeneousPoissonError,
+    inhomogeneous_poisson_log_likelihood, json_sha256, InhomogeneousPoissonError,
     InhomogeneousPoissonEvent, InhomogeneousPoissonSpec, MidpointQuadratureValue,
     RectangularWindow,
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::InhomogeneousPoissonLikelihoodArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -28,24 +29,27 @@ struct QuadratureRow {
     offset: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    events_path: PathBuf,
-    quadrature_path: PathBuf,
-    xmin_um: f64,
-    ymin_um: f64,
-    xmax_um: f64,
-    ymax_um: f64,
-    grid_x: u32,
-    grid_y: u32,
-    intercept: f64,
-    coefficient: f64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: InhomogeneousPoissonLikelihoodArgs) -> Result<(), CliError> {
+    let InhomogeneousPoissonLikelihoodArgs {
+        events,
+        quadrature,
+        xmin_um,
+        ymin_um,
+        xmax_um,
+        ymax_um,
+        grid_x,
+        grid_y,
+        intercept,
+        coefficient,
+        out,
+    } = args;
+    let events_path = events;
+    let quadrature_path = quadrature;
+    let output_path = out;
     let events = read_events(&events_path)?;
     let quadrature = read_quadrature(&quadrature_path)?;
-    let events_sha256 = sha256_hex(&serde_json::to_vec(&events)?);
-    let quadrature_sha256 = sha256_hex(&serde_json::to_vec(&quadrature)?);
+    let events_sha256 = json_sha256(&events)?;
+    let quadrature_sha256 = json_sha256(&quadrature)?;
     let window = RectangularWindow {
         xmin_um,
         ymin_um,
@@ -93,8 +97,8 @@ pub(super) fn run(
     )
 }
 
-fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &std::path::Path) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "inhomogeneous Poisson inputs must be regular files within the 16 MiB limit",
@@ -103,7 +107,7 @@ fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
 
 pub(super) fn read_events(
     path: &std::path::Path,
-) -> Result<Vec<InhomogeneousPoissonEvent>, BayesCliError> {
+) -> Result<Vec<InhomogeneousPoissonEvent>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -111,7 +115,7 @@ pub(super) fn read_events(
         .iter()
         .eq(["event_id", "x_um", "y_um", "covariate", "offset"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "event headers must be exactly: event_id,x_um,y_um,covariate,offset".into(),
         ));
     }
@@ -126,7 +130,7 @@ pub(super) fn read_events(
             offset: row.offset,
         });
         if events.len() > 100_000 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "inhomogeneous Poisson event count exceeds 100000".into(),
             ));
         }
@@ -136,7 +140,7 @@ pub(super) fn read_events(
 
 pub(super) fn read_quadrature(
     path: &std::path::Path,
-) -> Result<Vec<MidpointQuadratureValue>, BayesCliError> {
+) -> Result<Vec<MidpointQuadratureValue>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -144,7 +148,7 @@ pub(super) fn read_quadrature(
         .iter()
         .eq(["ix", "iy", "covariate", "offset"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "quadrature headers must be exactly: ix,iy,covariate,offset".into(),
         ));
     }
@@ -158,7 +162,7 @@ pub(super) fn read_quadrature(
             offset: row.offset,
         });
         if quadrature.len() > 1_000_000 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "inhomogeneous Poisson quadrature exceeds 1000000 nodes".into(),
             ));
         }
@@ -166,10 +170,10 @@ pub(super) fn read_quadrature(
     Ok(quadrature)
 }
 
-fn map_error(error: InhomogeneousPoissonError) -> BayesCliError {
+fn map_error(error: InhomogeneousPoissonError) -> CliError {
     match error {
-        InhomogeneousPoissonError::InvalidInput(message) => BayesCliError::Input(message),
-        InhomogeneousPoissonError::Numerical(message) => BayesCliError::Backend(message),
+        InhomogeneousPoissonError::InvalidInput(message) => CliError::Input(message),
+        InhomogeneousPoissonError::Numerical(message) => CliError::Backend(message),
     }
 }
 

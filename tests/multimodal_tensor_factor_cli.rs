@@ -67,11 +67,21 @@ fn bayesian_cp_factorization_recovers_masked_rank_one_tensor_entries() {
 
 #[test]
 fn bayesian_tucker_factorization_recovers_masked_rank_one_tensor_entries() {
-    let result = run_tensor_case("tucker", serde_json::json!([1, 1, 1]));
-    assert_eq!(result["format"], "marklab.bayesian_tucker_factorization");
-    assert_eq!(result["backend"]["jax_version"], "0.11.1");
-    assert_eq!(result["masked_predictions"].as_array().unwrap().len(), 3);
-    assert!(result["masked_rmse"].as_f64().unwrap() < 0.25);
-    assert_eq!(result["alignment"]["sign"], "max_mode_loading_positive");
-    assert_eq!(result["fit_state"], "approximate_only");
+    for ranks in [[1, 1, 1], [2, 2, 2]] {
+        let result = run_tensor_case("tucker", serde_json::json!(ranks));
+        assert_eq!(result["format"], "marklab.bayesian_tucker_factorization");
+        assert_eq!(result["backend"]["jax_version"], "0.11.1");
+        assert_eq!(result["masked_predictions"].as_array().unwrap().len(), 3);
+        assert!(result["masked_rmse"].as_f64().unwrap() < 0.25);
+        assert!(result["masked_predictions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|prediction| prediction["posterior_standard_deviation"]
+                .as_f64()
+                .unwrap()
+                .is_finite()));
+        assert_eq!(result["alignment"]["sign"], "max_mode_loading_positive");
+        assert_eq!(result["fit_state"], "approximate_only");
+    }
 }

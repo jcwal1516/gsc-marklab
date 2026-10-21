@@ -1,8 +1,14 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_translation_spatial_pattern, ObservationWindow2D, ObservationWindowLimits, Pattern,
-    PatternMeta, TranslationSpatialConfig, TranslationSpatialError, TranslationSpatialLimits,
-    TranslationSpatialStatus,
+    spatial::{
+        analyze_translation_spatial_pattern, TranslationSpatialConfig, TranslationSpatialError,
+        TranslationSpatialLimits, TranslationSpatialResultDocument, TranslationSpatialStatus,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn window(geojson: &str) -> ObservationWindow2D {
@@ -18,16 +24,12 @@ fn pattern(x: [f64; 2], y: [f64; 2]) -> Pattern {
         x.to_vec(),
         y.to_vec(),
         vec![0, 0],
-        PatternMeta {
-            case_id: "translation-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("translation-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "translation-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("translation-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -80,7 +82,10 @@ fn rectangle_and_concave_polygon_match_independent_translation_overlap_oracles()
     .expect("rectangle translation K/L");
 
     assert_eq!(rectangle_result.status, TranslationSpatialStatus::Available);
-    assert_eq!(rectangle_result.correction, "translation");
+    assert_eq!(
+        rectangle_result.correction,
+        marklab::spatial::EdgeCorrection::Translation
+    );
     assert_eq!(rectangle_result.curve[0].ordered_pairs, 2);
     assert_eq!(rectangle_result.curve[0].overlap_evaluations, 1);
     assert_abs_diff_eq!(
@@ -120,7 +125,40 @@ fn rectangle_and_concave_polygon_match_independent_translation_overlap_oracles()
     );
     assert_eq!(
         concave_result.geometry.overlap_owner,
-        "observation_window_2d_exact_boolean_intersection"
+        marklab::spatial::OverlapMeasureOwner::ObservationWindow2dExactBooleanIntersection
+    );
+}
+
+#[test]
+fn translated_public_rectangle_avoids_absolute_coordinate_cancellation() {
+    // The published betacells window is a non-origin rectangle. Its translated
+    // intersection has the analytic side lengths width - |dx| and height - |dy|.
+    let public_rectangle = window(
+        r#"{"type":"MultiPolygon","coordinates":[[[[28.08,16.2],[778.08,16.2],[778.08,1007.02],[28.08,1007.02],[28.08,16.2]]]]}"#,
+    );
+    let points = pattern([41.69, 133.61], [28.88, 36.75]);
+    let dx: f64 = 133.61 - 41.69;
+    let dy: f64 = 36.75 - 28.88;
+    let expected_overlap = (750.0 - dx.abs()) * (990.82 - dy.abs());
+    let result =
+        analyze_translation_spatial_pattern(&points, &public_rectangle, &config(dx.hypot(dy)))
+            .expect("public rectangle translation K/L");
+
+    assert_abs_diff_eq!(
+        result.curve[0].translation_overlap_area_sum_um2,
+        expected_overlap,
+        epsilon = 1e-10
+    );
+    let observed_k = result.curve[0].k.expect("public rectangle K");
+    let expected_k = public_rectangle.area_um2().powi(2) / expected_overlap;
+    assert!((observed_k - expected_k).abs() / expected_k <= 1e-15);
+    let document = TranslationSpatialResultDocument::new(result.clone()).expect("document");
+    let encoded = document.to_json_pretty().expect("JSON");
+    assert_eq!(
+        TranslationSpatialResultDocument::from_json(&encoded)
+            .expect("public rectangle result must survive JSON")
+            .analysis(),
+        &result
     );
 }
 

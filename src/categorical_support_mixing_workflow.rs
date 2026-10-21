@@ -1,18 +1,21 @@
+use crate::workflow_codec::invalid;
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::Serialize;
 
 use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
     categorical_support_mixing::{configuration_digest, CATEGORICAL_SUPPORT_SEMANTICS},
-    compartment_interface::analysis::measurement_status_name,
-    workflow::pattern_artifact,
-    CategoricalSupportMixingConfig, CategoricalSupportMixingResult, DeclaredScalarPatternInput,
-    ObservationWindow2D, ScalarMarkId,
+    marked_workflow::pattern_artifact,
+    marks::{
+        CategoricalSupportMixingConfig, CategoricalSupportMixingResult, DeclaredScalarPatternInput,
+        ScalarMarkId,
+    },
+    measurement_status_wire::name as measurement_status_name,
+    ObservationWindow2D,
 };
 
 const NODE_KIND: &str = "categorical_support_mixing";
@@ -23,15 +26,15 @@ const POLICY: &[u8] = b"serial;exact-physical-radius-graph;fixed-hard-labels;win
 
 /// Cache-addressed hard-label mixing node with continuous pixel-support sensitivity weights.
 pub struct CategoricalSupportMixingAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<CategoricalSupportMixingAnalysis<'a>>,
+}
+
+struct CategoricalSupportMixingAnalysis<'a> {
     input: &'a DeclaredScalarPatternInput<'a>,
     window: &'a ObservationWindow2D,
     categorical_mark_id: &'a ScalarMarkId,
     support_mark_id: &'a ScalarMarkId,
     config: &'a CategoricalSupportMixingConfig,
-    inputs: [ArtifactRef; 4],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> CategoricalSupportMixingAnalysisNode<'a> {
@@ -58,43 +61,44 @@ impl<'a> CategoricalSupportMixingAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter=categorical-support-mixing-node-v1",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            window,
-            categorical_mark_id,
-            support_mark_id,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter=categorical-support-mixing-node-v1",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: CategoricalSupportMixingAnalysis {
+                    input,
+                    window,
+                    categorical_mark_id,
+                    support_mark_id,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for CategoricalSupportMixingAnalysisNode<'_> {
+impl NodeAnalysis for CategoricalSupportMixingAnalysis<'_> {
     type Output = CategoricalSupportMixingResult;
+    type Inputs = [ArtifactRef; 4];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let current = [
             pattern_artifact(self.input.pattern())?,
             self.input
@@ -109,24 +113,11 @@ impl WorkflowNode for CategoricalSupportMixingAnalysisNode<'_> {
                 self.config,
             )?,
         ];
-        for (bound, current) in self.inputs.iter().zip(current) {
-            bound
-                .verify_identity(current.digest(), current.byte_len())
-                .map_err(NodeError::input)?;
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_inputs(inputs, current)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::categorical_support_mixing(
+        crate::marks::categorical_support_mixing(
             self.input,
             self.window,
             self.categorical_mark_id,
@@ -168,12 +159,14 @@ impl WorkflowNode for CategoricalSupportMixingAnalysisNode<'_> {
     }
 }
 
+crate::workflow_node::impl_workflow_node!(CategoricalSupportMixingAnalysisNode<'_> => CategoricalSupportMixingResult);
+
 #[derive(Serialize)]
 struct ConfigArtifact<'a> {
     categorical_mark_id: &'a str,
     support_mark_id: &'a str,
     radius_um: f64,
-    limits: crate::CategoricalSupportMixingLimits,
+    limits: crate::marks::CategoricalSupportMixingLimits,
     logical_digest: String,
 }
 
@@ -256,8 +249,7 @@ fn validate(
         ));
     }
     let mut hard_count = 0_usize;
-    let mut support_mass = 0.0_f64;
-    let mut support_correction = 0.0_f64;
+    let mut support_mass = marklab_numerics::summation::NeumaierSum::new();
     for (index, cell) in result.matrix.iter().enumerate() {
         let source = index / levels.len();
         let target = index % levels.len();
@@ -283,24 +275,16 @@ fn validate(
         hard_count = hard_count
             .checked_add(cell.hard_directed_pair_count)
             .ok_or_else(|| invalid("hard pair-count sum overflow"))?;
-        crate::common::summation::kahan_add(
-            &mut support_mass,
-            &mut support_correction,
-            cell.support_weighted_pair_mass,
-        );
+        support_mass.add(cell.support_weighted_pair_mass);
     }
     if hard_count != result.directed_pair_visits
-        || support_mass.to_bits() != result.total_support_weighted_pair_mass.to_bits()
+        || support_mass.total().to_bits() != result.total_support_weighted_pair_mass.to_bits()
     {
         return Err(invalid(
             "categorical support-mixing matrix totals are invalid",
         ));
     }
     Ok(())
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {

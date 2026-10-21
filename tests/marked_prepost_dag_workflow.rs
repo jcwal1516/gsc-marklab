@@ -1,10 +1,17 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use std::{fs, path::Path, process::Command};
 
 use marklab::{
-    compare_marked_prepost, execute_marked_prepost_dag, plan_marked_prepost_dag, AnalysisConfig,
-    ArtifactRef, CacheStatus, ContentDigest, DurableProjectLimits, MarkedPrePostDagError,
-    MarkedPrePostDagLimits, MarkedPrePostDagTarget, NativeRuntimeProvenance, Pattern, PatternMeta,
-    SchedulerLimits, ThreadSetting,
+    compare_marked_prepost,
+    workflow::{
+        execute_marked_prepost_dag, plan_marked_prepost_dag, ArtifactRef, CacheStatus,
+        ContentDigest, DurableProjectLimits, MarkedPrePostDagError, MarkedPrePostDagLimits,
+        MarkedPrePostDagTarget, NativeRuntimeProvenance, SchedulerLimits,
+    },
+    AnalysisConfig, Pattern, ThreadSetting,
 };
 
 const CHILD_ROOT: &str = "MARKLAB_MARKED_DAG_CHILD_ROOT";
@@ -180,16 +187,7 @@ fn fixture() -> (Pattern, Pattern, AnalysisConfig) {
             vec![0.0, 1.0, 0.0, 1.0],
             vec![0.0, 0.0, 1.0, 1.0],
             marks,
-            PatternMeta {
-                case_id: "dag-case".into(),
-                timepoint: timepoint.into(),
-                protein: "MSH6".into(),
-                slide_id: None,
-                section_id: None,
-                stain_batch: None,
-                block_id: None,
-                region_id: None,
-            },
+            pattern_meta("dag-case".into(), timepoint.into(), "MSH6".into(), None),
         )
         .expect("pattern");
         pattern.window.area_um2 = 4.0;

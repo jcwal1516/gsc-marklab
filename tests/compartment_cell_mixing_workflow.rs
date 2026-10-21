@@ -1,18 +1,24 @@
-#![allow(dead_code)]
-
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 
 use marklab::{
-    analyze_compartment_cell_mixing, execute_algorithm_with_store, ArtifactRef, ArtifactSchema,
-    BinaryCompartmentPartition2D, BinaryMarkDeclaration, CacheStatus,
-    CompartmentCellMixingAnalysisNode, CompartmentCellMixingConfig, CompartmentCellMixingError,
-    CompartmentCellMixingLimits, CompartmentCellMixingResult, CompartmentPartitionLimits,
-    DeclaredScalarPatternInput, DurableProject, DurableProjectLimits,
-    HistologicCompartmentMarkDeclaration, LocalScheduler, MarkTable, MeasurementStatus,
-    MissingnessPolicy, NativeRuntimeProvenance, NodeId, ObservationWindow2D,
-    ObservationWindowLimits, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    SchedulerLimits, WorkflowGraph,
+    compartments::{
+        analyze_compartment_cell_mixing, BinaryCompartmentPartition2D,
+        CompartmentCellMixingAnalysisNode, CompartmentCellMixingConfig, CompartmentCellMixingError,
+        CompartmentCellMixingLimits, CompartmentCellMixingResult, CompartmentPartitionLimits,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarPatternInput, HistologicCompartmentMarkDeclaration,
+        MarkTable, MissingnessPolicy, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+        ScalarMarkUnit,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus, ObservationWindow2D, ObservationWindowLimits,
 };
 use support::{
     binary_metadata, cell_id_text_bytes, fixture, histologic_compartment_metadata, publish_record,

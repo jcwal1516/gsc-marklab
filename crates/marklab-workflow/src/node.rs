@@ -2,7 +2,8 @@ use std::error::Error;
 
 use thiserror::Error;
 
-use crate::{ArtifactId, ArtifactRef, ContentDigest, NodeSpec};
+use crate::NodeSpec;
+use marklab_project::{ArtifactId, ArtifactRef, ContentDigest};
 
 type BoxError = Box<dyn Error + Send + Sync + 'static>;
 

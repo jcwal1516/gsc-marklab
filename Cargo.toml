@@ -6,6 +6,8 @@ members = [
     "crates/marklab-embeddings",
     "crates/marklab-cohort",
     "crates/marklab-bayes",
+    "crates/marklab-transport",
+    "crates/marklab-prediction",
     "crates/marklab-simulation",
     "crates/marklab-sbi",
     "crates/marklab-longitudinal",
@@ -21,18 +23,51 @@ exclude = ["fuzz"]
 resolver = "2"
 
 [workspace.package]
-edition = "2021"
-rust-version = "1.99"
-license = "MIT OR Apache-2.0"
-
-[package]
-name = "marklab"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.99"
 license = "MIT OR Apache-2.0"
-description = "Spatial statistics for marked cell patterns in pathology"
 repository = "https://github.com/jcwal1516/gsc-marklab"
+
+[workspace.dependencies]
+marklab-transport = { version = "0.1.0", path = "crates/marklab-transport" }
+marklab-prediction = { version = "0.1.0", path = "crates/marklab-prediction" }
+marklab-bayes = { version = "0.1.0", path = "crates/marklab-bayes" }
+marklab-causal = { version = "0.1.0", path = "crates/marklab-causal" }
+marklab-cohort = { version = "0.1.0", path = "crates/marklab-cohort" }
+marklab-core = { version = "0.1.0", path = "crates/marklab-core" }
+marklab-data = { version = "0.1.0", path = "crates/marklab-data" }
+marklab-embeddings = { version = "0.1.0", path = "crates/marklab-embeddings", default-features = false }
+marklab-graph = { version = "0.1.0", path = "crates/marklab-graph" }
+marklab-longitudinal = { version = "0.1.0", path = "crates/marklab-longitudinal" }
+marklab-numerics = { version = "0.1.0", path = "crates/marklab-numerics" }
+marklab-policy = { version = "0.1.0", path = "crates/marklab-policy" }
+marklab-project = { version = "0.1.0", path = "crates/marklab-project" }
+marklab-sbi = { version = "0.1.0", path = "crates/marklab-sbi" }
+marklab-simulation = { version = "0.1.0", path = "crates/marklab-simulation" }
+marklab-spatial3d = { version = "0.1.0", path = "crates/marklab-spatial3d" }
+marklab-topology = { version = "0.1.0", path = "crates/marklab-topology" }
+marklab-workflow = { version = "0.1.0", path = "crates/marklab-workflow" }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+rand = "=0.8.6"
+rand_chacha = "=0.3.1"
+rand_distr = "=0.4.3"
+sha2 = "0.10.9"
+rustfft = "6"
+csv = "1"
+proptest = "1"
+tempfile = "3"
+
+[package]
+name = "marklab"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Spatial statistics for marked cell patterns in pathology"
 readme = "README.md"
 keywords = ["pathology", "spatial", "statistics", "ihc", "rust"]
 categories = ["science", "command-line-utilities"]
@@ -44,7 +79,7 @@ bench = false
 
 [[bin]]
 name = "marklab"
-path = "src/bin/marklab.rs"
+path = "src/bin/marklab/main.rs"
 required-features = ["cli"]
 bench = false
 
@@ -64,31 +99,35 @@ allocator-mimalloc = ["dep:mimalloc"]
 dhat-heap = ["dep:dhat"]
 
 [dependencies]
-thiserror = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 serde_path_to_error = "0.1"
 toml = "0.8"
 clap = { version = "4", features = ["derive"], optional = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"], optional = true }
-marklab-workflow = { version = "0.1.0", path = "crates/marklab-workflow" }
-marklab-data = { version = "0.1.0", path = "crates/marklab-data" }
-marklab-embeddings = { version = "0.1.0", path = "crates/marklab-embeddings", default-features = false }
-marklab-cohort = { version = "0.1.0", path = "crates/marklab-cohort" }
-marklab-bayes = { version = "0.1.0", path = "crates/marklab-bayes" }
-marklab-simulation = { version = "0.1.0", path = "crates/marklab-simulation" }
-marklab-sbi = { version = "0.1.0", path = "crates/marklab-sbi" }
-marklab-longitudinal = { version = "0.1.0", path = "crates/marklab-longitudinal" }
-marklab-spatial3d = { version = "0.1.0", path = "crates/marklab-spatial3d" }
-marklab-causal = { version = "0.1.0", path = "crates/marklab-causal" }
-marklab-numerics = { version = "0.1.0", path = "crates/marklab-numerics" }
-marklab-policy = { version = "0.1.0", path = "crates/marklab-policy" }
-marklab-graph = { version = "0.1.0", path = "crates/marklab-graph" }
-marklab-topology = { version = "0.1.0", path = "crates/marklab-topology" }
+marklab-workflow.workspace = true
+marklab-project.workspace = true
+marklab-core.workspace = true
+marklab-data.workspace = true
+marklab-embeddings.workspace = true
+marklab-cohort.workspace = true
+marklab-bayes.workspace = true
+marklab-transport.workspace = true
+marklab-prediction.workspace = true
+marklab-simulation.workspace = true
+marklab-sbi.workspace = true
+marklab-longitudinal.workspace = true
+marklab-spatial3d.workspace = true
+marklab-causal.workspace = true
+marklab-numerics.workspace = true
+marklab-policy.workspace = true
+marklab-graph.workspace = true
+marklab-topology.workspace = true
 
 rayon = { version = "1", optional = true }
-rustfft = "6"
+rustfft.workspace = true
 num-complex = "0.4"
 statrs = "0.18"
 
@@ -98,7 +137,7 @@ rstar = { version = "0.13.0", default-features = false }
 
 arrow = { version = "56", optional = true }
 parquet = { version = "56", optional = true }
-csv = { version = "1", optional = true }
+csv = { workspace = true, optional = true }
 wsi-rs = { version = "=0.5.0", optional = true }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 
@@ -107,12 +146,12 @@ dhat = { version = "0.3", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.7", features = ["html_reports"] }
-proptest = "1"
+proptest.workspace = true
 insta = { version = "1", features = ["json"] }
 approx = "0.5"
 assert_cmd = "2"
 predicates = "3"
-tempfile = "3"
+tempfile.workspace = true
 dicom-core = "0.9.1"
 dicom-object = "0.9.1"
 
@@ -147,6 +186,10 @@ harness = false
 required-features = ["csv"]
 
 [[bench]]
+name = "spatial_stages"
+harness = false
+
+[[bench]]
 name = "cohort_hierarchy"
 harness = false
 
@@ -167,11 +210,6 @@ codegen-units = 1
 debug = "line-tables-only"
 
 [profile.profiling]
-inherits = "release"
-debug = true
-strip = "none"
-
-[profile.samply]
 inherits = "release"
 debug = true
 strip = "none"

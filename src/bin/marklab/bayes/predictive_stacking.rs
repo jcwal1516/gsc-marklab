@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use marklab_bayes::{
     sha256_hex, PredictiveStackingPatient, PredictiveStackingSpec, PredictiveStackingWorkerRequest,
@@ -6,9 +6,15 @@ use marklab_bayes::{
 };
 use serde::Serialize;
 
-use super::{embedding_spatial, publish_json, run_worker, BayesCliError};
+use super::cli_schema::PredictiveStackingArgs;
+use super::{embedding_spatial, publish_json, run_worker, CliError};
 
-pub(super) fn run(input: PathBuf, timeout_seconds: u64, out: PathBuf) -> Result<(), BayesCliError> {
+pub(super) fn run(args: PredictiveStackingArgs) -> Result<(), CliError> {
+    let PredictiveStackingArgs {
+        input,
+        timeout_seconds,
+        out,
+    } = args;
     let input_bytes = embedding_spatial::read(&input)?;
     let mut reader = csv::ReaderBuilder::new()
         .flexible(false)
@@ -17,7 +23,7 @@ pub(super) fn run(input: PathBuf, timeout_seconds: u64, out: PathBuf) -> Result<
     if headers.len() < 4
         || headers.iter().take(2).collect::<Vec<_>>() != ["patient_id", "held_out_unit"]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "predictive-stacking CSV header differs".into(),
         ));
     }
@@ -37,22 +43,22 @@ pub(super) fn run(input: PathBuf, timeout_seconds: u64, out: PathBuf) -> Result<
                 .skip(2)
                 .map(|value| {
                     value.parse().map_err(|_| {
-                        BayesCliError::Input("predictive-stacking log density is invalid".into())
+                        CliError::Input("predictive-stacking log density is invalid".into())
                     })
                 })
                 .collect::<Result<Vec<_>, _>>()?,
         });
     }
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
+    let lock_bytes = fs::read(&lock_path).map_err(|source| CliError::Io {
         path: lock_path,
         source,
     })?;
     let worker_name = "marklab_scipy_predictive_stacking_worker.py";
     let worker_path = worker_directory.join(worker_name);
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker_bytes = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;

@@ -1,81 +1,80 @@
 #!/usr/bin/env python3
-"""Static SciPy worker for bounded Thomas-process minimum contrast."""
+"""SciPy worker for bounded Thomas-process minimum-contrast fits."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
+sys.path.append(str(Path(__file__).resolve().parent))
+
 import numpy as np
+import scipy
 from scipy import optimize
 
-SCIPY_VERSION = "1.18.1"
+from marklab_worker_support import versions
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
-
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low}, {high}]")
-    return value
+BACKEND_VERSION = f"scipy-{versions.SCIPY}"
+FINITE_FIT_FIELDS = {"kappa_parent_per_um2", "sigma_um", "mu_offspring", "objective", "optimality"}
 
 
 def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
     request = obj(
         request,
         {
-            "format", "version", "backend", "model", "curve",
-            "observed_intensity_per_um2", "bounds", "maximum_iterations", "resources",
+            "format",
+            "version",
+            "backend",
+            "model",
+            "curve",
+            "observed_intensity_per_um2",
+            "bounds",
+            "maximum_iterations",
+            "resources",
         },
         "request",
     )
     exact(request["format"], "marklab.pymc_worker_request", "request.format")
     integer(request["version"], "request.version", 1, 1)
-    backend = obj(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "backend",
+        name="scipy",
+        version=BACKEND_VERSION,
+        lock_sha256=lock_sha,
+        worker_sha256=worker_sha,
     )
-    exact(backend["name"], "scipy", "backend.name")
-    exact(backend["version"], f"scipy-{SCIPY_VERSION}", "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_sha, "backend.lock")
-    exact(backend["worker_sha256"], worker_sha, "backend.worker")
     model = obj(
         request["model"],
         {
-            "family", "summary", "theoretical_curve", "contrast_transform",
-            "primary_weights", "sensitivity_fits", "offspring_mean_identification",
-            "backend_capability", "maturity",
+            "family",
+            "summary",
+            "theoretical_curve",
+            "contrast_transform",
+            "primary_weights",
+            "sensitivity_fits",
+            "offspring_mean_identification",
+            "backend_capability",
+            "maturity",
         },
         "model",
     )
@@ -142,7 +141,9 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
         resources["maximum_iterations"], "resources.iterations", 10, 100_000
     ):
         raise ContractError("iteration cap exceeded")
-    integer(resources["maximum_output_bytes"], "resources.output", 1, 1_048_576)
+    maximum_output_bytes = integer(
+        resources["maximum_output_bytes"], "resources.maximum_output_bytes", 1, MIB
+    )
     integer(resources["timeout_seconds"], "resources.timeout", 1, 3_600)
     return {
         "radii": np.asarray(radii, dtype=np.float64),
@@ -152,18 +153,27 @@ def validate(request: Any, lock_sha: str, worker_sha: str) -> dict[str, Any]:
         "lower": np.log([kappa_min, sigma_min]),
         "upper": np.log([kappa_max, sigma_max]),
         "maximum_iterations": maximum_iterations,
+        "maximum_output_bytes": maximum_output_bytes,
     }
 
 
 def thomas_k(radii: np.ndarray, kappa: float, sigma: float) -> np.ndarray:
-    return np.pi * radii**2 + (1.0 / kappa) * (
-        1.0 - np.exp(-(radii**2) / (4.0 * sigma**2))
-    )
+    """Ripley's K of a Thomas process with parent intensity ``kappa`` and offspring SD ``sigma``.
+
+    ``K(r) = pi r^2 + (1 - exp(-r^2 / (4 sigma^2))) / kappa``.
+    """
+    return np.pi * radii**2 + (1.0 / kappa) * (1.0 - np.exp(-(radii**2) / (4.0 * sigma**2)))
 
 
 def run_fit(
     config: dict[str, Any], name: str, weight_rule: str, first: int, last: int, weights: np.ndarray
 ) -> dict[str, Any]:
+    """Fit ``(kappa, sigma)`` by bounded minimum contrast on rows ``first:last``.
+
+    Minimizes ``sum_r w_r * (K_obs(r)**0.25 - K(r; kappa, sigma)**0.25)**2`` over
+    ``(log kappa, log sigma)`` within the request bounds (trust-region reflective least squares).
+    The mean offspring count is identified as ``observed intensity / kappa``.
+    """
     radii = config["radii"][first:last]
     observed = config["observed"][first:last]
     selected_weights = weights[first:last]
@@ -224,9 +234,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         count - 1,
         config["weights"],
     )
-    fitted = thomas_k(
-        config["radii"], primary["kappa_parent_per_um2"], primary["sigma_um"]
-    )
+    fitted = thomas_k(config["radii"], primary["kappa_parent_per_um2"], primary["sigma_um"])
     transformed = np.power(config["observed"], 0.25) - np.power(fitted, 0.25)
     curve = [
         {
@@ -242,23 +250,20 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         for index in range(count)
     ]
     fits = [primary, unweighted, interior]
-    finite = all(
+    fits_finite = all(
         math.isfinite(float(value))
         for result in fits
         for key, value in result.items()
-        if key in {"kappa_parent_per_um2", "sigma_um", "mu_offspring", "objective", "optimality"}
-    ) and np.isfinite(fitted).all()
-    complete = finite and all(result["converged"] and result["optimality"] <= 1e-6 for result in fits)
+        if key in FINITE_FIT_FIELDS
+    )
+    finite = fits_finite and np.isfinite(fitted).all()
+    complete = finite and all(
+        result["converged"] and result["optimality"] <= 1e-6 for result in fits
+    )
     return {
         "format": "marklab.scipy_thomas_minimum_contrast_worker_result",
         "version": 1,
-        "backend": {
-            "name": "scipy",
-            "version": f"scipy-{SCIPY_VERSION}",
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("scipy", BACKEND_VERSION, lock_sha, worker_sha),
         "request_sha256": request_sha,
         "fit_state": "complete" if complete else "nonconverged",
         "primary_fit": primary,
@@ -268,28 +273,13 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
 
 
 def main() -> None:
-    import scipy
-
-    if scipy.__version__ != SCIPY_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("SciPy or Python version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha = hashlib.sha256(raw).hexdigest()
-    result = fit(validate(json.loads(raw), lock_sha, worker_sha), request_sha, lock_sha, worker_sha)
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    require_versions(scipy=scipy.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(16 * MIB)
+    config = validate(json.loads(raw), lock_sha, worker_sha)
+    result = fit(config, sha256_hex(raw), lock_sha, worker_sha)
+    write_result(result, max_bytes=config["maximum_output_bytes"])
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(
-            f"marklab SciPy Thomas minimum-contrast worker failed: {type(error).__name__}: {error}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from error
+    run_worker(main, "marklab SciPy Thomas minimum-contrast worker failed")

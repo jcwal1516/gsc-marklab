@@ -1,10 +1,9 @@
 import importlib.util
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import numpy as np
-
 
 WORKERS = Path(__file__).resolve().parents[2] / "workers/python"
 
@@ -97,17 +96,21 @@ class ReplicatedMultitypeLgcpPriorPredictiveTest(unittest.TestCase):
                 self.assertTrue(worker.prior_is_finite(config, model))
 
             invalid = config_factory(100.0)
-            with self.subTest(worker=worker.__name__, case="finite_rate_outside_count_domain"):
-                with mock.patch.object(
+            with (
+                self.subTest(
+                    worker=worker.__name__, case="finite_rate_outside_count_domain"
+                ),
+                mock.patch.object(
                     worker.pm,
                     "sample",
                     side_effect=AssertionError("posterior sampler must not run"),
-                ):
-                    with self.assertRaisesRegex(
-                        worker.ContractError,
-                        "prior predictive contains invalid rates or conditional Poisson counts",
-                    ):
-                        worker.fit(invalid, "request", "lock", "worker")
+                ),
+                self.assertRaisesRegex(
+                    worker.ContractError,
+                    "prior predictive contains invalid rates or conditional Poisson counts",
+                ),
+            ):
+                worker.fit(invalid, "request", "lock", "worker")
 
 
 if __name__ == "__main__":

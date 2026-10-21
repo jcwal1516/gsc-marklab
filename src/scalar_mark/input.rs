@@ -5,7 +5,7 @@ use marklab_data::{
     SpatialDimension,
 };
 use marklab_embeddings::CellEmbeddingArtifact;
-use marklab_workflow::{ArtifactId, ArtifactRef, MarklabProject};
+use marklab_project::{ArtifactId, ArtifactRef, MarklabProject};
 
 use crate::data::Pattern;
 
@@ -162,7 +162,7 @@ impl<'a> DeclaredScalarPatternInput<'a> {
         self.mark_table
     }
 
-    /// Existing verified vector artifact declared by the typed table, when present.
+    /// Verified vector artifact declared by the typed table, when present.
     pub(crate) fn vector_artifact_ref(&self) -> Option<CellEmbeddingArtifact> {
         self.mark_table
             .and_then(MarkTable::single_vector_artifact_ref)
@@ -297,6 +297,20 @@ fn validate_shape_and_resource_bounds(
             maximum: maximum_cell_id_text_bytes,
         });
     }
+    if let Some(source_ids) = pattern.cell_ids.as_deref() {
+        require_column_len("cell_ids", pattern.len(), source_ids.len())?;
+        if let Some(row) = source_ids
+            .iter()
+            .zip(cell_ids)
+            .position(|(source, declared)| source != declared.as_str())
+        {
+            return Err(DeclaredScalarInputError::analysis(
+                crate::errors::MarklabError::Validation(format!(
+                    "source cell_id at row {row} does not match the declared CellId"
+                )),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -399,6 +413,12 @@ fn validate_probability(
     if pattern.mark_prob.is_some() != declaration.is_some() {
         return Err(DeclaredScalarInputError::ProbabilityDeclarationMismatch);
     }
+    validate_pattern_probabilities(pattern)
+}
+
+pub(crate) fn validate_pattern_probabilities(
+    pattern: &Pattern,
+) -> Result<(), DeclaredScalarInputError> {
     let Some(values) = pattern.mark_prob.as_deref() else {
         return Ok(());
     };

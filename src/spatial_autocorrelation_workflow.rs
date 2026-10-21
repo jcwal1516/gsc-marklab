@@ -1,31 +1,35 @@
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::{io, str::FromStr};
 
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeRun,
-    NodeSpec, WorkflowNode,
-};
+use marklab_project::{ArtifactRef, ContentDigest, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeRun, NodeSpec};
 use serde::{Deserialize, Serialize};
 
 use crate::measurement_status_wire::parse as parse_measurement_status;
 use crate::{
+    autocorrelation::{
+        global_moran_permutation, GlobalMoranAlternative, GlobalMoranConditioning,
+        GlobalMoranDesign, GlobalMoranLimits, GlobalMoranResult, GlobalMoranWeightPolicy,
+    },
     geom::window::ObservationWindow2D,
-    global_moran_permutation,
+    marked_workflow::pattern_artifact,
+    scalar_mark::COMPARTMENT_MARK_ID,
     scalar_mark::{DeclaredScalarPatternInput, ScalarMarkId},
-    workflow::pattern_artifact,
-    GlobalMoranAlternative, GlobalMoranConditioning, GlobalMoranDesign, GlobalMoranLimits,
-    GlobalMoranResult, GlobalMoranWeightPolicy,
 };
 
 const WINDOW_KIND: &str = "application/vnd.marklab.observation-window-ref;version=1";
-const MORAN_RESULT_KIND: &str = "application/vnd.marklab.global-moran+json;version=1";
-const MORAN_PREPOST_KIND: &str = "application/vnd.marklab.global-moran-prepost+json;version=1";
-const MORAN_ADAPTER_REVISION: &str = "global-moran-workflow-v2";
-const MORAN_PREPOST_REVISION: &str = "global-moran-prepost-v1";
+const MORAN_RESULT_KIND: &str = "application/vnd.marklab.global-moran+json;version=2";
+const MORAN_PREPOST_KIND: &str = "application/vnd.marklab.global-moran-prepost+json;version=2";
+const MORAN_ADAPTER_REVISION: &str = "global-moran-workflow-v3";
+const MORAN_PREPOST_REVISION: &str = "global-moran-prepost-v2";
 
 /// Typed global Moran analysis exposed as one dependency-free workflow node.
 pub struct GlobalMoranAnalysisNode<'input, 'pattern, 'window, 'design> {
-    spec: NodeSpec,
+    node: TypedNode<GlobalMoranAnalysis<'input, 'pattern, 'window, 'design>>,
+}
+
+struct GlobalMoranAnalysis<'input, 'pattern, 'window, 'design> {
     input: &'input DeclaredScalarPatternInput<'pattern>,
     window: &'window ObservationWindow2D,
     mark_id: ScalarMarkId,
@@ -33,10 +37,6 @@ pub struct GlobalMoranAnalysisNode<'input, 'pattern, 'window, 'design> {
     weight_policy: GlobalMoranWeightPolicy,
     design: &'design GlobalMoranDesign,
     limits: GlobalMoranLimits,
-    inputs: [ArtifactRef; 3],
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
-    implementation_identity: String,
 }
 
 impl<'input, 'pattern, 'window, 'design>
@@ -73,70 +73,58 @@ impl<'input, 'pattern, 'window, 'design>
         }
         let configuration = configuration_bytes(&mark_id, radius_um, weight_policy, design, limits);
         let execution_policy = execution_policy(design, limits);
+        let node_spec =
+            NodeSpec::new(id, "global_moran", 1, Vec::new()).map_err(NodeError::input)?;
+        let node_inputs = [pattern, declared, window_ref];
+        let node_configuration_digest = ContentDigest::from_bytes(&configuration);
+        let node_implementation_identity = format!(
+            "marklab/{};adapter={MORAN_ADAPTER_REVISION}",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, "global_moran", 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            window,
-            mark_id,
-            radius_um,
-            weight_policy,
-            design,
-            limits,
-            inputs: [pattern, declared, window_ref],
-            configuration_digest: ContentDigest::from_bytes(&configuration),
-            execution_policy,
-            implementation_identity: format!(
-                "marklab/{};adapter={MORAN_ADAPTER_REVISION}",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: GlobalMoranAnalysis {
+                    input,
+                    window,
+                    mark_id,
+                    radius_um,
+                    weight_policy,
+                    design,
+                    limits,
+                },
+                inputs: node_inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Owned(execution_policy),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     /// Return the exact versioned source-node specification.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for GlobalMoranAnalysisNode<'_, '_, '_, '_> {
+impl NodeAnalysis for GlobalMoranAnalysis<'_, '_, '_, '_> {
     type Output = GlobalMoranResult;
+    type Inputs = [ArtifactRef; 3];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let pattern = pattern_artifact(self.input.pattern())?;
-        self.inputs[0]
-            .verify_identity(pattern.digest(), pattern.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 0, &pattern)?;
         let declared = self
             .input
             .declared_artifact_ref()
             .map_err(NodeError::input)?;
-        self.inputs[1]
-            .verify_identity(declared.digest(), declared.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 1, &declared)?;
         let window = window_artifact(self.window)?;
-        self.inputs[2]
-            .verify_identity(window.digest(), window.byte_len())
-            .map_err(NodeError::input)
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_input(inputs, 2, &window)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
@@ -167,7 +155,9 @@ impl WorkflowNode for GlobalMoranAnalysisNode<'_, '_, '_, '_> {
     }
 }
 
-impl GlobalMoranAnalysisNode<'_, '_, '_, '_> {
+crate::workflow_node::impl_workflow_node!(GlobalMoranAnalysisNode<'_, '_, '_, '_> => GlobalMoranResult);
+
+impl GlobalMoranAnalysis<'_, '_, '_, '_> {
     fn validate_decoded(&self, result: &GlobalMoranResult) -> io::Result<()> {
         let expected_status = self
             .input
@@ -180,7 +170,7 @@ impl GlobalMoranAnalysisNode<'_, '_, '_, '_> {
         let expected_conditioning_mark = match self.design.conditioning() {
             GlobalMoranConditioning::None => None,
             GlobalMoranConditioning::HistologicCompartment => Some(
-                ScalarMarkId::new("histologic_compartment")
+                ScalarMarkId::new(COMPARTMENT_MARK_ID)
                     .map_err(|_| invalid_data("invalid built-in conditioning mark ID"))?,
             ),
         };
@@ -198,8 +188,6 @@ impl GlobalMoranAnalysisNode<'_, '_, '_, '_> {
             || result.weight_policy != self.weight_policy
             || result.point_count != self.input.pattern().len()
             || result.permutations_requested != self.design.permutations()
-            || result.permutations_attempted != self.design.permutations()
-            || result.permutations_completed != self.design.permutations()
             || result.seed != self.design.seed()
             || result.alternative != self.design.alternative()
             || result.conditioning != self.design.conditioning()
@@ -236,12 +224,12 @@ pub struct GlobalMoranPrePostResult {
 
 /// Dependency-bearing descriptive comparison of two produced global Moran artifacts.
 pub struct GlobalMoranPrePostNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<GlobalMoranPrePostAnalysis<'a>>,
+}
+
+struct GlobalMoranPrePostAnalysis<'a> {
     pre: &'a GlobalMoranResult,
     post: &'a GlobalMoranResult,
-    inputs: [ArtifactRef; 2],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> GlobalMoranPrePostNode<'a> {
@@ -256,55 +244,52 @@ impl<'a> GlobalMoranPrePostNode<'a> {
         verify_moran_artifact(&pre.artifact, &pre.output)?;
         verify_moran_artifact(&post.artifact, &post.output)?;
         validate_compatible(&pre.output, &post.output).map_err(NodeError::input)?;
+        let node_spec = NodeSpec::new(
+            id,
+            "global_moran_prepost",
+            1,
+            vec![pre_dependency, post_dependency],
+        )
+        .map_err(NodeError::input)?;
+        let node_pre = &pre.output;
+        let node_post = &post.output;
+        let node_inputs = [pre.artifact.clone(), post.artifact.clone()];
+        let node_configuration_digest =
+            ContentDigest::from_bytes(b"marklab-global-moran-prepost-descriptive-v1");
+        let node_implementation_identity = format!(
+            "marklab/{};adapter={MORAN_PREPOST_REVISION}",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(
-                id,
-                "global_moran_prepost",
-                1,
-                vec![pre_dependency, post_dependency],
-            )
-            .map_err(NodeError::input)?,
-            pre: &pre.output,
-            post: &post.output,
-            inputs: [pre.artifact.clone(), post.artifact.clone()],
-            configuration_digest: ContentDigest::from_bytes(
-                b"marklab-global-moran-prepost-descriptive-v1",
-            ),
-            implementation_identity: format!(
-                "marklab/{};adapter={MORAN_PREPOST_REVISION}",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: GlobalMoranPrePostAnalysis {
+                    pre: node_pre,
+                    post: node_post,
+                },
+                inputs: node_inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(
+                    b"descriptive-post-minus-pre;no-paired-inference",
+                ),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     /// Return the exact versioned dependency-bearing specification.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for GlobalMoranPrePostNode<'_> {
+impl NodeAnalysis for GlobalMoranPrePostAnalysis<'_> {
     type Output = GlobalMoranPrePostResult;
+    type Inputs = [ArtifactRef; 2];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        verify_moran_artifact(&self.inputs[0], self.pre)?;
-        verify_moran_artifact(&self.inputs[1], self.post)
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: b"descriptive-post-minus-pre;no-paired-inference",
-            implementation_identity: &self.implementation_identity,
-        }
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
+        verify_moran_artifact(&inputs[0], self.pre)?;
+        verify_moran_artifact(&inputs[1], self.post)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
@@ -343,6 +328,8 @@ impl WorkflowNode for GlobalMoranPrePostNode<'_> {
         MORAN_PREPOST_KIND
     }
 }
+
+crate::workflow_node::impl_workflow_node!(GlobalMoranPrePostNode<'_> => GlobalMoranPrePostResult);
 
 fn validate_compatible(pre: &GlobalMoranResult, post: &GlobalMoranResult) -> io::Result<()> {
     if pre.mark_id != post.mark_id
@@ -450,8 +437,6 @@ struct MoranWire {
     null_expectation: f64,
     p_value: f64,
     permutations_requested: u64,
-    permutations_attempted: u64,
-    permutations_completed: u64,
     seed: u64,
     alternative: String,
     conditioning: String,
@@ -482,8 +467,6 @@ impl From<&GlobalMoranResult> for MoranWire {
             null_expectation: result.null_expectation,
             p_value: result.p_value,
             permutations_requested: result.permutations_requested as u64,
-            permutations_attempted: result.permutations_attempted as u64,
-            permutations_completed: result.permutations_completed as u64,
             seed: result.seed,
             alternative: alternative_name(result.alternative).into(),
             conditioning: conditioning_name(result.conditioning).into(),
@@ -525,8 +508,6 @@ impl TryFrom<MoranWire> for GlobalMoranResult {
             null_expectation: wire.null_expectation,
             p_value: wire.p_value,
             permutations_requested: to_usize(wire.permutations_requested)?,
-            permutations_attempted: to_usize(wire.permutations_attempted)?,
-            permutations_completed: to_usize(wire.permutations_completed)?,
             seed: wire.seed,
             alternative: parse_alternative(&wire.alternative)?,
             conditioning: parse_conditioning(&wire.conditioning)?,
@@ -601,6 +582,9 @@ fn parse_status(value: &str) -> io::Result<MeasurementStatus> {
 fn weight_name(policy: GlobalMoranWeightPolicy) -> &'static str {
     match policy {
         GlobalMoranWeightPolicy::BinarySymmetric => "binary_symmetric",
+        GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates => {
+            "binary_symmetric_including_isolates"
+        }
         GlobalMoranWeightPolicy::RowStandardized => "row_standardized",
     }
 }
@@ -608,6 +592,9 @@ fn weight_name(policy: GlobalMoranWeightPolicy) -> &'static str {
 fn parse_weight(value: &str) -> io::Result<GlobalMoranWeightPolicy> {
     match value {
         "binary_symmetric" => Ok(GlobalMoranWeightPolicy::BinarySymmetric),
+        "binary_symmetric_including_isolates" => {
+            Ok(GlobalMoranWeightPolicy::BinarySymmetricIncludingIsolates)
+        }
         "row_standardized" => Ok(GlobalMoranWeightPolicy::RowStandardized),
         _ => Err(invalid_data("invalid global Moran weight policy")),
     }

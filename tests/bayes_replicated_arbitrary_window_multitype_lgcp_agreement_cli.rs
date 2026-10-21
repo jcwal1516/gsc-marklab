@@ -19,6 +19,15 @@ fn pymc_and_numpyro_agree_on_the_same_replicated_multitype_intensities() {
         .args(["--out", pymc.to_str().unwrap()])
         .assert()
         .success();
+    // The saved fit publishes each summary's own MCSE, which the agreement reads back.
+    let fit: serde_json::Value = serde_json::from_slice(&fs::read(&pymc).unwrap()).unwrap();
+    for row in fit["type_posteriors"].as_array().unwrap() {
+        let mcse = row["intercept"]["mcse_mean"].as_f64().unwrap();
+        assert!(
+            mcse > 0.0 && mcse < row["intercept"]["sd"].as_f64().unwrap(),
+            "{row}"
+        );
+    }
 
     Command::cargo_bin("marklab")
         .expect("binary")

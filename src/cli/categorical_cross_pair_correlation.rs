@@ -5,13 +5,19 @@ use crate::{
         isotropic_workflow::encode_result as encode_isotropic_result,
         translation_workflow::encode_result as encode_translation_result, workflow::encode_result,
     },
-    execute_algorithm_with_store, ArtifactSchema, CategoricalCrossPairCorrelationAnalysisNode,
-    CategoricalCrossPairCorrelationConfig, CategoricalPairLimits, DeclaredScalarPatternInput,
-    IsotropicCategoricalCrossPairCorrelationAnalysisNode,
-    IsotropicCategoricalCrossPairCorrelationConfig, IsotropicSpatialLimits, LocalScheduler,
-    MarklabError, NodeId, Result, SchedulerLimits,
-    TranslationCategoricalCrossPairCorrelationAnalysisNode,
-    TranslationCategoricalCrossPairCorrelationConfig, TranslationSpatialLimits, WorkflowGraph,
+    marks::{CategoricalPairLimits, DeclaredScalarPatternInput},
+    spatial::{
+        CategoricalCrossPairCorrelationAnalysisNode, CategoricalCrossPairCorrelationConfig,
+        IsotropicCategoricalCrossPairCorrelationAnalysisNode,
+        IsotropicCategoricalCrossPairCorrelationConfig, IsotropicSpatialLimits,
+        TranslationCategoricalCrossPairCorrelationAnalysisNode,
+        TranslationCategoricalCrossPairCorrelationConfig, TranslationSpatialLimits,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactSchema, LocalScheduler, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MarklabError, Result,
 };
 
 use super::{
@@ -19,34 +25,97 @@ use super::{
     classical::native_runtime_provenance,
 };
 
-pub(super) struct Request {
+#[derive(clap::Args, Debug)]
+pub struct Request {
+    /// Durable project directory that caches results.
+    #[arg(long)]
     pub project: PathBuf,
+    /// Cell table (CSV or Parquet).
+    #[arg(long)]
     pub cells: PathBuf,
+    /// Tissue mask (GeoJSON).
+    #[arg(long)]
     pub mask: PathBuf,
+    /// New JSON file for the result; it must not already exist.
+    #[arg(long)]
     pub out: PathBuf,
+    /// Compartment level of the source cells.
+    #[arg(long)]
     pub source_level: String,
+    /// Compartment level of the target cells.
+    #[arg(long)]
     pub target_level: String,
+    /// Comma-separated radii in µm.
+    #[arg(long, value_delimiter = ',')]
     pub radii_um: Vec<f64>,
+    /// Kernel bandwidth in µm.
+    #[arg(long)]
     pub bandwidth_um: f64,
+    /// Number of label permutations.
+    #[arg(long)]
     pub permutations: usize,
+    /// Random seed; the same seed gives the same result.
+    #[arg(long)]
     pub seed: u64,
+    /// Significance level.
+    #[arg(long)]
     pub alpha: f64,
+    /// Memory budget in MiB.
+    #[arg(long)]
     pub memory_budget_mib: usize,
+    /// Maximum number of cell pairs visited.
+    #[arg(long = "max-pair-visits", value_name = "MAX_PAIR_VISITS")]
     pub maximum_pair_visits: usize,
+    /// Maximum number of pair evaluations across null replicates.
+    #[arg(
+        long = "max-null-pair-evaluations",
+        value_name = "MAX_NULL_PAIR_EVALUATIONS"
+    )]
     pub maximum_null_pair_evaluations: usize,
 }
 
-pub(super) struct TranslationRequest {
+#[derive(clap::Args, Debug)]
+pub struct TranslationRequest {
+    #[command(flatten)]
     pub base: Request,
+    /// Upper bound on overlap evaluations.
+    #[arg(
+        long = "max-overlap-evaluations",
+        value_name = "MAX_OVERLAP_EVALUATIONS"
+    )]
     pub maximum_overlap_evaluations: usize,
+    /// Upper bound on overlap candidate work.
+    #[arg(
+        long = "max-overlap-candidate-work",
+        value_name = "MAX_OVERLAP_CANDIDATE_WORK"
+    )]
     pub maximum_overlap_candidate_work: usize,
+    /// Upper bound on overlap output vertices.
+    #[arg(
+        long = "max-overlap-output-vertices",
+        value_name = "MAX_OVERLAP_OUTPUT_VERTICES"
+    )]
     pub maximum_overlap_output_vertices: usize,
 }
 
-pub(super) struct IsotropicRequest {
+#[derive(clap::Args, Debug)]
+pub struct IsotropicRequest {
+    #[command(flatten)]
     pub base: Request,
+    /// Upper bound on visible arc evaluations.
+    #[arg(
+        long = "max-visible-arc-evaluations",
+        value_name = "MAX_VISIBLE_ARC_EVALUATIONS"
+    )]
     pub maximum_visible_arc_evaluations: usize,
+    /// Upper bound on arc segment tests.
+    #[arg(long = "max-arc-segment-tests", value_name = "MAX_ARC_SEGMENT_TESTS")]
     pub maximum_arc_segment_tests: usize,
+    /// Upper bound on arc membership queries.
+    #[arg(
+        long = "max-arc-membership-queries",
+        value_name = "MAX_ARC_MEMBERSHIP_QUERIES"
+    )]
     pub maximum_arc_membership_queries: usize,
 }
 

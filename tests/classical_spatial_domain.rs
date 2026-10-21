@@ -1,9 +1,15 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_classical_spatial_pattern, ClassicalNullModel, ClassicalRandomizationUnit,
-    ClassicalSpatialConfig, ClassicalSpatialError, ClassicalSpatialLimits, ClassicalSpatialStatus,
-    KlPointStatus, ObservationWindow2D, ObservationWindowError, ObservationWindowLimits, Pattern,
-    PatternMeta,
+    spatial::{
+        analyze_classical_spatial_pattern, ClassicalNullModel, ClassicalRandomizationUnit,
+        ClassicalSpatialConfig, ClassicalSpatialError, ClassicalSpatialLimits,
+        ClassicalSpatialStatus, KlPointStatus,
+    },
+    ObservationWindow2D, ObservationWindowError, ObservationWindowLimits, Pattern,
 };
 
 fn window_limits() -> ObservationWindowLimits {
@@ -20,16 +26,12 @@ fn pattern(x: Vec<f64>, y: Vec<f64>) -> Pattern {
         x.clone(),
         y,
         vec![0; x.len()],
-        PatternMeta {
-            case_id: "classical-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("classical-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "classical-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("classical-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -87,22 +89,28 @@ fn rectangle_border_kl_matches_hand_oracle_and_declares_csr_unit() {
         epsilon = 1e-12
     );
     assert_eq!(result.window.area_um2, 100.0);
-    assert_eq!(result.window.coordinate_unit, "micrometre");
+    assert_eq!(
+        result.window.coordinate_unit,
+        marklab::spatial::WindowCoordinateUnit::Micrometre
+    );
     assert_eq!(
         result.window.coordinate_frame,
-        "existing_pattern_physical_xy"
+        marklab::spatial::WindowCoordinateFrame::ExistingPatternPhysicalXy
     );
-    assert_eq!(result.window.membership_policy, "closed_window");
+    assert_eq!(
+        result.window.membership_policy,
+        marklab::spatial::WindowMembershipPolicy::ClosedWindow
+    );
     assert_eq!(result.window.component_count, 1);
     assert_eq!(result.window.hole_count, 0);
     assert_eq!(result.geometry.point_count, 3);
     assert_eq!(
         result.geometry.boundary_distance_owner,
-        "observation_window_2d"
+        marklab::spatial::BoundaryDistanceOwner::ObservationWindow2d
     );
     assert_eq!(
         result.geometry.pair_traversal,
-        "exact_streaming_ordered_pairs"
+        marklab::spatial::PairTraversal::ExactStreamingOrderedPairs
     );
     assert_eq!(result.configuration.radius_count, 2);
     assert_eq!(result.configuration.limits, analysis_limits(100_000));

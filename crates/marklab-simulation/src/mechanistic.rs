@@ -6,6 +6,7 @@ use super::{
     ReactionDiffusionSpec, ReactionDiffusionStateCell, ReactionModel, SimulationError,
     VascularTransportSpec, VascularTransportStateCell,
 };
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug)]
 pub struct MechanisticTissueSpec {
@@ -86,7 +87,7 @@ pub struct MechanisticTissueResult {
     pub final_agents: Vec<Agent>,
     pub coupling_diagnostics: MechanisticCouplingDiagnostics,
     pub observation_model: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn simulate_mechanistic_tissue(
@@ -260,7 +261,7 @@ pub fn simulate_mechanistic_tissue(
             grid_alignment_violations: 0,
         },
         observation_model: "identity_latent_fields_and_agents",
-        claim_status: "experimental_coupled_simulation_not_digital_twin",
+        claim_status: ClaimStatus::ExperimentalCoupledSimulationNotDigitalTwin,
     })
 }
 

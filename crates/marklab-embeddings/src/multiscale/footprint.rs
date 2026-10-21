@@ -70,7 +70,6 @@ impl fmt::Debug for PatchFootprintSet {
 
 impl PatchFootprintSet {
     /// Validate exact expected order, slide ancestry, half-open boundaries, and retained budget.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         hierarchy: &CohortHierarchy,
         expected: &ExpectedPatchSet,

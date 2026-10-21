@@ -62,7 +62,7 @@
     {
       "name": "tiled_tiff_lossless_rgb_jpeg2000",
       "source": "generated in this repository from raw/rgb_lossless.j2k",
-      "generator": "rustc +1.96.0 tests/fixtures/wsi/generate_jp2k_tiff.rs -o /tmp/generate_jp2k_tiff && /tmp/generate_jp2k_tiff tests/fixtures/wsi/raw/rgb_lossless.j2k tests/fixtures/wsi/tiff/rgb_lossless_jp2k.tiff",
+      "generator": "rustc tests/fixtures/wsi/generate_jp2k_tiff.rs -o target/generate_jp2k_tiff && target/generate_jp2k_tiff tests/fixtures/wsi/raw/rgb_lossless.j2k tests/fixtures/wsi/tiff/rgb_lossless_jp2k.tiff",
       "license": "MIT OR Apache-2.0",
       "sha256": "d1dffe6fbb55d5bce08d47d91ecd1d96ec6daefc5c19cb9cde3a82a45cb9af45",
       "container": "tiled_tiff",
@@ -81,7 +81,7 @@
     {
       "name": "synthetic_dicom_vl_wsi_lossless_rgb_jpeg2000",
       "source": "generated in this repository from raw/rgb_lossless.j2k",
-      "generator": "cargo +1.96.0 run --locked --features wsi --example generate_dicom_wsi_fixture -- tests/fixtures/wsi/raw/rgb_lossless.j2k tests/fixtures/wsi/dicom/synthetic_vl_wsi_jp2k.dcm",
+      "generator": "cargo run --locked --features wsi --example generate_dicom_wsi_fixture -- tests/fixtures/wsi/raw/rgb_lossless.j2k tests/fixtures/wsi/dicom/synthetic_vl_wsi_jp2k.dcm",
       "license": "MIT OR Apache-2.0",
       "sha256": "70565c64493d9602129d5a971d3ac69289e69a5a6538e2d9c4f5d09c95c819fa",
       "container": "dicom_vl_wsi",
@@ -101,7 +101,8 @@
       "name": "public_aperio_jp2k_svs",
       "source": "https://openslide.cs.cmu.edu/download/openslide-testdata/Aperio/JP2K-33003-1.svs",
       "generator": null,
-      "license": "CC0-1.0",
+      "license": "Free to use and distribute, with or without modification",
+      "license_source": "https://openslide.cs.cmu.edu/download/openslide-testdata/Aperio/",
       "sha256": "6205ccf75a8fa6c32df7c5c04b7377398971a490fb6b320d50d91f7ba6a0e6fd",
       "container": "aperio_svs_tiff",
       "codec": "jpeg2000",

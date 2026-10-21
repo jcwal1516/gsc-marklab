@@ -1,3 +1,7 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use std::{
     collections::BTreeMap,
     sync::{
@@ -7,12 +11,14 @@ use std::{
 };
 
 use marklab::{
-    execute_algorithm, AnalysisConfig, AnalysisEngine, ArtifactId, ArtifactKey, ArtifactLocator,
-    ArtifactRecord, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalArtifactStore, LocalScheduler, MarkedAnalysisNode,
-    MarkedPrePostNode, MarklabProject, NativeRuntimeProvenance, NodeError, NodeId, NodeSpec,
-    OutputWriter, Pattern, PatternMeta, ProjectError, ResultDocument, SchedulerLimits, StoreId,
-    WorkflowError, WorkflowGraph, WorkflowNode,
+    workflow::{
+        execute_algorithm, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef,
+        ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest, DurableProject,
+        DurableProjectLimits, LocalArtifactStore, LocalScheduler, MarkedAnalysisNode,
+        MarkedPrePostNode, MarklabProject, NativeRuntimeProvenance, NodeError, NodeId, NodeSpec,
+        ProjectError, SchedulerLimits, StoreId, WorkflowError, WorkflowGraph, WorkflowNode,
+    },
+    AnalysisConfig, AnalysisEngine, OutputWriter, Pattern, ResultDocument,
 };
 
 #[derive(Clone)]
@@ -913,16 +919,12 @@ fn marked_workflow_matches_direct_compatibility_path() {
         vec![0.0, 1.0, 0.0, 1.0],
         vec![0.0, 0.0, 1.0, 1.0],
         vec![1, 0, 0, 1],
-        PatternMeta {
-            case_id: "workflow-case".into(),
-            timepoint: "post".into(),
-            protein: "generic".into(),
-            slide_id: None,
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "workflow-case".into(),
+            "post".into(),
+            "generic".into(),
+            None,
+        ),
     )
     .expect("pattern");
     pattern.window.area_um2 = 4.0;
@@ -1039,16 +1041,12 @@ fn marked_prepost_composes_two_produced_analysis_artifacts() {
             vec![0.0, 1.0, 0.0, 1.0],
             vec![0.0, 0.0, 1.0, 1.0],
             marks,
-            PatternMeta {
-                case_id: "workflow-case".into(),
-                timepoint: timepoint.into(),
-                protein: "generic".into(),
-                slide_id: None,
-                section_id: None,
-                stain_batch: None,
-                block_id: None,
-                region_id: None,
-            },
+            pattern_meta(
+                "workflow-case".into(),
+                timepoint.into(),
+                "generic".into(),
+                None,
+            ),
         )
         .expect("pattern");
         pattern.window.area_um2 = 4.0;

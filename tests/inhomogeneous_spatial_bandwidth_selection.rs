@@ -1,8 +1,14 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    analyze_selected_inhomogeneous_spatial_pattern, GaussianBandwidthSelectionConfig,
-    GaussianBandwidthSelectionLimits, InhomogeneousSpatialLimits, ObservationWindow2D,
-    ObservationWindowLimits, Pattern, PatternMeta,
+    spatial::{
+        analyze_selected_inhomogeneous_spatial_pattern, GaussianBandwidthSelectionConfig,
+        GaussianBandwidthSelectionLimits, InhomogeneousSpatialLimits,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn pattern() -> Pattern {
@@ -10,16 +16,12 @@ fn pattern() -> Pattern {
         vec![2.0, 3.0, 7.0, 9.0],
         vec![2.0, 2.0, 7.0, 7.0],
         vec![0; 4],
-        PatternMeta {
-            case_id: "bandwidth-selection-case".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("bandwidth-selection-slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "bandwidth-selection-case".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("bandwidth-selection-slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -90,8 +92,14 @@ fn prespecified_leave_one_out_likelihood_selects_bandwidth_before_kl() {
         analyze_selected_inhomogeneous_spatial_pattern(&pattern, &window(), &config(1_000_000))
             .expect("deterministic replay");
     assert_eq!(result, replay);
-    assert_eq!(result.selection.method, "leave_one_out_log_likelihood");
-    assert_eq!(result.selection.tie_break, "smallest_bandwidth_um");
+    assert_eq!(
+        result.selection.method,
+        marklab::spatial::BandwidthSelectionMethod::LeaveOneOutLogLikelihood
+    );
+    assert_eq!(
+        result.selection.tie_break,
+        marklab::spatial::BandwidthTieBreak::SmallestBandwidthUm
+    );
     assert_eq!(result.selection.selected_bandwidth_um, 1.0);
     assert_eq!(result.analysis.intensity.bandwidth_um, 1.0);
     assert_eq!(result.selection.candidates.len(), 3);
@@ -119,6 +127,6 @@ fn selection_intensity_work_ceiling_is_hard() {
             &window(),
             &config(baseline.selection.intensity_evaluations - 1),
         ),
-        Err(marklab::InhomogeneousSpatialError::IntensityEvaluationLimitExceeded { .. })
+        Err(marklab::spatial::InhomogeneousSpatialError::IntensityEvaluationLimitExceeded { .. })
     ));
 }

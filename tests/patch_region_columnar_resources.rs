@@ -6,13 +6,16 @@ mod support;
 use std::{io::Write, mem::size_of};
 
 use marklab::{
-    preflight_patch_region_link_arrow_bytes, preflight_patch_region_link_parquet_bytes,
-    publish_patch_region_link_arrow, publish_patch_region_link_parquet,
-    validate_patch_region_link_arrow_bytes, validate_patch_region_link_arrow_from_store,
-    validate_patch_region_link_parquet_bytes, validate_patch_region_link_parquet_from_store,
-    write_patch_region_link_arrow, write_patch_region_link_parquet, EmbeddingColumnarBudgets,
-    LocalArtifactStore, MultiscaleColumnarError, PatchRegionDeclaration, PatchRegionLink,
-    SpatialColumnarWriteSummary, StoreId,
+    embeddings::{
+        preflight_patch_region_link_arrow_bytes, preflight_patch_region_link_parquet_bytes,
+        publish_patch_region_link_arrow, publish_patch_region_link_parquet,
+        validate_patch_region_link_arrow_bytes, validate_patch_region_link_arrow_from_store,
+        validate_patch_region_link_parquet_bytes, validate_patch_region_link_parquet_from_store,
+        write_patch_region_link_arrow, write_patch_region_link_parquet, ColumnarError,
+        EmbeddingColumnarBudgets, PatchRegionDeclaration, PatchRegionLink,
+        SpatialColumnarWriteSummary,
+    },
+    workflow::{LocalArtifactStore, StoreId},
 };
 use parquet::{
     file::metadata::{
@@ -38,8 +41,12 @@ fn text_bytes(rows: &[PatchRegionDeclaration]) -> usize {
             row.patch_id().as_str().len()
                 + row.region_id().as_str().len()
                 + match row.relation() {
-                    marklab::PatchRegionRelation::FullyContained => "fully_contained".len(),
-                    marklab::PatchRegionRelation::PartialOverlap => "partial_overlap".len(),
+                    marklab::embeddings::PatchRegionRelation::FullyContained => {
+                        "fully_contained".len()
+                    }
+                    marklab::embeddings::PatchRegionRelation::PartialOverlap => {
+                        "partial_overlap".len()
+                    }
                 }
         })
         .sum()
@@ -260,7 +267,7 @@ fn assert_writer_budget_edges(
     requirements: WriterRequirements,
     mut write: impl FnMut(
         EmbeddingColumnarBudgets,
-    ) -> Result<SpatialColumnarWriteSummary, MultiscaleColumnarError>,
+    ) -> Result<SpatialColumnarWriteSummary, ColumnarError>,
 ) {
     let exact = EmbeddingColumnarBudgets::new(
         encoded_len,
@@ -311,19 +318,10 @@ fn assert_writer_budget_edges(
         assert!(
             matches!(
                 (&error, expected),
-                (
-                    MultiscaleColumnarError::FileByteBudgetExceeded { .. },
-                    "file"
-                ) | (
-                    MultiscaleColumnarError::DecodedByteBudgetExceeded { .. },
-                    "decoded"
-                ) | (
-                    MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. },
-                    "group"
-                ) | (
-                    MultiscaleColumnarError::RetainedByteBudgetExceeded { .. },
-                    "retained"
-                )
+                (ColumnarError::FileByteBudgetExceeded { .. }, "file")
+                    | (ColumnarError::DecodedByteBudgetExceeded { .. }, "decoded")
+                    | (ColumnarError::RowGroupByteBudgetExceeded { .. }, "group")
+                    | (ColumnarError::RetainedByteBudgetExceeded { .. }, "retained")
             ),
             "unexpected {expected} error: {error:?}"
         );
@@ -335,7 +333,7 @@ fn assert_reader_budget_edges<T>(
     group: usize,
     retained: usize,
     decoded: u64,
-    mut validate: impl FnMut(EmbeddingColumnarBudgets) -> Result<T, MultiscaleColumnarError>,
+    mut validate: impl FnMut(EmbeddingColumnarBudgets) -> Result<T, ColumnarError>,
 ) {
     validate(EmbeddingColumnarBudgets::new(
         encoded_len,
@@ -369,19 +367,10 @@ fn assert_reader_budget_edges<T>(
         assert!(
             matches!(
                 (&error, expected),
-                (
-                    MultiscaleColumnarError::FileByteBudgetExceeded { .. },
-                    "file"
-                ) | (
-                    MultiscaleColumnarError::DecodedByteBudgetExceeded { .. },
-                    "decoded"
-                ) | (
-                    MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. },
-                    "group"
-                ) | (
-                    MultiscaleColumnarError::RetainedByteBudgetExceeded { .. },
-                    "retained"
-                )
+                (ColumnarError::FileByteBudgetExceeded { .. }, "file")
+                    | (ColumnarError::DecodedByteBudgetExceeded { .. }, "decoded")
+                    | (ColumnarError::RowGroupByteBudgetExceeded { .. }, "group")
+                    | (ColumnarError::RetainedByteBudgetExceeded { .. }, "retained")
             ),
             "unexpected {expected} error: {error:?}"
         );

@@ -8,12 +8,17 @@ use std::{
 };
 
 use marklab::{
-    preflight_cell_embedding_table_arrow_bytes, preflight_cell_embedding_table_parquet_bytes,
-    publish_cell_embedding_table_parquet, write_cell_embedding_table_arrow,
-    write_cell_embedding_table_parquet, ArtifactId, CellEmbeddingRow, CellEmbeddingTable,
-    CellEmbeddingTablePhysicalBindings, CellId, ContentDigest, EmbeddingColumnarBudgets,
-    EmbeddingColumnarError, EmbeddingStatus, ExpectedCellSet, LocalArtifactStore, ParquetFailure,
-    PublicationDisposition, StoreId, TableFormat,
+    embeddings::{
+        preflight_cell_embedding_table_arrow_bytes, preflight_cell_embedding_table_parquet_bytes,
+        publish_cell_embedding_table_parquet, write_cell_embedding_table_arrow,
+        write_cell_embedding_table_parquet, CellEmbeddingRow, CellEmbeddingTable,
+        CellEmbeddingTablePhysicalBindings, ColumnarError, EmbeddingColumnarBudgets,
+        EmbeddingStatus, ExpectedCellSet, ParquetFailure,
+    },
+    workflow::{
+        ArtifactId, ContentDigest, LocalArtifactStore, PublicationDisposition, StoreId, TableFormat,
+    },
+    CellId,
 };
 use proptest::prelude::*;
 use tempfile::TempDir;
@@ -266,7 +271,7 @@ fn parquet_preflight_rejects_wrong_compact_wire_types_before_stock_decode() {
             bindings,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Parquet {
+        Err(ColumnarError::Parquet {
             reason: ParquetFailure::InvalidFooter,
         })
     ));
@@ -282,7 +287,7 @@ fn parquet_preflight_rejects_wrong_compact_wire_types_before_stock_decode() {
             bindings,
             budgets(),
         ),
-        Err(EmbeddingColumnarError::Parquet {
+        Err(ColumnarError::Parquet {
             reason: ParquetFailure::InvalidPageHeader,
         })
     ));
@@ -331,7 +336,7 @@ fn parquet_writer_charges_fixed_list_levels_chunks_and_metadata() {
 
     assert!(matches!(
         write_cell_embedding_table_parquet(&mut Vec::new(), &table, bindings, limits),
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { .. })
+        Err(ColumnarError::RetainedByteBudgetExceeded { .. })
     ));
 }
 
@@ -449,7 +454,7 @@ fn parquet_preflight_enforces_exact_file_row_group_decoded_and_retained_edges() 
                 8 * 1024 * 1024,
             ),
         ),
-        Err(EmbeddingColumnarError::FileByteBudgetExceeded { .. })
+        Err(ColumnarError::FileByteBudgetExceeded { .. })
     ));
 
     let row_group_required = match preflight_cell_embedding_table_parquet_bytes(
@@ -459,7 +464,7 @@ fn parquet_preflight_enforces_exact_file_row_group_decoded_and_retained_edges() 
         bindings,
         EmbeddingColumnarBudgets::new(8 * 1024 * 1024, 8 * 1024 * 1024, 0, 8 * 1024 * 1024),
     ) {
-        Err(EmbeddingColumnarError::RowGroupByteBudgetExceeded { required, .. }) => required,
+        Err(ColumnarError::RowGroupByteBudgetExceeded { required, .. }) => required,
         result => panic!("expected row-group budget failure, observed {result:?}"),
     };
     let decoded_required = match preflight_cell_embedding_table_parquet_bytes(
@@ -469,7 +474,7 @@ fn parquet_preflight_enforces_exact_file_row_group_decoded_and_retained_edges() 
         bindings,
         EmbeddingColumnarBudgets::new(8 * 1024 * 1024, 8 * 1024 * 1024, 8 * 1024 * 1024, 0),
     ) {
-        Err(EmbeddingColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
+        Err(ColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
         result => panic!("expected decoded budget failure, observed {result:?}"),
     };
     let writer_decoded_required = match write_cell_embedding_table_parquet(
@@ -478,7 +483,7 @@ fn parquet_preflight_enforces_exact_file_row_group_decoded_and_retained_edges() 
         bindings,
         EmbeddingColumnarBudgets::new(8 * 1024 * 1024, 8 * 1024 * 1024, 8 * 1024 * 1024, 0),
     ) {
-        Err(EmbeddingColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
+        Err(ColumnarError::DecodedByteBudgetExceeded { required, .. }) => required,
         result => panic!("expected writer decoded budget failure, observed {result:?}"),
     };
     assert_eq!(writer_decoded_required, decoded_required);
@@ -489,7 +494,7 @@ fn parquet_preflight_enforces_exact_file_row_group_decoded_and_retained_edges() 
         bindings,
         EmbeddingColumnarBudgets::new(8 * 1024 * 1024, 0, 8 * 1024 * 1024, 8 * 1024 * 1024),
     ) {
-        Err(EmbeddingColumnarError::RetainedByteBudgetExceeded { required, .. }) => required,
+        Err(ColumnarError::RetainedByteBudgetExceeded { required, .. }) => required,
         result => panic!("expected retained budget failure, observed {result:?}"),
     };
 

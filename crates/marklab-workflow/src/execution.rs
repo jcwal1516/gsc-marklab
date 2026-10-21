@@ -1,9 +1,9 @@
 use thiserror::Error;
 
-use crate::{
-    ArtifactSchema, CacheStatus, ContentDigest, DurableExecutionRequest, DurableProject,
-    DurableProjectError, LocalArtifactStore, LocalScheduler, MarklabProject,
-    NativeRuntimeProvenance, NodeRun, ProjectError, WorkflowError, WorkflowGraph, WorkflowNode,
+use crate::{CacheStatus, LocalScheduler, NodeRun, WorkflowError, WorkflowGraph, WorkflowNode};
+use marklab_project::{
+    ArtifactSchema, ContentDigest, DurableExecutionRequest, DurableProject, DurableProjectError,
+    LocalArtifactStore, MarklabProject, NativeRuntimeProvenance, ProjectError,
 };
 
 /// Execute one typed algorithm through verified durable replay and commit.

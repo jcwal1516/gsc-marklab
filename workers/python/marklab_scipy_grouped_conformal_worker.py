@@ -3,92 +3,87 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import scipy
-from scipy.optimize import minimize
 from scipy.special import expit
 
+from marklab_worker_support import versions
+from marklab_worker_support.logistic_calibration import fit_penalized_logistic
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    exact,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
-SCIPY_VERSION = "1.18.1"
-
-
-def exact_object(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        raise ValueError(f"{path} fields differ")
-    return value
+# Rust re-serializes one CSV file of at most 16 MiB with at most 100,000 patient rows. Each CSV
+# byte becomes at most 6 JSON bytes (\u00XX escapes; numbers grow less), and each row adds at
+# most 256 bytes of keys: 96 MiB + 24.4 MiB + fixed fields, rounded up.
+MAXIMUM_REQUEST_BYTES = 122 * MIB
 
 
 def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
-    request = exact_object(
+    request = obj(
         request,
-        {"format", "version", "backend", "patients", "feature_names", "alpha", "l2_penalty", "resources"},
+        {
+            "format",
+            "version",
+            "backend",
+            "patients",
+            "feature_names",
+            "alpha",
+            "l2_penalty",
+            "resources",
+        },
         "request",
     )
-    if request["format"] != "marklab.scipy_grouped_conformal_request" or request["version"] != 1:
-        raise ValueError("request identity differs")
-    backend = exact_object(
+    exact(request["format"], "marklab.scipy_grouped_conformal_request", "request.format")
+    exact(request["version"], 1, "request.version")
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
-        "backend",
+        "request.backend",
+        name="scipy",
+        version=versions.SCIPY,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    if (
-        backend["name"] != "scipy"
-        or backend["version"] != SCIPY_VERSION
-        or backend["python_version"] != "3.12"
-        or backend["environment_lock_sha256"] != lock_digest
-        or backend["worker_sha256"] != worker_digest
-        or scipy.__version__ != SCIPY_VERSION
-    ):
-        raise ValueError("backend identity differs")
-    if not isinstance(request["patients"], list) or not 30 <= len(request["patients"]) <= 100_000:
-        raise ValueError("patient count differs")
-    if not isinstance(request["feature_names"], list) or not 2 <= len(request["feature_names"]) <= 128:
-        raise ValueError("feature count differs")
+    patients = request["patients"]
+    feature_names = request["feature_names"]
+    if not isinstance(patients, list) or not 30 <= len(patients) <= 100_000:
+        raise ContractError("patient count differs")
+    if not isinstance(feature_names, list) or not 2 <= len(feature_names) <= 128:
+        raise ContractError("feature count differs")
     keys = {"patient_id", "split", "site", "subgroup", "label", "features"}
-    for index, raw in enumerate(request["patients"]):
-        patient = exact_object(raw, keys, f"patients[{index}]")
+    for index, raw in enumerate(patients):
+        patient = obj(raw, keys, f"patients[{index}]")
         if (
             patient["split"] not in {"train", "calibration", "test"}
             or patient["label"] not in {0, 1}
-            or len(patient["features"]) != len(request["feature_names"])
+            or len(patient["features"]) != len(feature_names)
             or any(not math.isfinite(float(value)) for value in patient["features"])
         ):
-            raise ValueError("patient differs")
-    exact_object(
+            raise ContractError("patient differs")
+    obj(
         request["resources"],
         {"maximum_patients", "maximum_features", "maximum_output_bytes", "timeout_seconds"},
         "resources",
     )
     return request
-
-
-def fit_logistic(x: np.ndarray, y: np.ndarray, penalty: float) -> np.ndarray:
-    def objective(parameters: np.ndarray) -> tuple[float, np.ndarray]:
-        z = parameters[0] + x @ parameters[1:]
-        value = float(np.sum(np.logaddexp(0.0, z) - y * z) + 0.5 * penalty * np.dot(parameters[1:], parameters[1:]))
-        residual = expit(z) - y
-        gradient = np.concatenate(
-            [np.asarray([np.sum(residual)]), x.T @ residual + penalty * parameters[1:]]
-        )
-        return value, gradient
-
-    fitted = minimize(
-        lambda parameters: objective(parameters),
-        np.zeros(x.shape[1] + 1),
-        method="BFGS",
-        jac=True,
-        options={"maxiter": 1_000, "gtol": 1e-8},
-    )
-    if not fitted.success or not np.all(np.isfinite(fitted.x)):
-        raise ValueError(f"logistic optimizer failed: {fitted.message}")
-    return np.asarray(fitted.x, dtype=np.float64)
 
 
 def coverage(rows: list[dict[str, Any]], key: str | None) -> list[dict[str, Any]]:
@@ -98,18 +93,24 @@ def coverage(rows: list[dict[str, Any]], key: str | None) -> list[dict[str, Any]
         selected = rows if key is None else [row for row in rows if row[key] == group]
         covered = sum(bool(row["covered"]) for row in selected)
         output.append(
-            {"group": group, "count": len(selected), "covered": covered, "coverage": covered / len(selected)}
+            {
+                "group": group,
+                "count": len(selected),
+                "covered": covered,
+                "coverage": covered / len(selected),
+            }
         )
     return output
 
 
-def run(raw: bytes) -> dict[str, Any]:
-    path = Path(__file__)
-    request = validate(
-        json.loads(raw),
-        hashlib.sha256(path.with_name("uv.lock").read_bytes()).hexdigest(),
-        hashlib.sha256(path.read_bytes()).hexdigest(),
-    )
+def run(request: dict[str, Any]) -> dict[str, Any]:
+    """Split-conformal binary prediction sets from a penalized logistic model.
+
+    The classifier is L2-penalized logistic regression on training features standardized with
+    training means and population SDs. The nonconformity score is one minus the predicted
+    probability of the true label; the threshold is the ``ceil((n + 1)(1 - alpha))``-th smallest
+    calibration score, and each test prediction set holds every label whose score is at most it.
+    """
     patients = request["patients"]
     train = [row for row in patients if row["split"] == "train"]
     calibration = [row for row in patients if row["split"] == "calibration"]
@@ -118,9 +119,9 @@ def run(raw: bytes) -> dict[str, Any]:
     mean = np.mean(train_x, axis=0)
     sd = np.std(train_x, axis=0, ddof=0)
     if np.any(sd <= 1e-14):
-        raise ValueError("every training feature must vary")
+        raise ContractError("every training feature must vary")
     standardized = (train_x - mean) / sd
-    parameters = fit_logistic(
+    parameters = fit_penalized_logistic(
         standardized,
         np.asarray([row["label"] for row in train], dtype=np.float64),
         float(request["l2_penalty"]),
@@ -131,8 +132,7 @@ def run(raw: bytes) -> dict[str, Any]:
         return float(expit(parameters[0] + np.dot(values, parameters[1:])))
 
     calibration_scores = sorted(
-        1.0 - probability(row) if row["label"] == 1 else probability(row)
-        for row in calibration
+        1.0 - probability(row) if row["label"] == 1 else probability(row) for row in calibration
     )
     rank = math.ceil((len(calibration) + 1) * (1.0 - float(request["alpha"])))
     threshold = calibration_scores[rank - 1]
@@ -156,10 +156,6 @@ def run(raw: bytes) -> dict[str, Any]:
             }
         )
     return {
-        "format": "marklab.scipy_grouped_conformal_worker_result",
-        "version": 1,
-        "backend": request["backend"],
-        "request_sha256": hashlib.sha256(raw).hexdigest(),
         "model": {
             "training_mean": mean.tolist(),
             "training_population_sd": sd.tolist(),
@@ -180,14 +176,19 @@ def run(raw: bytes) -> dict[str, Any]:
 
 
 def main() -> None:
-    raw = sys.stdin.buffer.read()
-    try:
-        encoded = json.dumps(run(raw), allow_nan=False, separators=(",", ":")).encode()
-    except Exception as error:
-        print(f"grouped conformal worker failed: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
-    sys.stdout.buffer.write(encoded)
+    require_versions(scipy=scipy.__version__)
+    lock_digest, worker_digest = worker_digests(__file__)
+    raw = read_request(MAXIMUM_REQUEST_BYTES)
+    request = validate(json.loads(raw), lock_digest, worker_digest)
+    result = {
+        "format": "marklab.scipy_grouped_conformal_worker_result",
+        "version": 1,
+        "backend": request["backend"],
+        "request_sha256": sha256_hex(raw),
+        **run(request),
+    }
+    write_result(result, sort_keys=False, newline=False)
 
 
 if __name__ == "__main__":
-    main()
+    run_worker(main, "grouped conformal worker failed")

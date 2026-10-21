@@ -1,20 +1,38 @@
-use crate::validation::all_finite as finite;
-use crate::validation::is_lower_hex_sha256 as is_sha256;
+use crate::is_worker_timeout;
+use crate::validation::is_sha256;
+use crate::validation::{all_finite as finite, validate_mcse_summary, SummarySupport};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     hierarchical::{
         GaussianHierarchyInputIdentity, HalfNormalPrior, HierarchicalPatientData, NormalPrior,
-        PartialPoolingSummary, ScalarPosteriorSummary,
+        PartialPoolingSummary,
     },
     model::{
         BackendContract, DiagnosticPolicy, WorkerResourceLimits, MODEL_FORMAT, MODEL_VERSION,
         PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
-    BayesError, FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary, WorkerBackend,
+    BayesError, FitState, McseScalarSummary, NutsSamplingSpec, PosteriorDiagnostics,
+    SamplingSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
+/// Student-t observations nested in patients with an inferred finite observation SD.
+///
+/// The likelihood is `y_ij ~ StudentT(nu, mu_j, scale)`, where
+/// `scale = sigma_obs * sqrt((nu - 2) / nu)` and `mu_j = mu + tau * z_j` with
+/// independent `z_j ~ Normal(0, 1)`. Priors are
+/// `mu ~ Normal(global_prior_mean, global_prior_sd)`,
+/// `tau ~ HalfNormal(between_patient_sd_prior)`,
+/// `sigma_obs ~ HalfNormal(observation_sd_prior)`, and
+/// `nu = 2 + Exponential(rate = degrees_of_freedom_excess_rate)`.
+/// Normal scale arguments are SDs; half-normal scales are underlying normal SDs.
+/// PyMC samples `sigma_obs`; NumPyro samples the likelihood scale and includes
+/// the change-of-variables density for the same prior on `sigma_obs`.
 #[derive(Clone, Debug)]
 pub struct StudentTHierarchySpec {
     pub global_prior_mean: f64,
@@ -50,8 +68,8 @@ pub struct StudentTHierarchyModelIr {
     pub hierarchy: [&'static str; 1],
     pub spatial_component: &'static str,
     pub posterior_predictive_statistics: [&'static str; 3],
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -86,7 +104,7 @@ impl StudentTHierarchyWorkerRequest {
             || spec.patients.len() < 3
             || !is_sha256(&environment_lock_sha256)
             || !is_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "Student-t hierarchy priors, patients, identities, or timeout are invalid".into(),
@@ -131,7 +149,7 @@ impl StudentTHierarchyWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -175,8 +193,8 @@ impl StudentTHierarchyWorkerRequest {
                     "patient_mean_sd",
                     "maximum_absolute_residual",
                 ],
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             patients: spec.patients,
             sampling,
@@ -201,10 +219,10 @@ impl StudentTHierarchyWorkerRequest {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct StudentTHierarchyPosterior {
-    pub global_mean: ScalarPosteriorSummary,
-    pub between_patient_sd: ScalarPosteriorSummary,
-    pub observation_sd: ScalarPosteriorSummary,
-    pub degrees_of_freedom: ScalarPosteriorSummary,
+    pub global_mean: McseScalarSummary,
+    pub between_patient_sd: McseScalarSummary,
+    pub observation_sd: McseScalarSummary,
+    pub degrees_of_freedom: McseScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -231,7 +249,7 @@ pub struct StudentTHierarchyWorkerResult {
     pub sampling: SamplingSummary,
     pub posterior: StudentTHierarchyPosterior,
     pub partial_pooling: Vec<PartialPoolingSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: StudentTHierarchyPosteriorPredictive,
 }
 
@@ -258,11 +276,7 @@ impl StudentTHierarchyWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != result_format
             || self.version != 1
-            || self.backend.name != backend.name
-            || self.backend.version != backend.version
-            || self.backend.python_version != backend.python_version
-            || self.backend.environment_lock_sha256 != backend.environment_lock_sha256
-            || self.backend.worker_sha256 != backend.worker_sha256
+            || !self.backend.matches(backend)
             || self.request_sha256 != request_sha256
             || self.partial_pooling.len() != request.patients.len()
         {
@@ -307,11 +321,13 @@ impl StudentTHierarchyWorkerResult {
                 || !finite(&[
                     summary.posterior_mean,
                     summary.posterior_sd,
+                    summary.mcse_mean,
                     summary.interval_lower,
                     summary.interval_upper,
                     summary.shrinkage,
                 ])
                 || summary.posterior_sd <= 0.0
+                || summary.mcse_mean < 0.0
                 || summary.warning != "shrinkage_is_model_dependent_not_a_quality_score"
             {
                 return Err(BayesError::WorkerContract(
@@ -425,29 +441,21 @@ impl StudentTHierarchyWorkerResult {
             posterior_predictive: self.posterior_predictive,
             seed: request.sampling.seed,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_robust_hierarchy"
+                ClaimStatus::ExperimentalRobustHierarchy
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             request_sha256: self.request_sha256,
         }
     }
 }
 
-fn validate_summary(summary: &ScalarPosteriorSummary) -> Result<(), BayesError> {
-    if !finite(&[
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]) || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-    {
-        return Err(BayesError::WorkerContract(
-            "Student-t posterior summary is invalid".into(),
-        ));
-    }
-    Ok(())
+fn validate_summary(summary: &McseScalarSummary) -> Result<(), BayesError> {
+    validate_mcse_summary(
+        summary,
+        SummarySupport::Real,
+        "Student-t posterior summary is invalid",
+    )
 }
 
 #[derive(Debug, Serialize)]
@@ -461,10 +469,10 @@ pub struct StudentTHierarchyResult {
     pub fit_state: FitState,
     pub posterior: StudentTHierarchyPosterior,
     pub partial_pooling: Vec<PartialPoolingSummary>,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: StudentTHierarchyPosteriorPredictive,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }
 

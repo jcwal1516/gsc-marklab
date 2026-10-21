@@ -10,7 +10,10 @@ use marklab_cohort::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publication::publish_json, validate_input_file, CohortError};
+use super::{
+    publication::publish_json, validate_input_file, CohortError, FingerprintDistanceArgs,
+    RegionCompatibilityArgs,
+};
 
 #[derive(Debug, Deserialize)]
 struct ComponentRow {
@@ -28,13 +31,14 @@ struct ComponentRows {
     points: Vec<(f64, f64, f64)>,
 }
 
-pub(super) fn run(
-    input: PathBuf,
-    left_sample: String,
-    right_sample: String,
-    spec_version: String,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run(args: FingerprintDistanceArgs) -> Result<(), CohortError> {
+    let FingerprintDistanceArgs {
+        input,
+        left_sample,
+        right_sample,
+        spec_version,
+        out,
+    } = args;
     let (left, right) = read_pair(&input, &left_sample, &right_sample, &spec_version)?;
     let distance = fingerprint_distance(&left, &right)?;
     publish_json(
@@ -43,13 +47,14 @@ pub(super) fn run(
     )
 }
 
-pub(super) fn run_compatibility(
-    input: PathBuf,
-    left_sample: String,
-    right_sample: String,
-    spec_version: String,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run_compatibility(args: RegionCompatibilityArgs) -> Result<(), CohortError> {
+    let RegionCompatibilityArgs {
+        input,
+        left_sample,
+        right_sample,
+        spec_version,
+        out,
+    } = args;
     let (left, right) = read_pair(&input, &left_sample, &right_sample, &spec_version)?;
     let result = region_compatibility(&left, &right)?;
     publish_json(

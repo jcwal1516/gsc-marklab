@@ -1,28 +1,13 @@
 use std::{fs::File, io::Read, path::PathBuf};
 
-use clap::{Parser, Subcommand};
+use clap::Subcommand;
 use marklab::{
-    execute_multiplex_study, publish_multiplex_study, MarklabError, MultiplexStudyTarget,
+    pathology::{execute_multiplex_study, publish_multiplex_study, MultiplexStudyTarget},
+    MarklabError,
 };
 
-#[derive(Parser)]
-#[command(name = "marklab")]
-struct StudyCli {
-    #[command(subcommand)]
-    command: StudyTopLevel,
-}
-
 #[derive(Subcommand)]
-enum StudyTopLevel {
-    /// Analyze a declared multiplex panel across slides and independent patients.
-    Study {
-        #[command(subcommand)]
-        command: StudyCommand,
-    },
-}
-
-#[derive(Subcommand)]
-enum StudyCommand {
+pub(crate) enum StudyCommand {
     /// Inspect supported inputs, design, evidence limits and claim ceiling before running.
     Describe,
     /// Execute or resume a strict multiplex recipe and publish its patient-level report.
@@ -42,12 +27,7 @@ enum StudyCommand {
     },
 }
 
-pub(crate) fn cli_route() -> super::command_tree::Route {
-    super::command_tree::Route::new::<StudyCli>(run)
-}
-
-fn run() -> marklab::Result<()> {
-    let StudyTopLevel::Study { command } = StudyCli::parse().command;
+pub(crate) fn run(command: StudyCommand) -> marklab::Result<()> {
     match command {
         StudyCommand::Describe => {
             println!(
@@ -58,13 +38,14 @@ fn run() -> marklab::Result<()> {
                     "domain": "exact 2-D polygon windows and physical micrometre coordinates",
                     "marks": "named continuous, binary and categorical protein-assay channels; explicit measured/predicted status and null observations",
                     "spatial_methods": ["global Moran I", "global Geary C"],
-                    "spatial_graph": "prespecified radius, binary symmetric or row-standardized; exact observed-row graph",
+                    "spatial_graph": "prespecified radius; strict binary symmetric, explicit binary symmetric including isolates, or strict row-standardized; exact observed-row graph",
                     "patient_reduction": "equal-slide mean; no cell or slide pseudoreplication",
                     "inference": "prespecified independent patient groups; complete-family single-step Max-T; finite Monte Carlo permutations",
                     "missingness": "per-channel complete cases; any required unavailable slide blocks patient inference",
                     "admitted_profile_limits": {"recipe_bytes": 16 * 1024 * 1024, "channels":64, "selected_channels":32, "slides":1024},
                     "validated_whole_slide_scale": null,
-                    "external_biological_validation": false,
+                    "external_biological_validation": true,
+                    "external_validation_scope": "Schurch CODEX: 35 patients, 70 fields, two markers; numerical Moran/Geary and patient Max-T agreement; no clinical validation",
                     "claim_ceiling": "conditional research inference; no clinical or causal claims",
                     "recipe_guide": "docs/multiplex-study.md"
                 }))?

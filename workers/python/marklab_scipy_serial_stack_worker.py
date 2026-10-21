@@ -1,22 +1,46 @@
 #!/usr/bin/env python3
+"""SciPy worker for Bayesian translation registration of a serial-section stack."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import scipy
 
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
-class ContractError(Exception):
-    pass
+
+def translation_draws(translations, reference_index, landmark_mean_sd, draw_count, rng):
+    """Draw section-to-reference translations from their Gaussian landmark posterior.
+
+    A section's translation is the reference landmark mean minus the section landmark mean.
+    Each landmark mean has independent ``Normal(0, landmark_mean_sd^2)`` error per axis; the
+    reference error is shared by every section, which correlates the section translations.
+    The reference translation is fixed at zero.
+    """
+    reference_errors = rng.normal(0.0, landmark_mean_sd, size=(draw_count, 1, 2))
+    section_errors = rng.normal(0.0, landmark_mean_sd, size=(draw_count, len(translations), 2))
+    draws = translations[None, :, :] + reference_errors - section_errors
+    draws[:, reference_index, :] = 0.0
+    return draws
 
 
 def main():
-    if np.__version__ != "2.4.6" or scipy.__version__ != "1.18.1" or sys.version_info[:2] != (3, 12):
-        raise ContractError("serial stack backend version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
+    require_versions(numpy=np.__version__, scipy=scipy.__version__)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
     if request["format"] != "marklab.scipy_serial_stack_request" or request["version"] != 1:
         raise ContractError("request identity mismatch")
@@ -30,19 +54,24 @@ def main():
     posterior_sd = request["landmark_noise_standard_deviation_um"] * math.sqrt(2.0 / count)
     posterior_sd_by_section = np.full((len(sections), 2), posterior_sd)
     posterior_sd_by_section[reference_index] = 0.0
-    transformed = [section + translation for section, translation in zip(landmarks, translations)]
+    transformed = [
+        section + translation for section, translation in zip(landmarks, translations, strict=True)
+    ]
     residuals = np.concatenate([value - reference for value in transformed], axis=0)
     pairwise = []
     adjacent_translations = []
     for index in range(len(sections) - 1):
         translation = (landmarks[index + 1] - landmarks[index]).mean(axis=0)
         adjacent_translations.append(translation)
-        pairwise.append({
-            "source_section_id": section_ids[index],
-            "target_section_id": section_ids[index + 1],
-            "translation_xy_um": translation.tolist(),
-            "landmark_rmse_um": float(np.sqrt(np.mean(np.sum((landmarks[index] + translation - landmarks[index + 1]) ** 2, axis=1)))),
-        })
+        residual = landmarks[index] + translation - landmarks[index + 1]
+        pairwise.append(
+            {
+                "source_section_id": section_ids[index],
+                "target_section_id": section_ids[index + 1],
+                "translation_xy_um": translation.tolist(),
+                "landmark_rmse_um": float(np.sqrt(np.mean(np.sum(residual**2, axis=1)))),
+            }
+        )
     composed = np.zeros((len(sections), 2))
     for index in range(reference_index - 1, -1, -1):
         composed[index] = composed[index + 1] + adjacent_translations[index]
@@ -50,21 +79,17 @@ def main():
         composed[index] = composed[index - 1] - adjacent_translations[index - 1]
     cycle_errors = np.linalg.norm(composed - translations, axis=1)
     rng = np.random.default_rng(request["seed"])
-    landmark_mean_sd = request["landmark_noise_standard_deviation_um"] / math.sqrt(count)
-    reference_errors = rng.normal(
-        0.0, landmark_mean_sd, size=(request["posterior_draws"], 1, 2)
+    draws = translation_draws(
+        translations,
+        reference_index,
+        request["landmark_noise_standard_deviation_um"] / math.sqrt(count),
+        request["posterior_draws"],
+        rng,
     )
-    section_errors = rng.normal(
-        0.0,
-        landmark_mean_sd,
-        size=(request["posterior_draws"], len(sections), 2),
-    )
-    draws = translations[None, :, :] + reference_errors - section_errors
-    draws[:, reference_index, :] = 0.0
     centroid_draws = []
     for draw in draws:
         stack_points = []
-        for section, section_landmarks, translation in zip(sections, landmarks, draw):
+        for section, section_landmarks, translation in zip(sections, landmarks, draw, strict=True):
             xy = section_landmarks + translation
             z = np.full((len(xy), 1), section["z_um"])
             stack_points.append(np.column_stack([xy, z]))
@@ -79,18 +104,20 @@ def main():
             "draws": section_draws.tolist(),
         }
         for section, translation, standard_deviation, section_draws in zip(
-            sections, translations, posterior_sd_by_section, np.moveaxis(draws, 1, 0)
+            sections, translations, posterior_sd_by_section, np.moveaxis(draws, 1, 0), strict=True
         )
     ]
     result = {
         "format": "marklab.bayesian_serial_section_stack",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "stack_id": request["stack_id"],
         "coordinate_unit": "um",
         "reference_section_id": request["reference_section_id"],
-        "ordered_sections": [{"section_id": section["section_id"], "z_um": section["z_um"]} for section in sections],
+        "ordered_sections": [
+            {"section_id": section["section_id"], "z_um": section["z_um"]} for section in sections
+        ],
         "pairwise_models": pairwise,
         "stack_posterior": {
             "family": "gaussian_translation_landmark_posterior",
@@ -100,7 +127,7 @@ def main():
         },
         "transformed_landmarks_xyz_um": [
             np.column_stack([points, np.full((len(points), 1), section["z_um"])]).tolist()
-            for section, points in zip(sections, transformed)
+            for section, points in zip(sections, transformed, strict=True)
         ],
         "quality": {
             "landmark_rmse_um": float(np.sqrt(np.mean(np.sum(residuals * residuals, axis=1)))),
@@ -118,13 +145,8 @@ def main():
         },
         "claim_status": "experimental_synthetic_serial_stack_reconstruction",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"serial stack worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "serial stack worker contract error", errors=CONTRACT_ERRORS)

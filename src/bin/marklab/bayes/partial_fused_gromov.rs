@@ -1,12 +1,13 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
-use marklab_bayes::{
+use marklab_transport::{
     FgwPlanEntry, FgwSupport, PartialFusedGromovWassersteinSpec,
     PartialFusedGromovWassersteinWorkerRequest, PartialFusedGromovWassersteinWorkerResult,
 };
 use serde::{Deserialize, Serialize};
 
-use super::{embedding_spatial, publish_json, run_worker, BayesCliError};
+use super::cli_schema::PartialFusedGromovWassersteinArgs;
+use super::{embedding_spatial, publish_json, run_worker, CliError};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,31 +18,31 @@ struct Input {
     target_structure_row_major: Vec<f64>,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input: PathBuf,
-    transported_mass: f64,
-    alpha: f64,
-    epsilon: f64,
-    feature_scale: f64,
-    structure_scale: f64,
-    tolerance: f64,
-    maximum_iterations: u32,
-    timeout_seconds: u64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: PartialFusedGromovWassersteinArgs) -> Result<(), CliError> {
+    let PartialFusedGromovWassersteinArgs {
+        input,
+        transported_mass,
+        alpha,
+        epsilon,
+        feature_scale,
+        structure_scale,
+        tolerance,
+        maximum_iterations,
+        timeout_seconds,
+        out,
+    } = args;
     let input_bytes = embedding_spatial::read(&input)?;
     let input: Input = serde_json::from_slice(&input_bytes)?;
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let worker_directory = repository.join("workers/python");
     let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
+    let lock_bytes = fs::read(&lock_path).map_err(|source| CliError::Io {
         path: lock_path,
         source,
     })?;
     let worker_name = "marklab_pot_partial_fgw_worker.py";
     let worker_path = worker_directory.join(worker_name);
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
+    let worker_bytes = fs::read(&worker_path).map_err(|source| CliError::Io {
         path: worker_path,
         source,
     })?;
@@ -95,7 +96,7 @@ pub(super) fn run(
             unmatched_target_mass: result.unmatched_target_mass,
             initialization_sensitivity: result.initialization_sensitivity,
             parameter_sensitivity: result.parameter_sensitivity,
-            unbalanced_fgw_status: "blocked_no_pinned_fgw_backend_with_kl_relaxed_marginals",
+            unbalanced_fgw_status: "available_as_bayes_unbalanced_fused_gromov_wasserstein",
             claim_status: "ensemble_descriptive_alignment_not_correspondence",
         },
     )
@@ -125,8 +126,8 @@ struct Output {
     transported_mass: f64,
     unmatched_source_mass: Vec<f64>,
     unmatched_target_mass: Vec<f64>,
-    initialization_sensitivity: Vec<marklab_bayes::PartialFgwFit>,
-    parameter_sensitivity: Vec<marklab_bayes::PartialFgwFit>,
+    initialization_sensitivity: Vec<marklab_transport::PartialFgwFit>,
+    parameter_sensitivity: Vec<marklab_transport::PartialFgwFit>,
     unbalanced_fgw_status: &'static str,
     claim_status: &'static str,
 }

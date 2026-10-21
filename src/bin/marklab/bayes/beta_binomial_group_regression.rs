@@ -1,14 +1,15 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use marklab_bayes::{
-    beta_binomial_group_data_sha256, sha256_hex, BetaBinomialGroupPatientData,
+    json_sha256, sha256_hex, BetaBinomialGroupPatientData,
     BetaBinomialGroupRegressionInputIdentity, BetaBinomialGroupRegressionSpec,
     BetaBinomialGroupRegressionWorkerRequest, BetaBinomialGroupRegressionWorkerResult,
-    NutsSamplingSpec,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::{BetaBinomialGroupRegressionArgs, BetaBinomialGroupRegressionModelArgs};
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -19,30 +20,10 @@ struct PatientRow {
     trials: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    concentration_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let prepared = prepare(
-        input_path,
-        reference_group,
-        comparison_group,
-        intercept_prior_mean,
-        intercept_prior_sd,
-        group_effect_prior_sd,
-        concentration_prior_sd,
-        sampling,
-        timeout_seconds,
-    )?;
+pub(super) fn run(args: BetaBinomialGroupRegressionArgs) -> Result<(), CliError> {
+    let BetaBinomialGroupRegressionArgs { model, out } = args;
+    let output_path = out;
+    let prepared = prepare(model)?;
     let result = execute(&prepared)?;
     publish_json(
         &output_path,
@@ -58,28 +39,31 @@ pub(crate) struct PreparedBetaBinomialGroupRegression {
     pub(crate) timeout_seconds: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
-    input_path: PathBuf,
-    reference_group: String,
-    comparison_group: String,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    group_effect_prior_sd: f64,
-    concentration_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-) -> Result<PreparedBetaBinomialGroupRegression, BayesCliError> {
-    let metadata = fs::metadata(&input_path).map_err(|source| BayesCliError::Io {
+    model: BetaBinomialGroupRegressionModelArgs,
+) -> Result<PreparedBetaBinomialGroupRegression, CliError> {
+    let BetaBinomialGroupRegressionModelArgs {
+        input: input_path,
+        reference_group,
+        comparison_group,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        group_effect_prior_sd,
+        concentration_prior_sd,
+        nuts,
+        timeout_seconds,
+    } = model;
+    let sampling = nuts.spec();
+    let metadata = fs::metadata(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
     if metadata.len() > MAXIMUM_INPUT_BYTES {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "beta-binomial group input exceeds 16 MiB".into(),
         ));
     }
-    let input_bytes = fs::read(&input_path).map_err(|source| BayesCliError::Io {
+    let input_bytes = fs::read(&input_path).map_err(|source| CliError::Io {
         path: input_path.clone(),
         source,
     })?;
@@ -98,21 +82,13 @@ pub(crate) fn prepare(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|error| {
-            BayesCliError::Input(format!("invalid beta-binomial group patient CSV: {error}"))
+            CliError::Input(format!("invalid beta-binomial group patient CSV: {error}"))
         })?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path =
-        worker_directory.join("marklab_pymc_beta_binomial_group_regression_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(
+        repository,
+        "marklab_pymc_beta_binomial_group_regression_worker.py",
+    )?;
     let request = BetaBinomialGroupRegressionWorkerRequest::new(
         BetaBinomialGroupRegressionSpec {
             reference_group: reference_group.clone(),
@@ -124,13 +100,13 @@ pub(crate) fn prepare(
             patients,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let input_identity = BetaBinomialGroupRegressionInputIdentity {
         path: input_path.display().to_string(),
-        patient_data_sha256: beta_binomial_group_data_sha256(&request.patients)?,
+        patient_data_sha256: json_sha256(&request.patients)?,
         reference_patients: request
             .patients
             .iter()
@@ -155,8 +131,8 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedBetaBinomialGroupRegression,
-) -> Result<BetaBinomialGroupRegressionWorkerResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<BetaBinomialGroupRegressionWorkerResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_beta_binomial_group_regression_worker.py",

@@ -1,14 +1,21 @@
+use marklab_bayes::is_worker_timeout;
 use std::{collections::HashSet, path::PathBuf};
 
 use marklab_topology::sha256_hex;
 
-use super::super::topology::{publish_json, read_input, run_worker, TopologyCliError};
+use super::super::topology::{publish_json, read_input, run_worker};
 use super::schema::{
     BayesianPccaSpec, PairedMultimodalDesign, PairedMultimodalRow, ProbabilisticCcaSpec,
 };
 use super::worker_assets;
+use crate::cli_error::CliError;
+use marklab_bayes::backend_versions::NUMPY_SCIPY_BACKEND;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
+use marklab_bayes::backend_versions::{JAX_VERSION, NUMPYRO_VERSION};
 
-pub(super) fn run_bayesian_pcca(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_bayesian_pcca(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: BayesianPccaSpec = serde_json::from_slice(&bytes)?;
     spec.rows
@@ -20,9 +27,9 @@ pub(super) fn run_bayesian_pcca(input: PathBuf, out: PathBuf) -> Result<(), Topo
         || !(20..=10_000).contains(&spec.samples)
         || !spec.target_accept.is_finite()
         || !(0.8..1.0).contains(&spec.target_accept)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "Bayesian pCCA requires pinned priors, one factor, bounded draws, target acceptance, and timeout"
                 .into(),
         ));
@@ -34,11 +41,11 @@ pub(super) fn run_bayesian_pcca(input: PathBuf, out: PathBuf) -> Result<(), Topo
         "backend": {
             "name": "cca_zoo_numpyro_jax",
             "cca_zoo_version": "3.0.0",
-            "numpyro_version": "0.21.0",
-            "jax_version": "0.11.1",
-            "numpy_version": "2.4.6",
-            "scipy_version": "1.18.1",
-            "python_version": "3.12",
+            "numpyro_version": NUMPYRO_VERSION,
+            "jax_version": JAX_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "MIT_plus_Apache-2.0_plus_BSD-3-Clause",
             "environment_lock_sha256": assets.lock_sha256,
             "worker_sha256": assets.worker_sha256
@@ -70,14 +77,14 @@ pub(super) fn run_bayesian_pcca(input: PathBuf, out: PathBuf) -> Result<(), Topo
                 | Some("unsupported_for_claim_nonconverged")
         )
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "Bayesian pCCA result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-pub(super) fn run_pcca(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_pcca(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: ProbabilisticCcaSpec = serde_json::from_slice(&bytes)?;
     spec.rows
@@ -89,8 +96,8 @@ pub(super) fn run_pcca(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliEr
         "version": 1,
         "backend": {
             "name": "numpy_scipy",
-            "version": "numpy-2.4.6+scipy-1.18.1",
-            "python_version": "3.12",
+            "version": NUMPY_SCIPY_BACKEND,
+            "python_version": PYTHON_VERSION,
             "license": "BSD-3-Clause",
             "environment_lock_sha256": assets.lock_sha256,
             "worker_sha256": assets.worker_sha256
@@ -117,14 +124,14 @@ pub(super) fn run_pcca(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliEr
         || result["design"]["validation_status"] != "passed"
         || result["claim_status"] != "experimental_synthetic_paired_gaussian_pcca"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "probabilistic CCA result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_pcca(spec: &ProbabilisticCcaSpec) -> Result<(), TopologyCliError> {
+fn validate_pcca(spec: &ProbabilisticCcaSpec) -> Result<(), CliError> {
     let dx = spec.design.modality_x.feature_names.len();
     let dy = spec.design.modality_y.feature_names.len();
     let valid_design = spec.design.entity_level == "patient"
@@ -157,7 +164,7 @@ fn validate_pcca(spec: &ProbabilisticCcaSpec) -> Result<(), TopologyCliError> {
         || !(2..=10_000).contains(&spec.maximum_iterations)
         || !spec.convergence_tolerance.is_finite()
         || spec.convergence_tolerance <= 0.0
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
         || spec.rows.iter().any(|row| {
             row.entity_id.trim().is_empty()
                 || row.entity_id.trim() != row.entity_id
@@ -168,7 +175,7 @@ fn validate_pcca(spec: &ProbabilisticCcaSpec) -> Result<(), TopologyCliError> {
                 || row.x.iter().chain(&row.y).any(|value| !value.is_finite())
         })
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "pCCA requires valid paired measured patient Gaussian modalities, train/test rows, dimensions, and numerical controls"
                 .into(),
         ));
@@ -181,7 +188,7 @@ fn validate_pcca(spec: &ProbabilisticCcaSpec) -> Result<(), TopologyCliError> {
         if names.iter().any(|name| {
             name.trim().is_empty() || name.trim() != name || !unique.insert(name.as_str())
         }) {
-            return Err(TopologyCliError::Input(
+            return Err(CliError::Input(
                 "pCCA feature names must be unique exact strings within each modality".into(),
             ));
         }
@@ -193,7 +200,7 @@ fn validate_common_design(
     design: &PairedMultimodalDesign,
     rows: &[PairedMultimodalRow],
     latent_dimensions: usize,
-) -> Result<(), TopologyCliError> {
+) -> Result<(), CliError> {
     let dx = design.modality_x.feature_names.len();
     let dy = design.modality_y.feature_names.len();
     let valid_design = design.entity_level == "patient"
@@ -228,7 +235,7 @@ fn validate_common_design(
                 || row.x.iter().chain(&row.y).any(|value| !value.is_finite())
         })
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "multimodal design requires paired measured patient Gaussian modalities, train/test rows, and valid dimensions"
                 .into(),
         ));
@@ -241,7 +248,7 @@ fn validate_common_design(
         if names.iter().any(|name| {
             name.trim().is_empty() || name.trim() != name || !unique.insert(name.as_str())
         }) {
-            return Err(TopologyCliError::Input(
+            return Err(CliError::Input(
                 "multimodal feature names must be unique exact strings within each modality".into(),
             ));
         }

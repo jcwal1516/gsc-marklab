@@ -1,6 +1,13 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{
-    analyze_inhomogeneous_spatial_pattern, InhomogeneousSpatialConfig, InhomogeneousSpatialLimits,
-    ObservationWindow2D, ObservationWindowLimits, Pattern, PatternMeta,
+    spatial::{
+        analyze_inhomogeneous_spatial_pattern, InhomogeneousSpatialConfig,
+        InhomogeneousSpatialLimits,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 #[test]
@@ -9,16 +16,12 @@ fn stable_cell_id_folds_match_an_independent_gaussian_intensity_oracle() {
         vec![2.0, 3.0, 7.0, 9.0],
         vec![2.0, 2.0, 7.0, 7.0],
         vec![0; 4],
-        PatternMeta {
-            case_id: "cross-fit".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "cross-fit".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("slide".into()),
+        ),
     )
     .expect("pattern");
     pattern.cell_ids = Some(
@@ -46,12 +49,33 @@ fn stable_cell_id_folds_match_an_independent_gaussian_intensity_oracle() {
     .expect("cross-fit config");
     let result = analyze_inhomogeneous_spatial_pattern(&pattern, &window, &config)
         .expect("cross-fitted analysis");
-    assert_eq!(result.intensity.cross_fit, "balanced_cell_id_rank_2_fold");
+    assert_eq!(
+        result.intensity.cross_fit,
+        marklab::spatial::IntensityCrossFit::BalancedCellIdRank { folds: 2 }
+    );
     assert!(result
         .intensity
         .point_values
         .iter()
         .all(|point| point.training_point_count == 2));
+
+    let wire = serde_json::to_value(&result.intensity).expect("intensity JSON");
+    assert_eq!(wire["cross_fit"], "balanced_cell_id_rank_2_fold");
+    let decoded: marklab::spatial::InhomogeneousIntensitySummary =
+        serde_json::from_value(wire.clone()).expect("typed intensity");
+    assert_eq!(decoded, result.intensity);
+    for invalid in [
+        "balanced_cell_id_rank_02_fold",
+        "balanced_cell_id_rank_1_fold",
+        "invented",
+    ] {
+        let mut invalid_wire = wire.clone();
+        invalid_wire["cross_fit"] = serde_json::json!(invalid);
+        assert!(
+            serde_json::from_value::<marklab::spatial::InhomogeneousIntensitySummary>(invalid_wire)
+                .is_err()
+        );
+    }
 
     let bandwidth = 2.0;
     let kernel = |left: (f64, f64), right: (f64, f64)| {

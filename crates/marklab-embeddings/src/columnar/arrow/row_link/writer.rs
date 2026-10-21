@@ -18,9 +18,7 @@ use crate::CellEmbeddingRowLink;
 
 use super::{
     super::{
-        super::super::{
-            EmbeddingColumnarBudgets, EmbeddingColumnarError, RowLinkColumnarWriteSummary,
-        },
+        super::super::{ColumnarError, EmbeddingColumnarBudgets, RowLinkColumnarWriteSummary},
         profile::{
             align, enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
             validity_bytes, ALIGNMENT, CONTINUATION_MARKER, MAXIMUM_MESSAGE_BYTES,
@@ -36,7 +34,7 @@ pub fn write_cell_embedding_row_link_arrow(
     output: &mut dyn Write,
     row_link: &CellEmbeddingRowLink,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<RowLinkColumnarWriteSummary, EmbeddingColumnarError> {
+) -> Result<RowLinkColumnarWriteSummary, ColumnarError> {
     let row_count = row_link.entries().len();
     let decoded_bytes = estimate_decoded_bytes(row_link)?;
     enforce_decoded_budget(decoded_bytes, budgets)?;
@@ -46,39 +44,39 @@ pub fn write_cell_embedding_row_link_arrow(
     let record_batch_count = row_count.div_ceil(RECORD_BATCH_ROWS);
     let record_block_bytes = record_batch_count
         .checked_mul(size_of::<arrow_ipc::Block>())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let record_block_capacity_bytes = record_block_bytes
         .checked_mul(2)
         .and_then(|value| value.checked_add(size_of::<Vec<arrow_ipc::Block>>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let batch_peak_bytes = maximum_batch_bytes
         .checked_mul(2)
         .and_then(|value| value.checked_add(record_block_capacity_bytes))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let footer_builder_bytes = record_block_bytes
         .checked_add(MAXIMUM_MESSAGE_BYTES)
         .and_then(|value| value.checked_mul(2))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let footer_peak_bytes = record_block_capacity_bytes
         .checked_add(footer_builder_bytes)
         .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(batch_peak_bytes.max(footer_peak_bytes), budgets)?;
 
     let schema = row_link_schema(row_link)?;
     let options = IpcWriteOptions::try_new(ALIGNMENT, false, MetadataVersion::V5)
-        .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+        .map_err(|_| ColumnarError::ArrowWriter)?;
     let digesting_sink = DigestingWriter::new(output, budgets.maximum_file_bytes());
     let mut sink = CanonicalRowLinkWriter::new(digesting_sink);
     let write_result = (|| {
         let mut writer = FileWriter::try_new_with_options(&mut sink, &schema, options)
-            .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+            .map_err(|_| ColumnarError::ArrowWriter)?;
         let mut start = 0_usize;
         while start < row_count {
             let end = start
                 .checked_add(RECORD_BATCH_ROWS)
                 .map(|value| value.min(row_count))
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             let batch = build_batch(row_link, &schema, start, end)?;
             if let Some((body_offset, replacement)) =
                 nullable_validity_tail_patch(row_link, start, end)?
@@ -86,23 +84,21 @@ pub fn write_cell_embedding_row_link_arrow(
                 writer
                     .get_mut()
                     .arm_batch_patch(body_offset, replacement)
-                    .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+                    .map_err(|_| ColumnarError::ArrowWriter)?;
             }
             writer
                 .write(&batch)
-                .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+                .map_err(|_| ColumnarError::ArrowWriter)?;
             writer
                 .get_mut()
                 .finish_batch()
-                .map_err(|_| EmbeddingColumnarError::ArrowWriter)?;
+                .map_err(|_| ColumnarError::ArrowWriter)?;
             start = end;
         }
-        writer
-            .finish()
-            .map_err(|_| EmbeddingColumnarError::ArrowWriter)
+        writer.finish().map_err(|_| ColumnarError::ArrowWriter)
     })();
     if let Some(observed) = sink.budget_exceeded() {
-        return Err(EmbeddingColumnarError::FileByteBudgetExceeded {
+        return Err(ColumnarError::FileByteBudgetExceeded {
             observed,
             maximum: budgets.maximum_file_bytes(),
         });
@@ -120,11 +116,11 @@ fn nullable_validity_tail_patch(
     row_link: &CellEmbeddingRowLink,
     start: usize,
     end: usize,
-) -> Result<Option<(u64, u8)>, EmbeddingColumnarError> {
+) -> Result<Option<(u64, u8)>, ColumnarError> {
     let entries = row_link
         .entries()
         .get(start..end)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let rows = entries.len();
     let remainder = rows % 8;
     if remainder == 0
@@ -138,31 +134,27 @@ fn nullable_validity_tail_patch(
     let identifier_bytes = entries.iter().try_fold(0_usize, |total, entry| {
         total
             .checked_add(entry.cell_id().as_str().len())
-            .ok_or(EmbeddingColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     let offsets = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let values = rows
         .checked_mul(size_of::<u64>())
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let lengths = [validity, offsets, identifier_bytes, validity, values];
     let nullable_validity_offset = lengths.into_iter().try_fold(0_usize, |next, length| {
         align(next)?
             .checked_add(length)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })?;
     let tail_offset = align(nullable_validity_offset)?
-        .checked_add(
-            validity
-                .checked_sub(1)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?,
-        )
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .checked_add(validity.checked_sub(1).ok_or(ColumnarError::SizeOverflow)?)
+        .ok_or(ColumnarError::SizeOverflow)?;
     let replacement = u8::MAX >> (8 - remainder);
     Ok(Some((
-        u64::try_from(tail_offset).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+        u64::try_from(tail_offset).map_err(|_| ColumnarError::SizeOverflow)?,
         replacement,
     )))
 }
@@ -338,17 +330,15 @@ fn build_batch(
     schema: &Schema,
     start: usize,
     end: usize,
-) -> Result<RecordBatch, EmbeddingColumnarError> {
-    let rows = end
-        .checked_sub(start)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<RecordBatch, ColumnarError> {
+    let rows = end.checked_sub(start).ok_or(ColumnarError::SizeOverflow)?;
     let identifier_bytes =
         row_link.entries()[start..end]
             .iter()
             .try_fold(0_usize, |total, entry| {
                 total
                     .checked_add(entry.cell_id().as_str().len())
-                    .ok_or(EmbeddingColumnarError::SizeOverflow)
+                    .ok_or(ColumnarError::SizeOverflow)
             })?;
     let mut cells = StringBuilder::with_capacity(rows, identifier_bytes);
     let mut source_cells = UInt64Builder::with_capacity(rows);
@@ -374,11 +364,10 @@ fn build_batch(
         Arc::new(source_cells.finish()),
         Arc::new(source_embeddings),
     ];
-    RecordBatch::try_new(Arc::new(schema.clone()), columns)
-        .map_err(|_| EmbeddingColumnarError::ArrowWriter)
+    RecordBatch::try_new(Arc::new(schema.clone()), columns).map_err(|_| ColumnarError::ArrowWriter)
 }
 
-fn estimate_decoded_bytes(row_link: &CellEmbeddingRowLink) -> Result<u64, EmbeddingColumnarError> {
+fn estimate_decoded_bytes(row_link: &CellEmbeddingRowLink) -> Result<u64, ColumnarError> {
     let mut required = 0_u64;
     for batch in row_link.entries().chunks(RECORD_BATCH_ROWS) {
         let rows = batch.len();
@@ -386,34 +375,34 @@ fn estimate_decoded_bytes(row_link: &CellEmbeddingRowLink) -> Result<u64, Embedd
             total
                 .checked_add(
                     u64::try_from(entry.cell_id().as_str().len())
-                        .map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+                        .map_err(|_| ColumnarError::SizeOverflow)?,
                 )
-                .ok_or(EmbeddingColumnarError::SizeOverflow)
+                .ok_or(ColumnarError::SizeOverflow)
         })?;
         let offsets = rows
             .checked_add(1)
             .and_then(|value| value.checked_mul(size_of::<i32>()))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let values = rows
             .checked_mul(2)
             .and_then(|value| value.checked_mul(size_of::<u64>()))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let validity = validity_bytes(rows)?
             .checked_mul(3)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let batch_bytes = identifier_bytes
-            .checked_add(u64::try_from(offsets).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
+            .checked_add(u64::try_from(offsets).map_err(|_| ColumnarError::SizeOverflow)?)
             .and_then(|value| value.checked_add(u64::try_from(values).ok()?))
             .and_then(|value| value.checked_add(u64::try_from(validity).ok()?))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         required = required
             .checked_add(batch_bytes)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     Ok(required)
 }
 
-fn estimate_batch_bytes(row_link: &CellEmbeddingRowLink) -> Result<usize, EmbeddingColumnarError> {
+fn estimate_batch_bytes(row_link: &CellEmbeddingRowLink) -> Result<usize, ColumnarError> {
     let rows = row_link.entries().len().min(RECORD_BATCH_ROWS);
     let identifier_bytes = row_link
         .entries()
@@ -422,7 +411,7 @@ fn estimate_batch_bytes(row_link: &CellEmbeddingRowLink) -> Result<usize, Embedd
             batch.iter().try_fold(0_usize, |total, entry| {
                 total
                     .checked_add(entry.cell_id().as_str().len())
-                    .ok_or(EmbeddingColumnarError::SizeOverflow)
+                    .ok_or(ColumnarError::SizeOverflow)
             })
         })
         .try_fold(0_usize, |maximum, bytes| {
@@ -431,19 +420,19 @@ fn estimate_batch_bytes(row_link: &CellEmbeddingRowLink) -> Result<usize, Embedd
     let offsets = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let values = rows
         .checked_mul(2)
         .and_then(|value| value.checked_mul(size_of::<u64>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let validity = validity_bytes(rows)?
         .checked_mul(3)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     identifier_bytes
         .checked_add(offsets)
         .and_then(|value| value.checked_add(values))
         .and_then(|value| value.checked_add(validity))
         .and_then(|value| value.checked_add(7 * (ALIGNMENT - 1)))
         .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }

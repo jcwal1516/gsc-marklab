@@ -60,7 +60,6 @@ impl fmt::Debug for CellPatchLinkProducer {
 
 impl CellPatchLinkProducer {
     /// Describe deterministic all-containing half-open anchor containment.
-    #[allow(clippy::too_many_arguments)]
     pub fn contained_shared(
         algorithm_version: impl Into<String>,
         source_coordinates_artifact_id: ArtifactId,
@@ -89,7 +88,6 @@ impl CellPatchLinkProducer {
     }
 
     /// Preserve one explicit interpolation producer token without inferring its algorithm.
-    #[allow(clippy::too_many_arguments)]
     pub fn declared_weighted_interpolation(
         algorithm: impl Into<String>,
         algorithm_version: impl Into<String>,

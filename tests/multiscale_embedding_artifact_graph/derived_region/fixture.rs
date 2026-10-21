@@ -1,106 +1,27 @@
 use super::super::support::*;
 use marklab::{
-    finalize_region_embedding_table_from_patches, patch_region_embedding_dispersion,
-    publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
-    publish_patch_region_link_arrow, publish_patch_region_link_parquet,
-    verify_patch_embedding_table_arrow_from_store, verify_patch_embedding_table_parquet_from_store,
-    verify_patch_footprint_set_arrow_from_store, verify_patch_footprint_set_parquet_from_store,
-    verify_patch_overlap_graph_arrow_from_store, verify_patch_overlap_graph_parquet_from_store,
-    verify_patch_region_link_arrow_from_store, verify_patch_region_link_parquet_from_store,
-    ArtifactAvailabilityFailure, ArtifactCatalog, ArtifactRecord, EmbeddingColumnarBudgets,
-    EmbeddingFinalizationBudgets, EmbeddingStatus, ExpectedRegionSet, HierarchyId, HierarchyNode,
-    MeasurementStatus, MultiscaleArtifactBinding, MultiscaleEmbeddingArtifactGraphError,
-    MultiscaleEmbeddingArtifactRole, MultiscaleEmbeddingDerivationContract,
-    MultiscaleEmbeddingError, MultiscaleEmbeddingExecutionProvenance,
-    MultiscaleEmbeddingProvenance, MultiscaleEmbeddingSupport, PatchEmbeddingRow,
-    PatchEmbeddingTable, PatchRegionAssessment, PatchRegionAssessmentBindings,
-    PatchRegionDeclaration, PatchRegionEmbeddingDispersionError,
-    PatchRegionEmbeddingDispersionStatus, PatchRegionLink, PatientId, RegionId, ReplicationRole,
-    VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
-    VerifiedPatchEmbeddingTableArtifact, VerifiedPatchRegionLinkArtifact,
-    VerifiedRegionEmbeddingSupportArtifact,
+    embeddings::{
+        finalize_region_embedding_table_from_patches, patch_region_embedding_dispersion,
+        publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
+        publish_patch_region_link_arrow, publish_patch_region_link_parquet,
+        verify_patch_embedding_table_arrow_from_store,
+        verify_patch_embedding_table_parquet_from_store, verify_patch_region_link_arrow_from_store,
+        verify_patch_region_link_parquet_from_store, ArtifactAvailabilityFailure,
+        EmbeddingFinalizationBudgets, EmbeddingStatus, ExpectedRegionSet,
+        MultiscaleArtifactBinding, MultiscaleEmbeddingArtifactGraphError,
+        MultiscaleEmbeddingArtifactRole, MultiscaleEmbeddingDerivationContract,
+        MultiscaleEmbeddingError, MultiscaleEmbeddingExecutionProvenance,
+        MultiscaleEmbeddingProvenance, MultiscaleEmbeddingSupport, PatchEmbeddingRow,
+        PatchEmbeddingTable, PatchRegionAssessment, PatchRegionAssessmentBindings,
+        PatchRegionDeclaration, PatchRegionEmbeddingDispersionError,
+        PatchRegionEmbeddingDispersionStatus, PatchRegionLink,
+        VerifiedDerivedRegionEmbeddingArtifactGraph, VerifiedPatchEmbeddingSupportArtifact,
+        VerifiedPatchEmbeddingTableArtifact, VerifiedPatchRegionLinkArtifact,
+        VerifiedRegionEmbeddingSupportArtifact,
+    },
+    workflow::{ArtifactCatalog, ArtifactRecord},
+    HierarchyId, HierarchyNode, MeasurementStatus, PatientId, RegionId, ReplicationRole,
 };
-
-fn budgets() -> EmbeddingColumnarBudgets {
-    EmbeddingColumnarBudgets::new(BUDGET as u64, BUDGET, BUDGET, BUDGET as u64)
-}
-
-fn direct_graph(fixture: &Fixture) -> marklab::VerifiedDirectPatchEmbeddingArtifactGraph {
-    fixture
-        .provenance
-        .validate_direct_patch_artifact_graph(
-            fixture.provenance_artifact_id,
-            &fixture.expected_patches,
-            &fixture.source_entities,
-            &fixture.identity_map,
-            &fixture.source_row_link,
-            &fixture.input_normalization,
-            &fixture.context,
-            &fixture.footprints,
-            &fixture.overlap,
-            &fixture.support,
-            &fixture.catalog,
-            &fixture.store,
-        )
-        .expect("direct graph")
-}
-
-fn patch_support(
-    fixture: &Fixture,
-    graph: marklab::VerifiedDirectPatchEmbeddingArtifactGraph,
-    parquet_physical: bool,
-) -> VerifiedPatchEmbeddingSupportArtifact {
-    let footprints = if parquet_physical {
-        verify_patch_footprint_set_parquet_from_store(
-            &fixture.store,
-            &fixture.footprint_record,
-            &fixture.expected_patches,
-            &fixture.context,
-            &fixture.footprints,
-            graph,
-            budgets(),
-        )
-    } else {
-        verify_patch_footprint_set_arrow_from_store(
-            &fixture.store,
-            &fixture.footprint_record,
-            &fixture.expected_patches,
-            &fixture.context,
-            &fixture.footprints,
-            graph,
-            budgets(),
-        )
-    }
-    .expect("footprint receipt");
-    let overlap = if parquet_physical {
-        verify_patch_overlap_graph_parquet_from_store(
-            &fixture.store,
-            &fixture.overlap_record,
-            &fixture.expected_patches,
-            &fixture.context,
-            &fixture.footprints,
-            &fixture.overlap,
-            footprints,
-            graph,
-            budgets(),
-        )
-    } else {
-        verify_patch_overlap_graph_arrow_from_store(
-            &fixture.store,
-            &fixture.overlap_record,
-            &fixture.expected_patches,
-            &fixture.context,
-            &fixture.footprints,
-            &fixture.overlap,
-            footprints,
-            graph,
-            budgets(),
-        )
-    }
-    .expect("overlap receipt");
-    VerifiedPatchEmbeddingSupportArtifact::from_verified_components(graph, footprints, overlap)
-        .expect("patch support receipt")
-}
 
 fn patch_table(
     fixture: &Fixture,
@@ -253,8 +174,13 @@ fn derived_fixture_with_options(options: DerivedFixtureOptions) -> DerivedFixtur
         source_row_status_pattern: options.source_row_status_pattern,
         ..FixtureOptions::default()
     });
-    let graph = direct_graph(&direct);
-    let patch_support = patch_support(&direct, graph, options.direct_parquet_physical);
+    let graph = direct.direct_graph_result().expect("direct graph");
+    let patch_support = patch_support(
+        &direct,
+        graph,
+        options.direct_parquet_physical,
+        options.direct_parquet_physical,
+    );
     let patch_table = patch_table(
         &direct,
         patch_support,
@@ -406,7 +332,7 @@ fn derived_fixture_with_options(options: DerivedFixtureOptions) -> DerivedFixtur
         assessment.direct_dependencies().collect(),
         None,
     );
-    let link = marklab::PatchRegionLink::from_exhaustive_assessment(
+    let link = marklab::embeddings::PatchRegionLink::from_exhaustive_assessment(
         &assessment,
         assessment_record.id(),
         assessment_record.content().digest(),

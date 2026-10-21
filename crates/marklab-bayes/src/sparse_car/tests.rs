@@ -80,10 +80,10 @@ fn dense_parameters(spec: &SparseCarSpec, posterior: bool) -> (Vec<f64>, Vec<f64
             right[i] = (y - row.prior_mean) * row.noise_sd.powi(-2);
         }
     }
-    let lower = crate::linalg::cholesky(&precision, n).unwrap();
+    let lower = marklab_numerics::dense::cholesky(&precision, n).unwrap();
     let solve = |b: &[f64]| {
-        let mut x = crate::linalg::solve_lower(&lower, n, b);
-        crate::linalg::solve_upper_from_lower_transpose_in_place(&lower, n, &mut x);
+        let mut x = marklab_numerics::dense::solve_lower(&lower, n, b);
+        marklab_numerics::dense::solve_lower_transpose_in_place(&lower, n, &mut x);
         x
     };
     let mean = solve(&right)
@@ -120,7 +120,7 @@ fn missing_region_posterior_matches_dense_oracle_and_replays_seed() {
         );
     }
     assert_eq!(result, fit_sparse_car(&spec).unwrap());
-    assert_eq!(result.fit_state, "complete");
+    assert_eq!(result.fit_state, FitState::Complete);
     assert!(result.diagnostics.maximum_relative_solution_error_bound <= spec.solve_tolerance);
     result.validate_for(&spec).unwrap();
     let mut permuted = spec.clone();
@@ -205,7 +205,7 @@ fn prior_generative_field_calibration_and_coverage() {
     spec.draws = 512;
     let (_, covariance) = dense_parameters(&spec, false);
     // This data generator factors a dense covariance; it does not use production perturbations.
-    let lower = crate::linalg::cholesky(&covariance, 3).unwrap();
+    let lower = marklab_numerics::dense::cholesky(&covariance, 3).unwrap();
     let mut rng = ChaCha8Rng::seed_from_u64(0x7362_635f_6361_725f);
     let mut bins = [0_usize; 10];
     let cuts = [

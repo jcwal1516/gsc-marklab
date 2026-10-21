@@ -1,33 +1,47 @@
-use super::{publish_json, BayesCliError};
-use marklab_bayes::{
-    joint_location_embedding_latent_factor_model, sha256_hex, EmbeddingFactorError,
-    EmbeddingFactorPoint, EmbeddingFactorSpec, JointLocationGridRow, RectangularWindow,
+use super::cli_schema::BuildJointLocationEmbeddingFactorModelArgs;
+use super::{publish_json, CliError};
+use marklab_bayes::{sha256_hex, JointLocationGridRow, RectangularWindow};
+use marklab_embeddings::analysis::{
+    joint_location_embedding_latent_factor_model, EmbeddingFactorError, EmbeddingFactorPoint,
+    EmbeddingFactorSpec,
 };
 use serde::Serialize;
-use std::{fs, path::PathBuf};
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    pp: PathBuf,
-    gp: PathBuf,
-    xmin: f64,
-    ymin: f64,
-    xmax: f64,
-    ymax: f64,
-    gx: u32,
-    gy: u32,
-    factors: u32,
-    amplitude: f64,
-    length: f64,
-    jitter: f64,
-    loading_sd: f64,
-    noise_sd: f64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
-    let pb = fs::read(&pp).map_err(|source| BayesCliError::Io {
+use std::fs;
+pub(super) fn run(args: BuildJointLocationEmbeddingFactorModelArgs) -> Result<(), CliError> {
+    let BuildJointLocationEmbeddingFactorModelArgs {
+        points,
+        grid,
+        xmin_um,
+        ymin_um,
+        xmax_um,
+        ymax_um,
+        grid_x,
+        grid_y,
+        factors,
+        field_amplitude,
+        field_length_scale_um,
+        jitter,
+        loading_prior_sd,
+        noise_prior_sd,
+        out,
+    } = args;
+    let pp = points;
+    let gp = grid;
+    let xmin = xmin_um;
+    let ymin = ymin_um;
+    let xmax = xmax_um;
+    let ymax = ymax_um;
+    let gx = grid_x;
+    let gy = grid_y;
+    let amplitude = field_amplitude;
+    let length = field_length_scale_um;
+    let loading_sd = loading_prior_sd;
+    let noise_sd = noise_prior_sd;
+    let pb = fs::read(&pp).map_err(|source| CliError::Io {
         path: pp.clone(),
         source,
     })?;
-    let gb = fs::read(&gp).map_err(|source| BayesCliError::Io {
+    let gb = fs::read(&gp).map_err(|source| CliError::Io {
         path: gp.clone(),
         source,
     })?;
@@ -52,7 +66,7 @@ pub(super) fn run(
         loading_prior_sd: loading_sd,
         noise_prior_sd: noise_sd,
     })
-    .map_err(|EmbeddingFactorError::Invalid(m)| BayesCliError::Input(m))?;
+    .map_err(|EmbeddingFactorError::Invalid(m)| CliError::Input(m))?;
     publish_json(
         &out,
         &Output {
@@ -69,7 +83,7 @@ pub(super) fn run(
         },
     )
 }
-fn read_points(b: &[u8]) -> Result<(Vec<EmbeddingFactorPoint>, Vec<String>), BayesCliError> {
+fn read_points(b: &[u8]) -> Result<(Vec<EmbeddingFactorPoint>, Vec<String>), CliError> {
     let mut r = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -85,13 +99,13 @@ fn read_points(b: &[u8]) -> Result<(Vec<EmbeddingFactorPoint>, Vec<String>), Bay
                 "location_offset",
             ]
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "embedding headers require fixed prefix and embedding_* columns".into(),
         ));
     }
     let names = h.iter().skip(5).map(str::to_owned).collect::<Vec<_>>();
     if names.iter().any(|n| !n.starts_with("embedding_")) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "embedding columns must use embedding_* names".into(),
         ));
     }
@@ -101,7 +115,7 @@ fn read_points(b: &[u8]) -> Result<(Vec<EmbeddingFactorPoint>, Vec<String>), Bay
         let parse = |i: usize| {
             row[i]
                 .parse::<f64>()
-                .map_err(|_| BayesCliError::Input("embedding numeric value is invalid".into()))
+                .map_err(|_| CliError::Input("embedding numeric value is invalid".into()))
         };
         points.push(EmbeddingFactorPoint {
             point_id: row[0].to_owned(),
@@ -114,7 +128,7 @@ fn read_points(b: &[u8]) -> Result<(Vec<EmbeddingFactorPoint>, Vec<String>), Bay
     }
     Ok((points, names))
 }
-fn read_grid(b: &[u8]) -> Result<Vec<JointLocationGridRow>, BayesCliError> {
+fn read_grid(b: &[u8]) -> Result<Vec<JointLocationGridRow>, CliError> {
     let mut r = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
@@ -122,7 +136,7 @@ fn read_grid(b: &[u8]) -> Result<Vec<JointLocationGridRow>, BayesCliError> {
     if r.headers()?.iter().collect::<Vec<_>>()
         != ["ix", "iy", "location_covariate", "location_offset"]
     {
-        return Err(BayesCliError::Input("embedding grid headers differ".into()));
+        return Err(CliError::Input("embedding grid headers differ".into()));
     }
     Ok(r.deserialize().collect::<Result<Vec<_>, _>>()?)
 }
@@ -133,7 +147,7 @@ struct Output {
     points_sha256: String,
     grid_sha256: String,
     fit_state: &'static str,
-    model: marklab_bayes::EmbeddingFactorModelIr,
+    model: marklab_embeddings::analysis::EmbeddingFactorModelIr,
     point_count: u32,
     embedding_dimension: u32,
     factor_count: u32,

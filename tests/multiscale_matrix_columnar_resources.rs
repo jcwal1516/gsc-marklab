@@ -7,13 +7,17 @@ mod support;
 use std::{io::Write, mem::size_of};
 
 use marklab::{
-    preflight_patch_embedding_table_arrow_bytes, preflight_patch_embedding_table_parquet_bytes,
-    publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
-    validate_patch_embedding_table_arrow_bytes, validate_patch_embedding_table_arrow_from_store,
-    validate_patch_embedding_table_parquet_bytes,
-    validate_patch_embedding_table_parquet_from_store, write_patch_embedding_table_arrow,
-    write_patch_embedding_table_parquet, ColumnarWriteSummary, EmbeddingColumnarBudgets,
-    EmbeddingStatus, LocalArtifactStore, MultiscaleColumnarError, PatchEmbeddingTable, StoreId,
+    embeddings::{
+        preflight_patch_embedding_table_arrow_bytes, preflight_patch_embedding_table_parquet_bytes,
+        publish_patch_embedding_table_arrow, publish_patch_embedding_table_parquet,
+        validate_patch_embedding_table_arrow_bytes,
+        validate_patch_embedding_table_arrow_from_store,
+        validate_patch_embedding_table_parquet_bytes,
+        validate_patch_embedding_table_parquet_from_store, write_patch_embedding_table_arrow,
+        write_patch_embedding_table_parquet, ColumnarError, ColumnarWriteSummary,
+        EmbeddingColumnarBudgets, EmbeddingStatus, PatchEmbeddingTable,
+    },
+    workflow::{LocalArtifactStore, StoreId},
 };
 use parquet::{
     file::metadata::{
@@ -287,9 +291,7 @@ fn parquet_reader_requirements(
 fn assert_writer_budget_edges(
     encoded_len: u64,
     requirements: WriterRequirements,
-    mut write: impl FnMut(
-        EmbeddingColumnarBudgets,
-    ) -> Result<ColumnarWriteSummary, MultiscaleColumnarError>,
+    mut write: impl FnMut(EmbeddingColumnarBudgets) -> Result<ColumnarWriteSummary, ColumnarError>,
 ) {
     write(EmbeddingColumnarBudgets::new(
         encoded_len,
@@ -346,7 +348,7 @@ fn assert_reader_budget_edges<T>(
     group: usize,
     retained: usize,
     decoded: u64,
-    mut validate: impl FnMut(EmbeddingColumnarBudgets) -> Result<T, MultiscaleColumnarError>,
+    mut validate: impl FnMut(EmbeddingColumnarBudgets) -> Result<T, ColumnarError>,
 ) {
     validate(EmbeddingColumnarBudgets::new(
         encoded_len,
@@ -381,23 +383,14 @@ fn assert_reader_budget_edges<T>(
     }
 }
 
-fn assert_budget_error(error: &MultiscaleColumnarError, expected: &str) {
+fn assert_budget_error(error: &ColumnarError, expected: &str) {
     assert!(
         matches!(
             (error, expected),
-            (
-                MultiscaleColumnarError::FileByteBudgetExceeded { .. },
-                "file"
-            ) | (
-                MultiscaleColumnarError::DecodedByteBudgetExceeded { .. },
-                "decoded"
-            ) | (
-                MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. },
-                "group"
-            ) | (
-                MultiscaleColumnarError::RetainedByteBudgetExceeded { .. },
-                "retained"
-            )
+            (ColumnarError::FileByteBudgetExceeded { .. }, "file")
+                | (ColumnarError::DecodedByteBudgetExceeded { .. }, "decoded")
+                | (ColumnarError::RowGroupByteBudgetExceeded { .. }, "group")
+                | (ColumnarError::RetainedByteBudgetExceeded { .. }, "retained")
         ),
         "unexpected {expected} error: {error:?}"
     );

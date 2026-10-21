@@ -18,7 +18,8 @@ fn cross_modal_covariance_matches_hand_matrices_and_stratified_max_t() {
     .unwrap();
     fs::write(
         &b,
-        "object_id,source_section,compartment,embedding_0,embedding_1\nb0,s1,tumor,0,0\nb1,s1,tumor,2,0\nb2,s1,tumor,0,2\nb3,s1,tumor,2,2\n",
+        // Unequal centered B norms make the permutation Frobenius statistics vary.
+        "object_id,source_section,compartment,embedding_0,embedding_1\nb0,s1,tumor,0,0\nb1,s1,tumor,3,0\nb2,s1,tumor,0,2\nb3,s1,tumor,4,3\n",
     )
     .unwrap();
     fs::write(
@@ -72,12 +73,13 @@ fn cross_modal_covariance_matches_hand_matrices_and_stratified_max_t() {
     assert_eq!(result["pair_count"], 4);
     assert_eq!(result["permutations"], 20);
     let matrices = &result["matrix_artifact"]["matrices"];
-    let expected = [[[1.0, 0.0], [0.0, 1.0]], [[-1.0, 0.0], [0.0, 1.0]]];
+    // Global means are A=(1, 1), B=(1.75, 1.25); average the two outer products per bin.
+    let expected = [[[1.5, 0.0], [0.25, 1.25]], [[-2.0, -0.5], [0.25, 1.25]]];
     for bin in 0..2 {
         assert_eq!(result["summaries"][bin]["pair_count"], 2);
+        let norm = [3.875_f64.sqrt(), 5.875_f64.sqrt()][bin];
         assert!(
-            (result["summaries"][bin]["frobenius_norm"].as_f64().unwrap() - 2.0_f64.sqrt()).abs()
-                < 1e-12
+            (result["summaries"][bin]["frobenius_norm"].as_f64().unwrap() - norm).abs() < 1e-12
         );
         for row in 0..2 {
             for column in 0..2 {
@@ -89,8 +91,11 @@ fn cross_modal_covariance_matches_hand_matrices_and_stratified_max_t() {
                 );
             }
         }
-        if let Some(adjusted_p) = result["summaries"][bin]["max_t_adjusted_p"].as_f64() {
-            assert!((1.0 / 21.0..=1.0).contains(&adjusted_p));
-        }
+        let adjusted_p = result["summaries"][bin]["max_t_adjusted_p"]
+            .as_f64()
+            .expect("nondegenerate permutations must produce max-T inference");
+        // The pinned seed has eight null maxima at least as extreme as either observed bin.
+        assert_eq!(adjusted_p, 9.0 / 21.0);
+        assert!(result["summaries"][bin]["permutation_sd"].as_f64().unwrap() > 0.0);
     }
 }

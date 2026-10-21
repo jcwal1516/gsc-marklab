@@ -72,5 +72,5 @@ b-6,cluster-b3,B,5\n",
             .abs()
             < 1e-14
     );
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }

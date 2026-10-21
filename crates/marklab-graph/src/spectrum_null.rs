@@ -9,6 +9,7 @@ use crate::{
     graph_spectral_workflow, spectral::resolved_band_eigenvalues, FrequencyBandSpec, GraphError,
     GraphSpectralResult, GraphSpectralSpec,
 };
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -54,7 +55,7 @@ pub struct GraphSpectrumNullResult {
     pub alpha: f64,
     pub seed: u64,
     pub spectral_projection_work: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn graph_spectrum_null_test(
@@ -177,7 +178,7 @@ pub fn graph_spectrum_null_test(
         alpha: spec.alpha,
         seed: spec.seed,
         spectral_projection_work,
-        claim_status: "experimental_restricted_graph_spectrum_null",
+        claim_status: ClaimStatus::ExperimentalRestrictedGraphSpectrumNull,
     })
 }
 

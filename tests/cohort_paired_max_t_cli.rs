@@ -84,5 +84,5 @@ fn paired_max_t_cli_moves_each_complete_patient_difference_vector_as_one_unit() 
         result["endpoints"][2]["effect_condition_b_minus_condition_a"],
         0.625
     );
-    assert_eq!(result["permutations"]["completed"], 199);
+    assert_eq!(result["permutations"], 199);
 }

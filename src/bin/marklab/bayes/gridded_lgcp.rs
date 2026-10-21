@@ -1,39 +1,43 @@
 use std::path::PathBuf;
 
 use marklab_bayes::{
-    build_gridded_lgcp, sha256_hex, GriddedLgcpError, GriddedLgcpModelIr, GriddedLgcpSpec,
+    build_gridded_lgcp, json_sha256, GriddedLgcpError, GriddedLgcpModelIr, GriddedLgcpSpec,
     RectangularWindow,
 };
 use serde::Serialize;
 
+use super::cli_schema::BuildGriddedLgcpArgs;
 use super::{
     inhomogeneous_poisson::{read_events, read_quadrature},
-    publish_json, BayesCliError,
+    publish_json, CliError,
 };
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    events_path: PathBuf,
-    grid_path: PathBuf,
-    xmin_um: f64,
-    ymin_um: f64,
-    xmax_um: f64,
-    ymax_um: f64,
-    grid_x: u32,
-    grid_y: u32,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_mean: f64,
-    coefficient_prior_sd: f64,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    jitter: f64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: BuildGriddedLgcpArgs) -> Result<(), CliError> {
+    let BuildGriddedLgcpArgs {
+        events,
+        grid,
+        xmin_um,
+        ymin_um,
+        xmax_um,
+        ymax_um,
+        grid_x,
+        grid_y,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        coefficient_prior_mean,
+        coefficient_prior_sd,
+        field_amplitude,
+        field_length_scale_um,
+        jitter,
+        out,
+    } = args;
+    let events_path = events;
+    let grid_path = grid;
+    let output_path = out;
     let events = read_events(&events_path)?;
     let grid = read_quadrature(&grid_path)?;
-    let events_sha256 = canonical_digest(&events)?;
-    let grid_sha256 = canonical_digest(&grid)?;
+    let events_sha256 = json_sha256(&events)?;
+    let grid_sha256 = json_sha256(&grid)?;
     let result = build_gridded_lgcp(GriddedLgcpSpec {
         window: RectangularWindow {
             xmin_um,
@@ -54,7 +58,7 @@ pub(super) fn run(
         jitter,
     })
     .map_err(map_error)?;
-    let covariance_sha256 = sha256_hex(&serde_json::to_vec(&result.field_covariance)?);
+    let covariance_sha256 = json_sha256(&result.field_covariance)?;
     publish_json(
         &output_path,
         &GriddedLgcpOutput {
@@ -82,14 +86,10 @@ pub(super) fn run(
     )
 }
 
-fn canonical_digest(value: &impl Serialize) -> Result<String, BayesCliError> {
-    Ok(sha256_hex(&serde_json::to_vec(value)?))
-}
-
-fn map_error(error: GriddedLgcpError) -> BayesCliError {
+fn map_error(error: GriddedLgcpError) -> CliError {
     match error {
-        GriddedLgcpError::InvalidInput(message) => BayesCliError::Input(message),
-        GriddedLgcpError::Numerical(message) => BayesCliError::Backend(message),
+        GriddedLgcpError::InvalidInput(message) => CliError::Input(message),
+        GriddedLgcpError::Numerical(message) => CliError::Backend(message),
     }
 }
 

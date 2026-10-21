@@ -7,6 +7,7 @@ use super::{
     validate_and_normalize, validate_spd, CoordinateUnit, CuboidWindowInput, HomogeneousK3dSpec,
     K3dCorrection, Point3DInput, Spatial3dError,
 };
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -99,7 +100,7 @@ pub struct SpatialGraph3dResult {
     pub sparse_operator: SparseGraphOperator3D,
     pub unordered_pairs_visited: u64,
     pub graph_sha256: String,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 struct Candidate {
@@ -238,7 +239,7 @@ pub fn build_spatial_graph3d(
         sparse_operator,
         unordered_pairs_visited: pair_count,
         graph_sha256,
-        claim_status: "bounded_physical_3d_graph_descriptive_only",
+        claim_status: ClaimStatus::BoundedPhysical3dGraphDescriptiveOnly,
     })
 }
 

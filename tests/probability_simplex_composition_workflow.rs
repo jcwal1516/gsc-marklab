@@ -1,18 +1,22 @@
-#![allow(dead_code)]
-
+#[allow(dead_code)]
 #[path = "support/declared_scalar.rs"]
 mod support;
 
 use std::collections::BTreeMap;
 
 use marklab::{
-    execute_algorithm_with_store, soft_class_composition, ArtifactRef, ArtifactSchema,
-    BinaryMarkDeclaration, CacheStatus, DeclaredScalarPatternInput, DurableProject,
-    DurableProjectLimits, LocalScheduler, MarkTable, MeasurementStatus, MissingnessPolicy,
-    NativeRuntimeProvenance, NodeId, ProbabilitySimplexMarkDeclaration, ScalarMarkColumn,
-    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, SchedulerLimits,
-    SoftClassCompositionAnalysisNode, SoftClassCompositionError, SoftClassCompositionLimits,
-    SoftClassCompositionResult, WorkflowGraph,
+    marks::{
+        soft_class_composition, BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable,
+        MissingnessPolicy, ProbabilitySimplexMarkDeclaration, ScalarMarkColumn, ScalarMarkId,
+        ScalarMarkModality, ScalarMarkUnit, SoftClassCompositionAnalysisNode,
+        SoftClassCompositionError, SoftClassCompositionLimits, SoftClassCompositionResult,
+    },
+    workflow::{
+        execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
+        DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
+        WorkflowGraph,
+    },
+    MeasurementStatus,
 };
 use support::{binary_metadata, fixture, publish_record, MARK_SCHEMA};
 
@@ -20,7 +24,8 @@ const PYTHON_ORACLE: &str =
     include_str!("fixtures/probability_simplex/python_composition_oracle.json");
 
 fn simplex_metadata(levels: &[&str]) -> BTreeMap<String, String> {
-    let digest = marklab::ContentDigest::from_framed(levels.iter().map(|level| level.as_bytes()));
+    let digest =
+        marklab::workflow::ContentDigest::from_framed(levels.iter().map(|level| level.as_bytes()));
     BTreeMap::from([
         ("levels_count".into(), levels.len().to_string()),
         ("levels_digest".into(), digest.to_string()),
@@ -195,7 +200,10 @@ fn complete_probability_rows_flow_to_soft_composition_and_entropy_without_thresh
     assert_eq!(result, replay);
     let oracle: serde_json::Value = serde_json::from_str(PYTHON_ORACLE).expect("Python oracle");
     assert_eq!(result.mark_id, simplex_id.as_str());
-    assert_eq!(result.measurement_status, "morphology_prediction");
+    assert_eq!(
+        result.measurement_status,
+        marklab::MeasurementStatus::MorphologyPrediction
+    );
     assert_eq!(result.row_count, 4);
     assert_eq!(result.class_count, 3);
     assert_eq!(result.classes.len(), 3);
@@ -287,7 +295,7 @@ fn malformed_simplex_rows_and_actual_resource_ceilings_fail() {
             MissingnessPolicy::NotPermitted,
             vec![vec![0.8, 0.3]],
         ),
-        Err(marklab::DeclaredScalarInputError::InvalidProbabilitySimplexRow { row: 0, .. })
+        Err(marklab::marks::DeclaredScalarInputError::InvalidProbabilitySimplexRow { row: 0, .. })
     ));
     assert!(matches!(
         ScalarMarkColumn::probability_simplex(
@@ -298,7 +306,7 @@ fn malformed_simplex_rows_and_actual_resource_ceilings_fail() {
             vec![vec![1.0]],
         ),
         Err(
-            marklab::DeclaredScalarInputError::InvalidProbabilitySimplexShape {
+            marklab::marks::DeclaredScalarInputError::InvalidProbabilitySimplexShape {
                 row: 0,
                 expected: 2,
                 observed: 1,

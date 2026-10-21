@@ -1,13 +1,17 @@
 use std::str::FromStr;
 
 use marklab::{
-    ArtifactId, CellId, CellPatchAnchor, CellPatchContributor, CellPatchLink,
-    CellPatchLinkBindings, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, DeclaredCellPatchAssignment,
-    EffectiveReceptiveField, ExpectedCellSet, ExpectedPatchSet, FrameTransform, HierarchyId,
-    HierarchyNode, ImageCoordinateConvention, PatchBoundaryPolicy, PatchEmbeddingContext,
-    PatchFootprint, PatchFootprintSet, PatchId, PatientId, PositiveRational, ReplicationRole,
-    SlideId, SpatialAxis, TransformId, TransformMatrix,
+    embeddings::{
+        CellPatchAnchor, CellPatchContributor, CellPatchLink, CellPatchLinkBindings,
+        DeclaredCellPatchAssignment, EffectiveReceptiveField, ExpectedCellSet, ExpectedPatchSet,
+        PatchBoundaryPolicy, PatchEmbeddingContext, PatchFootprint, PatchFootprintSet,
+        PositiveRational,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
+    CoordinateSpace, CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode,
+    ImageCoordinateConvention, PatchId, PatientId, ReplicationRole, SlideId, SpatialAxis,
+    TransformId, TransformMatrix,
 };
 
 const DOMAIN_BUDGET: usize = 256 * 1024 * 1024;
@@ -18,8 +22,15 @@ pub(crate) enum CellPatchFixtureMode {
     Interpolation,
 }
 
+#[allow(dead_code)]
 pub(crate) struct CellPatchFixture {
     pub(crate) link: CellPatchLink,
+    pub(crate) hierarchy: CohortHierarchy,
+    pub(crate) expected_cells: ExpectedCellSet,
+    pub(crate) expected_patches: ExpectedPatchSet,
+    pub(crate) context: PatchEmbeddingContext,
+    pub(crate) footprints: PatchFootprintSet,
+    pub(crate) bindings: CellPatchLinkBindings,
 }
 
 fn artifact(label: &[u8]) -> ArtifactId {
@@ -140,7 +151,15 @@ pub(crate) fn cell_patch_fixture(mode: CellPatchFixtureMode) -> CellPatchFixture
         ),
     }
     .expect("cell-patch link");
-    CellPatchFixture { link }
+    CellPatchFixture {
+        link,
+        hierarchy,
+        expected_cells,
+        expected_patches,
+        context,
+        footprints,
+        bindings,
+    }
 }
 
 #[allow(dead_code)]
@@ -253,7 +272,15 @@ pub(crate) fn interpolation_scale_fixture(row_count: usize) -> CellPatchFixture 
         DOMAIN_BUDGET,
     )
     .expect("cell-patch scale link");
-    CellPatchFixture { link }
+    CellPatchFixture {
+        link,
+        hierarchy,
+        expected_cells,
+        expected_patches,
+        context,
+        footprints,
+        bindings,
+    }
 }
 
 fn context(hierarchy: &CohortHierarchy, slide_id: SlideId) -> PatchEmbeddingContext {

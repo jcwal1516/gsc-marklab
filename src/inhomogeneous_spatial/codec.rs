@@ -1,6 +1,9 @@
+use crate::result_vocabulary::{
+    IntensityBoundaryCorrection, IntensityCrossFit, IntensityEstimator, IntensityKernel,
+};
 use std::io;
 
-use crate::common::summation::kahan_add;
+use marklab_numerics::summation::NeumaierSum;
 
 use crate::{ObservationWindow2D, Pattern};
 
@@ -16,16 +19,18 @@ pub(super) fn validate_intensity_summary(
     window: &ObservationWindow2D,
     config: &InhomogeneousSpatialConfig,
 ) -> io::Result<()> {
-    let expected_cross_fit = config.cross_fit_folds().map_or_else(
-        || "leave_one_out_n_over_n_minus_one".to_owned(),
-        |folds| format!("balanced_cell_id_rank_{folds}_fold"),
-    );
+    let expected_cross_fit = config
+        .cross_fit_folds()
+        .map_or(IntensityCrossFit::LeaveOneOut, |folds| {
+            IntensityCrossFit::BalancedCellIdRank { folds }
+        });
     let cross_fit =
         cross_fit_plan(pattern, config).map_err(|_| invalid("cross-fit identity is invalid"))?;
-    if summary.estimator != "gaussian_kernel"
-        || summary.kernel != "isotropic_gaussian_2d"
+    if summary.estimator != IntensityEstimator::GaussianKernel
+        || summary.kernel != IntensityKernel::IsotropicGaussian2d
         || summary.cross_fit != expected_cross_fit
-        || summary.boundary_correction != "deterministic_cell_center_quadrature"
+        || summary.boundary_correction
+            != IntensityBoundaryCorrection::DeterministicCellCenterQuadrature
         || summary.bandwidth_um.to_bits() != config.bandwidth_um().to_bits()
         || summary.integration_grid != config.integration_grid()
         || summary.minimum_intensity_per_um2.to_bits()
@@ -97,8 +102,7 @@ fn validate_fixed_grid(
     }
     let cell_area = spacing[0] * spacing[1];
     let mut retained = 0_usize;
-    let mut total = 0.0;
-    let mut correction = 0.0;
+    let mut total = NeumaierSum::new();
     for y in 0..grid[1] {
         for x in 0..grid[0] {
             let cell_min_x = min_x + x as f64 * spacing[0];
@@ -124,13 +128,13 @@ fn validate_fixed_grid(
             {
                 return Err(invalid("fixed intensity grid row is inconsistent"));
             }
-            kahan_add(&mut total, &mut correction, point.cell_mass);
+            total.add(point.cell_mass);
             retained = retained
                 .checked_add(1)
                 .ok_or_else(|| invalid("fixed intensity grid size overflow"))?;
         }
     }
-    let total = total + correction;
+    let total = total.total();
     if retained != summary.fixed_grid.len()
         || total
             .to_bits()

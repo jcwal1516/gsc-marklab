@@ -1,0 +1,91 @@
+{
+  "format": "marklab.translation_pair_correlation",
+  "format_version": "1",
+  "analysis": {
+    "case_id": "translation-g-workflow-case",
+    "timepoint": "baseline",
+    "correction": "translation",
+    "kernel": "epanechnikov",
+    "bandwidth_um": 0.5,
+    "window": {
+      "coordinate_unit": "micrometre",
+      "coordinate_frame": "existing_pattern_physical_xy",
+      "membership_policy": "closed_window",
+      "area_um2": 7.0,
+      "perimeter_um": 16.0,
+      "bounds_um": [
+        0.0,
+        0.0,
+        4.0,
+        4.0
+      ],
+      "component_count": 1,
+      "hole_count": 0,
+      "ring_count": 1,
+      "vertex_count": 7,
+      "logical_digest": "93e7d1af8fac4843156a9af52e274386e20056b1c0c84f3371d844a75c48683b"
+    },
+    "geometry": {
+      "point_count": 2,
+      "maximum_query_radius_um": 1.5,
+      "observed_pair_visits": 1,
+      "total_pair_visits": 20,
+      "observed_overlap_evaluations": 1,
+      "total_overlap_evaluations": 5,
+      "total_overlap_candidate_work": 180,
+      "maximum_overlap_output_vertices_observed": 9,
+      "estimated_storage_bytes": 51776,
+      "logical_digest": "f73a229544a27730326ea3451695036df6a693105385658d476dc254b8d3cb32",
+      "execution_mode": "exact",
+      "duplicate_policy": "reject",
+      "overlap_owner": "observation_window_2d_exact_boolean_intersection",
+      "pair_traversal": "exact_streaming_unordered_compact_support_pairs_with_both_ordered_weights"
+    },
+    "configuration": {
+      "radius_count": 1,
+      "logical_digest": "dfd4069323953af31b4a024cb09b61f710cf19145087f221458350cef72c69b8",
+      "limits": {
+        "maximum_points": 16,
+        "maximum_radii": 8,
+        "maximum_pair_visits": 1000,
+        "maximum_overlap_evaluations": 1000,
+        "maximum_overlap_candidate_work": 100000,
+        "maximum_overlap_output_vertices": 1000,
+        "maximum_csr_draws": 100000,
+        "maximum_retained_bytes": 1048576
+      }
+    },
+    "null_design": {
+      "null_model": "homogeneous_csr_conditional_on_count",
+      "randomization_unit": "whole_location_pattern",
+      "conditioned_point_count": 2,
+      "simulations": 19,
+      "seed": 71,
+      "alpha": 0.05
+    },
+    "randomization_unit": "whole_location_pattern",
+    "curve": [
+      {
+        "radius_um": 1.0,
+        "status": "available",
+        "ordered_pairs_in_support": 2,
+        "overlap_evaluations": 1,
+        "translation_overlap_area_sum_um2": 3.0,
+        "translation_weighted_kernel_sum": 7.0,
+        "g": 3.8992961057514357,
+        "theoretical_g": 1.0,
+        "inference_eligible": true,
+        "lower_g": 0.0,
+        "upper_g": 4.987143761253941
+      }
+    ],
+    "inference": {
+      "p_global": 0.15,
+      "erl_depth": 0.15,
+      "critical_depth": 0.1,
+      "simulations": 19,
+      "eligible_radius_count": 1
+    },
+    "csr_candidate_draws": 69
+  }
+}

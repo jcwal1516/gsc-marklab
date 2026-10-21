@@ -1,6 +1,9 @@
+use crate::result_vocabulary::{
+    ArcMeasureOwner, DuplicatePointPolicy, EdgeCorrection, PairTraversal, SpatialExecutionMode,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::{
+use crate::spatial::{
     ClassicalInferenceSummary, ClassicalNullDesign, ClassicalWindowSummary, IsotropicSpatialError,
     IsotropicSpatialLimits, PairCorrelationKernel, PairCorrelationPointStatus,
 };
@@ -151,13 +154,13 @@ pub struct IsotropicPairCorrelationGeometrySummary {
     /// Exact point/window geometry identity.
     pub logical_digest: String,
     /// Exact rather than approximate execution mode.
-    pub execution_mode: String,
+    pub execution_mode: SpatialExecutionMode,
     /// Duplicate-coordinate handling policy.
-    pub duplicate_policy: String,
+    pub duplicate_policy: DuplicatePointPolicy,
     /// Canonical visible-circle implementation identity.
-    pub visible_arc_owner: String,
+    pub visible_arc_owner: ArcMeasureOwner,
     /// Pair traversal and directed-weight semantics.
-    pub pair_traversal: String,
+    pub pair_traversal: PairTraversal,
 }
 
 /// Configuration identity retained with one isotropic g result.
@@ -181,7 +184,7 @@ pub struct IsotropicPairCorrelationResult {
     /// Source timepoint identity.
     pub timepoint: String,
     /// Fixed edge-correction name.
-    pub correction: String,
+    pub correction: EdgeCorrection,
     /// Fixed compact-support kernel.
     pub kernel: PairCorrelationKernel,
     /// Positive physical half-bandwidth.
@@ -195,7 +198,7 @@ pub struct IsotropicPairCorrelationResult {
     /// Whole-pattern conditional-CSR design.
     pub null_design: ClassicalNullDesign,
     /// Fixed population-randomization unit.
-    pub randomization_unit: String,
+    pub randomization_unit: crate::spatial::ClassicalRandomizationUnit,
     /// Radius-aligned observed curve and simultaneous envelope.
     pub curve: Vec<IsotropicPairCorrelationPoint>,
     /// Simultaneous ERL inference when at least one radius is jointly eligible.

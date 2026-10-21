@@ -92,7 +92,6 @@ impl fmt::Debug for PatchIdentityMap {
 
 impl PatchIdentityMap {
     /// Validate exact source domain, expected typed range, bindings, and retained bytes.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_entities: &PatchSourceEntitySet,
         source_entities_artifact_id: ArtifactId,

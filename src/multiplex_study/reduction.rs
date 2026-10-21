@@ -1,3 +1,4 @@
+use super::model::Availability;
 use std::collections::BTreeMap;
 
 use marklab_cohort::{
@@ -8,12 +9,12 @@ use marklab_policy::{determine_result_maturity, ExecutionModeKind, Maturity, Res
 use crate::Result;
 
 use super::{
-    admission::PreparedStudy,
     invalid,
     model::{
         EndpointResult, InferenceResult, MaturityDescription, MultiplexStudyResult, PatientResult,
         SlideResult,
     },
+    preparation::PreparedStudy,
 };
 
 pub(super) fn reduce(
@@ -22,7 +23,7 @@ pub(super) fn reduce(
 ) -> Result<MultiplexStudyResult> {
     let (endpoint_names, patients) = patient_reduction(study, &slides)?;
     let inference = infer(study, &patients, &endpoint_names)?;
-    let available = inference.status == "available";
+    let available = inference.status == Availability::Available;
     let decision = determine_result_maturity(ResultMaturitySpec {
         method_maturity: Maturity::Experimental,
         mode: ExecutionModeKind::Exact,
@@ -81,7 +82,7 @@ pub(super) fn patient_reduction(
                 slide
                     .channels
                     .iter()
-                    .any(|channel| channel.status != "available")
+                    .any(|channel| channel.status != Availability::Available)
             })
             .map(|slide| slide.slide_id.clone())
             .collect::<Vec<_>>();
@@ -115,11 +116,10 @@ pub(super) fn patient_reduction(
                 .map(|slide| slide.slide_id.clone())
                 .collect(),
             status: if values.is_some() {
-                "available"
+                Availability::Available
             } else {
-                "unavailable"
-            }
-            .into(),
+                Availability::Unavailable
+            },
             values,
             unavailable_slide_ids,
         });
@@ -133,9 +133,9 @@ fn infer(
     endpoints: &[String],
 ) -> Result<InferenceResult> {
     let unavailable = |reason: String, attempted| InferenceResult {
-        status: "unavailable".into(),
+        status: Availability::Unavailable,
         reason: Some(reason),
-        correction: "single_step_max_t".into(),
+        correction: marklab_cohort::MaxTCorrection::SingleStep,
         endpoints: Vec::new(),
         critical_value: None,
         permutations_attempted: attempted,
@@ -168,9 +168,9 @@ fn infer(
         },
     ) {
         Ok(result) => Ok(InferenceResult {
-            status: "available".into(),
+            status: Availability::Available,
             reason: None,
-            correction: result.correction.as_str().into(),
+            correction: result.correction,
             endpoints: result
                 .endpoints
                 .into_iter()
@@ -182,8 +182,8 @@ fn infer(
                 })
                 .collect(),
             critical_value: Some(result.critical_value),
-            permutations_attempted: Some(result.permutations_attempted),
-            permutations_completed: Some(result.permutations_completed),
+            permutations_attempted: Some(result.permutations_requested),
+            permutations_completed: Some(result.permutations_requested),
         }),
         // The canonical engine returns no partial replicate ledger on failure. Keep counts unknown
         // rather than inventing zero attempted fits or dropping a failed permutation.

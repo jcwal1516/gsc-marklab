@@ -6,13 +6,17 @@ mod support;
 use std::{fs, io::Write, mem::size_of, process::Command};
 
 use marklab::{
-    preflight_patch_footprint_set_parquet_bytes, preflight_patch_overlap_graph_parquet_bytes,
-    publish_patch_footprint_set_parquet, publish_patch_overlap_graph_parquet,
-    validate_patch_footprint_set_parquet_bytes, validate_patch_footprint_set_parquet_from_store,
-    validate_patch_overlap_graph_parquet_bytes, validate_patch_overlap_graph_parquet_from_store,
-    write_patch_footprint_set_parquet, write_patch_overlap_graph_parquet, ContentDigest,
-    EmbeddingColumnarBudgets, LocalArtifactStore, MultiscaleColumnarError, PatchOverlapGraph,
-    PublicationDisposition, SpatialParquetFailure, StoreId, TableFormat,
+    embeddings::{
+        preflight_patch_footprint_set_parquet_bytes, preflight_patch_overlap_graph_parquet_bytes,
+        publish_patch_footprint_set_parquet, publish_patch_overlap_graph_parquet,
+        validate_patch_footprint_set_parquet_bytes,
+        validate_patch_footprint_set_parquet_from_store,
+        validate_patch_overlap_graph_parquet_bytes,
+        validate_patch_overlap_graph_parquet_from_store, write_patch_footprint_set_parquet,
+        write_patch_overlap_graph_parquet, ColumnarError, EmbeddingColumnarBudgets, ParquetFailure,
+        PatchOverlapGraph,
+    },
+    workflow::{ContentDigest, LocalArtifactStore, PublicationDisposition, StoreId, TableFormat},
 };
 use parquet::{
     file::metadata::ParquetMetaDataReader,
@@ -542,8 +546,8 @@ fn spatial_parquet_raw_preflight_rejects_magic_metadata_and_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidMagic,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidMagic,
         })
     ));
 
@@ -559,8 +563,8 @@ fn spatial_parquet_raw_preflight_rejects_magic_metadata_and_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidFooter,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidFooter,
         })
     ));
 
@@ -579,8 +583,8 @@ fn spatial_parquet_raw_preflight_rejects_magic_metadata_and_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidMetadata,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidMetadata,
         })
     ));
 
@@ -601,8 +605,8 @@ fn spatial_parquet_raw_preflight_rejects_magic_metadata_and_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidCanonicalRows,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidCanonicalRows,
         })
     ));
 
@@ -621,8 +625,8 @@ fn spatial_parquet_raw_preflight_rejects_magic_metadata_and_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidCanonicalRows,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidCanonicalRows,
         })
     ));
 
@@ -641,8 +645,8 @@ fn spatial_parquet_raw_preflight_rejects_magic_metadata_and_row_drift() {
             &fixture.footprints,
             limits,
         ),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidSchema,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidSchema,
         })
     ));
 
@@ -671,8 +675,8 @@ fn spatial_parquet_raw_preflight_rejects_magic_metadata_and_row_drift() {
             &fixture.overlap,
             limits,
         ),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidCanonicalRows,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidCanonicalRows,
         })
     ));
 }
@@ -722,7 +726,7 @@ fn parquet_row_group_budget_precedes_malformed_page_allocation() {
             &fixture.footprints,
             one_short,
         ),
-        Err(MultiscaleColumnarError::RowGroupByteBudgetExceeded {
+        Err(ColumnarError::RowGroupByteBudgetExceeded {
             required,
             maximum,
         }) if required == group_bytes && maximum == group_bytes - 1
@@ -735,7 +739,7 @@ fn parquet_row_group_budget_precedes_malformed_page_allocation() {
             &fixture.footprints,
             exact,
         ),
-        Err(MultiscaleColumnarError::Parquet { .. })
+        Err(ColumnarError::Parquet { .. })
     ));
 }
 
@@ -756,7 +760,7 @@ fn spatial_parquet_decoded_row_group_and_retained_budgets_have_exact_edges() {
         &fixture.footprints,
         no_decoded,
     ) {
-        Err(MultiscaleColumnarError::DecodedByteBudgetExceeded {
+        Err(ColumnarError::DecodedByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -791,7 +795,7 @@ fn spatial_parquet_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.footprints,
             decoded_short,
         ),
-        Err(MultiscaleColumnarError::DecodedByteBudgetExceeded { .. })
+        Err(ColumnarError::DecodedByteBudgetExceeded { .. })
     ));
     let no_group = EmbeddingColumnarBudgets::new(
         generous.maximum_file_bytes(),
@@ -806,7 +810,7 @@ fn spatial_parquet_decoded_row_group_and_retained_budgets_have_exact_edges() {
         &fixture.footprints,
         no_group,
     ) {
-        Err(MultiscaleColumnarError::RowGroupByteBudgetExceeded {
+        Err(ColumnarError::RowGroupByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -825,7 +829,7 @@ fn spatial_parquet_decoded_row_group_and_retained_budgets_have_exact_edges() {
         &fixture.footprints,
         no_retained,
     ) {
-        Err(MultiscaleColumnarError::RetainedByteBudgetExceeded {
+        Err(ColumnarError::RetainedByteBudgetExceeded {
             required,
             maximum: 0,
         }) => required,
@@ -859,7 +863,7 @@ fn spatial_parquet_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.footprints,
             group_short,
         ),
-        Err(MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. })
+        Err(ColumnarError::RowGroupByteBudgetExceeded { .. })
     ));
     let retained_short = EmbeddingColumnarBudgets::new(
         generous.maximum_file_bytes(),
@@ -875,7 +879,7 @@ fn spatial_parquet_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.footprints,
             retained_short,
         ),
-        Err(MultiscaleColumnarError::RetainedByteBudgetExceeded { .. })
+        Err(ColumnarError::RetainedByteBudgetExceeded { .. })
     ));
 
     let mut overlap_bytes = Vec::new();
@@ -918,7 +922,7 @@ fn spatial_parquet_decoded_row_group_and_retained_budgets_have_exact_edges() {
             &fixture.overlap,
             overlap_short,
         ),
-        Err(MultiscaleColumnarError::DecodedByteBudgetExceeded { .. })
+        Err(ColumnarError::DecodedByteBudgetExceeded { .. })
     ));
 }
 
@@ -999,13 +1003,8 @@ fn spatial_parquet_full_readers_have_exact_group_and_retained_edges() {
         assert!(
             matches!(
                 (&error, expected_error),
-                (
-                    MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. },
-                    "group"
-                ) | (
-                    MultiscaleColumnarError::RetainedByteBudgetExceeded { .. },
-                    "retained"
-                )
+                (ColumnarError::RowGroupByteBudgetExceeded { .. }, "group")
+                    | (ColumnarError::RetainedByteBudgetExceeded { .. }, "retained")
             ),
             "unexpected {expected_error} error: {error:?}"
         );
@@ -1090,13 +1089,8 @@ fn spatial_parquet_full_readers_have_exact_group_and_retained_edges() {
         assert!(
             matches!(
                 (&error, expected_error),
-                (
-                    MultiscaleColumnarError::RowGroupByteBudgetExceeded { .. },
-                    "group"
-                ) | (
-                    MultiscaleColumnarError::RetainedByteBudgetExceeded { .. },
-                    "retained"
-                )
+                (ColumnarError::RowGroupByteBudgetExceeded { .. }, "group")
+                    | (ColumnarError::RetainedByteBudgetExceeded { .. }, "retained")
             ),
             "unexpected {expected_error} error: {error:?}"
         );

@@ -40,7 +40,7 @@ p-8,45,100\n",
             "--upper-scale-multiplier",
             "2",
             "--material-standardized-shift",
-            "0.75",
+            "1.0",
             "--chains",
             "2",
             "--tune",
@@ -85,9 +85,31 @@ p-8,45,100\n",
                     .unwrap()
                     .is_finite()
         }));
-    assert!(matches!(
-        result["sensitivity_status"].as_str().unwrap(),
-        "stable_within_declared_grid" | "sensitive_within_declared_grid"
-    ));
+    // The largest observed shift is about 0.72, so "stable" holds with a margin against the
+    // 1.0 threshold; a scenario drifting toward it is named here rather than by the verdict.
+    for scenario in result["scenarios"].as_array().unwrap() {
+        let maximum = scenario["maximum_absolute_standardized_shift"]
+            .as_f64()
+            .unwrap();
+        assert!(
+            maximum < 0.95,
+            "{} shift {maximum} is too close to the material threshold",
+            scenario["scenario_id"]
+        );
+    }
+    assert_eq!(result["sensitivity_status"], "stable_within_declared_grid");
+    let changed_prior = result["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|scenario| scenario["scenario_id"] == "concentration_sd_lower")
+        .expect("declared prior scenario");
+    let shift = changed_prior["concentration_standardized_shift"]
+        .as_f64()
+        .unwrap();
+    assert!(
+        (-0.95..=-0.45).contains(&shift),
+        "unexpected signed shift: {shift}"
+    );
     assert_eq!(result["claim_status"], "experimental_prior_sensitivity");
 }

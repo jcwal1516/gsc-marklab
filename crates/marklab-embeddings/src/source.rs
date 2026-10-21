@@ -21,7 +21,9 @@ pub use import::{
     import_cellvit_he_bundle_readers, CellVitHeArtifactBindings, CellVitHeImportCandidate,
     CellVitHeImportRequest, ImportedCellVitHeBundle,
 };
-pub use npy::{CellVitNpyMatrix, CellVitNpySummary, NpyVersion};
+pub use npy::{
+    CellVitNpyMatrix, CellVitNpySummary, EmbeddingNpyMatrix, EmbeddingNpySummary, NpyVersion,
+};
 #[cfg(feature = "csv")]
 pub use reconciliation::{
     MissingPromotionField, SourceBundleReconciler, SourceBundleReconciliation,
@@ -88,7 +90,7 @@ impl SourceBundleBudgets {
         self.maximum_retained_bytes
     }
 
-    /// Maximum decoded vector bytes admitted from the NPY payload.
+    /// Maximum decoded vector bytes accepted from the NPY payload.
     pub fn maximum_decoded_bytes(self) -> u64 {
         self.maximum_decoded_bytes
     }

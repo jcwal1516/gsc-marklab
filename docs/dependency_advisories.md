@@ -12,7 +12,5 @@ Review date: 2026-08-22. Owner: marklab maintainers. These exceptions expire on
 1.0.103. Production code does not depend directly on `anyhow`.
 
 `RUSTSEC-2026-0253` was resolved by updating the locked transitive `lru` version
-from 0.18.1 to 0.18.2. No manifest constraint changed. The exact WSI integration
-suite passed after the update (10 local fixtures, one scheduled external
-fixture), and dependency policy now reports only the two reviewed maintenance
-warnings above.
+from 0.18.1 to 0.18.2 without changing any manifest constraint. The dependency policy
+check now reports only the two maintenance warnings above.

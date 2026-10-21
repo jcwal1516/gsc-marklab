@@ -12,8 +12,8 @@ use marklab_data::{
 };
 use marklab_embeddings::{
     preflight_cell_embedding_row_link_arrow_bytes, write_cell_embedding_row_link_arrow,
-    ArrowIpcFailure, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, EmbeddingColumnarBudgets,
-    EmbeddingColumnarError, ExpectedCellSet,
+    ArrowIpcFailure, CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, ColumnarError,
+    EmbeddingColumnarBudgets, ExpectedCellSet,
 };
 use marklab_project::{ArtifactId, ContentDigest};
 
@@ -226,7 +226,7 @@ fn public_row_link_preflight_rejects_compression_variadic_and_table_heavy_messag
     ] {
         assert!(matches!(
             preflight_cell_embedding_row_link_arrow_bytes(&hostile, &expected, &row_link, budgets,),
-            Err(EmbeddingColumnarError::Arrow {
+            Err(ColumnarError::Arrow {
                 reason: ArrowIpcFailure::InvalidMessage,
             })
         ));

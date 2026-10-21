@@ -1,35 +1,26 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
     sha256_hex, NormalMeanSbcSpec, NormalMeanSbcWorkerRequest, NormalMeanSbcWorkerResult,
 };
 
-use super::{publish_json, run_worker, BayesCliError};
+use super::cli_schema::NormalMeanSbcArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    prior_mean: f64,
-    prior_sd: f64,
-    known_sigma: f64,
-    observations_per_replicate: u32,
-    replicates: u32,
-    posterior_draws: u32,
-    seed: u64,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_numpy_scipy_sbc_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+pub(super) fn run(args: NormalMeanSbcArgs) -> Result<(), CliError> {
+    let NormalMeanSbcArgs {
+        prior_mean,
+        prior_sd,
+        known_sigma,
+        observations_per_replicate,
+        replicates,
+        posterior_draws,
+        seed,
+        timeout_seconds,
+        out,
+    } = args;
+    let output_path = out;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_numpy_scipy_sbc_worker.py")?;
     let request = NormalMeanSbcWorkerRequest::new(
         NormalMeanSbcSpec {
             prior_mean,
@@ -40,8 +31,8 @@ pub(super) fn run(
             posterior_draws,
             seed,
         },
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let request_bytes = serde_json::to_vec(&request)?;

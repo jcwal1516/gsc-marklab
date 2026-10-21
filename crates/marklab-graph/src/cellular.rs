@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::GraphError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -90,7 +91,7 @@ pub struct CellularComplexResult {
     pub baseline: CellularComplexArtifact,
     pub perturbations: Vec<CellularPerturbationResult>,
     pub robustness_status: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn cellular_complex_workflow(
@@ -164,7 +165,7 @@ pub fn cellular_complex_workflow(
         } else {
             "topology_changed_under_declared_segmentation_perturbation"
         },
-        claim_status: "research_only_declared_compartment_interpretation",
+        claim_status: ClaimStatus::ResearchOnlyDeclaredCompartmentInterpretation,
     })
 }
 

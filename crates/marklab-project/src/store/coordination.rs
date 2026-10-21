@@ -42,7 +42,14 @@ impl LocalArtifactStore {
                 source,
             }
         })?;
-        let store = Self { root, store_id };
+        let store = Self {
+            root,
+            store_id,
+            #[cfg(test)]
+            publish_fault: super::PublishFault::None,
+            #[cfg(test)]
+            recovery_fault: super::RecoveryFault::None,
+        };
         store.ensure_directory(STAGING_DIRECTORY)?;
         store.ensure_directory(QUARANTINE_DIRECTORY)?;
         store.ensure_directory(OBJECT_DIRECTORY)?;

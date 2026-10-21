@@ -9,13 +9,15 @@ use crate::{
     hypergraph_signal_workflow, simplicial_hodge_workflow, typed_triangle_motif_workflow,
     GraphError,
 };
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::{ValidationStatus, ValidationSuiteStatus};
 
 #[derive(Clone, Debug, Serialize)]
 pub struct GraphValidationEntry {
     pub id: &'static str,
     pub category: &'static str,
     pub algorithm: &'static str,
-    pub status: &'static str,
+    pub status: ValidationStatus,
     pub evidence: Value,
     pub limitation: Option<&'static str>,
 }
@@ -25,10 +27,10 @@ pub struct GraphMathematicsValidationResult {
     pub format: &'static str,
     pub version: u32,
     pub suite_digest: String,
-    pub exact_fixture_status: &'static str,
-    pub scientific_stress_status: &'static str,
+    pub exact_fixture_status: ValidationStatus,
+    pub scientific_stress_status: ValidationSuiteStatus,
     pub entries: Vec<GraphValidationEntry>,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn validate_graph_mathematics_suite() -> Result<GraphMathematicsValidationResult, GraphError> {
@@ -296,7 +298,7 @@ pub fn validate_graph_mathematics_suite() -> Result<GraphMathematicsValidationRe
             id: "cpu_gpu_parity",
             category: "scientific_stress",
             algorithm: "all_graph_algorithms",
-            status: "not_applicable",
+            status: ValidationStatus::NotApplicable,
             evidence: json!({"gpu_backend_supported": false}),
             limitation: Some("marklab-graph has no GPU backend"),
         },
@@ -308,10 +310,10 @@ pub fn validate_graph_mathematics_suite() -> Result<GraphMathematicsValidationRe
         format: "marklab.graph_mathematics_validation",
         version: 1,
         suite_digest: format!("{:x}", Sha256::digest(digest_bytes)),
-        exact_fixture_status: "passed",
-        scientific_stress_status: "partial_with_declared_unsupported_dimensions",
+        exact_fixture_status: ValidationStatus::Passed,
+        scientific_stress_status: ValidationSuiteStatus::PartialWithDeclaredUnsupportedDimensions,
         entries,
-        claim_status: "synthetic_exact_validation_only_no_pathology_performance_claim",
+        claim_status: ClaimStatus::SyntheticExactValidationOnlyNoPathologyPerformanceClaim,
     })
 }
 
@@ -339,7 +341,7 @@ fn passed(
         id,
         category,
         algorithm,
-        status: "passed",
+        status: ValidationStatus::Passed,
         evidence,
         limitation: None,
     }
@@ -354,7 +356,7 @@ fn unsupported(
         id,
         category: "scientific_stress",
         algorithm,
-        status: "not_supported",
+        status: ValidationStatus::NotSupported,
         evidence: json!({}),
         limitation: Some(limitation),
     }

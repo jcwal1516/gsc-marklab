@@ -8,7 +8,8 @@ use marklab_bayes::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::GmrfDensityArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -39,14 +40,20 @@ struct ConstraintRow {
     coefficient: f64,
 }
 
-pub(super) fn run(
-    region_path: PathBuf,
-    precision_path: PathBuf,
-    field_path: PathBuf,
-    constraint_path: PathBuf,
-    constraint_tolerance: f64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: GmrfDensityArgs) -> Result<(), CliError> {
+    let GmrfDensityArgs {
+        regions,
+        precision,
+        field,
+        constraints,
+        constraint_tolerance,
+        out,
+    } = args;
+    let region_path = regions;
+    let precision_path = precision;
+    let field_path = field;
+    let constraint_path = constraints;
+    let output_path = out;
     let region_ids = read_regions(&region_path)?;
     let (precision, precision_entries) = read_precision(&precision_path, &region_ids)?;
     let field = read_field(&field_path, &region_ids)?;
@@ -73,17 +80,17 @@ pub(super) fn run(
     )
 }
 
-fn read_regions(path: &std::path::Path) -> Result<Vec<String>, BayesCliError> {
+fn read_regions(path: &std::path::Path) -> Result<Vec<String>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["region_id"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "GMRF region headers must be exactly: region_id".into(),
         ));
     }
     let mut region_ids = reader
         .deserialize::<RegionRow>()
-        .map(|row| row.map(|row| row.region_id).map_err(BayesCliError::from))
+        .map(|row| row.map(|row| row.region_id).map_err(CliError::from))
         .collect::<Result<Vec<_>, _>>()?;
     region_ids.sort();
     if region_ids.len() < 2
@@ -94,7 +101,7 @@ fn read_regions(path: &std::path::Path) -> Result<Vec<String>, BayesCliError> {
                 || (index > 0 && region_ids[index - 1] == *region_id)
         })
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "GMRF requires 2-256 exact unique region IDs".into(),
         ));
     }
@@ -112,7 +119,7 @@ fn region_index(region_ids: &[String]) -> BTreeMap<&str, usize> {
 fn read_precision(
     path: &std::path::Path,
     region_ids: &[String],
-) -> Result<(Vec<f64>, usize), BayesCliError> {
+) -> Result<(Vec<f64>, usize), CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -120,7 +127,7 @@ fn read_precision(
         .iter()
         .eq(["source_region", "target_region", "value"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "GMRF precision headers must be exactly: source_region,target_region,value".into(),
         ));
     }
@@ -132,24 +139,24 @@ fn read_precision(
     for row in reader.deserialize::<PrecisionRow>() {
         let row = row?;
         let source = *indices.get(row.source_region.as_str()).ok_or_else(|| {
-            BayesCliError::Input(format!(
+            CliError::Input(format!(
                 "unknown precision source region {}",
                 row.source_region
             ))
         })?;
         let target = *indices.get(row.target_region.as_str()).ok_or_else(|| {
-            BayesCliError::Input(format!(
+            CliError::Input(format!(
                 "unknown precision target region {}",
                 row.target_region
             ))
         })?;
         if !row.value.is_finite() || !stored.insert((source, target)) {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "GMRF precision entries must be unique and finite".into(),
             ));
         }
         if stored.len() > 65_536 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "GMRF precision accepts at most 65536 stored entries".into(),
             ));
         }
@@ -159,18 +166,18 @@ fn read_precision(
         }
     }
     if diagonal.iter().any(|present| !present) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "GMRF precision requires every diagonal entry explicitly".into(),
         ));
     }
     Ok((precision, stored.len()))
 }
 
-fn read_field(path: &std::path::Path, region_ids: &[String]) -> Result<Vec<f64>, BayesCliError> {
+fn read_field(path: &std::path::Path, region_ids: &[String]) -> Result<Vec<f64>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["region_id", "value"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "GMRF field headers must be exactly: region_id,value".into(),
         ));
     }
@@ -178,22 +185,22 @@ fn read_field(path: &std::path::Path, region_ids: &[String]) -> Result<Vec<f64>,
     for row in reader.deserialize::<FieldRow>() {
         let row = row?;
         if !row.value.is_finite() || values.insert(row.region_id, row.value).is_some() {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "GMRF field region IDs must be unique with finite values".into(),
             ));
         }
     }
     if values.len() != region_ids.len() {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "GMRF field must contain exactly one row per region".into(),
         ));
     }
     region_ids
         .iter()
         .map(|region_id| {
-            values.remove(region_id).ok_or_else(|| {
-                BayesCliError::Input(format!("missing GMRF field region {region_id}"))
-            })
+            values
+                .remove(region_id)
+                .ok_or_else(|| CliError::Input(format!("missing GMRF field region {region_id}")))
         })
         .collect()
 }
@@ -201,7 +208,7 @@ fn read_field(path: &std::path::Path, region_ids: &[String]) -> Result<Vec<f64>,
 fn read_constraints(
     path: &std::path::Path,
     region_ids: &[String],
-) -> Result<Vec<GmrfConstraint>, BayesCliError> {
+) -> Result<Vec<GmrfConstraint>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -209,7 +216,7 @@ fn read_constraints(
         .iter()
         .eq(["constraint_id", "region_id", "coefficient"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "GMRF constraint headers must be exactly: constraint_id,region_id,coefficient".into(),
         ));
     }
@@ -219,14 +226,14 @@ fn read_constraints(
     for row in reader.deserialize::<ConstraintRow>() {
         let row = row?;
         let index = *indices.get(row.region_id.as_str()).ok_or_else(|| {
-            BayesCliError::Input(format!("unknown constraint region {}", row.region_id))
+            CliError::Input(format!("unknown constraint region {}", row.region_id))
         })?;
         if row.constraint_id.is_empty()
             || row.constraint_id.trim() != row.constraint_id
             || !row.coefficient.is_finite()
             || !stored.insert((row.constraint_id.clone(), index))
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "GMRF constraint entries require exact names, unique regions, and finite coefficients"
                     .into(),
             ));
@@ -236,7 +243,7 @@ fn read_constraints(
             .or_insert_with(|| vec![0.0; region_ids.len()]);
         coefficients[index] = row.coefficient;
         if rows.len() >= region_ids.len() || rows.len() > 255 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "GMRF constraint count must be below dimension and at most 255".into(),
             ));
         }
@@ -247,18 +254,18 @@ fn read_constraints(
         .collect())
 }
 
-fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &std::path::Path) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "GMRF input must be a regular file within the 16 MiB limit",
     )
 }
 
-fn map_error(error: GmrfDensityError) -> BayesCliError {
+fn map_error(error: GmrfDensityError) -> CliError {
     match error {
-        GmrfDensityError::InvalidInput(message) => BayesCliError::Input(message),
-        GmrfDensityError::Numerical(message) => BayesCliError::Backend(message),
+        GmrfDensityError::InvalidInput(message) => CliError::Input(message),
+        GmrfDensityError::Numerical(message) => CliError::Backend(message),
     }
 }
 
@@ -283,7 +290,6 @@ struct GmrfOutput {
 }
 
 impl GmrfOutput {
-    #[allow(clippy::too_many_arguments)]
     fn new(
         regions_path: PathBuf,
         precision_path: PathBuf,

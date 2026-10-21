@@ -46,7 +46,13 @@ fn multimodal_validation_suite_runs_synthetic_controls_and_preserves_external_ga
         .iter()
         .find(|entry| entry["validation_id"] == "spde_factor_recovery")
         .unwrap();
-    assert_eq!(spde["status"], "blocked_missing_mesh_owner");
+    // Factor recovery by an SPDE prior on a projected mesh against the dense Matern-3/2 GP.
+    assert_eq!(spde["status"], "passed", "{spde}");
+    assert_eq!(spde["metric"], "minimum_factor_correlation");
+    let correlations = &spde["value"];
+    assert!(correlations["spde_truth"].as_f64().unwrap() >= 0.9);
+    assert!(correlations["dense_gp_truth"].as_f64().unwrap() >= 0.9);
+    assert!(correlations["spde_dense_gp"].as_f64().unwrap() >= 0.95);
     let real = entries
         .iter()
         .find(|entry| entry["validation_id"] == "patient_heldout_real_data")

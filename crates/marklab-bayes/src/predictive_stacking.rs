@@ -1,10 +1,14 @@
+use crate::is_worker_timeout;
+use marklab_numerics::relative_eq;
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::backend_versions::SCIPY_VERSION;
 use crate::{BackendContract, BayesError, WorkerBackend};
 
-const SCIPY_VERSION: &str = "1.18.1";
+const RELATIVE_TOLERANCE: f64 = 1e-9;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct PredictiveStackingPatient {
@@ -47,7 +51,7 @@ impl PredictiveStackingWorkerRequest {
     ) -> Result<Self, BayesError> {
         if !((8..=500).contains(&spec.patients.len())
             && (2..=16).contains(&spec.model_names.len())
-            && (1..=3_600).contains(&spec.timeout_seconds))
+            && is_worker_timeout(spec.timeout_seconds))
         {
             return Err(BayesError::InvalidSpec(
                 "predictive-stacking dimensions or timeout are invalid".into(),
@@ -95,7 +99,7 @@ impl PredictiveStackingWorkerRequest {
             backend: BackendContract {
                 name: "scipy",
                 version: SCIPY_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -155,11 +159,7 @@ impl PredictiveStackingWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != "marklab.scipy_predictive_stacking_worker_result"
             || self.version != 1
-            || self.backend.name != "scipy"
-            || self.backend.version != SCIPY_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.weights.len() != request.model_names.len()
             || self.grouped_mixture_log_predictive_density.len() != request.patients.len()
@@ -186,7 +186,7 @@ impl PredictiveStackingWorkerResult {
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
-        if !approximately_equal(weight_values.iter().sum(), 1.0) {
+        if !relative_eq(weight_values.iter().sum(), 1.0, RELATIVE_TOLERANCE) {
             return Err(BayesError::WorkerContract(
                 "predictive-stacking weights do not sum to one".into(),
             ));
@@ -200,7 +200,11 @@ impl PredictiveStackingWorkerResult {
         {
             let expected = log_mixture(&weight_values, &patient.log_predictive_densities);
             if output.patient_id != patient.patient_id
-                || !approximately_equal(output.mixture_log_predictive_density, expected)
+                || !relative_eq(
+                    output.mixture_log_predictive_density,
+                    expected,
+                    RELATIVE_TOLERANCE,
+                )
             {
                 return Err(BayesError::WorkerContract(format!(
                     "predictive-stacking mixture differs at patient {index}"
@@ -208,7 +212,11 @@ impl PredictiveStackingWorkerResult {
             }
             objective += expected;
         }
-        if !approximately_equal(self.objective_sum_log_predictive_density, objective) {
+        if !relative_eq(
+            self.objective_sum_log_predictive_density,
+            objective,
+            RELATIVE_TOLERANCE,
+        ) {
             return Err(BayesError::WorkerContract(
                 "predictive-stacking objective differs".into(),
             ));
@@ -249,8 +257,4 @@ fn log_mixture(weights: &[f64], log_densities: &[f64]) -> f64 {
             .map(|(weight, density)| (weight.ln() + density - maximum).exp())
             .sum::<f64>()
             .ln()
-}
-
-fn approximately_equal(left: f64, right: f64) -> bool {
-    (left - right).abs() <= 1e-9 * (1.0 + left.abs().max(right.abs()))
 }

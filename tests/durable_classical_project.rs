@@ -47,12 +47,6 @@ fn native_build_provenance_marks_untracked_source_state_dirty() {
     assert_eq!(build_script::git_dirty(repository.path()), Some(true));
 }
 
-#[test]
-fn unified_execute_algorithm_symbol_owns_the_durable_typed_node_boundary() {
-    let _execute =
-        marklab_workflow::execute_algorithm::<marklab::ClassicalSpatialAnalysisNode<'static>>;
-}
-
 fn write_fixture(root: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
     let cells = root.join("cells.csv");
     let window = root.join("window.geojson");
@@ -669,7 +663,7 @@ fn head_and_ledger_reject_unknown_fields_versions_and_noncanonical_bytes() {
     .stderr(predicate::str::contains("not canonically encoded"));
 
     let first_line = std::str::from_utf8(&ledger[..ledger.len() - 1]).expect("ledger UTF-8");
-    let prior_digest = marklab::ContentDigest::from_bytes(first_line.as_bytes());
+    let prior_digest = marklab::workflow::ContentDigest::from_bytes(first_line.as_bytes());
     let duplicate = first_line
         .replace("\"sequence\":1", "\"sequence\":2")
         .replace(

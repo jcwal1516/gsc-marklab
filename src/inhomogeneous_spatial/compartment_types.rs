@@ -1,6 +1,12 @@
+use crate::result_vocabulary::{
+    CompartmentInterfaceEventPolicy, EdgeCorrection, IntensityBoundaryCorrection,
+    IntensityCrossFit, IntensityEstimator,
+};
 use serde::{Deserialize, Serialize};
 
-use crate::{ClassicalWindowSummary, InhomogeneousPairCorrelationPoint, PairCorrelationKernel};
+use crate::spatial::{
+    ClassicalWindowSummary, InhomogeneousPairCorrelationPoint, PairCorrelationKernel,
+};
 
 use super::{InhomogeneousSpatialError, InhomogeneousSpatialInference, InhomogeneousSpatialPoint};
 
@@ -178,13 +184,13 @@ pub struct PiecewiseCompartmentIntensityLevel {
 /// Exact identity and observed event values for the piecewise estimator.
 pub struct PiecewiseCompartmentIntensitySummary {
     /// Stable estimator name.
-    pub estimator: String,
+    pub estimator: IntensityEstimator,
     /// Cross-fitting policy.
-    pub cross_fit: String,
+    pub cross_fit: IntensityCrossFit,
     /// Area normalization policy.
-    pub boundary_correction: String,
+    pub boundary_correction: IntensityBoundaryCorrection,
     /// Policy for observed events exactly on the shared interface.
-    pub interface_event_policy: String,
+    pub interface_event_policy: CompartmentInterfaceEventPolicy,
     /// Exact oriented partition identity.
     pub partition_digest: String,
     /// Exact persisted intensity-artifact identity.
@@ -210,7 +216,7 @@ pub struct PiecewiseCompartmentSpatialResult {
     /// Persisted piecewise intensity artifact.
     pub intensity: PiecewiseCompartmentIntensitySummary,
     /// Named spatial edge correction.
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     /// Exact analysis-configuration identity.
     pub configuration_digest: String,
     /// Observed compartment membership queries performed.
@@ -287,7 +293,7 @@ pub struct PiecewiseCompartmentPairCorrelationResult {
     /// Pair-kernel bandwidth in micrometres.
     pub pair_bandwidth_um: f64,
     /// Named spatial edge correction.
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     /// Exact analysis-configuration identity.
     pub configuration_digest: String,
     /// Observed compartment membership queries performed.

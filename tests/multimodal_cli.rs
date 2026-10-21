@@ -600,7 +600,7 @@ fn multimodal_prepost_cli_writes_cross_curve_delta_result() {
         &std::fs::read_to_string(delta_out.join("prepost.json")).expect("delta"),
     )
     .expect("json");
-    assert_eq!(delta["format_version"], "0.3");
+    assert_eq!(delta["format_version"], "0.4");
     assert_eq!(delta["analysis"]["kind"], "multimodal_prepost");
     let result = &delta["analysis"]["result"];
     assert!(result["curve_comparisons"]

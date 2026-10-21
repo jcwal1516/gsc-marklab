@@ -130,8 +130,8 @@ fn borrowed_and_managed_parquet_paths_reject_the_same_hostile_page_header() {
     assert_eq!(managed_scan, borrowed);
     assert!(matches!(
         managed,
-        EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidPageHeader,
+        ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidPageHeader,
         }
     ));
 }
@@ -161,8 +161,8 @@ fn parquet_reader_rejects_nonfinite_status_and_cell_drift_after_raw_preflight() 
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidComponent,
+        Err(ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidComponent,
         })
     ));
 
@@ -182,8 +182,8 @@ fn parquet_reader_rejects_nonfinite_status_and_cell_drift_after_raw_preflight() 
     .expect_err("invalid status");
     assert!(matches!(
         error,
-        EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidStatus,
+        ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidStatus,
         }
     ));
     assert!(!error.to_string().contains("invalid"));
@@ -202,8 +202,8 @@ fn parquet_reader_rejects_nonfinite_status_and_cell_drift_after_raw_preflight() 
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidCellOrder,
+        Err(ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidCellOrder,
         })
     ));
 
@@ -232,8 +232,8 @@ fn parquet_reader_rejects_nonfinite_status_and_cell_drift_after_raw_preflight() 
             missing_verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Parquet {
-            reason: marklab::ParquetFailure::InvalidComponent,
+        Err(ColumnarError::Parquet {
+            reason: marklab::embeddings::ParquetFailure::InvalidComponent,
         })
     ));
 }
@@ -307,7 +307,7 @@ fn verified_store_and_borrowed_arrow_paths_reject_the_same_hostile_block() {
     assert_eq!(managed_scan, borrowed_error);
     assert!(matches!(
         managed_error,
-        EmbeddingColumnarError::Arrow {
+        ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidBlock,
         }
     ));
@@ -335,7 +335,7 @@ fn arrow_reader_rejects_nonfinite_negative_zero_status_link_and_logical_drift() 
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidComponent,
         })
     ));
@@ -352,7 +352,7 @@ fn arrow_reader_rejects_nonfinite_negative_zero_status_link_and_logical_drift() 
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidComponent,
         })
     ));
@@ -372,7 +372,7 @@ fn arrow_reader_rejects_nonfinite_negative_zero_status_link_and_logical_drift() 
     .expect_err("invalid status");
     assert!(matches!(
         error,
-        EmbeddingColumnarError::Arrow {
+        ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidStatus,
         }
     ));
@@ -404,7 +404,7 @@ fn arrow_reader_rejects_nonfinite_negative_zero_status_link_and_logical_drift() 
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::LogicalDigestMismatch,
         })
     ));
@@ -423,7 +423,7 @@ fn arrow_reader_rejects_nonfinite_negative_zero_status_link_and_logical_drift() 
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidStatus,
         })
     ));
@@ -465,7 +465,7 @@ fn arrow_reader_rejects_hidden_nonzero_and_malformed_string_offsets() {
             missing_verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidComponent,
         })
     ));
@@ -489,7 +489,7 @@ fn arrow_reader_rejects_hidden_nonzero_and_malformed_string_offsets() {
             present_verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::StockDecode,
         })
     ));
@@ -514,7 +514,7 @@ fn arrow_reader_rejects_unexpected_cell_identity_after_raw_preflight() {
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::Arrow {
+        Err(ColumnarError::Arrow {
             reason: ArrowIpcFailure::InvalidCellOrder,
         })
     ));
@@ -544,6 +544,6 @@ fn arrow_reader_rejects_record_binding_before_stock_decode() {
             verified,
             embedding_budgets(),
         ),
-        Err(EmbeddingColumnarError::ArtifactBindingMismatch)
+        Err(ColumnarError::ArtifactBindingMismatch)
     ));
 }

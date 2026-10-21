@@ -1,45 +1,15 @@
 #![cfg(feature = "parquet")]
 
 use super::support::*;
-use marklab::{
+use marklab::embeddings::{
     verify_patch_footprint_set_arrow_bytes, verify_patch_footprint_set_arrow_from_store,
     verify_patch_footprint_set_parquet_bytes, verify_patch_footprint_set_parquet_from_store,
     verify_patch_overlap_graph_arrow_bytes, verify_patch_overlap_graph_arrow_from_store,
     verify_patch_overlap_graph_parquet_bytes, verify_patch_overlap_graph_parquet_from_store,
     write_patch_footprint_set_arrow, write_patch_footprint_set_parquet,
-    write_patch_overlap_graph_arrow, write_patch_overlap_graph_parquet, EmbeddingColumnarBudgets,
-    MultiscaleColumnarError, VerifiedDirectPatchEmbeddingArtifactGraph,
-    VerifiedPatchFootprintArtifact,
+    write_patch_overlap_graph_arrow, write_patch_overlap_graph_parquet, ColumnarError,
+    VerifiedDirectPatchEmbeddingArtifactGraph, VerifiedPatchFootprintArtifact,
 };
-
-fn budgets() -> EmbeddingColumnarBudgets {
-    EmbeddingColumnarBudgets::new(
-        64 * 1024 * 1024,
-        64 * 1024 * 1024,
-        64 * 1024 * 1024,
-        64 * 1024 * 1024,
-    )
-}
-
-fn validate_graph(fixture: &Fixture) -> VerifiedDirectPatchEmbeddingArtifactGraph {
-    fixture
-        .provenance
-        .validate_direct_patch_artifact_graph(
-            fixture.provenance_artifact_id,
-            &fixture.expected_patches,
-            &fixture.source_entities,
-            &fixture.identity_map,
-            &fixture.source_row_link,
-            &fixture.input_normalization,
-            &fixture.context,
-            &fixture.footprints,
-            &fixture.overlap,
-            &fixture.support,
-            &fixture.catalog,
-            &fixture.store,
-        )
-        .expect("valid direct-patch graph")
-}
 
 fn arrow_footprint_receipt(
     fixture: &Fixture,
@@ -79,7 +49,9 @@ fn arrow_physical_receipts_require_full_decode_and_match_borrowed_and_managed_pa
         canonical_physical: true,
         ..FixtureOptions::default()
     });
-    let graph = validate_graph(&fixture);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
     let managed_footprint = arrow_footprint_receipt(&fixture, graph);
     let mut footprint_bytes = Vec::new();
     write_patch_footprint_set_arrow(
@@ -167,7 +139,9 @@ fn parquet_physical_receipts_require_full_decode_and_match_borrowed_and_managed_
         parquet_physical: true,
         ..FixtureOptions::default()
     });
-    let graph = validate_graph(&fixture);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
     let managed_footprint = parquet_footprint_receipt(&fixture, graph);
     let mut footprint_bytes = Vec::new();
     write_patch_footprint_set_parquet(
@@ -234,13 +208,20 @@ fn overlap_receipt_rejects_a_format_distinct_footprint_receipt() {
         canonical_physical: true,
         ..FixtureOptions::default()
     });
-    let arrow_receipt = arrow_footprint_receipt(&arrow, validate_graph(&arrow));
+    let arrow_receipt = arrow_footprint_receipt(
+        &arrow,
+        arrow
+            .direct_graph_result()
+            .expect("valid direct-patch graph"),
+    );
     let parquet = fixture_with_options(FixtureOptions {
         canonical_physical: true,
         parquet_physical: true,
         ..FixtureOptions::default()
     });
-    let parquet_graph = validate_graph(&parquet);
+    let parquet_graph = parquet
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
     assert_eq!(
         arrow.footprints.logical_digest(),
         parquet.footprints.logical_digest()
@@ -258,8 +239,8 @@ fn overlap_receipt_rejects_a_format_distinct_footprint_receipt() {
             parquet_graph,
             budgets(),
         ),
-        Err(marklab::VerifiedReaderError::Callback(
-            MultiscaleColumnarError::ArtifactBindingMismatch
+        Err(marklab::workflow::VerifiedReaderError::Callback(
+            ColumnarError::ArtifactBindingMismatch
         ))
     ));
 }
@@ -267,7 +248,9 @@ fn overlap_receipt_rejects_a_format_distinct_footprint_receipt() {
 #[test]
 fn structural_graph_receipt_does_not_decode_placeholder_physical_bytes() {
     let fixture = fixture();
-    let graph = validate_graph(&fixture);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
     assert!(verify_patch_footprint_set_arrow_from_store(
         &fixture.store,
         &fixture.footprint_record,
@@ -286,7 +269,9 @@ fn managed_integrity_failure_precedes_physical_decode_and_remains_source_private
         canonical_physical: true,
         ..FixtureOptions::default()
     });
-    let graph = validate_graph(&fixture);
+    let graph = fixture
+        .direct_graph_result()
+        .expect("valid direct-patch graph");
     let artifact = fixture.footprint_record.id().to_string();
     let managed_path = fixture
         ._root
@@ -306,7 +291,10 @@ fn managed_integrity_failure_precedes_physical_decode_and_remains_source_private
         budgets(),
     )
     .expect_err("managed integrity must fail");
-    assert!(matches!(error, marklab::VerifiedReaderError::Store(_)));
+    assert!(matches!(
+        error,
+        marklab::workflow::VerifiedReaderError::Store(_)
+    ));
     let rendered = error.to_string();
     assert!(!rendered.contains("private-source"));
     assert!(!rendered.contains(&fixture._root.path().display().to_string()));

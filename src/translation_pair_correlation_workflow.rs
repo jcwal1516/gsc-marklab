@@ -1,18 +1,18 @@
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use crate::workflow_node::{NodeAnalysis, TypedNode};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::Serialize;
 
 use crate::{
+    marked_workflow::pattern_artifact,
+    spatial::PairCorrelationKernel,
     translation_pair_correlation::{
         analyze_translation_pair_correlation, translation_pair_correlation_configuration_digest,
         TranslationPairCorrelationConfig, TranslationPairCorrelationResult,
         TranslationPairCorrelationResultDocument,
     },
     translation_spatial_workflow::window_artifact,
-    workflow::pattern_artifact,
-    PairCorrelationKernel, Pattern,
+    Pattern,
 };
 
 const NODE_KIND: &str = "translation_pair_correlation_analysis";
@@ -21,17 +21,17 @@ const CONFIG_KIND: &str =
 const RESULT_KIND: &str =
     "application/vnd.marklab.translation-pair-correlation-result+json;version=1";
 const EXECUTION_POLICY: &[u8] = b"serial;exact-polygon-translation-overlap;epanechnikov;explicit-bandwidth;whole-pattern-conditional-csr;erl";
-const ADAPTER_REVISION: &str = "translation-pair-correlation-analysis-node-v2";
+const ADAPTER_REVISION: &str = "translation-pair-correlation-analysis-node-v5";
 
 /// Cache-addressed exact translation-corrected homogeneous pair-correlation node.
 pub struct TranslationPairCorrelationAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<TranslationPairCorrelationAnalysis<'a>>,
+}
+
+struct TranslationPairCorrelationAnalysis<'a> {
     pattern: &'a Pattern,
     window: &'a crate::ObservationWindow2D,
     config: &'a TranslationPairCorrelationConfig,
-    inputs: Vec<ArtifactRef>,
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> TranslationPairCorrelationAnalysisNode<'a> {
@@ -50,8 +50,9 @@ impl<'a> TranslationPairCorrelationAnalysisNode<'a> {
             window,
             config,
             format!(
-                "marklab/{};adapter={ADAPTER_REVISION};geo=0.33.1",
-                env!("CARGO_PKG_VERSION")
+                "marklab/{};adapter={ADAPTER_REVISION};{}",
+                env!("CARGO_PKG_VERSION"),
+                crate::common::GEO_IDENTITY
             ),
             Vec::new(),
         )
@@ -77,55 +78,40 @@ impl<'a> TranslationPairCorrelationAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_configuration_digest = config_ref.digest();
         Ok(Self {
-            spec,
-            pattern,
-            window,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity,
+            node: TypedNode {
+                spec,
+                analysis: TranslationPairCorrelationAnalysis {
+                    pattern,
+                    window,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(EXECUTION_POLICY),
+                implementation_identity,
+            },
         })
     }
 
     /// Dependency-free graph specification.
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for TranslationPairCorrelationAnalysisNode<'_> {
+impl NodeAnalysis for TranslationPairCorrelationAnalysis<'_> {
     type Output = TranslationPairCorrelationResult;
+    type Inputs = Vec<ArtifactRef>;
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let pattern = pattern_artifact(self.pattern)?;
-        self.inputs[0]
-            .verify_identity(pattern.digest(), pattern.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 0, &pattern)?;
         let window = window_artifact(self.window)?;
-        self.inputs[1]
-            .verify_identity(window.digest(), window.byte_len())
-            .map_err(NodeError::input)?;
+        crate::workflow_node::verify_input(inputs, 1, &window)?;
         let config = config_artifact(self.config)?;
-        self.inputs[2]
-            .verify_identity(config.digest(), config.byte_len())
-            .map_err(NodeError::input)
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: EXECUTION_POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_input(inputs, 2, &config)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
@@ -153,6 +139,8 @@ impl WorkflowNode for TranslationPairCorrelationAnalysisNode<'_> {
     }
 }
 
+crate::workflow_node::impl_workflow_node!(TranslationPairCorrelationAnalysisNode<'_> => TranslationPairCorrelationResult);
+
 #[derive(Serialize)]
 struct ConfigArtifact<'a> {
     radii_um: &'a [f64],
@@ -161,7 +149,7 @@ struct ConfigArtifact<'a> {
     simulations: usize,
     seed: u64,
     alpha: f64,
-    limits: crate::TranslationSpatialLimits,
+    limits: crate::spatial::TranslationSpatialLimits,
     logical_digest: String,
 }
 

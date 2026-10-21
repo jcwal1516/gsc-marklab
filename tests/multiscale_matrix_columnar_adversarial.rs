@@ -15,13 +15,20 @@ use adversarial_support::{
 };
 use arrow::ipc::reader::FileReader;
 use marklab::{
-    preflight_patch_embedding_table_arrow_bytes, preflight_patch_embedding_table_parquet_bytes,
-    preflight_region_embedding_table_arrow_bytes, preflight_slide_embedding_table_parquet_bytes,
-    write_patch_embedding_table_arrow, write_patch_embedding_table_parquet,
-    write_region_embedding_table_arrow, write_region_embedding_table_parquet,
-    write_slide_embedding_table_arrow, write_slide_embedding_table_parquet, ArtifactId,
-    ContentDigest, EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialArrowFailure,
-    SpatialParquetFailure,
+    embeddings::{
+        preflight_patch_embedding_table_arrow_bytes, preflight_patch_embedding_table_parquet_bytes,
+        preflight_region_embedding_table_arrow_bytes,
+        preflight_slide_embedding_table_parquet_bytes, publish_columnar, read_columnar,
+        write_patch_embedding_table_arrow, write_patch_embedding_table_parquet,
+        write_region_embedding_table_arrow, write_region_embedding_table_parquet,
+        write_slide_embedding_table_arrow, write_slide_embedding_table_parquet, ArrowIpc,
+        ArrowIpcFailure, ColumnarError, ColumnarFormat, EmbeddingColumnarBudgets,
+        MultiscaleArtifactBinding, MultiscaleEmbeddingTableReadBindings, Parquet, ParquetFailure,
+        PatchEmbeddingTableEntity, PatchEmbeddingTableReadContext,
+    },
+    workflow::{
+        ArtifactId, ArtifactRecord, ArtifactRef, ContentDigest, LocalArtifactStore, StoreId,
+    },
 };
 use parquet::format::{CompressionCodec, Encoding, Statistics};
 
@@ -29,6 +36,49 @@ use support::{matrix_fixture, LARGE};
 
 fn budgets() -> EmbeddingColumnarBudgets {
     EmbeddingColumnarBudgets::new(LARGE as u64, LARGE, LARGE, LARGE as u64)
+}
+
+fn read_fixture<F: ColumnarFormat<PatchEmbeddingTableEntity>>(
+    fixture: &support::MatrixFixture,
+) -> (ArtifactRecord, PatchEmbeddingTableReadContext<'_>) {
+    let table = &fixture.patch_table;
+    let root = tempfile::TempDir::new().unwrap();
+    let store =
+        LocalArtifactStore::open(root.path(), StoreId::new("invalid-matrix").unwrap()).unwrap();
+    let record = publish_columnar::<F, PatchEmbeddingTableEntity>(&store, &table, budgets())
+        .unwrap()
+        .into_record();
+    let context = PatchEmbeddingTableReadContext {
+        expected: &fixture.expected_patches,
+        bindings: MultiscaleEmbeddingTableReadBindings::new(
+            MultiscaleArtifactBinding::new(
+                table.expected_entities_artifact_id(),
+                table.expected_entities_logical_digest(),
+            ),
+            MultiscaleArtifactBinding::new(
+                table.support_artifact_id(),
+                table.support_logical_digest(),
+            ),
+            MultiscaleArtifactBinding::new(
+                table.provenance_artifact_id(),
+                table.provenance_logical_digest(),
+            ),
+        )
+        .unwrap(),
+    };
+    (record, context)
+}
+
+fn changed_content(record: &ArtifactRecord, bytes: &[u8]) -> ArtifactRecord {
+    ArtifactRecord::new(
+        ArtifactRef::from_bytes(record.content().kind(), bytes).unwrap(),
+        record.schema().clone(),
+        record.table().cloned(),
+        record.dependencies().to_vec(),
+        record.semantic_metadata().clone(),
+        record.locations().to_vec(),
+    )
+    .unwrap()
 }
 
 struct MetadataValues<'a> {
@@ -265,13 +315,14 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
     let table = &fixture.patch_table;
     let mut canonical = Vec::new();
     write_patch_embedding_table_arrow(&mut canonical, table, budgets()).expect("Arrow matrix");
+    let (record, read_context) = read_fixture::<ArrowIpc>(&fixture);
 
     let mut bad_magic = canonical.clone();
     bad_magic[0] = 0;
     assert!(matches!(
         preflight_patch_embedding_table_arrow_bytes(&bad_magic, table, budgets()),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidMagic,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidMagic,
         })
     ));
 
@@ -280,8 +331,8 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
     wrong_id[ids.start + "patch-".len()] = b'z';
     assert!(matches!(
         preflight_patch_embedding_table_arrow_bytes(&wrong_id, table, budgets()),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidCanonicalRows,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidCanonicalRows,
         })
     ));
 
@@ -290,8 +341,8 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
     wrong_status[statuses.start] = b'x';
     assert!(matches!(
         preflight_patch_embedding_table_arrow_bytes(&wrong_status, table, budgets()),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidCanonicalRows,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidCanonicalRows,
         })
     ));
 
@@ -304,10 +355,22 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
         let values = arrow_buffer_range(&wrong_component, 5);
         let at = values.start + component * size_of::<f32>();
         wrong_component[at..at + 4].copy_from_slice(&bits.to_le_bytes());
+        let rebound = changed_content(&record, &wrong_component);
+        assert!(matches!(
+            read_columnar::<ArrowIpc, PatchEmbeddingTableEntity>(
+                Cursor::new(&wrong_component),
+                &rebound,
+                &read_context,
+                budgets()
+            ),
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidCanonicalRows
+            })
+        ));
         assert!(matches!(
             preflight_patch_embedding_table_arrow_bytes(&wrong_component, table, budgets()),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidCanonicalRows,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidCanonicalRows,
             })
         ));
     }
@@ -318,8 +381,8 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
         wrong_validity[validity.start] = 0xfe;
         assert!(matches!(
             preflight_patch_embedding_table_arrow_bytes(&wrong_validity, table, budgets()),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidBuffers,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidBuffers,
             })
         ));
     }
@@ -331,8 +394,8 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
     wrong_padding[validity.end] = 1;
     assert!(matches!(
         preflight_patch_embedding_table_arrow_bytes(&wrong_padding, table, budgets()),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidBuffers,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidBuffers,
         })
     ));
 
@@ -343,8 +406,8 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
     wrong_message_padding[padding_at] = 1;
     assert!(matches!(
         preflight_patch_embedding_table_arrow_bytes(&wrong_message_padding, table, budgets()),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidMessage,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidMessage,
         })
     ));
 
@@ -361,8 +424,8 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
     wrong_schema_padding[schema_padding_at] = 1;
     assert!(matches!(
         preflight_patch_embedding_table_arrow_bytes(&wrong_schema_padding, table, budgets()),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidMessage,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidMessage,
         })
     ));
 
@@ -370,8 +433,8 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
     assert!(replace_all_same_length(&mut wrong_schema, b"item", b"xxxx") >= 2);
     assert!(matches!(
         preflight_patch_embedding_table_arrow_bytes(&wrong_schema, table, budgets()),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidSchema,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidSchema,
         })
     ));
 
@@ -389,13 +452,14 @@ fn matrix_parquet_preflight_rejects_profile_rows_lists_and_forbidden_features() 
     let table = &fixture.patch_table;
     let mut canonical = Vec::new();
     write_patch_embedding_table_parquet(&mut canonical, table, budgets()).expect("Parquet matrix");
+    let (record, read_context) = read_fixture::<Parquet>(&fixture);
 
     let mut bad_magic = canonical.clone();
     bad_magic[0] = 0;
     assert!(matches!(
         preflight_patch_embedding_table_parquet_bytes(&bad_magic, table, budgets()),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidMagic,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidMagic,
         })
     ));
 
@@ -407,8 +471,8 @@ fn matrix_parquet_preflight_rejects_profile_rows_lists_and_forbidden_features() 
         assert_eq!(replace_all_same_length(&mut wrong_row, from, to), 1);
         assert!(matches!(
             preflight_patch_embedding_table_parquet_bytes(&wrong_row, table, budgets()),
-            Err(MultiscaleColumnarError::Parquet {
-                reason: SpatialParquetFailure::InvalidCanonicalRows,
+            Err(ColumnarError::Parquet {
+                reason: ParquetFailure::InvalidCanonicalRows,
             })
         ));
     }
@@ -424,10 +488,27 @@ fn matrix_parquet_preflight_rejects_profile_rows_lists_and_forbidden_features() 
         let mut wrong_component = canonical.clone();
         let at = values_start + component * size_of::<f32>();
         wrong_component[at..at + 4].copy_from_slice(&bits.to_le_bytes());
+        let rebound = changed_content(&record, &wrong_component);
+        let read_result = read_columnar::<Parquet, PatchEmbeddingTableEntity>(
+            Cursor::new(&wrong_component),
+            &rebound,
+            &read_context,
+            budgets(),
+        );
+        assert!(
+            matches!(
+                read_result,
+                Err(ColumnarError::Parquet {
+                    reason: ParquetFailure::InvalidCanonicalRows,
+                })
+            ),
+            "component {component}: {read_result:?}"
+        );
+
         assert!(matches!(
             preflight_patch_embedding_table_parquet_bytes(&wrong_component, table, budgets()),
-            Err(MultiscaleColumnarError::Parquet {
-                reason: SpatialParquetFailure::InvalidCanonicalRows,
+            Err(ColumnarError::Parquet {
+                reason: ParquetFailure::InvalidCanonicalRows,
             })
         ));
     }
@@ -437,8 +518,8 @@ fn matrix_parquet_preflight_rejects_profile_rows_lists_and_forbidden_features() 
     wrong_levels[body] ^= 1;
     assert!(matches!(
         preflight_patch_embedding_table_parquet_bytes(&wrong_levels, table, budgets()),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidPage,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidPage,
         })
     ));
 
@@ -447,8 +528,8 @@ fn matrix_parquet_preflight_rejects_profile_rows_lists_and_forbidden_features() 
     });
     assert!(matches!(
         preflight_patch_embedding_table_parquet_bytes(&wrong_schema, table, budgets()),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidSchema,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidSchema,
         })
     ));
 

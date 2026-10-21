@@ -1,3 +1,4 @@
+use crate::result_vocabulary::{EdgeCorrection, VariogramInferenceStatus, VariogramMultiplicity};
 use marklab_cohort::{InferenceAlternative, InferenceDesign};
 use marklab_numerics::extreme_rank_length_envelope;
 
@@ -13,6 +14,7 @@ use super::{
 };
 use crate::{
     geom::window::ObservationWindow2D,
+    scalar_mark::COMPARTMENT_MARK_ID,
     scalar_mark::{DeclaredScalarPatternInput, ScalarMarkId},
 };
 
@@ -95,8 +97,8 @@ pub fn scalar_semivariogram(
         point_count,
         pair_visits,
         curve,
-        edge_correction: "none_fixed_observed_locations",
-        inference_status: "observed_only_no_null",
+        edge_correction: EdgeCorrection::NoneFixedObservedLocations,
+        inference_status: VariogramInferenceStatus::ObservedOnlyNoNull,
     })
 }
 
@@ -150,7 +152,7 @@ pub fn scalar_semivariogram_permutation(
                 )
             }
             ScalarVariogramConditioning::HistologicCompartment => {
-                let compartment_id = ScalarMarkId::new("histologic_compartment")
+                let compartment_id = ScalarMarkId::new(COMPARTMENT_MARK_ID)
                     .map_err(|error| ScalarVariogramError::Inference(error.to_string()))?;
                 let compartments = table
                     .categorical_values(&compartment_id)
@@ -244,8 +246,7 @@ pub fn scalar_semivariogram_permutation(
         conditioning_measurement_status,
         conditioning: design.conditioning,
         permutations_requested: design.permutations,
-        permutations_completed: design.permutations,
         seed: design.seed,
-        multiplicity_policy: "two_sided_extreme_rank_length_global_envelope",
+        multiplicity_policy: VariogramMultiplicity::TwoSidedExtremeRankLengthGlobalEnvelope,
     })
 }

@@ -1,3 +1,6 @@
+use crate::result_vocabulary::{
+    DuplicatePointPolicy, EdgeCorrection, OverlapMeasureOwner, PairTraversal, SpatialExecutionMode,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -212,13 +215,13 @@ pub struct TranslationGeometrySummary {
     /// Exact point/window plan identity.
     pub logical_digest: String,
     /// Exact execution mode.
-    pub execution_mode: String,
+    pub execution_mode: SpatialExecutionMode,
     /// Duplicate-coordinate policy.
-    pub duplicate_policy: String,
+    pub duplicate_policy: DuplicatePointPolicy,
     /// Owner of polygon translation overlap.
-    pub overlap_owner: String,
+    pub overlap_owner: OverlapMeasureOwner,
     /// Pair traversal mode.
-    pub pair_traversal: String,
+    pub pair_traversal: PairTraversal,
 }
 
 /// Configuration identity persisted with the result.
@@ -242,7 +245,7 @@ pub struct TranslationSpatialResult {
     /// Source timepoint.
     pub timepoint: String,
     /// Fixed correction name.
-    pub correction: String,
+    pub correction: EdgeCorrection,
     /// Workflow availability.
     pub status: TranslationSpatialStatus,
     /// Exact observation window.

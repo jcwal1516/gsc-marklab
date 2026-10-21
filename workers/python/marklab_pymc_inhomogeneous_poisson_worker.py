@@ -1,86 +1,107 @@
 #!/usr/bin/env python3
-"""Static PyMC worker for a rectangular log-linear Poisson point process."""
+"""PyMC worker for a rectangular log-linear Poisson point process."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
-import numpy as np
 sys.path.append(str(Path(__file__).resolve().parent))
-import marklab_pytensor_config  # noqa: E402,F401
+
+# Configure PyTensor before PyMC is imported.
+from marklab_worker_support import pytensor_config  # noqa: F401
+
+# isort: split
+import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-PYMC_VERSION = "6.3.0"
+from marklab_worker_support import versions
+from marklab_worker_support.diagnostics import (
+    mcse_extremes,
+    pymc_sampler_diagnostics,
+    rank_convergence,
+)
+from marklab_worker_support.posterior import summary
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
+
+MONITORED = ["intercept", "coefficient"]
 
 
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low}, {high}]")
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
+def close(left: float, right: float) -> bool:
+    return math.isclose(left, right, rel_tol=1e-12, abs_tol=1e-12)
 
 
 def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
     request = obj(
         request,
         {
-            "format", "version", "backend", "model", "window", "grid_x", "grid_y",
-            "cell_width_um", "cell_height_um", "cell_area_um2", "events", "quadrature",
-            "observed_cell_counts", "sampling", "resources", "diagnostic_policy",
+            "format",
+            "version",
+            "backend",
+            "model",
+            "window",
+            "grid_x",
+            "grid_y",
+            "cell_width_um",
+            "cell_height_um",
+            "cell_area_um2",
+            "events",
+            "quadrature",
+            "observed_cell_counts",
+            "sampling",
+            "resources",
+            "diagnostic_policy",
         },
         "request",
     )
     exact(request["format"], "marklab.pymc_worker_request", "request.format")
     integer(request["version"], "request.version", 1, 1)
-    backend = obj(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "backend",
+        name="pymc",
+        version=versions.PYMC,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    exact(backend["name"], "pymc", "backend.name")
-    exact(backend["version"], PYMC_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_digest, "backend.lock")
-    exact(backend["worker_sha256"], worker_digest, "backend.worker")
     model = obj(
         request["model"],
         {
-            "format", "version", "family", "coordinate_unit", "window", "quadrature",
-            "covariates", "intercept_prior_mean", "intercept_prior_sd",
-            "coefficient_prior_mean", "coefficient_prior_sd", "likelihood",
-            "posterior_predictive", "backend_capability", "maturity",
+            "format",
+            "version",
+            "family",
+            "coordinate_unit",
+            "window",
+            "quadrature",
+            "covariates",
+            "intercept_prior_mean",
+            "intercept_prior_sd",
+            "coefficient_prior_mean",
+            "coefficient_prior_sd",
+            "likelihood",
+            "posterior_predictive",
+            "backend_capability",
+            "maturity",
         },
         "model",
     )
@@ -90,11 +111,7 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     exact(model["coordinate_unit"], "micrometer", "model.unit")
     exact(model["window"], "half_open_rectangle", "model.window")
     exact(model["quadrature"], "complete_regular_midpoint_equal_area", "model.quadrature")
-    exact(
-        model["covariates"],
-        "one_event_and_grid_covariate_plus_offset",
-        "model.covariates",
-    )
+    exact(model["covariates"], "one_event_and_grid_covariate_plus_offset", "model.covariates")
     intercept_prior_mean = number(model["intercept_prior_mean"], "model.intercept_mean")
     intercept_prior_sd = number(model["intercept_prior_sd"], "model.intercept_sd")
     coefficient_prior_mean = number(model["coefficient_prior_mean"], "model.coefficient_mean")
@@ -129,9 +146,9 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     cell_area = number(request["cell_area_um2"], "cell_area")
     if (
         cell_area <= 0.0
-        or not math.isclose(cell_width, (xmax - xmin) / grid_x, rel_tol=1e-12, abs_tol=1e-12)
-        or not math.isclose(cell_height, (ymax - ymin) / grid_y, rel_tol=1e-12, abs_tol=1e-12)
-        or not math.isclose(cell_area, cell_width * cell_height, rel_tol=1e-12, abs_tol=1e-12)
+        or not close(cell_width, (xmax - xmin) / grid_x)
+        or not close(cell_height, (ymax - ymin) / grid_y)
+        or not close(cell_area, cell_width * cell_height)
     ):
         raise ContractError("derived cell geometry mismatch")
 
@@ -171,9 +188,10 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         grid_covariate.append(number(node["covariate"], "quadrature.covariate"))
         grid_offset.append(number(node["offset"], "quadrature.offset"))
     grid_covariate = np.asarray(grid_covariate, dtype=np.float64)
-    if np.ptp(grid_covariate) <= math.sqrt(np.finfo(np.float64).eps) * max(
+    covariate_floor = math.sqrt(np.finfo(np.float64).eps) * max(
         1.0, float(np.abs(grid_covariate).max())
-    ):
+    )
+    if np.ptp(grid_covariate) <= covariate_floor:
         raise ContractError("quadrature covariate does not vary materially")
     observed_counts = request["observed_cell_counts"]
     if not isinstance(observed_counts, list) or len(observed_counts) != node_count:
@@ -200,8 +218,12 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     resources = obj(
         request["resources"],
         {
-            "maximum_events", "maximum_quadrature_nodes", "maximum_total_iterations",
-            "maximum_draw_cell_work", "maximum_output_bytes", "timeout_seconds",
+            "maximum_events",
+            "maximum_quadrature_nodes",
+            "maximum_total_iterations",
+            "maximum_draw_cell_work",
+            "maximum_output_bytes",
+            "timeout_seconds",
         },
         "resources",
     )
@@ -214,19 +236,24 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     )
     if chains * (tune + draws) > maximum_iterations:
         raise ContractError("iteration limit exceeded")
-    maximum_work = integer(
-        resources["maximum_draw_cell_work"], "resources.work", 1, 20_000_000
-    )
+    maximum_work = integer(resources["maximum_draw_cell_work"], "resources.work", 1, 20_000_000)
     if chains * draws * node_count > maximum_work:
         raise ContractError("draw-cell work limit exceeded")
-    integer(resources["maximum_output_bytes"], "resources.output", 1, 4 * 1_048_576)
+    maximum_output_bytes = integer(
+        resources["maximum_output_bytes"], "resources.output", 1, 4 * MIB
+    )
     integer(resources["timeout_seconds"], "resources.timeout", 1, 3_600)
     policy = obj(
         request["diagnostic_policy"],
         {
-            "prior_predictive_draws", "maximum_r_hat", "minimum_bulk_ess",
-            "minimum_tail_ess", "minimum_ebfmi", "maximum_divergences",
-            "maximum_tree_depth_hits", "maximum_tree_depth",
+            "prior_predictive_draws",
+            "maximum_r_hat",
+            "minimum_bulk_ess",
+            "minimum_tail_ess",
+            "minimum_ebfmi",
+            "maximum_divergences",
+            "maximum_tree_depth_hits",
+            "maximum_tree_depth",
         },
         "policy",
     )
@@ -252,37 +279,36 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         "draws": draws,
         "target_accept": target_accept,
         "seed": seed,
+        "maximum_output_bytes": maximum_output_bytes,
         "prior_draws": integer(policy["prior_predictive_draws"], "policy.prior_draws", 1, 100_000),
         "maximum_r_hat": number(policy["maximum_r_hat"], "policy.rhat"),
         "minimum_bulk_ess": number(policy["minimum_bulk_ess"], "policy.bulk"),
         "minimum_tail_ess": number(policy["minimum_tail_ess"], "policy.tail"),
         "minimum_ebfmi": number(policy["minimum_ebfmi"], "policy.ebfmi"),
-        "maximum_divergences": integer(policy["maximum_divergences"], "policy.divergences", 0, 2**63 - 1),
-        "maximum_tree_depth_hits": integer(policy["maximum_tree_depth_hits"], "policy.depth_hits", 0, 2**63 - 1),
+        "maximum_divergences": integer(
+            policy["maximum_divergences"], "policy.divergences", 0, 2**63 - 1
+        ),
+        "maximum_tree_depth_hits": integer(
+            policy["maximum_tree_depth_hits"], "policy.depth_hits", 0, 2**63 - 1
+        ),
         "maximum_tree_depth": integer(policy["maximum_tree_depth"], "policy.depth", 1, 32),
     }
 
 
 def seed_for(seed: int, purpose: str, index: int = 0) -> int:
-    digest = hashlib.sha256(f"marklab-pymc-ipp-v1\0{seed}\0{purpose}\0{index}".encode()).digest()
-    return int.from_bytes(digest[:4], "little")
-
-
-def summary(draws: np.ndarray) -> dict[str, float]:
-    return {
-        "mean": float(draws.mean()),
-        "sd": float(draws.std(ddof=1)),
-        "interval_lower": float(np.quantile(draws, 0.025)),
-        "interval_upper": float(np.quantile(draws, 0.975)),
-    }
-
-
-def tree_values(tree: Any, names: list[str]) -> np.ndarray:
-    return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
+    return derive_seed("marklab-pymc-ipp-v1", seed, purpose, index)
 
 
 def sample_model(config: dict[str, Any]) -> dict[str, Any]:
-    """Run the shared fixed likelihood and retain draws for concrete diagnostics."""
+    """Sample the log-linear Poisson process and derive per-cell posterior draws.
+
+    The likelihood is the point-process log density ``sum_i eta(s_i) - A * sum_k
+    exp(eta_k)``: the event linear predictors minus the intensity integral over the complete
+    grid of equal cell area ``A``, with ``eta = alpha + beta * covariate + offset``. Priors:
+    ``alpha ~ Normal(intercept_prior_mean, intercept_prior_sd)`` and ``beta ~
+    Normal(coefficient_prior_mean, coefficient_prior_sd)``.
+    """
+    chain_seeds = [seed_for(config["seed"], "chain", i) for i in range(config["chains"])]
     with pm.Model():
         intercept = pm.Normal(
             "intercept", config["intercept_prior_mean"], config["intercept_prior_sd"]
@@ -305,7 +331,7 @@ def sample_model(config: dict[str, Any]) -> dict[str, Any]:
             chains=config["chains"],
             cores=1,
             blas_cores=1,
-            random_seed=[seed_for(config["seed"], "chain", i) for i in range(config["chains"])],
+            random_seed=chain_seeds,
             target_accept=config["target_accept"],
             nuts_sampler="pymc",
             nuts={"max_treedepth": config["maximum_tree_depth"]},
@@ -314,8 +340,12 @@ def sample_model(config: dict[str, Any]) -> dict[str, Any]:
             compute_convergence_checks=False,
         )
 
-    intercept_draws = np.asarray(posterior["posterior"]["intercept"].values, dtype=np.float64).reshape(-1)
-    coefficient_draws = np.asarray(posterior["posterior"]["coefficient"].values, dtype=np.float64).reshape(-1)
+    intercept_draws = np.asarray(
+        posterior["posterior"]["intercept"].values, dtype=np.float64
+    ).reshape(-1)
+    coefficient_draws = np.asarray(
+        posterior["posterior"]["coefficient"].values, dtype=np.float64
+    ).reshape(-1)
     eta = (
         intercept_draws[:, None]
         + coefficient_draws[:, None] * config["grid_covariate"][None, :]
@@ -352,7 +382,9 @@ def result_from_sample(
     rng = np.random.default_rng(seed_for(config["seed"], "predictive"))
     replicated = rng.poisson(expected)
     prior_intercept = np.asarray(prior["prior"]["intercept"].values, dtype=np.float64).reshape(-1)
-    prior_coefficient = np.asarray(prior["prior"]["coefficient"].values, dtype=np.float64).reshape(-1)
+    prior_coefficient = np.asarray(prior["prior"]["coefficient"].values, dtype=np.float64).reshape(
+        -1
+    )
     prior_eta = (
         prior_intercept[:, None]
         + prior_coefficient[:, None] * config["grid_covariate"][None, :]
@@ -367,16 +399,9 @@ def result_from_sample(
         and np.isfinite(pearson).all()
         and np.isfinite(replicated).all()
     )
-    monitored = ["intercept", "coefficient"]
-    r_hat = float(tree_values(pm.stats.rhat(posterior, var_names=monitored, method="rank"), monitored).max())
-    bulk = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="bulk"), monitored).min())
-    tail = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="tail"), monitored).min())
-    mcse_mean = float(tree_values(pm.stats.mcse(posterior, var_names=monitored, method="mean"), monitored).max())
-    mcse_sd = float(tree_values(pm.stats.mcse(posterior, var_names=monitored, method="sd"), monitored).max())
-    energy = np.asarray(posterior["sample_stats"]["energy"].values, dtype=np.float64)
-    ebfmi = float(np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1)))
-    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
-    depth_hits = int(np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum())
+    r_hat, bulk, tail = rank_convergence(posterior, MONITORED)
+    mcse_mean, mcse_sd = mcse_extremes(posterior, MONITORED)
+    ebfmi, divergences, depth_hits = pymc_sampler_diagnostics(posterior["sample_stats"])
     constraints_valid = bool(np.all(intensity > 0.0) and np.all(expected > 0.0))
     complete = (
         prior_finite
@@ -412,13 +437,7 @@ def result_from_sample(
     return {
         "format": "marklab.pymc_inhomogeneous_poisson_worker_result",
         "version": 1,
-        "backend": {
-            "name": "pymc",
-            "version": pm.__version__,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("pymc", pm.__version__, lock_sha, worker_sha),
         "request_sha256": request_sha,
         "fit_state": "complete" if complete else "nonconverged",
         "sampling": {
@@ -457,29 +476,17 @@ def result_from_sample(
 
 
 def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
-    return result_from_sample(
-        config, sample_model(config), request_sha, lock_sha, worker_sha
-    )
+    return result_from_sample(config, sample_model(config), request_sha, lock_sha, worker_sha)
 
 
 def main() -> None:
-    if pm.__version__ != PYMC_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("PyMC or Python version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha = hashlib.sha256(raw).hexdigest()
-    result = fit(validate(json.loads(raw), lock_sha, worker_sha), request_sha, lock_sha, worker_sha)
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    require_versions(pymc=pm.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(16 * MIB)
+    config = validate(json.loads(raw), lock_sha, worker_sha)
+    result = fit(config, sha256_hex(raw), lock_sha, worker_sha)
+    write_result(result, max_bytes=config["maximum_output_bytes"])
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(f"marklab PyMC IPP worker failed: {type(error).__name__}: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
+    run_worker(main, "marklab PyMC IPP worker failed")

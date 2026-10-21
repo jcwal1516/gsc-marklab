@@ -1,8 +1,11 @@
+use crate::result_vocabulary::{
+    EdgeCorrection, MarkNullModel, MarkPermutationUnit, MultiplicityCorrection, WeightFunction,
+};
 use marklab_data::{CoordinateFrameId, MeasurementStatus};
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use thiserror::Error;
 
-use crate::{ClassicalWindowSummary, ScalarMarkId};
+use crate::{marks::ScalarMarkId, spatial::ClassicalWindowSummary};
 
 /// Exact resource ceilings for one continuous mark-weighted K workflow.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -178,8 +181,6 @@ pub struct MarkWeightedKGeometrySummary {
     pub point_count: usize,
     /// Directed pairs retained through the maximum radius.
     pub directed_pair_count: usize,
-    /// Geometry construction count.
-    pub geometry_build_count: usize,
     /// Point/window geometry identity.
     pub geometry_digest: ContentDigest,
     /// Ordered directed pair-plan identity.
@@ -205,21 +206,17 @@ pub struct MarkWeightedKComponentInference {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MarkWeightedKInferenceSummary {
     /// Exact null family.
-    pub null_model: String,
+    pub null_model: MarkNullModel,
     /// Atomic row moved by each permutation.
-    pub permutation_unit: String,
+    pub permutation_unit: MarkPermutationUnit,
     /// Two-sided alternative.
-    pub alternative: String,
+    pub alternative: marklab_cohort::InferenceAlternative,
     /// Declared multiplicity family.
-    pub multiplicity: String,
+    pub multiplicity: MultiplicityCorrection,
     /// Weighted-K ERL inference.
     pub weighted_k: Option<MarkWeightedKComponentInference>,
     /// Requested permutations.
     pub permutations_requested: usize,
-    /// Attempted permutations.
-    pub permutations_attempted: usize,
-    /// Completed permutations.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
     /// Family-wise alpha.
@@ -242,9 +239,9 @@ pub struct MarkWeightedKResult {
     /// Exact observation-window summary.
     pub window: ClassicalWindowSummary,
     /// Named pair weight.
-    pub weight_function: String,
+    pub weight_function: WeightFunction,
     /// Named edge correction.
-    pub edge_correction: String,
+    pub edge_correction: EdgeCorrection,
     /// Global arithmetic mark mean.
     pub global_mark_mean: f64,
     /// Global population variance used for the constant guard.

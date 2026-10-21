@@ -1,5 +1,6 @@
 use crate::{
-    geom::window::ObservationWindowError, IsotropicSpatialError, IsotropicSpatialLimits,
+    geom::window::ObservationWindowError,
+    spatial::{IsotropicSpatialError, IsotropicSpatialLimits},
     ObservationWindow2D,
 };
 

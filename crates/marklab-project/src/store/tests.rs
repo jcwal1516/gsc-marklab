@@ -30,7 +30,7 @@ fn final_path(root: &TempDir, record: &ArtifactRecord) -> PathBuf {
 #[test]
 fn failure_after_file_sync_removes_staging_without_publishing() {
     let root = TempDir::new().expect("root");
-    let store = LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
+    let mut store = LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
         .expect("store");
     let bytes = b"prepublication fault";
     let record = record(bytes);
@@ -57,7 +57,7 @@ fn failure_after_file_sync_removes_staging_without_publishing() {
 #[test]
 fn create_new_collision_never_deletes_a_staging_file_owned_by_another_writer() {
     let root = TempDir::new().expect("root");
-    let store = LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
+    let mut store = LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
         .expect("store");
     let bytes = b"collision content";
     let record = record(bytes);
@@ -131,8 +131,9 @@ fn recovery_reports_quarantine_target_across_every_partial_move_phase() {
         (RecoveryFault::AfterStagingRemove, false, true),
     ] {
         let root = TempDir::new().expect("root");
-        let store = LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
-            .expect("store");
+        let mut store =
+            LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
+                .expect("store");
         let record = record(b"partial recovery");
         let name = format!("marklab-3-1-{}.part", record.id());
         let staging_path = root.path().join(STAGING_DIRECTORY).join(&name);
@@ -158,7 +159,7 @@ fn recovery_reports_quarantine_target_across_every_partial_move_phase() {
 #[test]
 fn failure_after_publication_leaves_durable_final_and_recoverable_staging() {
     let root = TempDir::new().expect("root");
-    let store = LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
+    let mut store = LocalArtifactStore::open(root.path(), StoreId::new("local").expect("store ID"))
         .expect("store");
     let bytes = b"postpublication fault";
     let record = record(bytes);

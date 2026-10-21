@@ -25,7 +25,7 @@ use super::{
 };
 use crate::columnar::{
     enforce_retained_budget, enforce_row_group_budget, estimate_materialized_table_bytes,
-    EmbeddingColumnarBudgets, EmbeddingColumnarError, ParquetFailure,
+    ColumnarError, EmbeddingColumnarBudgets, ParquetFailure,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -38,37 +38,37 @@ pub(super) fn materialize_cell_embedding_table_parquet<R: Read + Seek + ?Sized>(
     declared_logical_digest: marklab_project::ContentDigest,
     prepared: PreparedCellEmbeddingParquet,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<CellEmbeddingTable, EmbeddingColumnarError> {
+) -> Result<CellEmbeddingTable, ColumnarError> {
     let final_table_bytes = estimate_materialized_table_bytes(expected, dimension)?;
     let maximum_group_peak = estimate_maximum_group_peak(&prepared, dimension)?;
     let metadata_bytes = prepared
         .metadata
         .memory_size()
         .checked_mul(2)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let materialization_peak = final_table_bytes
         .checked_add(metadata_bytes)
         .and_then(|value| value.checked_add(maximum_group_peak))
         .and_then(|value| value.checked_add(64 * 1024))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let required_retained = materialization_peak.max(prepared.summary.retained_preflight_bytes);
     enforce_retained_budget(required_retained, budgets)?;
 
     let component_count = expected
         .cells()
         .len()
-        .checked_mul(usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .checked_mul(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+        .ok_or(ColumnarError::SizeOverflow)?;
     let mut values = Vec::new();
-    values.try_reserve_exact(component_count).map_err(|_| {
-        EmbeddingColumnarError::AllocationFailed {
+    values
+        .try_reserve_exact(component_count)
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: component_count.saturating_mul(size_of::<f32>()),
-        }
-    })?;
+        })?;
     let mut statuses = Vec::new();
     statuses
         .try_reserve_exact(expected.cells().len())
-        .map_err(|_| EmbeddingColumnarError::AllocationFailed {
+        .map_err(|_| ColumnarError::AllocationFailed {
             requested: expected
                 .cells()
                 .len()
@@ -118,18 +118,18 @@ pub(super) fn scan_cell_embedding_table_parquet<R: Read + Seek + ?Sized>(
     declared_logical_digest: marklab_project::ContentDigest,
     prepared: PreparedCellEmbeddingParquet,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<EmbeddingQcSummary, EmbeddingColumnarError> {
+) -> Result<EmbeddingQcSummary, ColumnarError> {
     let maximum_group_peak = estimate_maximum_group_peak(&prepared, dimension)?;
     let metadata_bytes = prepared
         .metadata
         .memory_size()
         .checked_mul(2)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let scan_peak = metadata_bytes
         .checked_add(maximum_group_peak)
         .and_then(|value| value.checked_add(64 * 1024))
         .and_then(|value| value.checked_add(size_of::<EmbeddingQcAccumulator>()))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(
         scan_peak.max(prepared.summary.retained_preflight_bytes),
         budgets,
@@ -166,7 +166,6 @@ pub(super) fn scan_cell_embedding_table_parquet<R: Read + Seek + ?Sized>(
     Ok(summary)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn visit_cell_embedding_table_parquet<R, F>(
     source: &mut R,
     expected: &ExpectedCellSet,
@@ -175,10 +174,10 @@ fn visit_cell_embedding_table_parquet<R, F>(
     prepared: PreparedCellEmbeddingParquet,
     budgets: EmbeddingColumnarBudgets,
     mut visit: F,
-) -> Result<(), EmbeddingColumnarError>
+) -> Result<(), ColumnarError>
 where
     R: Read + Seek + ?Sized,
-    F: FnMut(&marklab_data::CellId, EmbeddingStatus, &[f32]) -> Result<(), EmbeddingColumnarError>,
+    F: FnMut(&marklab_data::CellId, EmbeddingStatus, &[f32]) -> Result<(), ColumnarError>,
 {
     let expected_schema = embedding_schema(dimension)?;
     let PreparedCellEmbeddingParquet {
@@ -201,15 +200,15 @@ where
         let mut group_bytes = Vec::new();
         group_bytes
             .try_reserve_exact(length)
-            .map_err(|_| EmbeddingColumnarError::AllocationFailed { requested: length })?;
+            .map_err(|_| ColumnarError::AllocationFailed { requested: length })?;
         group_bytes.resize(length, 0);
         source
             .seek(SeekFrom::Start(start))
             .and_then(|_| source.read_exact(&mut group_bytes))
             .map_err(|_| parquet_failure(ParquetFailure::ArtifactRead))?;
         let end = start
-            .checked_add(u64::try_from(length).map_err(|_| EmbeddingColumnarError::SizeOverflow)?)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .checked_add(u64::try_from(length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .ok_or(ColumnarError::SizeOverflow)?;
         let window = RowGroupWindow::new(start, end, Bytes::from(group_bytes));
         let mut reader =
             ParquetRecordBatchReaderBuilder::new_with_metadata(window, reader_metadata.clone())
@@ -234,7 +233,7 @@ where
         }
         if global_row
             .checked_sub(group_start_row)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?
+            .ok_or(ColumnarError::SizeOverflow)?
             != rows
         {
             return Err(parquet_failure(ParquetFailure::InvalidRowCount));
@@ -253,9 +252,9 @@ fn validate_batch<F>(
     dimension: u32,
     global_row: &mut usize,
     visit: &mut F,
-) -> Result<(), EmbeddingColumnarError>
+) -> Result<(), ColumnarError>
 where
-    F: FnMut(&marklab_data::CellId, EmbeddingStatus, &[f32]) -> Result<(), EmbeddingColumnarError>,
+    F: FnMut(&marklab_data::CellId, EmbeddingStatus, &[f32]) -> Result<(), ColumnarError>,
 {
     if batch.num_columns() != 3 {
         return Err(parquet_failure(ParquetFailure::StockDecode));
@@ -291,11 +290,11 @@ where
         || components.null_count() != 0
         || status_values.null_count() != 0
         || embeddings.value_length()
-            != i32::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?
+            != i32::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?
     {
         return Err(parquet_failure(ParquetFailure::StockDecode));
     }
-    let dimension = usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+    let dimension = usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?;
     for local_row in 0..batch.num_rows() {
         let expected_cell = expected
             .cells()
@@ -316,7 +315,7 @@ where
             .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
         let end = start
             .checked_add(dimension)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let vector = components
             .values()
             .get(start..end)
@@ -331,7 +330,7 @@ where
         visit(expected_cell, status, vector)?;
         *global_row = global_row
             .checked_add(1)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     Ok(())
 }

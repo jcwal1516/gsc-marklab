@@ -238,7 +238,6 @@ impl fmt::Debug for MultiscaleDirectPatchInputArtifacts {
 
 impl MultiscaleDirectPatchInputArtifacts {
     /// Bind the normalization, source, identity, row-link, expected-set, and support roles.
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         input_normalization_artifact_id: ArtifactId,
         source_entities_artifact_id: ArtifactId,

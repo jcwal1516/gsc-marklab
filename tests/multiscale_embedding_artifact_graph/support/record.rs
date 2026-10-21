@@ -38,7 +38,6 @@ pub(crate) fn draft_record(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn draft_record_with_version(
     schema: &str,
     schema_version: u32,
@@ -64,7 +63,6 @@ pub(crate) fn draft_record_with_version(
     .expect("candidate record")
 }
 
-#[allow(clippy::too_many_arguments)]
 fn publish_record_with_metadata(
     store: &LocalArtifactStore,
     schema: &str,

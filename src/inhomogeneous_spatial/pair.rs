@@ -1,6 +1,8 @@
+use marklab_numerics::summation::NeumaierSum;
+
 use crate::{
     classical::SpatialGeometryPlan2D, common::finite::canonical_zero,
-    continuous_mark_correlation::compensated_add, ClassicalSpatialLimits,
+    spatial::ClassicalSpatialLimits,
 };
 
 use super::{
@@ -30,36 +32,24 @@ pub(super) fn evaluate_curve(
         .checked_add(1)
         .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
     let mut eligible_ends = zeroed_vec::<usize>(width)?;
-    let mut center_inverse_ends = zeroed_vec::<f64>(width)?;
-    let mut center_inverse_end_corrections = zeroed_vec::<f64>(width)?;
+    let mut center_inverse_ends = zeroed_vec::<NeumaierSum>(width)?;
     let mut pair_starts = zeroed_vec::<usize>(width)?;
     let mut pair_ends = zeroed_vec::<usize>(width)?;
-    let mut weight_starts = zeroed_vec::<f64>(width)?;
-    let mut weight_start_corrections = zeroed_vec::<f64>(width)?;
-    let mut weight_ends = zeroed_vec::<f64>(width)?;
-    let mut weight_end_corrections = zeroed_vec::<f64>(width)?;
+    let mut weight_starts = zeroed_vec::<NeumaierSum>(width)?;
+    let mut weight_ends = zeroed_vec::<NeumaierSum>(width)?;
     // Bin events are added and removed. Preserve Neumaier residuals through
     // cancellation instead of applying the final-total rule of a Kahan sum.
-    let mut center_inverse_sum = 0.0;
-    let mut center_inverse_correction = 0.0;
+    let mut center_inverse_sum = NeumaierSum::new();
     let maximum_radius = radii_um[radii_um.len() - 1];
     let starting_visits = counters.pair_visits;
     for source in 0..intensities.len() {
         let inverse_source = 1.0 / intensities[source];
-        compensated_add(
-            &mut center_inverse_sum,
-            &mut center_inverse_correction,
-            inverse_source,
-        );
+        center_inverse_sum.add(inverse_source);
         let end = radii_um.partition_point(|radius| *radius <= plan.boundary_distances()[source]);
         eligible_ends[end] = eligible_ends[end]
             .checked_add(1)
             .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-        compensated_add(
-            &mut center_inverse_ends[end],
-            &mut center_inverse_end_corrections[end],
-            inverse_source,
-        );
+        center_inverse_ends[end].add(inverse_source);
         let query_radius = maximum_radius.min(plan.boundary_distances()[source]);
         if query_radius < radii_um[0] {
             continue;
@@ -99,16 +89,8 @@ pub(super) fn evaluate_curve(
                     ));
                     return;
                 }
-                compensated_add(
-                    &mut weight_starts[start],
-                    &mut weight_start_corrections[start],
-                    weight,
-                );
-                compensated_add(
-                    &mut weight_ends[end],
-                    &mut weight_end_corrections[end],
-                    weight,
-                );
+                weight_starts[start].add(weight);
+                weight_ends[end].add(weight);
             })
             .map_err(dependency)?;
         if let Some(error) = visitor_error {
@@ -118,8 +100,7 @@ pub(super) fn evaluate_curve(
 
     let mut eligible_centers = intensities.len();
     let mut active_pairs = 0_usize;
-    let mut active_weight = 0.0;
-    let mut active_weight_correction = 0.0;
+    let mut active_weight = NeumaierSum::new();
     let mut points = Vec::new();
     let mut values = Vec::new();
     let mut eligible = Vec::new();
@@ -132,45 +113,18 @@ pub(super) fn evaluate_curve(
         eligible_centers = eligible_centers
             .checked_sub(eligible_ends[index])
             .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-        compensated_add(
-            &mut center_inverse_sum,
-            &mut center_inverse_correction,
-            -center_inverse_ends[index],
-        );
-        compensated_add(
-            &mut center_inverse_sum,
-            &mut center_inverse_correction,
-            -center_inverse_end_corrections[index],
-        );
+        center_inverse_sum.subtract_sum(&center_inverse_ends[index]);
         active_pairs = active_pairs
             .checked_sub(pair_ends[index])
             .and_then(|value| value.checked_add(pair_starts[index]))
             .ok_or(InhomogeneousSpatialError::SizeOverflow)?;
-        compensated_add(
-            &mut active_weight,
-            &mut active_weight_correction,
-            -weight_ends[index],
-        );
-        compensated_add(
-            &mut active_weight,
-            &mut active_weight_correction,
-            -weight_end_corrections[index],
-        );
-        compensated_add(
-            &mut active_weight,
-            &mut active_weight_correction,
-            weight_starts[index],
-        );
-        compensated_add(
-            &mut active_weight,
-            &mut active_weight_correction,
-            weight_start_corrections[index],
-        );
-        let center_sum = center_inverse_sum + center_inverse_correction;
+        active_weight.subtract_sum(&weight_ends[index]);
+        active_weight.add_sum(&weight_starts[index]);
+        let center_sum = center_inverse_sum.total();
         let pair_sum = if active_pairs == 0 {
             0.0
         } else {
-            active_weight + active_weight_correction
+            active_weight.total()
         };
         let available = eligible_centers > 0 && center_sum.is_finite() && center_sum > 0.0;
         let k = available.then(|| pair_sum / center_sum).map(canonical_zero);
@@ -226,12 +180,8 @@ pub(super) fn geometry_limits(
 }
 
 fn zeroed_vec<T: Default + Clone>(length: usize) -> Result<Vec<T>, InhomogeneousSpatialError> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
-    values.resize(length, T::default());
-    Ok(values)
+    crate::common::alloc::try_filled(length, T::default())
+        .map_err(|_| InhomogeneousSpatialError::AllocationFailed)
 }
 
 #[cfg(test)]

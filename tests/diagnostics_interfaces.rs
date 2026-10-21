@@ -1,16 +1,11 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use marklab::{AnalysisConfig, AnalysisEngine, MarklabError, Pattern, PatternMeta};
 
 fn meta() -> PatternMeta {
-    PatternMeta {
-        case_id: "case_001".into(),
-        timepoint: "post".into(),
-        protein: "MSH6".into(),
-        slide_id: None,
-        section_id: None,
-        stain_batch: None,
-        block_id: None,
-        region_id: None,
-    }
+    pattern_meta("case_001".into(), "post".into(), "MSH6".into(), None)
 }
 
 fn component_pattern() -> Pattern {

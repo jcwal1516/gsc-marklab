@@ -47,37 +47,59 @@ fn base_input(initial: Vec<f64>) -> serde_json::Value {
 
 #[test]
 fn mapped_vessel_source_and_cell_uptake_match_the_exact_local_flow() {
-    let directory = tempfile::tempdir().unwrap();
-    let input = directory.path().join("input.json");
-    let mut spec = base_input(vec![0.0; 9]);
-    spec["vessel_sources"] = serde_json::json!([{
-        "vessel_id": "v1", "x_um": 1.0, "y_um": 1.0,
-        "source_concentration_per_time": 2.0
-    }]);
-    spec["uptake_cells"] = serde_json::json!([{
-        "cell_id": "c1", "x_um": 1.0, "y_um": 1.0,
-        "linear_uptake_per_time": 1.0
-    }]);
-    fs::write(&input, serde_json::to_vec(&spec).unwrap()).unwrap();
-    let output = directory.path().join("result.json");
-    run(&input, &output, "0.6931471805599453", "0.6931471805599453");
+    for (uptake, source, duration, expected_uptake) in [
+        (
+            1.0,
+            2.0,
+            "0.6931471805599453",
+            2.0 * std::f64::consts::LN_2 - 1.0,
+        ),
+        (0.0, 1.0, "1", 0.0),
+        (1e-16, 1.0, "1", 5e-17),
+        (1.05e-15, 1.0, "1", 5.25e-16),
+        (1e-320, 1.0, "1", 5e-321),
+    ] {
+        let directory = tempfile::tempdir().unwrap();
+        let input = directory.path().join("input.json");
+        let mut spec = base_input(vec![0.0; 9]);
+        spec["vessel_sources"] = serde_json::json!([{
+            "vessel_id": "v1", "x_um": 1.0, "y_um": 1.0,
+            "source_concentration_per_time": source
+        }]);
+        spec["uptake_cells"] = serde_json::json!([{
+            "cell_id": "c1", "x_um": 1.0, "y_um": 1.0,
+            "linear_uptake_per_time": uptake
+        }]);
+        fs::write(&input, serde_json::to_vec(&spec).unwrap()).unwrap();
+        let output = directory.path().join("result.json");
+        run(&input, &output, duration, duration);
 
-    let result: serde_json::Value = serde_json::from_slice(&fs::read(output).unwrap()).unwrap();
-    assert_eq!(result["format"], "marklab.vascular_transport");
-    assert!((result["final_state"][4]["concentration"].as_f64().unwrap() - 1.0).abs() < 1e-12);
-    assert_eq!(result["mapped_vessel_sources"][0]["grid_index"], 4);
-    assert_eq!(result["mapped_uptake_cells"][0]["grid_index"], 4);
-    assert!(
-        result["solver"]["mass_balance_residual"]
+        let result: serde_json::Value = serde_json::from_slice(&fs::read(output).unwrap()).unwrap();
+        assert_eq!(result["format"], "marklab.vascular_transport");
+        assert!((result["final_state"][4]["concentration"].as_f64().unwrap() - 1.0).abs() < 1e-12);
+        assert_eq!(result["mapped_vessel_sources"][0]["grid_index"], 4);
+        assert_eq!(result["mapped_uptake_cells"][0]["grid_index"], 4);
+        assert_eq!(result["final_state"][4]["hypoxic"], false);
+        let actual_uptake = result["solver"]["cumulative_cell_uptake_mass"]
             .as_f64()
-            .unwrap()
-            .abs()
-            < 1e-12
-    );
-    assert_eq!(
-        result["claim_status"],
-        "advanced_transport_not_causal_or_hemodynamic_truth"
-    );
+            .unwrap();
+        assert!(
+            (actual_uptake - expected_uptake).abs()
+                <= 1e-12 * expected_uptake + 2.0 * f64::from_bits(1),
+            "uptake {uptake}: expected {expected_uptake}, got {actual_uptake}"
+        );
+        assert!(
+            result["solver"]["mass_balance_residual"]
+                .as_f64()
+                .unwrap()
+                .abs()
+                < 1e-12
+        );
+        assert_eq!(
+            result["claim_status"],
+            "advanced_transport_not_causal_or_hemodynamic_truth"
+        );
+    }
 }
 
 #[test]

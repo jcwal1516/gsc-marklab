@@ -1,6 +1,8 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 
-use crate::{mark_pair_plan::erl_workspace_bytes, BinaryCompartmentPartition2D, Pattern};
+use crate::{
+    compartments::BinaryCompartmentPartition2D, mark_pair_plan::erl_workspace_bytes, Pattern,
+};
 
 use super::{
     InhomogeneousPairCorrelationPoint, InhomogeneousSpatialError, InhomogeneousSpatialPoint,
@@ -39,7 +41,6 @@ pub(super) fn piecewise_configuration_digest(
     ContentDigest::from_framed(fields.iter().map(Vec::as_slice))
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(super) fn piecewise_intensity_digest(
     pattern: &Pattern,
     partition: &BinaryCompartmentPartition2D,

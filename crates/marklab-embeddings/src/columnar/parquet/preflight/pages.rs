@@ -3,7 +3,7 @@ use parquet::{
     thrift::TSerializable,
 };
 
-use crate::columnar::{EmbeddingColumnarError, ParquetFailure};
+use crate::columnar::{ColumnarError, ParquetFailure};
 
 use super::super::{
     compact::{is_canonical_compact, BoundedCompactProtocol, CompactLimits},
@@ -28,7 +28,7 @@ pub(super) fn validate_pages(
     column_index: usize,
     rows: usize,
     dimension: u32,
-) -> Result<ValidatedPages, EmbeddingColumnarError> {
+) -> Result<ValidatedPages, ColumnarError> {
     let mut cursor = start;
     let mut page_count = 0_usize;
     let mut aggregate_rows = 0_usize;
@@ -38,7 +38,7 @@ pub(super) fn validate_pages(
         let header_limit = cursor
             .checked_add(MAXIMUM_PAGE_HEADER_BYTES)
             .map(|value| value.min(end))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let header_window = absolute_slice(bytes, base_offset, cursor, header_limit)
             .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPageHeader))?;
         let limits = CompactLimits {
@@ -75,10 +75,10 @@ pub(super) fn validate_pages(
         }
         let body_start = cursor
             .checked_add(header_bytes)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let page_end = body_start
             .checked_add(body_bytes)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if page_end > end {
             return Err(parquet_failure(ParquetFailure::InvalidPage));
         }
@@ -98,13 +98,11 @@ pub(super) fn validate_pages(
             .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let level_bytes = definition_bytes
             .checked_add(repetition_bytes)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let expected_page_values = if column_index == 1 {
             page_rows
-                .checked_mul(
-                    usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
-                )
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?
+                .checked_mul(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+                .ok_or(ColumnarError::SizeOverflow)?
         } else {
             page_rows
         };
@@ -141,7 +139,7 @@ pub(super) fn validate_pages(
                 page_values,
                 LevelPattern::FixedListRepetition {
                     dimension: usize::try_from(dimension)
-                        .map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
+                        .map_err(|_| ColumnarError::SizeOverflow)?,
                 },
             )?;
             validate_level_stream(definition, page_values, LevelPattern::AllOne)?;
@@ -151,7 +149,7 @@ pub(super) fn validate_pages(
             if values.len()
                 != page_values
                     .checked_mul(size_of::<f32>())
-                    .ok_or(EmbeddingColumnarError::SizeOverflow)?
+                    .ok_or(ColumnarError::SizeOverflow)?
             {
                 return Err(parquet_failure(ParquetFailure::InvalidPage));
             }
@@ -161,24 +159,22 @@ pub(super) fn validate_pages(
                 .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
             string_payload_bytes = string_payload_bytes
                 .checked_add(validate_plain_byte_arrays(values, page_values)?)
-                .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
         }
         aggregate_rows = aggregate_rows
             .checked_add(page_rows)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         aggregate_values = aggregate_values
             .checked_add(page_values)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         page_count = page_count
             .checked_add(1)
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         cursor = page_end;
     }
     let expected_values = if column_index == 1 {
-        rows.checked_mul(
-            usize::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?,
-        )
-        .ok_or(EmbeddingColumnarError::SizeOverflow)?
+        rows.checked_mul(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
+            .ok_or(ColumnarError::SizeOverflow)?
     } else {
         rows
     };

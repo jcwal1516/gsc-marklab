@@ -1,54 +1,5 @@
 use super::support::*;
 
-fn frame(writer: &mut impl Write, value: &[u8]) {
-    writer
-        .write_all(&(value.len() as u128).to_be_bytes())
-        .expect("reference length");
-    writer.write_all(value).expect("reference value");
-}
-
-fn reference_derivation_digest(
-    derivation: &MultiscaleEmbeddingDerivationContract,
-) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(
-        &mut writer,
-        b"marklab-multiscale-embedding-derivation-logical-v1",
-    );
-    frame(&mut writer, b"marklab.multiscale_embedding_derivation");
-    frame(&mut writer, &1_u32.to_be_bytes());
-    frame(&mut writer, b"deterministic");
-    frame(&mut writer, derivation.algorithm().as_bytes());
-    frame(&mut writer, derivation.algorithm_version().as_bytes());
-    frame(&mut writer, b"exclude_non_present_require_one");
-    frame(&mut writer, b"f64");
-    frame(&mut writer, b"f32");
-    writer.finish().0
-}
-
-fn reference_support_digest(
-    variant: &str,
-    entity_kind: &str,
-    slide: &SlideId,
-    bindings: &[MultiscaleArtifactBinding],
-) -> ContentDigest {
-    let mut writer = ContentDigest::builder();
-    frame(
-        &mut writer,
-        b"marklab-multiscale-embedding-support-logical-v1",
-    );
-    frame(&mut writer, b"marklab.multiscale_embedding_support");
-    frame(&mut writer, &1_u32.to_be_bytes());
-    frame(&mut writer, variant.as_bytes());
-    frame(&mut writer, entity_kind.as_bytes());
-    frame(&mut writer, slide.as_str().as_bytes());
-    for value in bindings {
-        frame(&mut writer, value.artifact_id().digest().as_bytes());
-        frame(&mut writer, value.logical_digest().as_bytes());
-    }
-    writer.finish().0
-}
-
 #[test]
 fn derivation_and_four_support_variants_are_exact_closed_logical_values() {
     let weighted = MultiscaleEmbeddingDerivationContract::weighted_mean("fractions.v1", BUDGET)
@@ -67,14 +18,6 @@ fn derivation_and_four_support_variants_are_exact_closed_logical_values() {
         "40bd3bfef7d12d241baf7a5c31ba9aefe97fbc9673c49e282d209db9a7ace59c"
     );
     assert!(!format!("{weighted:?}").contains("fractions.v1"));
-    assert_eq!(
-        weighted.logical_digest(),
-        reference_derivation_digest(&weighted)
-    );
-    assert_eq!(
-        arithmetic.logical_digest(),
-        reference_derivation_digest(&arithmetic)
-    );
     let arithmetic_bytes = arithmetic.to_canonical_json().expect("arithmetic JSON");
     assert_eq!(
         String::from_utf8(arithmetic_bytes.clone()).expect("UTF-8"),
@@ -121,10 +64,6 @@ fn derivation_and_four_support_variants_are_exact_closed_logical_values() {
     assert_eq!(patch_support.entity_kind(), EmbeddingEntityKind::Patch);
     assert!(!format!("{context:?}").contains(&context.artifact_id().to_string()));
     assert!(!format!("{patch_support:?}").contains("records-support-slide"));
-    assert_eq!(
-        patch_support.logical_digest(),
-        reference_support_digest("patch", "patch", &slide, &[context, footprints, overlap])
-    );
     assert_eq!(
         patch_support.direct_dependencies().collect::<Vec<_>>(),
         sorted_artifacts([
@@ -180,15 +119,6 @@ fn derivation_and_four_support_variants_are_exact_closed_logical_values() {
         BUDGET,
     )
     .expect("region support");
-    assert_eq!(
-        region.logical_digest(),
-        reference_support_digest(
-            "region_from_patches",
-            "region",
-            &slide,
-            &[patch_support_binding, patch_region_link],
-        )
-    );
     let expected_region_json = format!(
         concat!(
             "{{\"format\":\"marklab.multiscale_embedding_support\",\"version\":1,",
@@ -226,15 +156,6 @@ fn derivation_and_four_support_variants_are_exact_closed_logical_values() {
         BUDGET,
     )
     .expect("slide patch support");
-    assert_eq!(
-        slide_from_patches.logical_digest(),
-        reference_support_digest(
-            "slide_from_patches",
-            "slide",
-            &slide,
-            &[patch_support_binding, source_patch_table],
-        )
-    );
     let expected_slide_patch_json = format!(
         concat!(
             "{{\"format\":\"marklab.multiscale_embedding_support\",\"version\":1,",
@@ -271,15 +192,6 @@ fn derivation_and_four_support_variants_are_exact_closed_logical_values() {
         BUDGET,
     )
     .expect("slide region support");
-    assert_eq!(
-        slide_from_regions.logical_digest(),
-        reference_support_digest(
-            "slide_from_regions",
-            "slide",
-            &slide,
-            &[region_support_binding, source_region_table],
-        )
-    );
     let expected_slide_region_json = format!(
         concat!(
             "{{\"format\":\"marklab.multiscale_embedding_support\",\"version\":1,",

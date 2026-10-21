@@ -8,7 +8,8 @@ use marklab_bayes::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{publish_json, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::SarLikelihoodArgs;
+use super::{publish_json, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 pub(super) enum CliSarModel {
@@ -49,18 +50,23 @@ pub(super) struct SarInput {
     pub design: Vec<f64>,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    region_path: PathBuf,
-    edge_path: PathBuf,
-    data_path: PathBuf,
-    coefficient_path: PathBuf,
-    model: CliSarModel,
-    rho: f64,
-    sigma: f64,
-    interpretation: CliSarInterpretation,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: SarLikelihoodArgs) -> Result<(), CliError> {
+    let SarLikelihoodArgs {
+        regions,
+        edges,
+        data,
+        coefficients,
+        model,
+        rho,
+        sigma,
+        interpretation,
+        out,
+    } = args;
+    let region_path = regions;
+    let edge_path = edges;
+    let data_path = data;
+    let coefficient_path = coefficients;
+    let output_path = out;
     let input = read_input(&region_path, &edge_path, &data_path)?;
     let weights = input.weights;
     let region_ids = weights.region_ids.clone();
@@ -137,7 +143,7 @@ pub(super) fn read_input(
     region_path: &std::path::Path,
     edge_path: &std::path::Path,
     data_path: &std::path::Path,
-) -> Result<SarInput, BayesCliError> {
+) -> Result<SarInput, CliError> {
     let weights = validate_spatial_weights(
         read_regions(region_path)?,
         read_edges(edge_path)?,
@@ -147,7 +153,7 @@ pub(super) fn read_input(
             normalization: NormalizationPolicy::RowStandardize,
         },
     )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    .map_err(|error| CliError::Input(error.to_string()))?;
     let (predictor_names, response, design) = read_data(data_path, &weights.region_ids)?;
     Ok(SarInput {
         weights,
@@ -157,21 +163,21 @@ pub(super) fn read_input(
     })
 }
 
-fn read_regions(path: &std::path::Path) -> Result<Vec<String>, BayesCliError> {
+fn read_regions(path: &std::path::Path) -> Result<Vec<String>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["region_id"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "SAR region headers must be exactly: region_id".into(),
         ));
     }
     reader
         .deserialize::<RegionRow>()
-        .map(|row| row.map(|row| row.region_id).map_err(BayesCliError::from))
+        .map(|row| row.map(|row| row.region_id).map_err(CliError::from))
         .collect()
 }
 
-fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError> {
+fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -179,7 +185,7 @@ fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError>
         .iter()
         .eq(["source_region", "target_region", "weight"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "SAR edge headers must be exactly: source_region,target_region,weight".into(),
         ));
     }
@@ -191,14 +197,14 @@ fn read_edges(path: &std::path::Path) -> Result<Vec<SpatialEdge>, BayesCliError>
                 target_region: row.target_region,
                 weight: row.weight,
             })
-            .map_err(BayesCliError::from)
+            .map_err(CliError::from)
         })
         .collect()
 }
 
 type SarData = (Vec<String>, Vec<f64>, Vec<f64>);
 
-fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<SarData, BayesCliError> {
+fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<SarData, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     let headers = reader.headers()?.clone();
@@ -207,7 +213,7 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<SarData, B
         || headers.get(0) != Some("region_id")
         || headers.get(1) != Some("y")
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "SAR data must have region_id,y followed by 1-32 predictors".into(),
         ));
     }
@@ -222,7 +228,7 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<SarData, B
             || name == "intercept"
             || predictor_names[..index].contains(name)
     }) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "SAR predictor names must be exact, unique, and not intercept".into(),
         ));
     }
@@ -235,21 +241,19 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<SarData, B
             .skip(1)
             .map(|value| {
                 value.parse::<f64>().map_err(|_| {
-                    BayesCliError::Input(
-                        "SAR response and predictors must be finite numbers".into(),
-                    )
+                    CliError::Input("SAR response and predictors must be finite numbers".into())
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
         if values.iter().any(|value| !value.is_finite()) || rows.insert(region_id, values).is_some()
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "SAR data require unique regions and finite values".into(),
             ));
         }
     }
     if rows.len() != region_ids.len() {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "SAR data must contain exactly one row per region".into(),
         ));
     }
@@ -258,7 +262,7 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<SarData, B
     for region_id in region_ids {
         let values = rows
             .remove(region_id)
-            .ok_or_else(|| BayesCliError::Input(format!("missing SAR region {region_id}")))?;
+            .ok_or_else(|| CliError::Input(format!("missing SAR region {region_id}")))?;
         response.push(values[0]);
         design.extend_from_slice(&values[1..]);
     }
@@ -268,11 +272,11 @@ fn read_data(path: &std::path::Path, region_ids: &[String]) -> Result<SarData, B
 fn read_coefficients(
     path: &std::path::Path,
     predictor_names: &[String],
-) -> Result<(f64, Vec<f64>), BayesCliError> {
+) -> Result<(f64, Vec<f64>), CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader.headers()?.iter().eq(["predictor", "coefficient"]) {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "SAR coefficient headers must be exactly: predictor,coefficient".into(),
         ));
     }
@@ -284,42 +288,42 @@ fn read_coefficients(
             || !row.coefficient.is_finite()
             || values.insert(row.predictor, row.coefficient).is_some()
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "SAR coefficients require exact unique names and finite values".into(),
             ));
         }
     }
     if values.len() != predictor_names.len() + 1 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "SAR coefficients must contain exactly intercept and every predictor".into(),
         ));
     }
     let intercept = values
         .remove("intercept")
-        .ok_or_else(|| BayesCliError::Input("SAR intercept coefficient is missing".into()))?;
+        .ok_or_else(|| CliError::Input("SAR intercept coefficient is missing".into()))?;
     let coefficients = predictor_names
         .iter()
         .map(|predictor| {
-            values.remove(predictor).ok_or_else(|| {
-                BayesCliError::Input(format!("missing SAR coefficient for {predictor}"))
-            })
+            values
+                .remove(predictor)
+                .ok_or_else(|| CliError::Input(format!("missing SAR coefficient for {predictor}")))
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok((intercept, coefficients))
 }
 
-fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &std::path::Path) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "SAR input must be a regular file within the 16 MiB limit",
     )
 }
 
-fn map_error(error: SarError) -> BayesCliError {
+fn map_error(error: SarError) -> CliError {
     match error {
-        SarError::InvalidInput(message) => BayesCliError::Input(message),
-        SarError::Numerical(message) => BayesCliError::Backend(message),
+        SarError::InvalidInput(message) => CliError::Input(message),
+        SarError::Numerical(message) => CliError::Backend(message),
     }
 }
 

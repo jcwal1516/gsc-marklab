@@ -1,12 +1,19 @@
+use marklab_bayes::is_worker_timeout;
 use std::path::PathBuf;
 
 use marklab_topology::sha256_hex;
 use serde::Deserialize;
 
+use crate::cli_error::CliError;
+
 use super::{
-    super::topology::{publish_json, read_input, read_required, run_worker, TopologyCliError},
+    super::topology::{publish_json, read_input, read_required, run_worker},
     RegistrationImage,
 };
+use marklab_bayes::backend_versions::JAX_VERSION;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -20,11 +27,11 @@ struct SvfSpec {
     jacobian_tolerance: f64,
     timeout_seconds: u64,
 }
-pub(super) fn run_svf(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliError> {
+pub(super) fn run_svf(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let spec: SvfSpec = serde_json::from_slice(&bytes)?;
     validate_svf(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path = repository.join("workers/python/marklab_jax_svf_registration_worker.py");
     let lock = read_required(&lock_path)?;
@@ -34,10 +41,10 @@ pub(super) fn run_svf(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliErr
         "version": 1,
         "backend": {
             "name": "jax_scipy_svf",
-            "jax_version": "0.11.1",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "jax_version": JAX_VERSION,
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "Apache-2.0_plus_BSD-3-Clause",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
@@ -63,14 +70,14 @@ pub(super) fn run_svf(input: PathBuf, out: PathBuf) -> Result<(), TopologyCliErr
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "experimental_synthetic_svf_diffeomorphism"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "SVF registration result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_svf(spec: &SvfSpec) -> Result<(), TopologyCliError> {
+fn validate_svf(spec: &SvfSpec) -> Result<(), CliError> {
     let height = spec.fixed.pixels.len();
     let width = spec.fixed.pixels.first().map(Vec::len).unwrap_or(0);
     let valid_image = |image: &RegistrationImage| {
@@ -99,9 +106,9 @@ fn validate_svf(spec: &SvfSpec) -> Result<(), TopologyCliError> {
         || !(10..=1_000).contains(&spec.maximum_iterations)
         || !spec.jacobian_tolerance.is_finite()
         || !(0.0..1.0).contains(&spec.jacobian_tolerance)
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "SVF registration requires same-grid bounded finite images, same-stain mean squares, positive regularization, bounded scaling/squaring, and a positive Jacobian tolerance"
                 .into(),
         ));

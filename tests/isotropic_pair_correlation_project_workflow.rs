@@ -1,9 +1,18 @@
+#[path = "support/pattern.rs"]
+mod pattern_fixture;
+use pattern_fixture::pattern_meta;
+
 use approx::assert_abs_diff_eq;
 use marklab::{
-    CacheStatus, IsotropicPairCorrelationAnalysisNode, IsotropicPairCorrelationConfig,
-    IsotropicPairCorrelationResultDocument, IsotropicSpatialLimits, LocalScheduler, MarklabProject,
-    NodeId, ObservationWindow2D, ObservationWindowLimits, Pattern, PatternMeta, SchedulerLimits,
-    WorkflowGraph, WorkflowNode,
+    spatial::{
+        IsotropicPairCorrelationAnalysisNode, IsotropicPairCorrelationConfig,
+        IsotropicPairCorrelationResultDocument, IsotropicSpatialLimits,
+    },
+    workflow::{
+        CacheStatus, LocalScheduler, MarklabProject, NodeId, SchedulerLimits, WorkflowGraph,
+        WorkflowNode,
+    },
+    ObservationWindow2D, ObservationWindowLimits, Pattern,
 };
 
 fn pattern() -> Pattern {
@@ -11,16 +20,12 @@ fn pattern() -> Pattern {
         vec![1.0, 3.0],
         vec![5.0, 5.0],
         vec![0, 0],
-        PatternMeta {
-            case_id: "isotropic-g-workflow".into(),
-            timepoint: "baseline".into(),
-            protein: "unmarked".into(),
-            slide_id: Some("slide".into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "isotropic-g-workflow".into(),
+            "baseline".into(),
+            "unmarked".into(),
+            Some("slide".into()),
+        ),
     )
     .expect("pattern")
 }
@@ -94,6 +99,10 @@ fn isotropic_g_node_misses_hits_round_trips_and_invalidates_arc_limits() {
     let encoded = IsotropicPairCorrelationResultDocument::new(direct)
         .and_then(|document| document.to_json_pretty())
         .expect("JSON");
+    assert_eq!(
+        encoded,
+        include_str!("fixtures/edge_estimators/isotropic_pair_correlation.json")
+    );
     assert!(encoded.contains("\"format\": \"marklab.isotropic_pair_correlation\""));
     assert_eq!(
         IsotropicPairCorrelationResultDocument::from_json(&encoded)

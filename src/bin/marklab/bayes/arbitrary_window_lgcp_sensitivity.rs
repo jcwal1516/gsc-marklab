@@ -1,138 +1,110 @@
+pub(crate) use marklab_bayes::protocol::arbitrary_window_lgcp_sensitivity::{
+    rms_difference, Scenario, SensitivityResult,
+};
+
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
-use marklab_bayes::{
-    FitState, GriddedLgcpPosterior, NormalMeanDiagnostics, NutsSamplingSpec, WorkerBackend,
-};
-use serde::Serialize;
+use marklab_bayes::FitState;
+use marklab_bayes::NutsSamplingSpec;
 
-use super::{
-    arbitrary_window_lgcp_fit::{self, InputIdentity, SpatialPpc},
-    publish_json, BayesCliError,
-};
-
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct SensitivityCli {
-    #[command(subcommand)]
-    command: TopLevel,
-}
-
-#[derive(Debug, Subcommand)]
-enum TopLevel {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    ArbitraryWindowLgcpSensitivity(Box<Arguments>),
-}
+use super::arbitrary_window_lgcp_fit;
+use super::publish_json;
+use super::CliError;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
 #[derive(Debug, clap::Args)]
-struct Arguments {
+pub(crate) struct Arguments {
+    /// Observed point events with coordinates and model covariates.
     #[arg(long)]
     events: PathBuf,
+    /// Table binding observed events to their declared components or quadrature cells.
     #[arg(long)]
     event_membership: PathBuf,
+    /// Quadrature nodes, weights and covariates for spatial integration.
     #[arg(long)]
     quadrature: PathBuf,
+    /// Observation-window geometry used for spatial integration or edge correction.
     #[arg(long)]
     window: PathBuf,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior mean for coefficient.
     #[arg(long, allow_hyphen_values = true)]
     coefficient_prior_mean: f64,
+    /// Prior scale for coefficient.
     #[arg(long)]
     coefficient_prior_sd: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
     field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
     field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on events.
     #[arg(long)]
     maximum_events: usize,
+    /// Upper bound on quadrature nodes.
     #[arg(long)]
     maximum_quadrature_nodes: usize,
+    /// Upper bound on total draw node work.
     #[arg(long)]
     maximum_total_draw_node_work: u64,
+    /// Number of posterior predictive simulations.
     #[arg(long)]
     prediction_replicates: u32,
+    /// Random seed for posterior predictive simulation.
     #[arg(long)]
     prediction_seed: u64,
+    /// Upper bound on predictive points.
     #[arg(long)]
     maximum_predictive_points: u64,
+    /// Neighborhood radius in micrometers.
     #[arg(long)]
     neighbor_radius_um: f64,
+    /// Upper bound on neighbor pairs.
     #[arg(long)]
     maximum_neighbor_pairs: usize,
+    /// Smallest standardized posterior change considered material.
     #[arg(long)]
     material_standardized_shift: f64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Debug, Serialize)]
-struct Scenario {
-    name: String,
-    field_amplitude: f64,
-    field_length_scale_um: f64,
-    backend: WorkerBackend,
-    source_backend: WorkerBackend,
-    input: InputIdentity,
-    request_sha256: String,
-    fit_state: FitState,
-    posterior: GriddedLgcpPosterior,
-    diagnostics: NormalMeanDiagnostics,
-    spatial_posterior_predictive: Option<SpatialPpc>,
-    intercept_standardized_shift: f64,
-    coefficient_standardized_shift: f64,
-    latent_field_rms_standardized_shift: f64,
-    expected_count_rms_relative_shift: f64,
-    maximum_standardized_shift: f64,
-    material_change: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct SensitivityResult {
-    format: String,
-    version: u32,
-    scenarios: Vec<Scenario>,
-    all_fits_complete: bool,
-    maximum_standardized_shift: f64,
-    material_standardized_shift: f64,
-    material_scenarios: Vec<String>,
-    total_draw_node_work: u64,
-    statistical_unit: String,
-    claim_status: String,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let TopLevel::Bayes { command } = SensitivityCli::parse_from(std::env::args_os()).command;
-    let Command::ArbitraryWindowLgcpSensitivity(arguments) = command;
+pub(super) fn run(arguments: Box<Arguments>) -> Result<(), CliError> {
     if !arguments.material_standardized_shift.is_finite()
         || arguments.material_standardized_shift <= 0.0
         || arguments.maximum_total_draw_node_work == 0
         || arguments.maximum_total_draw_node_work > 100_000_000
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "arbitrary-window LGCP sensitivity threshold or work ceiling is invalid".into(),
         ));
     }
@@ -166,12 +138,12 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
     let per_fit_work = u64::from(arguments.chains)
         .checked_mul(u64::from(arguments.draws))
         .and_then(|draws| draws.checked_mul(arguments.maximum_quadrature_nodes as u64))
-        .ok_or_else(|| BayesCliError::Input("LGCP sensitivity work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("LGCP sensitivity work overflows".into()))?;
     let total_draw_node_work = per_fit_work
         .checked_mul(definitions.len() as u64)
-        .ok_or_else(|| BayesCliError::Input("LGCP sensitivity total work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("LGCP sensitivity total work overflows".into()))?;
     if total_draw_node_work > arguments.maximum_total_draw_node_work {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "LGCP sensitivity draw-node work exceeds maximum: {total_draw_node_work} > {}",
             arguments.maximum_total_draw_node_work
         )));
@@ -185,29 +157,35 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
     };
     let mut fits = Vec::with_capacity(definitions.len());
     for (name, amplitude, length_scale) in definitions {
-        let prepared = arbitrary_window_lgcp_fit::prepare(
-            arguments.events.clone(),
-            arguments.event_membership.clone(),
-            arguments.quadrature.clone(),
-            arguments.window.clone(),
-            arguments.intercept_prior_mean,
-            arguments.intercept_prior_sd,
-            arguments.coefficient_prior_mean,
-            arguments.coefficient_prior_sd,
-            amplitude,
-            length_scale,
-            arguments.jitter,
-            sampling.clone(),
-            arguments.maximum_events,
-            arguments.maximum_quadrature_nodes,
-            per_fit_work,
-            arguments.prediction_replicates,
-            arguments.prediction_seed,
-            arguments.maximum_predictive_points,
-            arguments.neighbor_radius_um,
-            arguments.maximum_neighbor_pairs,
-            arguments.timeout_seconds,
-        )?;
+        let prepared =
+            arbitrary_window_lgcp_fit::prepare(crate::bayes::ArbitraryWindowLgcpFitArgs {
+                events: arguments.events.clone(),
+                event_membership: arguments.event_membership.clone(),
+                quadrature: arguments.quadrature.clone(),
+                window: arguments.window.clone(),
+                intercept_prior_mean: arguments.intercept_prior_mean,
+                intercept_prior_sd: arguments.intercept_prior_sd,
+                coefficient_prior_mean: arguments.coefficient_prior_mean,
+                coefficient_prior_sd: arguments.coefficient_prior_sd,
+                field_amplitude: amplitude,
+                field_length_scale_um: length_scale,
+                jitter: arguments.jitter,
+                chains: sampling.chains,
+                tune: sampling.tune_per_chain,
+                draws: sampling.draws_per_chain,
+                target_accept: sampling.target_accept,
+                seed: sampling.seed,
+                maximum_events: arguments.maximum_events,
+                maximum_quadrature_nodes: arguments.maximum_quadrature_nodes,
+                maximum_draw_node_work: per_fit_work,
+                prediction_replicates: arguments.prediction_replicates,
+                prediction_seed: arguments.prediction_seed,
+                maximum_predictive_points: arguments.maximum_predictive_points,
+                neighbor_radius_um: arguments.neighbor_radius_um,
+                maximum_neighbor_pairs: arguments.maximum_neighbor_pairs,
+                timeout_seconds: arguments.timeout_seconds,
+                out: std::path::PathBuf::new(),
+            })?;
         fits.push((
             name,
             amplitude,
@@ -220,7 +198,7 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
         .iter()
         .any(|(_, _, _, fit)| fit.input != baseline.input)
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "arbitrary-window LGCP inputs changed across sensitivity scenarios".into(),
         ));
     }
@@ -314,22 +292,8 @@ pub(super) fn run_cli() -> Result<(), BayesCliError> {
             material_standardized_shift: arguments.material_standardized_shift,
             material_scenarios,
             total_draw_node_work,
-            statistical_unit: "one_observed_point_pattern".into(),
-            claim_status: "experimental_fixed_kernel_sensitivity".into(),
+            statistical_unit: StatisticalUnit::OneObservedPointPattern,
+            claim_status: ClaimStatus::ExperimentalFixedKernelSensitivity,
         },
     )
-}
-
-fn rms_difference(left: impl Iterator<Item = f64>, right: impl Iterator<Item = f64>) -> f64 {
-    let differences = left
-        .zip(right)
-        .map(|(left, right)| (left - right).powi(2))
-        .collect::<Vec<_>>();
-    (differences.iter().sum::<f64>() / differences.len() as f64).sqrt()
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<SensitivityCli>(|| {
-        run_cli().map_err(super::into_marklab_error)
-    })
 }

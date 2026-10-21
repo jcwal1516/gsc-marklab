@@ -1,6 +1,6 @@
 use crate::{
     data::Pattern, errors::Result, geom::spatial_index::SpatialIndex2D,
-    perf::counters::enforce_storage_budget,
+    memory_budget::enforce_storage_budget,
 };
 
 #[cfg(test)]

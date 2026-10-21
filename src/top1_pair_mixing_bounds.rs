@@ -1,12 +1,15 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::common::summation::kahan_add;
 use crate::{
-    classical::SpatialGeometryPlan2D, compartment_interface::analysis::measurement_status_name,
-    ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
+    classical::SpatialGeometryPlan2D,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    measurement_status_wire::name as measurement_status_name,
+    spatial::ClassicalSpatialLimits,
+    ObservationWindow2D,
 };
+use marklab_numerics::summation::NeumaierSum;
 
 pub(crate) const TOP1_PAIR_MIXING_UNCERTAINTY_SEMANTICS: &str =
     "coordinatewise_conservative_bounds_from_top1_probability_with_declared_source_class_count_without_simplex_imputation";
@@ -270,10 +273,8 @@ pub fn top1_pair_mixing_bounds(
         });
     }
 
-    let mut lower = allocated_zeros(matrix_cells)?;
-    let mut lower_correction = allocated_zeros(matrix_cells)?;
-    let mut upper = allocated_zeros(matrix_cells)?;
-    let mut upper_correction = allocated_zeros(matrix_cells)?;
+    let mut lower: Vec<NeumaierSum> = allocated_zeros(matrix_cells)?;
+    let mut upper: Vec<NeumaierSum> = allocated_zeros(matrix_cells)?;
     let mut directed_pair_visits = 0_usize;
     let mut bound_product_evaluations = 0_usize;
     for source in 0..points {
@@ -309,16 +310,9 @@ pub fn top1_pair_mixing_bounds(
                 for target_class in 0..classes {
                     let target_offset = 2 * (neighbor.index * classes + target_class);
                     let matrix_index = source_class * classes + target_class;
-                    kahan_add(
-                        &mut lower[matrix_index],
-                        &mut lower_correction[matrix_index],
-                        intervals[source_offset] * intervals[target_offset],
-                    );
-                    kahan_add(
-                        &mut upper[matrix_index],
-                        &mut upper_correction[matrix_index],
-                        intervals[source_offset + 1] * intervals[target_offset + 1],
-                    );
+                    lower[matrix_index].add(intervals[source_offset] * intervals[target_offset]);
+                    upper[matrix_index]
+                        .add(intervals[source_offset + 1] * intervals[target_offset + 1]);
                 }
             }
         }
@@ -334,15 +328,16 @@ pub fn top1_pair_mixing_bounds(
     for source_class in 0..classes {
         for target_class in 0..classes {
             let index = source_class * classes + target_class;
+            let (lower, upper) = (lower[index].total(), upper[index].total());
             matrix.push(Top1PairMixingBoundCell {
                 source_class_index: source_class,
                 source_class_id: levels[source_class].clone(),
                 target_class_index: target_class,
                 target_class_id: levels[target_class].clone(),
-                lower_expected_pair_mass: lower[index],
-                upper_expected_pair_mass: upper[index],
-                lower_pair_fraction: lower[index] / denominator,
-                upper_pair_fraction: upper[index] / denominator,
+                lower_expected_pair_mass: lower,
+                upper_expected_pair_mass: upper,
+                lower_pair_fraction: lower / denominator,
+                upper_pair_fraction: upper / denominator,
             });
         }
     }
@@ -412,12 +407,8 @@ pub(crate) fn configuration_digest(
 }
 
 fn allocated_zeros<T: Default + Clone>(length: usize) -> Result<Vec<T>, Top1PairMixingBoundsError> {
-    let mut values = Vec::new();
-    values
-        .try_reserve_exact(length)
-        .map_err(|_| Top1PairMixingBoundsError::AllocationFailed)?;
-    values.resize(length, T::default());
-    Ok(values)
+    crate::common::alloc::try_filled(length, T::default())
+        .map_err(|_| Top1PairMixingBoundsError::AllocationFailed)
 }
 
 fn geometry(error: impl std::fmt::Display) -> Top1PairMixingBoundsError {

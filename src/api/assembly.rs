@@ -22,6 +22,7 @@ use crate::{
 use super::context::MarkedAnalysisContext;
 
 pub(super) struct Inputs {
+    pub(super) configured_strata: Option<Vec<u32>>,
     pub(super) status: AnalysisStatus,
     pub(super) status_flags: Vec<StatusFlag>,
     pub(super) spectrum: Option<PermutationWhitenedSpectrum>,
@@ -55,6 +56,7 @@ pub(super) fn assemble(
     let pattern = context.pattern();
     let geometry = context.geometry();
     let Inputs {
+        configured_strata,
         status,
         status_flags,
         spectrum,
@@ -130,7 +132,12 @@ pub(super) fn assemble(
             crate::output::AnalysisSection::Disabled
         },
         component_mode_selection: component_plan.selection.clone(),
-        component_results: component_results_for(config, pattern, &component_plan)?,
+        component_results: component_results_for(
+            config,
+            pattern,
+            &component_plan,
+            configured_strata.as_deref(),
+        )?,
         diagnostics,
         timings,
         interpretation,

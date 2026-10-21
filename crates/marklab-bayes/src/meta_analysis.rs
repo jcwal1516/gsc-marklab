@@ -1,14 +1,21 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::validation::{validate_scalar_summary, SummarySupport};
+use crate::ClaimStatus;
+use crate::ScalarSummary;
 use crate::{
     model::{
         BackendContract, DiagnosticPolicy, WorkerResourceLimits, MODEL_FORMAT, MODEL_VERSION,
         PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
-    BayesError, FitState, NormalMeanDiagnostics, NutsSamplingSpec, SamplingSummary, WorkerBackend,
+    BayesError, FitState, NutsSamplingSpec, PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SiteEstimate {
@@ -18,6 +25,16 @@ pub struct SiteEstimate {
     pub covariate: f64,
 }
 
+/// Random-effects meta-regression of site estimates with known standard errors.
+///
+/// The collapsed likelihood is
+/// `effect_s ~ Normal(mu + beta * covariate_s, sqrt(tau^2 + standard_error_s^2))`.
+/// Priors are `mu ~ Normal(global_prior_mean, global_prior_sd)`,
+/// `beta ~ Normal(0, covariate_prior_sd)`, and
+/// `tau ~ HalfNormal(heterogeneity_prior_sd)`. Normal scales are SDs and the
+/// half-normal scale is its underlying normal SD. Latent site effects are drawn
+/// from their conditional normal posteriors after fitting; a new site's true
+/// effect is drawn from `Normal(mu + beta * new_site_covariate, tau)`.
 #[derive(Clone, Debug)]
 pub struct MetaAnalysisSpec {
     pub covariate_name: String,
@@ -43,8 +60,8 @@ pub struct MetaAnalysisModelIr {
     pub biological_unit: &'static str,
     pub hierarchy: [&'static str; 1],
     pub generated_quantities: [&'static str; 2],
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -121,7 +138,7 @@ impl MetaAnalysisWorkerRequest {
                 "site covariate must vary for identifiable meta-regression".into(),
             ));
         }
-        if !(1..=3_600).contains(&timeout_seconds) {
+        if !is_worker_timeout(timeout_seconds) {
             return Err(BayesError::InvalidSpec(
                 "worker timeout must be between 1 and 3600 seconds".into(),
             ));
@@ -140,7 +157,7 @@ impl MetaAnalysisWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -157,8 +174,8 @@ impl MetaAnalysisWorkerRequest {
                 biological_unit: "site_or_cohort",
                 hierarchy: ["site"],
                 generated_quantities: ["site_effect", "new_site_effect"],
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             sites: spec.sites,
             new_site_covariate: spec.new_site_covariate,
@@ -176,19 +193,10 @@ impl MetaAnalysisWorkerRequest {
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct MetaScalarSummary {
-    pub mean: f64,
-    pub sd: f64,
-    pub interval_lower: f64,
-    pub interval_upper: f64,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct MetaPosterior {
-    pub global_effect: MetaScalarSummary,
-    pub covariate_effect: MetaScalarSummary,
-    pub heterogeneity: MetaScalarSummary,
+    pub global_effect: ScalarSummary,
+    pub covariate_effect: ScalarSummary,
+    pub heterogeneity: ScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -236,7 +244,7 @@ pub struct MetaAnalysisWorkerResult {
     pub posterior: MetaPosterior,
     pub site_effects: Vec<SiteEffectSummary>,
     pub new_site_prediction: NewSitePrediction,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: MetaPosteriorPredictive,
 }
 
@@ -253,11 +261,7 @@ impl MetaAnalysisWorkerResult {
         }
         if self.format != "marklab.pymc_meta_analysis_worker_result"
             || self.version != 1
-            || self.backend.name != "pymc"
-            || self.backend.version != PYMC_VERSION
-            || self.backend.python_version != "3.12"
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
         {
             return Err(BayesError::WorkerContract(
@@ -393,9 +397,9 @@ impl MetaAnalysisWorkerResult {
             input,
             fit_state: self.fit_state,
             claim_status: match self.fit_state {
-                FitState::Complete => "experimental",
-                FitState::Nonconverged => "diagnostic_only_nonconverged",
-                FitState::ApproximateOnly => "experimental_approximate_only",
+                FitState::Complete => ClaimStatus::Experimental,
+                FitState::Nonconverged => ClaimStatus::DiagnosticOnlyNonconverged,
+                FitState::ApproximateOnly => ClaimStatus::ExperimentalApproximateOnly,
             },
             sampling: self.sampling,
             posterior: self.posterior,
@@ -409,20 +413,12 @@ impl MetaAnalysisWorkerResult {
     }
 }
 
-fn validate_scalar(summary: &MetaScalarSummary) -> Result<(), BayesError> {
-    if !finite(&[
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]) || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-    {
-        return Err(BayesError::WorkerContract(
-            "invalid meta-analysis scalar summary".into(),
-        ));
-    }
-    Ok(())
+fn validate_scalar(summary: &ScalarSummary) -> Result<(), BayesError> {
+    validate_scalar_summary(
+        summary,
+        SummarySupport::Real,
+        "invalid meta-analysis scalar summary",
+    )
 }
 
 #[derive(Debug, Serialize)]
@@ -440,12 +436,12 @@ pub struct MetaAnalysisFit {
     pub model: MetaAnalysisModelIr,
     pub input: MetaAnalysisInputIdentity,
     pub fit_state: FitState,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub sampling: SamplingSummary,
     pub posterior: MetaPosterior,
     pub site_effects: Vec<SiteEffectSummary>,
     pub new_site_prediction: NewSitePrediction,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: MetaPosteriorPredictive,
     pub seed: u64,
     pub request_sha256: String,

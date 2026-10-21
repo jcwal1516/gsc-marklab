@@ -41,23 +41,43 @@ struct UptakeInput {
     linear_uptake_per_time: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn run(
+/// Arguments of `marklab simulate vascular-transport`.
+#[derive(clap::Args, Debug)]
+pub struct VascularTransportArgs {
+    /// JSON grid with concentration, diffusion and velocity fields, vessel sources, uptake cells.
+    #[arg(long)]
     input: PathBuf,
+    /// Simulation end time in the model's time units.
+    #[arg(long)]
     final_time: f64,
+    /// Simulation time step in the model's time units.
+    #[arg(long)]
     time_step: f64,
+    /// Oxygen level below which tissue is classified as hypoxic.
+    #[arg(long)]
     hypoxia_threshold: f64,
+    /// Number of simulation steps between retained state summaries.
+    #[arg(long)]
     record_every_steps: u32,
+    /// Upper bound on cell steps.
+    #[arg(long)]
     maximum_cell_steps: u64,
+    /// File to write the result to.
+    #[arg(long)]
     out: PathBuf,
-) -> Result<()> {
-    let metadata = fs::metadata(&input).map_err(|source| MarklabError::io(&input, source))?;
-    if metadata.len() > 16 * 1024 * 1024 {
-        return Err(MarklabError::Validation(
-            "vascular transport input exceeds 16 MiB".into(),
-        ));
-    }
-    let bytes = fs::read(&input).map_err(|source| MarklabError::io(&input, source))?;
+}
+
+pub(crate) fn run(args: VascularTransportArgs) -> Result<()> {
+    let VascularTransportArgs {
+        input,
+        final_time,
+        time_step,
+        hypoxia_threshold,
+        record_every_steps,
+        maximum_cell_steps,
+        out,
+    } = args;
+    let bytes = super::read_input(&input, "vascular transport")?;
     let input: Input = serde_json::from_slice(&bytes)?;
     let result = simulate_vascular_transport(VascularTransportSpec {
         grid_x: input.grid_x,

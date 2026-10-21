@@ -16,13 +16,15 @@ use crate::{
             matrix_decoded_bytes, validate_matrix_domain, MatrixPhysicalAccumulator,
             MultiscaleMatrixTable,
         },
-        EmbeddingColumnarBudgets, MultiscaleColumnarError, SpatialArrowFailure,
+        ArrowIpcFailure, ColumnarError, EmbeddingColumnarBudgets,
     },
     EmbeddingEntityKind, MultiscaleEmbeddingQcSummary, PatchEmbeddingTable, RegionEmbeddingTable,
     SlideEmbeddingTable,
 };
 
-use super::super::physical::{read_record_batch_block, validate_record_batch_features};
+use super::super::physical::{
+    read_exact_at, read_record_batch_block, validate_record_batch_features,
+};
 use super::profile::{
     arrow_failure, entity_kind, schema, validate_flatbuffer_schema, BUFFER_COUNT, NODE_COUNT,
 };
@@ -90,9 +92,8 @@ macro_rules! typed_preflight {
             bytes: &[u8],
             table: &$table,
             budgets: EmbeddingColumnarBudgets,
-        ) -> Result<MultiscaleMatrixArrowPreflight, MultiscaleColumnarError> {
-            let encoded =
-                u64::try_from(bytes.len()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+        ) -> Result<MultiscaleMatrixArrowPreflight, ColumnarError> {
+            let encoded = u64::try_from(bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?;
             enforce_file_budget(encoded, budgets)?;
             preflight_reader(
                 &mut Cursor::new(bytes),
@@ -122,19 +123,18 @@ pub(super) fn preflight_reader<R: std::io::Read + std::io::Seek + ?Sized>(
     content_digest: ContentDigest,
     table: &dyn MultiscaleMatrixTable,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<MultiscaleMatrixArrowPreflight, MultiscaleColumnarError> {
+) -> Result<MultiscaleMatrixArrowPreflight, ColumnarError> {
     validate_matrix_domain(table)?;
     let encoded_byte_len = reader
         .seek(std::io::SeekFrom::End(0))
-        .map_err(|_| arrow_failure(SpatialArrowFailure::ArtifactRead))?;
+        .map_err(|_| arrow_failure(ArrowIpcFailure::ArtifactRead))?;
     enforce_file_budget(encoded_byte_len, budgets)?;
-    let file_len =
-        usize::try_from(encoded_byte_len).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+    let file_len = usize::try_from(encoded_byte_len).map_err(|_| ColumnarError::SizeOverflow)?;
     let (footer_start, footer_len, footer_bytes) = read_footer(reader, file_len, budgets)?;
     let footer = root_as_footer_with_opts(&footer_verifier_options(), &footer_bytes)
-        .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidFooter))?;
+        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidFooter))?;
     if footer.version() != MetadataVersion::V5 {
-        return Err(arrow_failure(SpatialArrowFailure::UnsupportedVersion));
+        return Err(arrow_failure(ArrowIpcFailure::UnsupportedVersion));
     }
     if footer
         .custom_metadata()
@@ -143,30 +143,30 @@ pub(super) fn preflight_reader<R: std::io::Read + std::io::Seek + ?Sized>(
             .dictionaries()
             .is_some_and(|dictionaries| !dictionaries.is_empty())
     {
-        return Err(arrow_failure(SpatialArrowFailure::ForbiddenFeature));
+        return Err(arrow_failure(ArrowIpcFailure::ForbiddenFeature));
     }
     let footer_schema = footer
         .schema()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidSchema))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     validate_flatbuffer_schema(footer_schema, table)?;
     let expected_schema = schema(table)?;
     if fb_to_schema(footer_schema) != expected_schema {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let schema_end =
         validate_schema_message(reader, file_len, footer_start, table, &expected_schema)?;
     let blocks = footer
         .recordBatches()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidFooter))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidFooter))?;
     if blocks.len() != table.row_count().div_ceil(RECORD_BATCH_ROWS) {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidRowCount));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidRowCount));
     }
     let expected_decoded = aggregate_decoded(table)?;
     enforce_decoded_budget(expected_decoded, budgets)?;
     let footer_peak = footer_len
         .checked_mul(2)
         .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(footer_peak, budgets)?;
     let mut retained = footer_peak;
     let mut maximum_batch_decoded = 0_u64;
@@ -190,7 +190,7 @@ pub(super) fn preflight_reader<R: std::io::Read + std::io::Seek + ?Sized>(
         let (message, body) = physical.message_and_body();
         let start = batch_index
             .checked_mul(RECORD_BATCH_ROWS)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let rows = table
             .row_count()
             .saturating_sub(start)
@@ -209,11 +209,11 @@ pub(super) fn preflight_reader<R: std::io::Read + std::io::Seek + ?Sized>(
         maximum_batch_decoded = maximum_batch_decoded.max(
             decoded_total
                 .checked_sub(before)
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+                .ok_or(ColumnarError::SizeOverflow)?,
         );
         aggregate_rows = aggregate_rows
             .checked_add(rows)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         next_offset = physical.end;
     }
     validate_eos(reader, file_len, next_offset, footer_start)?;
@@ -222,38 +222,36 @@ pub(super) fn preflight_reader<R: std::io::Read + std::io::Seek + ?Sized>(
         || decoded_total != expected_decoded
         || qc_summary != table.qc_summary()
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidRowCount));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidRowCount));
     }
     Ok(MultiscaleMatrixArrowPreflight {
         entity_kind: entity_kind(table.profile()),
         qc_summary,
-        row_count: u64::try_from(table.row_count())
-            .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        row_count: u64::try_from(table.row_count()).map_err(|_| ColumnarError::SizeOverflow)?,
         dimension: table.dimension(),
-        record_batch_count: u32::try_from(blocks.len())
-            .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+        record_batch_count: u32::try_from(blocks.len()).map_err(|_| ColumnarError::SizeOverflow)?,
         encoded_byte_len,
         content_digest,
         retained_preflight_bytes: retained,
         maximum_batch_decoded_bytes: usize::try_from(maximum_batch_decoded)
-            .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+            .map_err(|_| ColumnarError::SizeOverflow)?,
     })
 }
 
-fn aggregate_decoded(table: &dyn MultiscaleMatrixTable) -> Result<u64, MultiscaleColumnarError> {
+fn aggregate_decoded(table: &dyn MultiscaleMatrixTable) -> Result<u64, ColumnarError> {
     let mut total = 0_u64;
     let mut start = 0_usize;
     while start < table.row_count() {
         let end = start
             .checked_add(RECORD_BATCH_ROWS)
             .map(|value| value.min(table.row_count()))
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         total = total
             .checked_add(
                 u64::try_from(matrix_decoded_bytes(table, start, end)?)
-                    .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
+                    .map_err(|_| ColumnarError::SizeOverflow)?,
             )
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         start = end;
     }
     Ok(total)
@@ -269,10 +267,10 @@ fn validate_record_batch(
     rows: usize,
     decoded_total: &mut u64,
     accumulator: &mut MatrixPhysicalAccumulator,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     validate_message_padding(message_bytes)?;
     let message = root_as_message_with_opts(&message_verifier_options(), &message_bytes[8..])
-        .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidMessage))?;
+        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
     if message.version() != MetadataVersion::V5
         || message.header_type() != MessageHeader::RecordBatch
         || message.bodyLength() != declared_body_len
@@ -281,27 +279,24 @@ fn validate_record_batch(
             .custom_metadata()
             .is_some_and(|metadata| !metadata.is_empty())
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     let batch = message
         .header_as_record_batch()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidMessage))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
     if usize::try_from(batch.length()).ok() != Some(rows) {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidRowCount));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidRowCount));
     }
     validate_record_batch_features(batch)?;
     let nodes = batch
         .nodes()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidFieldNodes))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidFieldNodes))?;
     let buffers = batch
         .buffers()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidBuffers))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidBuffers))?;
     let components = rows
-        .checked_mul(
-            usize::try_from(table.dimension())
-                .map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
-        )
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .checked_mul(usize::try_from(table.dimension()).map_err(|_| ColumnarError::SizeOverflow)?)
+        .ok_or(ColumnarError::SizeOverflow)?;
     if nodes.len() != NODE_COUNT
         || buffers.len() != BUFFER_COUNT
         || ![(rows, 0), (rows, 0), (components, 0), (rows, 0)]
@@ -312,7 +307,7 @@ fn validate_record_batch(
                     && usize::try_from(node.null_count()).ok() == Some(nulls)
             })
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidFieldNodes));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidFieldNodes));
     }
     let expected_lengths = [
         validity_bytes(rows)?,
@@ -322,7 +317,7 @@ fn validate_record_batch(
         validity_bytes(components)?,
         components
             .checked_mul(size_of::<f32>())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?,
+            .ok_or(ColumnarError::SizeOverflow)?,
         validity_bytes(rows)?,
         offsets_bytes(rows)?,
         status_bytes(table, start, rows)?,
@@ -331,8 +326,8 @@ fn validate_record_batch(
     let mut next = 0_usize;
     let mut decoded = 0_u64;
     for (index, (buffer, expected)) in buffers.iter().zip(expected_lengths).enumerate() {
-        let offset = nonnegative_i64(buffer.offset(), SpatialArrowFailure::InvalidBuffers)?;
-        let length = nonnegative_i64(buffer.length(), SpatialArrowFailure::InvalidBuffers)?;
+        let offset = nonnegative_i64(buffer.offset(), ArrowIpcFailure::InvalidBuffers)?;
+        let length = nonnegative_i64(buffer.length(), ArrowIpcFailure::InvalidBuffers)?;
         if offset != align(next)?
             || offset % ALIGNMENT != 0
             || length != expected
@@ -340,27 +335,27 @@ fn validate_record_batch(
                 .get(next..offset)
                 .is_none_or(|padding| padding.iter().any(|byte| *byte != 0))
         {
-            return Err(arrow_failure(SpatialArrowFailure::InvalidBuffers));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
         }
         let end = offset
             .checked_add(length)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if end > body.len() {
-            return Err(arrow_failure(SpatialArrowFailure::InvalidBuffers));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
         }
         ranges[index] = (offset, end);
         next = end;
         decoded = decoded
-            .checked_add(u64::try_from(length).map_err(|_| MultiscaleColumnarError::SizeOverflow)?)
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .checked_add(u64::try_from(length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .ok_or(ColumnarError::SizeOverflow)?;
     }
     if align(next)? != body.len() || body[next..].iter().any(|byte| *byte != 0) {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidBuffers));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
     }
     for index in [0, 3, 4, 6] {
         let (begin, end) = ranges[index];
         if body[begin..end].iter().any(|byte| *byte != 0xff) {
-            return Err(arrow_failure(SpatialArrowFailure::InvalidBuffers));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
         }
     }
     validate_string_column(body, ranges[1], ranges[2], rows, |local| {
@@ -374,33 +369,32 @@ fn validate_record_batch(
     })?;
     let (values_start, values_end) = ranges[5];
     let value_bytes = &body[values_start..values_end];
-    let dimension =
-        usize::try_from(table.dimension()).map_err(|_| MultiscaleColumnarError::SizeOverflow)?;
+    let dimension = usize::try_from(table.dimension()).map_err(|_| ColumnarError::SizeOverflow)?;
     for local in 0..rows {
         let row = table
             .row(start + local)
-            .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidCanonicalRows))?;
+            .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidCanonicalRows))?;
         for column in 0..dimension {
             let index = local
                 .checked_mul(dimension)
                 .and_then(|value| value.checked_add(column))
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             let begin = index
                 .checked_mul(size_of::<f32>())
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             let end = begin
                 .checked_add(size_of::<f32>())
-                .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+                .ok_or(ColumnarError::SizeOverflow)?;
             let observed = f32::from_le_bytes(
                 value_bytes
                     .get(begin..end)
-                    .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidCanonicalRows))?
+                    .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidCanonicalRows))?
                     .try_into()
-                    .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidCanonicalRows))?,
+                    .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidCanonicalRows))?,
             );
             let expected = row.vector().map_or(0.0, |vector| vector[column]);
             if observed.to_bits() != expected.to_bits() {
-                return Err(arrow_failure(SpatialArrowFailure::InvalidCanonicalRows));
+                return Err(arrow_failure(ArrowIpcFailure::InvalidCanonicalRows));
             }
         }
         accumulator.push(row.id(), row.status(), row.vector())?;
@@ -411,7 +405,7 @@ fn validate_record_batch(
     )?;
     *decoded_total = decoded_total
         .checked_add(decoded)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     Ok(())
 }
 
@@ -421,43 +415,43 @@ fn validate_string_column<'a>(
     value_range: (usize, usize),
     rows: usize,
     mut expected: impl FnMut(usize) -> Option<&'a str>,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let offsets = &body[offset_range.0..offset_range.1];
     let values = &body[value_range.0..value_range.1];
     let mut prior = 0_usize;
     for index in 0..=rows {
         let begin = index
             .checked_mul(size_of::<i32>())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let end = begin
             .checked_add(size_of::<i32>())
-            .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         let current = usize::try_from(i32::from_le_bytes(
             offsets
                 .get(begin..end)
-                .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidBuffers))?
+                .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidBuffers))?
                 .try_into()
-                .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidBuffers))?,
+                .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidBuffers))?,
         ))
-        .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidBuffers))?;
+        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidBuffers))?;
         if index == 0 {
             if current != 0 {
-                return Err(arrow_failure(SpatialArrowFailure::InvalidBuffers));
+                return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
             }
         } else {
             let value = expected(index - 1)
-                .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidCanonicalRows))?;
+                .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidCanonicalRows))?;
             if values.get(prior..current) != Some(value.as_bytes()) {
-                return Err(arrow_failure(SpatialArrowFailure::InvalidCanonicalRows));
+                return Err(arrow_failure(ArrowIpcFailure::InvalidCanonicalRows));
             }
         }
         if current < prior || current > values.len() {
-            return Err(arrow_failure(SpatialArrowFailure::InvalidBuffers));
+            return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
         }
         prior = current;
     }
     if prior != values.len() {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidBuffers));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
     }
     Ok(())
 }
@@ -468,48 +462,46 @@ fn validate_schema_message<R: std::io::Read + std::io::Seek + ?Sized>(
     footer_start: usize,
     table: &dyn MultiscaleMatrixTable,
     expected_schema: &arrow::datatypes::Schema,
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
     let mut prefix = [0_u8; 8];
     read_exact_at(
         reader,
         file_len,
         HEADER_BYTES,
         &mut prefix,
-        SpatialArrowFailure::InvalidMessage,
+        ArrowIpcFailure::InvalidMessage,
     )?;
     if &prefix[..4] != CONTINUATION_MARKER {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     let declared = nonnegative_i32(
         i32::from_le_bytes(
             prefix[4..]
                 .try_into()
-                .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidMessage))?,
+                .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?,
         ),
-        SpatialArrowFailure::InvalidMessage,
+        ArrowIpcFailure::InvalidMessage,
     )?;
-    let metadata_len = declared
-        .checked_add(8)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+    let metadata_len = declared.checked_add(8).ok_or(ColumnarError::SizeOverflow)?;
     let end = HEADER_BYTES
         .checked_add(metadata_len)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     if declared == 0
         || metadata_len > MAXIMUM_MESSAGE_BYTES
         || metadata_len % ALIGNMENT != 0
         || end > footer_start.saturating_sub(EOS_BYTES)
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     let bytes = read_vec_at(
         reader,
         file_len,
         HEADER_BYTES,
         metadata_len,
-        SpatialArrowFailure::InvalidMessage,
+        ArrowIpcFailure::InvalidMessage,
     )?;
     let message = root_as_message_with_opts(&schema_message_verifier_options(), &bytes[8..])
-        .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidMessage))?;
+        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
     if message.version() != MetadataVersion::V5
         || message.header_type() != MessageHeader::Schema
         || message.bodyLength() != 0
@@ -517,37 +509,37 @@ fn validate_schema_message<R: std::io::Read + std::io::Seek + ?Sized>(
             .custom_metadata()
             .is_some_and(|metadata| !metadata.is_empty())
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     validate_message_padding(&bytes)?;
     let observed = message
         .header_as_schema()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidSchema))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     validate_flatbuffer_schema(observed, table)?;
     if fb_to_schema(observed) != *expected_schema {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidSchema));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     validate_zero_message_padding(&bytes, canonical_schema_message_len(expected_schema)?)?;
     Ok(end)
 }
 
-fn validate_message_padding(bytes: &[u8]) -> Result<(), MultiscaleColumnarError> {
+fn validate_message_padding(bytes: &[u8]) -> Result<(), ColumnarError> {
     if bytes.len() < 8 || &bytes[..4] != CONTINUATION_MARKER {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     let declared = nonnegative_i32(
         i32::from_le_bytes(
             bytes[4..8]
                 .try_into()
-                .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidMessage))?,
+                .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?,
         ),
-        SpatialArrowFailure::InvalidMessage,
+        ArrowIpcFailure::InvalidMessage,
     )?;
     let end = 8_usize
         .checked_add(declared)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     if declared == 0 || end != bytes.len() {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     Ok(())
 }
@@ -555,29 +547,27 @@ fn validate_message_padding(bytes: &[u8]) -> Result<(), MultiscaleColumnarError>
 fn validate_zero_message_padding(
     bytes: &[u8],
     canonical_flatbuffer_len: usize,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     let padding_start = 8_usize
         .checked_add(canonical_flatbuffer_len)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     if bytes
         .get(padding_start..)
         .is_none_or(|padding| padding.iter().any(|byte| *byte != 0))
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     Ok(())
 }
 
-fn canonical_schema_message_len(
-    schema: &arrow::datatypes::Schema,
-) -> Result<usize, MultiscaleColumnarError> {
+fn canonical_schema_message_len(schema: &arrow::datatypes::Schema) -> Result<usize, ColumnarError> {
     let options = IpcWriteOptions::try_new(ALIGNMENT, false, MetadataVersion::V5)
-        .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidMessage))?;
+        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
     let mut tracker = DictionaryTracker::new(true);
     let encoded =
         IpcDataGenerator {}.schema_to_bytes_with_dictionary_tracker(schema, &mut tracker, &options);
     if !encoded.arrow_data.is_empty() || encoded.ipc_message.len() > MAXIMUM_MESSAGE_BYTES {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     Ok(encoded.ipc_message.len())
 }
@@ -585,16 +575,16 @@ fn canonical_schema_message_len(
 fn canonical_record_message_len(
     batch: arrow_ipc::RecordBatch<'_>,
     body_len: i64,
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
     let nodes = batch
         .nodes()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidFieldNodes))?
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidFieldNodes))?
         .iter()
         .map(|node| FieldNode::new(node.length(), node.null_count()))
         .collect::<Vec<_>>();
     let buffers = batch
         .buffers()
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidBuffers))?
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidBuffers))?
         .iter()
         .map(|buffer| Buffer::new(buffer.offset(), buffer.length()))
         .collect::<Vec<_>>();
@@ -619,7 +609,7 @@ fn canonical_record_message_len(
     builder.finish(message, None);
     let len = builder.finished_data().len();
     if len > MAXIMUM_MESSAGE_BYTES {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     Ok(len)
 }
@@ -628,13 +618,13 @@ fn read_footer<R: std::io::Read + std::io::Seek + ?Sized>(
     reader: &mut R,
     file_len: usize,
     budgets: EmbeddingColumnarBudgets,
-) -> Result<(usize, usize, Vec<u8>), MultiscaleColumnarError> {
+) -> Result<(usize, usize, Vec<u8>), ColumnarError> {
     let minimum = HEADER_BYTES
         .checked_add(EOS_BYTES)
         .and_then(|value| value.checked_add(TRAILER_BYTES))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     if file_len < minimum {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMagic));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMagic));
     }
     let mut header = [0_u8; HEADER_BYTES];
     read_exact_at(
@@ -642,50 +632,50 @@ fn read_footer<R: std::io::Read + std::io::Seek + ?Sized>(
         file_len,
         0,
         &mut header,
-        SpatialArrowFailure::InvalidMagic,
+        ArrowIpcFailure::InvalidMagic,
     )?;
     if header.get(..ARROW_MAGIC.len()) != Some(ARROW_MAGIC)
         || header[ARROW_MAGIC.len()..].iter().any(|byte| *byte != 0)
     {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMagic));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMagic));
     }
     let trailer_start = file_len
         .checked_sub(TRAILER_BYTES)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     let mut trailer = [0_u8; TRAILER_BYTES];
     read_exact_at(
         reader,
         file_len,
         trailer_start,
         &mut trailer,
-        SpatialArrowFailure::InvalidFooterLength,
+        ArrowIpcFailure::InvalidFooterLength,
     )?;
     if trailer.get(4..) != Some(ARROW_MAGIC) {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMagic));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMagic));
     }
     let footer_len = usize::try_from(i32::from_le_bytes(
         trailer[..4]
             .try_into()
-            .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidFooterLength))?,
+            .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidFooterLength))?,
     ))
-    .map_err(|_| arrow_failure(SpatialArrowFailure::InvalidFooterLength))?;
+    .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidFooterLength))?;
     if footer_len == 0 || footer_len > MAXIMUM_FOOTER_BYTES {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidFooterLength));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidFooterLength));
     }
     let footer_start = trailer_start
         .checked_sub(footer_len)
-        .ok_or_else(|| arrow_failure(SpatialArrowFailure::InvalidFooterLength))?;
+        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidFooterLength))?;
     let retained = footer_len
         .checked_mul(2)
         .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(retained, budgets)?;
     let footer = read_vec_at(
         reader,
         file_len,
         footer_start,
         footer_len,
-        SpatialArrowFailure::InvalidFooter,
+        ArrowIpcFailure::InvalidFooter,
     )?;
     Ok((footer_start, footer_len, footer))
 }
@@ -695,9 +685,9 @@ fn validate_eos<R: std::io::Read + std::io::Seek + ?Sized>(
     file_len: usize,
     offset: usize,
     footer_start: usize,
-) -> Result<(), MultiscaleColumnarError> {
+) -> Result<(), ColumnarError> {
     if offset.checked_add(EOS_BYTES) != Some(footer_start) {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidBlock));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidBlock));
     }
     let mut eos = [0_u8; EOS_BYTES];
     read_exact_at(
@@ -705,10 +695,10 @@ fn validate_eos<R: std::io::Read + std::io::Seek + ?Sized>(
         file_len,
         offset,
         &mut eos,
-        SpatialArrowFailure::InvalidMessage,
+        ArrowIpcFailure::InvalidMessage,
     )?;
     if eos != [0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0] {
-        return Err(arrow_failure(SpatialArrowFailure::InvalidMessage));
+        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
     }
     Ok(())
 }
@@ -717,17 +707,17 @@ fn id_bytes(
     table: &dyn MultiscaleMatrixTable,
     start: usize,
     rows: usize,
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
     (0..rows).try_fold(0_usize, |total, local| {
         total
             .checked_add(
                 table
                     .row(start + local)
-                    .map_err(|_| MultiscaleColumnarError::ArtifactBindingMismatch)?
+                    .map_err(|_| ColumnarError::ArtifactBindingMismatch)?
                     .id()
                     .len(),
             )
-            .ok_or(MultiscaleColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })
 }
 
@@ -735,51 +725,45 @@ fn status_bytes(
     table: &dyn MultiscaleMatrixTable,
     start: usize,
     rows: usize,
-) -> Result<usize, MultiscaleColumnarError> {
+) -> Result<usize, ColumnarError> {
     (0..rows).try_fold(0_usize, |total, local| {
         total
             .checked_add(
                 table
                     .row(start + local)
-                    .map_err(|_| MultiscaleColumnarError::ArtifactBindingMismatch)?
+                    .map_err(|_| ColumnarError::ArtifactBindingMismatch)?
                     .status()
                     .wire_name()
                     .len(),
             )
-            .ok_or(MultiscaleColumnarError::SizeOverflow)
+            .ok_or(ColumnarError::SizeOverflow)
     })
 }
 
-fn validity_bytes(bits: usize) -> Result<usize, MultiscaleColumnarError> {
+fn validity_bytes(bits: usize) -> Result<usize, ColumnarError> {
     bits.checked_add(7)
         .map(|value| value / 8)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
-fn offsets_bytes(rows: usize) -> Result<usize, MultiscaleColumnarError> {
+fn offsets_bytes(rows: usize) -> Result<usize, ColumnarError> {
     rows.checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
-fn align(value: usize) -> Result<usize, MultiscaleColumnarError> {
+fn align(value: usize) -> Result<usize, ColumnarError> {
     value
         .checked_add(ALIGNMENT - 1)
         .map(|value| value & !(ALIGNMENT - 1))
-        .ok_or(MultiscaleColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
-fn nonnegative_i32(
-    value: i32,
-    reason: SpatialArrowFailure,
-) -> Result<usize, MultiscaleColumnarError> {
+fn nonnegative_i32(value: i32, reason: ArrowIpcFailure) -> Result<usize, ColumnarError> {
     usize::try_from(value).map_err(|_| arrow_failure(reason))
 }
 
-fn nonnegative_i64(
-    value: i64,
-    reason: SpatialArrowFailure,
-) -> Result<usize, MultiscaleColumnarError> {
+fn nonnegative_i64(value: i64, reason: ArrowIpcFailure) -> Result<usize, ColumnarError> {
     usize::try_from(value).map_err(|_| arrow_failure(reason))
 }
 
@@ -788,42 +772,21 @@ fn read_vec_at<R: std::io::Read + std::io::Seek + ?Sized>(
     file_len: usize,
     offset: usize,
     length: usize,
-    reason: SpatialArrowFailure,
-) -> Result<Vec<u8>, MultiscaleColumnarError> {
+    reason: ArrowIpcFailure,
+) -> Result<Vec<u8>, ColumnarError> {
     let end = offset
         .checked_add(length)
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
+        .ok_or(ColumnarError::SizeOverflow)?;
     if end > file_len {
         return Err(arrow_failure(reason));
     }
     let mut bytes = Vec::new();
     bytes
         .try_reserve_exact(length)
-        .map_err(|_| MultiscaleColumnarError::AllocationFailed { requested: length })?;
+        .map_err(|_| ColumnarError::AllocationFailed { requested: length })?;
     bytes.resize(length, 0);
     read_exact_at(reader, file_len, offset, &mut bytes, reason)?;
     Ok(bytes)
-}
-
-fn read_exact_at<R: std::io::Read + std::io::Seek + ?Sized>(
-    reader: &mut R,
-    file_len: usize,
-    offset: usize,
-    bytes: &mut [u8],
-    reason: SpatialArrowFailure,
-) -> Result<(), MultiscaleColumnarError> {
-    let end = offset
-        .checked_add(bytes.len())
-        .ok_or(MultiscaleColumnarError::SizeOverflow)?;
-    if end > file_len {
-        return Err(arrow_failure(reason));
-    }
-    reader
-        .seek(std::io::SeekFrom::Start(
-            u64::try_from(offset).map_err(|_| MultiscaleColumnarError::SizeOverflow)?,
-        ))
-        .and_then(|_| reader.read_exact(bytes))
-        .map_err(|_| arrow_failure(reason))
 }
 
 #[cfg(test)]
@@ -834,7 +797,7 @@ mod tests {
     };
     use flatbuffers::{FlatBufferBuilder, WIPOffset};
 
-    use super::{validate_record_batch_features, MultiscaleColumnarError, SpatialArrowFailure};
+    use super::{validate_record_batch_features, ArrowIpcFailure, ColumnarError};
 
     #[test]
     fn matrix_record_batch_feature_gate_rejects_compression_and_variadic_buffers() {
@@ -870,8 +833,8 @@ mod tests {
                 .expect("record batch");
             assert_eq!(
                 validate_record_batch_features(batch),
-                Err(MultiscaleColumnarError::Arrow {
-                    reason: SpatialArrowFailure::ForbiddenFeature,
+                Err(ColumnarError::Arrow {
+                    reason: ArrowIpcFailure::ForbiddenFeature,
                 })
             );
         }

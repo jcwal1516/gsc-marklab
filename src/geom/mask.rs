@@ -24,9 +24,4 @@ impl TumorMask {
     pub fn equivalent_area_diameter_um(&self) -> f64 {
         super::length_scales::equivalent_area_diameter_um(self.window.area_um2()).unwrap_or(0.0)
     }
-
-    #[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
-    pub(crate) fn from_observation_window(window: ObservationWindow2D) -> Self {
-        Self { window }
-    }
 }

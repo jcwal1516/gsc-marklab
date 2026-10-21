@@ -1,12 +1,14 @@
 use std::{io, io::Write, str::FromStr};
 
 use marklab::{
-    ArtifactId, CohortHierarchy, ContentDigest, CoordinateFrame, CoordinateFrameId,
-    CoordinateRegistry, CoordinateSpace, CoordinateUnit, EffectiveReceptiveField, ExpectedPatchSet,
-    FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, PatchBoundaryPolicy,
-    PatchEmbeddingContext, PatchFootprint, PatchFootprintSet, PatchId, PatchOverlapGraph,
-    PatientId, PositiveRational, ReplicationRole, SlideId, SpatialAxis, TransformId,
-    TransformMatrix,
+    embeddings::{
+        EffectiveReceptiveField, ExpectedPatchSet, PatchBoundaryPolicy, PatchEmbeddingContext,
+        PatchFootprint, PatchFootprintSet, PatchOverlapGraph, PositiveRational,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry, CoordinateSpace,
+    CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention, PatchId,
+    PatientId, ReplicationRole, SlideId, SpatialAxis, TransformId, TransformMatrix,
 };
 
 const DOMAIN_BUDGET: usize = 256 * 1024 * 1024;

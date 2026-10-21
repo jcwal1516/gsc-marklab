@@ -109,10 +109,6 @@ fn contained_patch_binary_nucleus_area_matches_equal_patch_oracle_and_identities
         links.link.patch_footprints_artifact_id()
     );
     assert_eq!(
-        result.cell_patch_producer_artifact_id(),
-        links.link.producer_artifact_id()
-    );
-    assert_eq!(
         result.cell_patch_assignment_artifact_id(),
         links.receipt().assignment_artifact_id()
     );
@@ -223,7 +219,7 @@ fn contained_patch_binary_nucleus_area_types_global_and_patch_local_single_group
     .expect("patch-local single groups");
     assert_eq!(
         result.whole_input_contrast().status(),
-        marklab::DeclaredBinaryGroupNucleusAreaContrastStatus::Available
+        marklab::embeddings::DeclaredBinaryGroupNucleusAreaContrastStatus::Available
     );
     assert_eq!(
         result.status(),

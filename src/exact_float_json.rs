@@ -1,3 +1,4 @@
+use crate::workflow_codec::invalid;
 use std::io;
 
 use serde::{de::DeserializeOwned, Serialize};
@@ -65,10 +66,32 @@ fn decode_float_bits(value: &mut serde_json::Value) -> io::Result<()> {
     Ok(())
 }
 
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
-}
-
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+    struct Probe {
+        value: f64,
+    }
+
+    #[test]
+    fn plain_and_tagged_json_round_trip_the_same_float_bits() {
+        let probe = Probe {
+            value: 1.093833881765206e-8,
+        };
+        let plain_bytes = serde_json::to_vec(&probe).unwrap();
+        let plain: Probe = serde_json::from_slice(&plain_bytes).unwrap();
+        assert_eq!(plain.value.to_bits(), probe.value.to_bits());
+
+        let encoded = super::encode(&probe).unwrap();
+        assert!(std::str::from_utf8(&encoded)
+            .unwrap()
+            .contains(super::FLOAT_BITS_KEY));
+        let decoded: Probe = super::decode(&encoded).unwrap();
+        assert_eq!(decoded.value.to_bits(), probe.value.to_bits());
+        assert_eq!(super::encode(&decoded).unwrap(), encoded);
+    }
 }

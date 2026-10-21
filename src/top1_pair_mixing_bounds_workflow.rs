@@ -1,18 +1,21 @@
+use crate::workflow_codec::invalid;
+use crate::workflow_node::{NodeAnalysis, TypedNode};
 use std::io;
 
-use marklab_workflow::{
-    ArtifactRef, CacheKeyMaterial, ContentDigest, MarklabProject, NodeError, NodeId, NodeSpec,
-    WorkflowNode,
-};
+use marklab_project::{ArtifactRef, MarklabProject};
+use marklab_workflow::{NodeError, NodeId, NodeSpec};
 use serde::Serialize;
 
 use crate::observation_window_artifact::frame_bound_window_artifact as window_artifact;
 use crate::{
-    compartment_interface::analysis::measurement_status_name,
+    marked_workflow::pattern_artifact,
+    marks::{
+        DeclaredScalarPatternInput, ScalarMarkId, Top1PairMixingBoundsConfig,
+        Top1PairMixingBoundsResult,
+    },
+    measurement_status_wire::name as measurement_status_name,
     top1_pair_mixing_bounds::{configuration_digest, TOP1_PAIR_MIXING_UNCERTAINTY_SEMANTICS},
-    workflow::pattern_artifact,
-    DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId, Top1PairMixingBoundsConfig,
-    Top1PairMixingBoundsResult,
+    ObservationWindow2D,
 };
 
 const NODE_KIND: &str = "top1_pair_mixing_bounds";
@@ -22,15 +25,15 @@ const POLICY: &[u8] = b"serial;exact-physical-radius-graph;top1-winner-probabili
 
 /// Cache-addressed top-1 multiclass uncertainty-bounds node.
 pub struct Top1PairMixingBoundsAnalysisNode<'a> {
-    spec: NodeSpec,
+    node: TypedNode<Top1PairMixingBoundsAnalysis<'a>>,
+}
+
+struct Top1PairMixingBoundsAnalysis<'a> {
     input: &'a DeclaredScalarPatternInput<'a>,
     window: &'a ObservationWindow2D,
     categorical_mark_id: &'a ScalarMarkId,
     confidence_mark_id: &'a ScalarMarkId,
     config: &'a Top1PairMixingBoundsConfig,
-    inputs: [ArtifactRef; 4],
-    configuration_digest: ContentDigest,
-    implementation_identity: String,
 }
 
 impl<'a> Top1PairMixingBoundsAnalysisNode<'a> {
@@ -62,43 +65,44 @@ impl<'a> Top1PairMixingBoundsAnalysisNode<'a> {
                 .register_reference(artifact.clone())
                 .map_err(NodeError::input)?;
         }
+        let node_spec = NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?;
+        let node_configuration_digest = config_ref.digest();
+        let node_implementation_identity = format!(
+            "marklab/{};adapter=top1-pair-mixing-bounds-node-v1",
+            env!("CARGO_PKG_VERSION")
+        );
         Ok(Self {
-            spec: NodeSpec::new(id, NODE_KIND, 1, Vec::new()).map_err(NodeError::input)?,
-            input,
-            window,
-            categorical_mark_id,
-            confidence_mark_id,
-            config,
-            inputs,
-            configuration_digest: config_ref.digest(),
-            implementation_identity: format!(
-                "marklab/{};adapter=top1-pair-mixing-bounds-node-v1",
-                env!("CARGO_PKG_VERSION")
-            ),
+            node: TypedNode {
+                spec: node_spec,
+                analysis: Top1PairMixingBoundsAnalysis {
+                    input,
+                    window,
+                    categorical_mark_id,
+                    confidence_mark_id,
+                    config,
+                },
+                inputs,
+                configuration_digest: node_configuration_digest,
+                execution_policy: std::borrow::Cow::Borrowed(POLICY),
+                implementation_identity: node_implementation_identity,
+            },
         })
     }
 
     pub fn spec(&self) -> &NodeSpec {
-        &self.spec
+        self.node.spec()
     }
 }
 
-impl WorkflowNode for Top1PairMixingBoundsAnalysisNode<'_> {
+impl NodeAnalysis for Top1PairMixingBoundsAnalysis<'_> {
     type Output = Top1PairMixingBoundsResult;
+    type Inputs = [ArtifactRef; 4];
 
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.inputs
-    }
-
-    fn semantic_input_artifacts(&self) -> &[marklab_workflow::ArtifactId] {
+    fn semantic_input_artifacts(&self) -> &[marklab_project::ArtifactId] {
         self.input.semantic_artifact_ids()
     }
 
-    fn verify_input_content(&self) -> Result<(), NodeError> {
+    fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
         let current = [
             pattern_artifact(self.input.pattern())?,
             self.input
@@ -113,24 +117,11 @@ impl WorkflowNode for Top1PairMixingBoundsAnalysisNode<'_> {
                 self.config,
             )?,
         ];
-        for (bound, current) in self.inputs.iter().zip(current) {
-            bound
-                .verify_identity(current.digest(), current.byte_len())
-                .map_err(NodeError::input)?;
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: POLICY,
-            implementation_identity: &self.implementation_identity,
-        }
+        crate::workflow_node::verify_inputs(inputs, current)
     }
 
     fn execute(&self) -> Result<Self::Output, NodeError> {
-        crate::top1_pair_mixing_bounds(
+        crate::marks::top1_pair_mixing_bounds(
             self.input,
             self.window,
             self.categorical_mark_id,
@@ -172,13 +163,15 @@ impl WorkflowNode for Top1PairMixingBoundsAnalysisNode<'_> {
     }
 }
 
+crate::workflow_node::impl_workflow_node!(Top1PairMixingBoundsAnalysisNode<'_> => Top1PairMixingBoundsResult);
+
 #[derive(Serialize)]
 struct ConfigArtifact<'a> {
     categorical_mark_id: &'a str,
     confidence_mark_id: &'a str,
     radius_um: f64,
     source_class_count: usize,
-    limits: crate::Top1PairMixingBoundsLimits,
+    limits: crate::marks::Top1PairMixingBoundsLimits,
     logical_digest: String,
 }
 
@@ -296,10 +289,6 @@ fn validate(
         }
     }
     Ok(())
-}
-
-fn invalid(message: &'static str) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, message)
 }
 
 fn invalid_owned(error: impl std::fmt::Display) -> io::Error {

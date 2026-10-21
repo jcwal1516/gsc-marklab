@@ -1,10 +1,16 @@
 use std::path::PathBuf;
 
 use crate::{
-    execute_algorithm_with_store, ArtifactSchema, DeclaredScalarPatternInput, LocalScheduler,
-    MarklabError, NodeId, Result, ScalarMarkId, ScalarVariogramAnalysisNode, ScalarVariogramBin,
-    ScalarVariogramInferenceDesign, ScalarVariogramInferenceLimits, SchedulerLimits, WorkflowGraph,
-    WorkflowNode,
+    autocorrelation::{
+        ScalarVariogramAnalysisNode, ScalarVariogramBin, ScalarVariogramInferenceDesign,
+        ScalarVariogramInferenceLimits,
+    },
+    marks::{DeclaredScalarPatternInput, ScalarMarkId},
+    workflow::{
+        execute_algorithm_with_store, ArtifactSchema, LocalScheduler, NodeId, SchedulerLimits,
+        WorkflowGraph, WorkflowNode,
+    },
+    MarklabError, Result,
 };
 
 use super::{
@@ -12,18 +18,46 @@ use super::{
     classical::native_runtime_provenance,
 };
 
-pub(super) struct Request {
+#[derive(clap::Args, Debug)]
+pub struct Request {
+    /// Durable project directory that caches results.
+    #[arg(long)]
     pub project: PathBuf,
+    /// Cell table (CSV or Parquet).
+    #[arg(long)]
     pub cells: PathBuf,
+    /// Tissue mask (GeoJSON).
+    #[arg(long)]
     pub mask: PathBuf,
+    /// New JSON file for the result; it must not already exist.
+    #[arg(long)]
     pub out: PathBuf,
+    /// Distance-bin edges in micrometers.
+    #[arg(long, value_delimiter = ',')]
     pub lag_edges_um: Vec<f64>,
+    /// Restrict comparisons to the declared histologic compartments.
+    #[arg(long)]
     pub condition_by_histologic_compartment: bool,
+    /// Number of label permutations.
+    #[arg(long)]
     pub permutations: usize,
+    /// Random seed; the same seed gives the same result.
+    #[arg(long)]
     pub seed: u64,
+    /// Significance level.
+    #[arg(long)]
     pub alpha: f64,
+    /// Memory budget in MiB.
+    #[arg(long)]
     pub memory_budget_mib: usize,
+    /// Maximum number of cell pairs visited.
+    #[arg(long = "max-pair-visits", value_name = "MAX_PAIR_VISITS")]
     pub maximum_pair_visits: usize,
+    /// Upper bound on permutation pair evaluations.
+    #[arg(
+        long = "max-permutation-pair-evaluations",
+        value_name = "MAX_PERMUTATION_PAIR_EVALUATIONS"
+    )]
     pub maximum_permutation_pair_evaluations: usize,
 }
 

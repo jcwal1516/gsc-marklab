@@ -188,12 +188,7 @@ impl<'a> PatternBuilder<'a> {
         Self::with_sparse_policy(mask, source_name, false)
     }
 
-    #[allow(dead_code, reason = "used by the feature-gated classical CLI adapter")]
-    pub(crate) fn new_classical(mask: &'a TumorMask, source_name: &'static str) -> Self {
-        Self::with_sparse_policy(mask, source_name, true)
-    }
-
-    fn with_sparse_policy(
+    pub(crate) fn with_sparse_policy(
         mask: &'a TumorMask,
         source_name: &'static str,
         allow_sparse: bool,
@@ -433,7 +428,7 @@ impl<'a> PatternBuilder<'a> {
             tracing::info_span!("marklab_stage", stage_name = "nearest_neighbor");
         let nearest_neighbor_enter = nearest_neighbor_span.enter();
         pattern.window.d_nn_mean_um =
-            mean_nearest_neighbor_distance(&pattern.x_um, &pattern.y_um).map_or_else(
+            mean_nearest_neighbor_distance(&pattern.x_um, &pattern.y_um)?.map_or_else(
                 || {
                     if self.allow_sparse {
                         Ok(0.0)

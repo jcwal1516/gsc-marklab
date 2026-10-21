@@ -1,13 +1,10 @@
-#!/usr/bin/env python3
-
 import importlib.util
-from pathlib import Path
 import unittest
+from pathlib import Path
 from unittest import mock
 
-import numpy as np
 import arviz as az
-
+import numpy as np
 
 WORKER_DIRECTORY = Path(__file__).resolve().parents[2] / "workers" / "python"
 
@@ -36,17 +33,13 @@ class StudentTObservationSdTest(unittest.TestCase):
             with self.subTest(worker=worker_name):
                 worker = load_worker(worker_name)
                 actual_scale = np.asarray(
-                    worker.student_t_scale_from_sd(
-                        observation_sd, degrees_of_freedom
-                    )
+                    worker.student_t_scale_from_sd(observation_sd, degrees_of_freedom)
                 )
                 np.testing.assert_allclose(
                     actual_scale, expected_scale, rtol=1e-15, atol=0.0
                 )
                 implied_variance = (
-                    actual_scale**2
-                    * degrees_of_freedom
-                    / (degrees_of_freedom - 2.0)
+                    actual_scale**2 * degrees_of_freedom / (degrees_of_freedom - 2.0)
                 )
                 np.testing.assert_allclose(
                     implied_variance, observation_sd**2, rtol=1e-15, atol=0.0
@@ -105,13 +98,17 @@ class StudentTObservationSdTest(unittest.TestCase):
             observation_sd,
             df_rate,
         ):
-            population = numpyro.sample("global_mean", dist.Normal(global_mean, global_sd))
+            population = numpyro.sample(
+                "global_mean", dist.Normal(global_mean, global_sd)
+            )
             between = numpyro.sample("between_patient_sd", dist.HalfNormal(between_sd))
             patient_z = numpyro.sample(
                 "patient_z", dist.Normal(0.0, 1.0).expand([patient_count]).to_event(1)
             )
             sd = numpyro.sample("observation_sd", dist.HalfNormal(observation_sd))
-            excess = numpyro.sample("degrees_of_freedom_excess", dist.Exponential(df_rate))
+            excess = numpyro.sample(
+                "degrees_of_freedom_excess", dist.Exponential(df_rate)
+            )
             degrees = 2.0 + excess
             numpyro.sample(
                 "observation",
@@ -146,21 +143,29 @@ class StudentTObservationSdTest(unittest.TestCase):
                 excess = np.exp(log_excess)
                 log_scale = log_sd + 0.5 * np.log(excess / (2.0 + excess))
                 declared = potential_energy(
-                    declared_sd_model, (), arguments,
+                    declared_sd_model,
+                    (),
+                    arguments,
                     {**shared, "observation_sd": jnp.asarray(log_sd)},
                 )
                 reparameterized = potential_energy(
-                    worker.model, (), arguments,
+                    worker.model,
+                    (),
+                    arguments,
                     {**shared, "observation_scale": jnp.asarray(log_scale)},
                 )
-                self.assertAlmostEqual(float(reparameterized), float(declared), places=10)
+                self.assertAlmostEqual(
+                    float(reparameterized), float(declared), places=10
+                )
 
     def test_prior_diagnostics_check_generated_observations(self):
         pymc_worker = load_worker("marklab_pymc_student_t_hierarchy_worker.py")
-        prior = az.from_dict({
-            "prior": {"global_mean": np.zeros((1, 2))},
-            "prior_predictive": {"observation": np.zeros((1, 2, 4))},
-        })
+        prior = az.from_dict(
+            {
+                "prior": {"global_mean": np.zeros((1, 2))},
+                "prior_predictive": {"observation": np.zeros((1, 2, 4))},
+            }
+        )
         self.assertTrue(pymc_worker.prior_predictive_is_finite(prior))
         prior.prior_predictive["observation"].values[0, 0, 0] = np.inf
         self.assertFalse(pymc_worker.prior_predictive_is_finite(prior))

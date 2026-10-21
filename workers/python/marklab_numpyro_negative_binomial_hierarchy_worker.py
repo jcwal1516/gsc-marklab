@@ -1,89 +1,95 @@
 #!/usr/bin/env python3
-"""Pinned NumPyro worker for exposure-aware negative-binomial hierarchies."""
+"""NumPyro worker for an exposure-aware negative-binomial patient/slide/ROI hierarchy."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from functools import partial
+from pathlib import Path
 from typing import Any
 
-import arviz as az
 import jax
 
 jax.config.update("jax_enable_x64", True)
+
+import arviz as az
 import jax.numpy as jnp
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
 from numpyro.infer import MCMC, NUTS
 
+sys.path.append(str(Path(__file__).resolve().parent))
+
+from marklab_worker_support import versions
+from marklab_worker_support.diagnostics import mcse_extremes, rank_convergence
+from marklab_worker_support.numpyro_nuts import EXTRA_FIELDS
+from marklab_worker_support.posterior import summary as posterior_summary
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
 REQUEST_FORMAT = "marklab.numpyro_negative_binomial_hierarchy_request"
 RESULT_FORMAT = "marklab.negative_binomial_hierarchy"
-NUMPYRO_VERSION = "0.21.0"
-JAX_VERSION = "0.11.1"
-MAXIMUM_INPUT_BYTES = 16 * 1024 * 1024
-MAXIMUM_OUTPUT_BYTES = 1024 * 1024
+MAXIMUM_INPUT_BYTES = 16 * MIB
+MAXIMUM_OUTPUT_BYTES = MIB
 MAXIMUM_DRAW_OBSERVATION_PRODUCTS = 16_000_000
 MAXIMUM_TOTAL_ITERATIONS = 100_000
+FIXED_POLICY = {
+    "prior_predictive_draws": 500,
+    "maximum_r_hat": 1.01,
+    "minimum_bulk_ess": 400.0,
+    "minimum_tail_ess": 400.0,
+    "minimum_ebfmi": 0.3,
+    "maximum_divergences": 0,
+    "maximum_tree_depth_hits": 0,
+    "maximum_tree_depth": 10,
+}
+MONITORED = [
+    "alpha",
+    "beta",
+    "log_dispersion",
+    "patient_intercept_sd",
+    "patient_slope_sd",
+    "slide_sd",
+    "patient_intercept_z",
+    "patient_slope_z",
+    "slide_z",
+]
 
 
-class ContractError(ValueError):
-    pass
-
-
-def exact_object(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, "
-            f"unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
+summary = partial(posterior_summary, dtype=np.float64)
+"""Draw summary after conversion to float64."""
 
 
 def finite_number(value: Any, path: str, *, positive: bool = False) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be a finite number")
-    result = float(value)
-    if not math.isfinite(result) or (positive and result <= 0.0):
-        qualifier = "positive " if positive else ""
-        raise ContractError(f"{path} must be a finite {qualifier}number")
+    result = number(value, path)
+    if positive and result <= 0.0:
+        raise ContractError(f"{path} must be a finite positive number")
     return result
 
 
-def integer(value: Any, path: str, lower: int, upper: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not lower <= value <= upper:
-        raise ContractError(f"{path} must be an integer in [{lower}, {upper}]")
-    return value
-
-
 def identifier(value: Any, path: str) -> str:
-    if (
-        not isinstance(value, str)
-        or not value
-        or len(value) > 128
-        or value.strip() != value
-    ):
-        raise ContractError(f"{path} must be a nonempty trimmed identifier of at most 128 characters")
-    return value
-
-
-def lower_hex_sha256(value: Any, path: str) -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) != 64
-        or any(character not in "0123456789abcdef" for character in value)
-    ):
-        raise ContractError(f"{path} must be a lowercase SHA-256 digest")
+    if not isinstance(value, str) or not value or len(value) > 128 or value.strip() != value:
+        raise ContractError(
+            f"{path} must be a nonempty trimmed identifier of at most 128 characters"
+        )
     return value
 
 
@@ -111,7 +117,7 @@ def compile_design(observations: list[dict[str, Any]]) -> dict[str, Any]:
     slide_index = [slide_lookup[row["slide_id"]] for row in observations]
     patient_predictor_means = []
     centered = np.empty(len(observations), dtype=np.float64)
-    for patient, patient_id in enumerate(patient_ids):
+    for patient in range(len(patient_ids)):
         selected = [index for index, value in enumerate(patient_index) if value == patient]
         origin = observations[selected[0]]["predictor"]
         offsets = [observations[index]["predictor"] - origin for index in selected]
@@ -142,7 +148,7 @@ def _validate_observations(raw: Any) -> list[dict[str, Any]]:
         raise ContractError("spec.observations must contain 64 to 512 rows")
     observations = []
     for index, raw_row in enumerate(raw):
-        row = exact_object(
+        row = obj(
             raw_row,
             {"patient_id", "slide_id", "roi_id", "count", "area", "predictor"},
             f"spec.observations[{index}]",
@@ -190,37 +196,33 @@ def _validate_observations(raw: Any) -> list[dict[str, Any]]:
 
 
 def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
-    request = exact_object(
+    request = obj(
         request,
         {"format", "version", "backend", "jax_version", "spec", "design", "diagnostic_policy"},
         "request",
     )
     exact(request["format"], REQUEST_FORMAT, "request.format")
     exact(request["version"], 1, "request.version")
-    backend = exact_object(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "request.backend",
+        name="numpyro",
+        version=versions.NUMPYRO,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    exact(backend["name"], "numpyro", "request.backend.name")
-    exact(backend["version"], NUMPYRO_VERSION, "request.backend.version")
-    exact(backend["python_version"], "3.12", "request.backend.python_version")
-    exact(
-        lower_hex_sha256(backend["environment_lock_sha256"], "request.backend.environment_lock_sha256"),
-        lock_digest,
-        "request.backend.environment_lock_sha256",
-    )
-    exact(
-        lower_hex_sha256(backend["worker_sha256"], "request.backend.worker_sha256"),
-        worker_digest,
-        "request.backend.worker_sha256",
-    )
-    exact(request["jax_version"], JAX_VERSION, "request.jax_version")
-    spec = exact_object(
+    exact(request["jax_version"], versions.JAX, "request.jax_version")
+    spec = obj(
         request["spec"],
         {
-            "area_unit", "predictor_name", "predictor_unit", "observations", "priors",
-            "sampling", "timeout_seconds", "maximum_draw_observation_products",
+            "area_unit",
+            "predictor_name",
+            "predictor_unit",
+            "observations",
+            "priors",
+            "sampling",
+            "timeout_seconds",
+            "maximum_draw_observation_products",
         },
         "request.spec",
     )
@@ -228,18 +230,25 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     predictor_name = identifier(spec["predictor_name"], "spec.predictor_name")
     predictor_unit = identifier(spec["predictor_unit"], "spec.predictor_unit")
     observations = _validate_observations(spec["observations"])
-    priors_raw = exact_object(
+    priors_raw = obj(
         spec["priors"],
         {
-            "intercept_mean", "intercept_sd", "slope_sd", "log_dispersion_mean",
-            "log_dispersion_sd", "patient_intercept_sd_scale", "patient_slope_sd_scale",
+            "intercept_mean",
+            "intercept_sd",
+            "slope_sd",
+            "log_dispersion_mean",
+            "log_dispersion_sd",
+            "patient_intercept_sd_scale",
+            "patient_slope_sd_scale",
             "slide_sd_scale",
         },
         "spec.priors",
     )
     priors = {
         "intercept_mean": finite_number(priors_raw["intercept_mean"], "priors.intercept_mean"),
-        "intercept_sd": finite_number(priors_raw["intercept_sd"], "priors.intercept_sd", positive=True),
+        "intercept_sd": finite_number(
+            priors_raw["intercept_sd"], "priors.intercept_sd", positive=True
+        ),
         "slope_sd": finite_number(priors_raw["slope_sd"], "priors.slope_sd", positive=True),
         "log_dispersion_mean": finite_number(
             priors_raw["log_dispersion_mean"], "priors.log_dispersion_mean"
@@ -248,7 +257,9 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
             priors_raw["log_dispersion_sd"], "priors.log_dispersion_sd", positive=True
         ),
         "patient_intercept_sd_scale": finite_number(
-            priors_raw["patient_intercept_sd_scale"], "priors.patient_intercept_sd_scale", positive=True
+            priors_raw["patient_intercept_sd_scale"],
+            "priors.patient_intercept_sd_scale",
+            positive=True,
         ),
         "patient_slope_sd_scale": finite_number(
             priors_raw["patient_slope_sd_scale"], "priors.patient_slope_sd_scale", positive=True
@@ -257,7 +268,7 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
             priors_raw["slide_sd_scale"], "priors.slide_sd_scale", positive=True
         ),
     }
-    sampling_raw = exact_object(
+    sampling_raw = obj(
         spec["sampling"],
         {"chains", "tune_per_chain", "draws_per_chain", "target_accept", "seed"},
         "spec.sampling",
@@ -275,9 +286,10 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     }
     if not 0.5 <= sampling["target_accept"] < 1.0:
         raise ContractError("sampling.target_accept must be in [0.5, 1)")
-    if sampling["chains"] * (
-        sampling["tune_per_chain"] + sampling["draws_per_chain"]
-    ) > MAXIMUM_TOTAL_ITERATIONS:
+    if (
+        sampling["chains"] * (sampling["tune_per_chain"] + sampling["draws_per_chain"])
+        > MAXIMUM_TOTAL_ITERATIONS
+    ):
         raise ContractError("sampling exceeds 100000 total NUTS iterations")
     timeout_seconds = integer(spec["timeout_seconds"], "spec.timeout_seconds", 1, 3_600)
     maximum_products = integer(
@@ -287,12 +299,17 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         MAXIMUM_DRAW_OBSERVATION_PRODUCTS,
     )
     posterior_products = sampling["chains"] * sampling["draws_per_chain"] * len(observations)
-    policy_raw = exact_object(
+    policy_raw = obj(
         request["diagnostic_policy"],
         {
-            "prior_predictive_draws", "maximum_r_hat", "minimum_bulk_ess",
-            "minimum_tail_ess", "minimum_ebfmi", "maximum_divergences",
-            "maximum_tree_depth_hits", "maximum_tree_depth",
+            "prior_predictive_draws",
+            "maximum_r_hat",
+            "minimum_bulk_ess",
+            "minimum_tail_ess",
+            "minimum_ebfmi",
+            "maximum_divergences",
+            "maximum_tree_depth_hits",
+            "maximum_tree_depth",
         },
         "request.diagnostic_policy",
     )
@@ -318,27 +335,22 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
             policy_raw["maximum_tree_depth"], "policy.maximum_tree_depth", 1, 32
         ),
     }
-    fixed_policy = {
-        "prior_predictive_draws": 500,
-        "maximum_r_hat": 1.01,
-        "minimum_bulk_ess": 400.0,
-        "minimum_tail_ess": 400.0,
-        "minimum_ebfmi": 0.3,
-        "maximum_divergences": 0,
-        "maximum_tree_depth_hits": 0,
-        "maximum_tree_depth": 10,
-    }
-    for name, expected in fixed_policy.items():
+    for name, expected in FIXED_POLICY.items():
         exact(policy[name], expected, f"diagnostic_policy.{name}")
     products = posterior_products + policy["prior_predictive_draws"] * len(observations)
     if products > maximum_products:
         raise ContractError("predictive draw-observation products exceed the declared ceiling")
     compiled = compile_design(observations)
-    design = exact_object(
+    design = obj(
         request["design"],
         {
-            "patient_ids", "slide_ids", "patient_index", "slide_index",
-            "patient_predictor_means", "within_predictor", "within_predictor_sd",
+            "patient_ids",
+            "slide_ids",
+            "patient_index",
+            "slide_index",
+            "patient_predictor_means",
+            "within_predictor",
+            "within_predictor_sd",
         },
         "request.design",
     )
@@ -359,10 +371,7 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
 
 
 def seed_for(seed: int, purpose: str) -> int:
-    digest = hashlib.sha256(
-        f"marklab-numpyro-negative-binomial-hierarchy-v1\0{seed}\0{purpose}".encode()
-    ).digest()
-    return int.from_bytes(digest[:4], "little")
+    return derive_seed("marklab-numpyro-negative-binomial-hierarchy-v1", seed, purpose)
 
 
 def model(
@@ -375,9 +384,20 @@ def model(
     slide_template: jnp.ndarray,
     priors: dict[str, float],
 ) -> None:
-    alpha = numpyro.sample(
-        "alpha", dist.Normal(priors["intercept_mean"], priors["intercept_sd"])
-    )
+    """Negative-binomial (NB2) ROI counts with patient and nested slide random effects.
+
+    Likelihood: ``y ~ NB2(mu, phi)`` has mean ``mu`` and variance ``mu + mu**2 / phi``, with
+    ``log mu = log(area) + alpha + beta * x + u_i + v_i * x + s_j`` for patient ``i`` and
+    slide ``j``. The predictor ``x`` is centered within patients and divided by the pooled
+    root-mean-square centered predictor; the NB2 log density is entered as a factor.
+    Random effects are non-centered:
+    ``u = sd_u * z_u``, ``v = sd_v * z_v``, ``s = sd_s * z_s`` with ``z ~ Normal(0, 1)``.
+    Priors: ``alpha ~ Normal(intercept_mean, intercept_sd)``, ``beta ~ Normal(0, slope_sd)``,
+    ``log(phi) ~ Normal(log_dispersion_mean, log_dispersion_sd)``, and each random-effect SD
+    ``~ HalfNormal`` with its request scale.
+    Normal scales are SDs; half-normal scales are the SDs of their underlying normal distributions.
+    """
+    alpha = numpyro.sample("alpha", dist.Normal(priors["intercept_mean"], priors["intercept_sd"]))
     beta = numpyro.sample("beta", dist.Normal(0.0, priors["slope_sd"]))
     log_dispersion = numpyro.sample(
         "log_dispersion",
@@ -413,7 +433,8 @@ def model(
         + slide_intercept[slide_index]
     )
     log_expected_count = jnp.log(areas) + eta
-    expected_count = numpyro.deterministic("expected_count", jnp.exp(log_expected_count))
+    # Recorded so that the posterior finiteness check also covers the expected counts.
+    numpyro.deterministic("expected_count", jnp.exp(log_expected_count))
     dispersion = numpyro.deterministic("dispersion", jnp.exp(log_dispersion))
     log_denominator = jnp.logaddexp(log_dispersion, log_expected_count)
     count_log_probability = (
@@ -426,45 +447,12 @@ def model(
     numpyro.factor("count_log_likelihood", jnp.sum(count_log_probability))
 
 
-def build_sampler(config: dict[str, Any]) -> MCMC:
-    """Build a reusable sampler; repeated equal-shape runs reuse JAX compilation."""
-    return MCMC(
-        NUTS(
-            model,
-            target_accept_prob=config["sampling"]["target_accept"],
-            max_tree_depth=config["policy"]["maximum_tree_depth"],
-        ),
-        num_warmup=config["sampling"]["tune_per_chain"],
-        num_samples=config["sampling"]["draws_per_chain"],
-        num_chains=config["sampling"]["chains"],
-        chain_method="sequential",
-        progress_bar=False,
-        jit_model_args=True,
-    )
-
-
-def summary(values: np.ndarray) -> dict[str, float]:
-    flat = np.asarray(values, dtype=np.float64).reshape(-1)
-    return {
-        "mean": float(flat.mean()),
-        "sd": float(flat.std(ddof=1)),
-        "interval_lower": float(np.quantile(flat, 0.025)),
-        "interval_upper": float(np.quantile(flat, 0.975)),
-    }
-
-
-def _flattened(tree: Any, names: list[str]) -> np.ndarray:
-    return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
-
-
 def _chain_aware_mcse_mean(values: np.ndarray) -> float | None:
     values = np.asarray(values, dtype=np.float64)
     if np.all(values == values.flat[0]):
         return None
     data = az.from_dict({"posterior": {"indicator": values}})
-    result = float(
-        np.asarray(az.mcse(data, var_names=["indicator"], method="mean")["indicator"])
-    )
+    result = float(np.asarray(az.mcse(data, var_names=["indicator"], method="mean")["indicator"]))
     return result if math.isfinite(result) and result >= 0.0 else None
 
 
@@ -486,16 +474,10 @@ def _prior_predictive(config: dict[str, Any]) -> tuple[dict[str, Any], bool]:
     log_dispersion = rng.normal(
         priors["log_dispersion_mean"], priors["log_dispersion_sd"], draw_count
     )
-    patient_intercept_sd = np.abs(
-        rng.normal(0.0, priors["patient_intercept_sd_scale"], draw_count)
-    )
-    patient_slope_sd = np.abs(
-        rng.normal(0.0, priors["patient_slope_sd_scale"], draw_count)
-    )
+    patient_intercept_sd = np.abs(rng.normal(0.0, priors["patient_intercept_sd_scale"], draw_count))
+    patient_slope_sd = np.abs(rng.normal(0.0, priors["patient_slope_sd_scale"], draw_count))
     slide_sd = np.abs(rng.normal(0.0, priors["slide_sd_scale"], draw_count))
-    patient_intercept = patient_intercept_sd[:, None] * rng.normal(
-        size=(draw_count, patient_count)
-    )
+    patient_intercept = patient_intercept_sd[:, None] * rng.normal(size=(draw_count, patient_count))
     patient_slope = patient_slope_sd[:, None] * rng.normal(size=(draw_count, patient_count))
     slide_intercept = slide_sd[:, None] * rng.normal(size=(draw_count, slide_count))
     patient_index = np.asarray(config["design"]["patient_index"], dtype=np.int32)
@@ -524,11 +506,13 @@ def _prior_predictive(config: dict[str, Any]) -> tuple[dict[str, Any], bool]:
         selected = patient_index == patient
         rates = replicated[:, selected].sum(axis=1) / areas[selected].sum()
         rate_summary = summary(rates)
-        patient_rates.append({
-            "patient_id": patient_id,
-            "mean": rate_summary["mean"],
-            "sd": rate_summary["sd"],
-        })
+        patient_rates.append(
+            {
+                "patient_id": patient_id,
+                "mean": rate_summary["mean"],
+                "sd": rate_summary["sd"],
+            }
+        )
     zero_fraction = np.mean(replicated == 0, axis=1)
     return {
         "draws": draw_count,
@@ -539,14 +523,8 @@ def _prior_predictive(config: dict[str, Any]) -> tuple[dict[str, Any], bool]:
 
 
 def fit(
-    config: dict[str, Any],
-    request_sha256: str,
-    lock_digest: str,
-    worker_digest: str,
-    *,
-    sampler: MCMC | None = None,
-    return_samples: bool = False,
-) -> dict[str, Any] | tuple[dict[str, Any], dict[str, np.ndarray]]:
+    config: dict[str, Any], request_sha256: str, lock_digest: str, worker_digest: str
+) -> dict[str, Any]:
     observations = config["observations"]
     design = config["design"]
     sampling = config["sampling"]
@@ -566,12 +544,25 @@ def fit(
         "priors": config["priors"],
     }
     prior_predictive, prior_finite = _prior_predictive(config)
-    sampler = build_sampler(config) if sampler is None else sampler
+    # The model arguments are passed to the compiled sampler as traced inputs.
+    sampler = MCMC(
+        NUTS(
+            model,
+            target_accept_prob=sampling["target_accept"],
+            max_tree_depth=config["policy"]["maximum_tree_depth"],
+        ),
+        num_warmup=sampling["tune_per_chain"],
+        num_samples=sampling["draws_per_chain"],
+        num_chains=sampling["chains"],
+        chain_method="sequential",
+        progress_bar=False,
+        jit_model_args=True,
+    )
     sampler.run(
         jax.random.PRNGKey(seed_for(sampling["seed"], "nuts")),
         counts=jnp.asarray(counts),
         **arguments,
-        extra_fields=("diverging", "num_steps", "energy"),
+        extra_fields=EXTRA_FIELDS,
     )
     samples = {
         name: np.asarray(value, dtype=np.float64)
@@ -596,28 +587,9 @@ def fit(
     zero_probability = np.exp(
         -dispersion[..., None] * np.log1p(expected_count / dispersion[..., None])
     )
-    monitored_names = [
-        "alpha", "beta", "log_dispersion", "patient_intercept_sd",
-        "patient_slope_sd", "slide_sd", "patient_intercept_z", "patient_slope_z", "slide_z",
-    ]
-    posterior = az.from_dict(
-        {"posterior": {name: samples[name] for name in monitored_names}}
-    )
-    r_hat = float(
-        _flattened(az.rhat(posterior, var_names=monitored_names, method="rank"), monitored_names).max()
-    )
-    ess_bulk = float(
-        _flattened(az.ess(posterior, var_names=monitored_names, method="bulk"), monitored_names).min()
-    )
-    ess_tail = float(
-        _flattened(az.ess(posterior, var_names=monitored_names, method="tail"), monitored_names).min()
-    )
-    mcse_mean = float(
-        _flattened(az.mcse(posterior, var_names=monitored_names, method="mean"), monitored_names).max()
-    )
-    mcse_sd = float(
-        _flattened(az.mcse(posterior, var_names=monitored_names, method="sd"), monitored_names).max()
-    )
+    posterior = az.from_dict({"posterior": {name: samples[name] for name in MONITORED}})
+    r_hat, ess_bulk, ess_tail = rank_convergence(posterior, MONITORED)
+    mcse_mean, mcse_sd = mcse_extremes(posterior, MONITORED)
     extra = sampler.get_extra_fields(group_by_chain=True)
     energy = np.asarray(extra["energy"], dtype=np.float64)
     energy_variance = np.var(energy, axis=1)
@@ -643,9 +615,7 @@ def fit(
         replicated = _draw_negative_binomial(rng, expected_count, dispersion[..., None])
     except (OverflowError, ValueError) as error:
         raise ContractError("posterior predictive counts cannot be represented") from error
-    posterior_finite = bool(
-        np.isfinite(replicated).all()
-    )
+    posterior_finite = bool(np.isfinite(replicated).all())
     constraints = bool(
         np.all(dispersion > 0.0)
         and np.all(samples["patient_intercept_sd"] > 0.0)
@@ -753,13 +723,7 @@ def fit(
     result = {
         "format": RESULT_FORMAT,
         "version": 1,
-        "backend": {
-            "name": "numpyro",
-            "version": numpyro.__version__,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_digest,
-            "worker_sha256": worker_digest,
-        },
+        "backend": backend_identity("numpyro", numpyro.__version__, lock_digest, worker_digest),
         "jax_version": jax.__version__,
         "request_sha256": request_sha256,
         "fit_state": "complete" if complete else "nonconverged",
@@ -816,40 +780,17 @@ def fit(
         "prior_predictive": prior_predictive,
         "posterior_predictive": posterior_predictive,
     }
-    if return_samples:
-        return result, samples
     return result
 
 
 def main() -> None:
-    if (
-        numpyro.__version__ != NUMPYRO_VERSION
-        or jax.__version__ != JAX_VERSION
-        or sys.version_info[:2] != (3, 12)
-    ):
-        raise ContractError("NumPyro, JAX, or Python version drift")
-    script = Path(__file__)
-    lock_digest = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_digest = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(MAXIMUM_INPUT_BYTES + 1)
-    if not raw or len(raw) > MAXIMUM_INPUT_BYTES:
-        raise ContractError("request size is invalid")
-    request_sha256 = hashlib.sha256(raw).hexdigest()
+    require_versions(numpyro=numpyro.__version__, jax=jax.__version__)
+    lock_digest, worker_digest = worker_digests(__file__)
+    raw = read_request(MAXIMUM_INPUT_BYTES)
     config = validate(json.loads(raw), lock_digest, worker_digest)
-    result = fit(config, request_sha256, lock_digest, worker_digest)
-    encoded = json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")).encode()
-    if len(encoded) + 1 > MAXIMUM_OUTPUT_BYTES:
-        raise ContractError("worker output exceeds 1 MiB")
-    sys.stdout.buffer.write(encoded + b"\n")
+    result = fit(config, sha256_hex(raw), lock_digest, worker_digest)
+    write_result(result, max_bytes=MAXIMUM_OUTPUT_BYTES)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(
-            f"Marklab NumPyro negative-binomial hierarchy worker failed: "
-            f"{type(error).__name__}: {error}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from error
+    run_worker(main, "Marklab NumPyro negative-binomial hierarchy worker failed")

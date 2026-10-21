@@ -5,6 +5,7 @@ use rand_distr::StandardNormal;
 use serde::Serialize;
 
 use crate::SbiError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug)]
 pub struct SyntheticLikelihoodGrowthFrontSpec {
@@ -81,7 +82,7 @@ pub struct SyntheticLikelihoodGrowthFrontResult {
     pub trace: Vec<SyntheticLikelihoodTraceRow>,
     pub maximum_total_declared_cell_steps: u64,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn synthetic_likelihood_growth_front(
@@ -154,7 +155,7 @@ pub fn synthetic_likelihood_growth_front(
         trace,
         maximum_total_declared_cell_steps: maximum_work,
         random_seed_namespace: "synthetic_likelihood_growth_front_v1_chacha20",
-        claim_status: "approximate_synthetic_likelihood_not_biological_calibration",
+        claim_status: ClaimStatus::ApproximateSyntheticLikelihoodNotBiologicalCalibration,
     })
 }
 

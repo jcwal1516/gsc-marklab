@@ -178,7 +178,6 @@ impl fmt::Debug for CellEmbeddingTable {
 
 impl CellEmbeddingTable {
     /// Validate exact expected rows and materialize one checked contiguous matrix.
-    #[allow(clippy::too_many_arguments)]
     pub fn from_rows(
         dimension: u32,
         expected: &ExpectedCellSet,
@@ -307,7 +306,6 @@ impl CellEmbeddingTable {
     ///
     /// Values are consumed without constructing per-row vectors. Every component must
     /// be finite; signed zero is canonicalized to positive zero.
-    #[allow(clippy::too_many_arguments)]
     pub fn from_present_values(
         dimension: u32,
         expected: &ExpectedCellSet,

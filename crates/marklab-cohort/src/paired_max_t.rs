@@ -73,10 +73,6 @@ pub struct PairedMaxTPermutationResult {
     pub alpha: f64,
     /// Requested sign-flip count.
     pub permutations_requested: usize,
-    /// Attempted sign-flip count.
-    pub permutations_attempted: usize,
-    /// Completed sign-flip count.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
 }
@@ -207,8 +203,6 @@ pub fn paired_max_t_permutation(
         critical_value,
         alpha: spec.alpha,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
     })
 }

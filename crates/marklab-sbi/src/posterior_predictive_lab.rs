@@ -4,6 +4,7 @@ use rand_chacha::ChaCha20Rng;
 use serde::Serialize;
 
 use crate::SbiError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug)]
 pub struct GrowthFrontPosteriorPredictiveLabSpec {
@@ -68,7 +69,7 @@ pub struct GrowthFrontPosteriorPredictiveLabResult {
     pub misspecification_flags: Vec<&'static str>,
     pub maximum_total_declared_cell_steps: u64,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn growth_front_posterior_predictive_laboratory(
@@ -151,7 +152,7 @@ pub fn growth_front_posterior_predictive_laboratory(
         misspecification_flags,
         maximum_total_declared_cell_steps: maximum_work,
         random_seed_namespace: "growth_front_ppc_lab_v1_chacha20",
-        claim_status: "synthetic_posterior_predictive_check_not_model_validation",
+        claim_status: ClaimStatus::SyntheticPosteriorPredictiveCheckNotModelValidation,
     })
 }
 

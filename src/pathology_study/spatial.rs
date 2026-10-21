@@ -1,11 +1,15 @@
 use super::common::*;
 use crate::{
-    inhomogeneous_spatial as native, BinaryCompartmentPartition2D, CompartmentPartitionLimits,
-    InhomogeneousCategoricalCrossPairCorrelationConfig,
-    InhomogeneousCategoricalCrossPairCorrelationError, InhomogeneousPairCorrelationConfig,
-    InhomogeneousSpatialConfig, InhomogeneousSpatialError, InhomogeneousSpatialLimits,
-    ObservationWindow2D, Pattern, PatternMeta, PiecewiseCompartmentPairCorrelationConfig,
-    PiecewiseCompartmentSpatialConfig, PiecewiseCompartmentSpatialLimits, Result,
+    compartments::{BinaryCompartmentPartition2D, CompartmentPartitionLimits},
+    inhomogeneous_spatial as native,
+    spatial::{
+        InhomogeneousCategoricalCrossPairCorrelationConfig,
+        InhomogeneousCategoricalCrossPairCorrelationError, InhomogeneousPairCorrelationConfig,
+        InhomogeneousSpatialConfig, InhomogeneousSpatialError, InhomogeneousSpatialLimits,
+        PiecewiseCompartmentPairCorrelationConfig, PiecewiseCompartmentSpatialConfig,
+        PiecewiseCompartmentSpatialLimits,
+    },
+    ObservationWindow2D, Pattern, PatternMeta, Result,
 };
 use marklab_cohort::{
     functional_two_sample_permutation, FunctionalCurve, FunctionalPermutationSpec,
@@ -31,6 +35,29 @@ pub struct SpatialDesign {
     pub pair_bandwidth_um: f64,
     pub intensity: Intensity,
     pub compartments: Vec<Compartments>,
+    /// Optional support rule declared with the design; absent keeps complete eligibility.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support_rule: Option<SupportRule>,
+}
+
+/// Which radius bins a sparse pattern supports, declared before any curve is computed.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[serde(deny_unknown_fields, tag = "kind", rename_all = "snake_case")]
+pub enum SupportRule {
+    /// Every declared radius needs an expected pair count of at least `minimum_expected_pairs`.
+    ///
+    /// The expected count at radius `r` is `centers(r) * partners / area * A(r)`: the observed
+    /// eligible centers (border distance at least `r`, or `r + h` for `g`), the partner count
+    /// (`n - 1`, or the target count for cross-type `g`) over the window area, and the area
+    /// `A(r)` that a pair must fall in (`pi r^2` for L; the kernel annulus `pi ((r + h)^2 -
+    /// max(0, r - h)^2)` for `g`). It uses counts and border distances, never pair distances or
+    /// curve values. With the rule, eligible centers without pairs give `g = 0`, and simulated
+    /// patterns lacking eligible centers where the observed pattern has them are redrawn, up to
+    /// `maximum_draws_per_simulation` draws per simulation.
+    ExpectedPairCount {
+        minimum_expected_pairs: f64,
+        maximum_draws_per_simulation: usize,
+    },
 }
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -92,6 +119,12 @@ pub struct SpatialSlide {
     pub support: Value,
     pub unavailable: Option<String>,
     pub charged_work: usize,
+    /// Expected pair count per radius under the declared support rule.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_pairs: Option<Vec<f64>>,
+    /// Simulated patterns redrawn under the declared support rule.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub support_redraws: Option<usize>,
 }
 #[derive(Clone, Debug, Serialize)]
 pub struct SpatialPatient {
@@ -124,6 +157,29 @@ pub struct PathologySpatialStudyResult {
     pub work_units: usize,
     pub estimated_storage_bytes: usize,
     pub claim_scope: &'static str,
+    /// Within-slide simulated curves, published as `null-curves.json`, not in `result.json`.
+    #[serde(skip)]
+    pub(crate) null_curves: Vec<SlideNullCurves>,
+}
+
+/// Bytes charged per exported curve value: a JSON number of at most 24 characters plus its
+/// separator, rounded up.
+const NULL_CURVE_VALUE_BYTES: usize = 32;
+
+/// One slide's observed and simulated curves on the study's reported scale (`L(r) - r` or
+/// `g(r) - 1`). Simulated values are present only at radii eligible in the observed and every
+/// simulated curve, which are exactly the radii the slide's ERL envelope used.
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct SlideNullCurves {
+    slide_id: String,
+    patient_id: String,
+    seed: u64,
+    null_model: Option<String>,
+    native_p_global: Option<f64>,
+    jointly_eligible: Vec<bool>,
+    observed: Vec<Option<f64>>,
+    simulated: Vec<Vec<Option<f64>>>,
+    unavailable: Option<String>,
 }
 
 enum Failure {
@@ -137,7 +193,8 @@ impl From<InhomogeneousSpatialError> for Failure {
             InsufficientPoints
             | NearZeroIntensity { .. }
             | PointOnCompartmentInterface { .. }
-            | SparseCompartment { .. } => Self::Unavailable(error.to_string()),
+            | SparseCompartment { .. }
+            | SupportRedrawsExhausted { .. } => Self::Unavailable(error.to_string()),
             _ => Self::Fatal(error.to_string()),
         }
     }
@@ -176,6 +233,7 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
             .saturating_mul(d.permutations + 1),
     )?;
     let mut slides = Vec::new();
+    let mut null_curves = Vec::new();
     for (index, (slide, window)) in recipe.study.slides.iter().zip(&windows).enumerate() {
         let partition = if d.intensity.model == IntensityModel::BinaryCompartments {
             let c = d
@@ -209,6 +267,8 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
             (budget.limits.maximum_work - budget.work) / (recipe.study.slides.len() - index);
         let memory = budget.limits.memory_budget_bytes - budget.bytes;
         let pattern = pattern(slide, d.phenotype.as_deref())?;
+        let slide_seed = d.seed.wrapping_add(index as u64);
+        let mut capture = native::NullCurveCapture::default();
         let mut output = SpatialSlide {
             slide_id: slide.slide_id.clone(),
             patient_id: slide.patient_id.clone(),
@@ -231,6 +291,8 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
             support: Value::Null,
             unavailable: None,
             charged_work: 0,
+            expected_pairs: None,
+            support_redraws: None,
         };
         match evaluate(
             &pattern,
@@ -240,9 +302,10 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
             recipe.limits,
             allowance,
             memory,
-            d.seed.wrapping_add(index as u64),
+            slide_seed,
             &recipe.study.phenotypes.measurement_status,
             partition.as_ref(),
+            &mut capture,
         ) {
             Ok(result) => {
                 let field = match d.statistic {
@@ -300,7 +363,35 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
                         .ok_or_else(|| invalid("missing native memory estimate"))?
                         as usize,
                 )?;
-                if output.values.len() != d.radii_um.len()
+                output.support_redraws = result["inference"]["support_redraws"]
+                    .as_u64()
+                    .map(|count| count as usize);
+                let support_failure = if let Some(SupportRule::ExpectedPairCount {
+                    minimum_expected_pairs,
+                    ..
+                }) = &d.support_rule
+                {
+                    let expected = expected_pairs(&result, d, slide, &pattern, window)?;
+                    let failure = d
+                        .radii_um
+                        .iter()
+                        .zip(&expected)
+                        .find_map(|(radius, value)| {
+                            (*value < *minimum_expected_pairs).then(|| {
+                                format!(
+                                "declared expected-pair support rule fails at radius {radius} um \
+                                 (expected {value:.4} < {minimum_expected_pairs}); no bins removed"
+                            )
+                            })
+                        });
+                    output.expected_pairs = Some(expected);
+                    failure
+                } else {
+                    None
+                };
+                if let Some(reason) = support_failure {
+                    output.unavailable = Some(reason);
+                } else if output.values.len() != d.radii_um.len()
                     || output.values.iter().any(Option::is_none)
                     || output.eligible.iter().any(|v| !*v)
                 {
@@ -313,11 +404,42 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
                         .p_global
                         .map(|p| (p * recipe.study.slides.len() as f64).min(1.0));
                 }
+                budget.retain(
+                    (capture.simulated.len() + 1)
+                        .saturating_mul(d.radii_um.len())
+                        .saturating_mul(NULL_CURVE_VALUE_BYTES),
+                )?;
+                null_curves.push(SlideNullCurves {
+                    slide_id: output.slide_id.clone(),
+                    patient_id: output.patient_id.clone(),
+                    seed: slide_seed,
+                    null_model: output.null_model.clone(),
+                    native_p_global: result["inference"]["p_global"].as_f64(),
+                    simulated: capture
+                        .simulated
+                        .iter()
+                        .map(|curve| reported_scale(curve, &capture.jointly_eligible, d))
+                        .collect::<Result<_>>()?,
+                    jointly_eligible: capture.jointly_eligible,
+                    observed: output.values.clone(),
+                    unavailable: output.unavailable.clone(),
+                });
             }
             Err(Failure::Unavailable(reason)) => {
                 output.unavailable = Some(reason);
                 output.charged_work = allowance;
                 budget.work(allowance)?;
+                null_curves.push(SlideNullCurves {
+                    slide_id: output.slide_id.clone(),
+                    patient_id: output.patient_id.clone(),
+                    seed: slide_seed,
+                    null_model: None,
+                    native_p_global: None,
+                    jointly_eligible: vec![false; d.radii_um.len()],
+                    observed: output.values.clone(),
+                    simulated: Vec::new(),
+                    unavailable: output.unavailable.clone(),
+                });
             }
             Err(Failure::Fatal(reason)) => return Err(invalid(reason)),
         }
@@ -395,13 +517,93 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
         }
     }
     Ok(PathologySpatialStudyResult{format:"marklab.pathology_spatial_study_result",version:1,study_id:recipe.study.study_id,phenotypes:recipe.study.phenotypes,design:recipe.design,limits:recipe.limits,slides,patients,inference,
-        work_units:budget.work,estimated_storage_bytes:budget.bytes,claim_scope:"experimental_context_conditioned_curves; fitted_null_calibration_not_established; failed_slides_charge_reserved_work"})
+        work_units:budget.work,estimated_storage_bytes:budget.bytes,claim_scope:"experimental_context_conditioned_curves; fitted_null_calibration_not_established; failed_slides_charge_reserved_work",null_curves})
+}
+
+/// Expected pair count per declared radius under [`SupportRule::ExpectedPairCount`].
+fn expected_pairs(
+    result: &Value,
+    d: &SpatialDesign,
+    slide: &Slide,
+    pattern: &Pattern,
+    window: &ObservationWindow2D,
+) -> Result<Vec<f64>> {
+    let (centers_field, partners) = match d.statistic {
+        Statistic::LMinusR | Statistic::GMinusOne => ("eligible_centers", pattern.len() - 1),
+        Statistic::CrossGMinusOne => {
+            let target = d.target.as_ref().expect("validated cross-g target");
+            let targets = slide
+                .cells
+                .iter()
+                .filter(|c| &c.phenotype == target)
+                .count();
+            ("eligible_source_centers", targets)
+        }
+    };
+    let curve = result["curve"]
+        .as_array()
+        .ok_or_else(|| invalid("missing native curve"))?;
+    let h = d.pair_bandwidth_um;
+    curve
+        .iter()
+        .zip(&d.radii_um)
+        .map(|(point, radius)| {
+            let centers = point[centers_field]
+                .as_u64()
+                .ok_or_else(|| invalid("missing native eligible-center count"))?;
+            let region = if d.statistic == Statistic::LMinusR {
+                std::f64::consts::PI * radius * radius
+            } else {
+                std::f64::consts::PI * ((radius + h).powi(2) - (radius - h).max(0.0).powi(2))
+            };
+            finite(centers as f64 * partners as f64 / window.area_um2() * region)
+        })
+        .collect()
+}
+
+/// One native simulated curve on the study's reported scale, masked to the envelope's radii.
+fn reported_scale(curve: &[f64], eligible: &[bool], d: &SpatialDesign) -> Result<Vec<Option<f64>>> {
+    curve
+        .iter()
+        .zip(eligible)
+        .zip(&d.radii_um)
+        .map(|((value, eligible), radius)| {
+            eligible
+                .then(|| {
+                    finite(
+                        value
+                            - if d.statistic == Statistic::LMinusR {
+                                *radius
+                            } else {
+                                1.0
+                            },
+                    )
+                })
+                .transpose()
+        })
+        .collect()
 }
 
 fn validate(recipe: &Recipe<SpatialDesign>) -> Result<()> {
     let d = &recipe.design;
     let i = &d.intensity;
     inference_design(&d.group_a, &d.group_b, d.permutations, d.alpha)?;
+    if let Some(SupportRule::ExpectedPairCount {
+        minimum_expected_pairs,
+        maximum_draws_per_simulation,
+    }) = &d.support_rule
+    {
+        if !minimum_expected_pairs.is_finite()
+            || *minimum_expected_pairs <= 0.0
+            || *minimum_expected_pairs > 1e12
+            || !(1..=1_000).contains(maximum_draws_per_simulation)
+            || i.model != IntensityModel::Gaussian
+        {
+            return Err(invalid(
+                "the expected-pair support rule needs a positive finite minimum, 1-1000 draws per simulation and Gaussian intensity",
+            ));
+        }
+    }
     if d.radii_um.len() < 2
         || d.radii_um.len() > 64
         || d.radii_um.iter().any(|r| !r.is_finite() || *r <= 0.0)
@@ -528,6 +730,7 @@ fn evaluate(
     seed: u64,
     measurement_status: &str,
     partition: Option<&BinaryCompartmentPartition2D>,
+    capture: &mut native::NullCurveCapture,
 ) -> std::result::Result<Value, Failure> {
     let share = work / 3;
     if share == 0 || memory == 0 {
@@ -551,15 +754,21 @@ fn evaluate(
         )?;
         return match d.statistic {
             Statistic::LMinusR => serialized(
-                native::analyze_piecewise_compartment_spatial_pattern(pattern, partition, &cfg)?,
+                native::analyze_piecewise_compartment_spatial_pattern_capturing(
+                    pattern,
+                    partition,
+                    &cfg,
+                    Some(capture),
+                )?,
             ),
-            Statistic::GMinusOne => {
-                serialized(native::analyze_piecewise_compartment_pair_correlation(
+            Statistic::GMinusOne => serialized(
+                native::analyze_piecewise_compartment_pair_correlation_capturing(
                     pattern,
                     partition,
                     &PiecewiseCompartmentPairCorrelationConfig::new(cfg, d.pair_bandwidth_um)?,
-                )?)
-            }
+                    Some(capture),
+                )?,
+            ),
             Statistic::CrossGMinusOne => unreachable!("validated statistic"),
         };
     }
@@ -606,11 +815,23 @@ fn evaluate(
     let policy = native::study_fit::StudyFitPolicy {
         refit: i.null_mode == NullMode::Refit,
         bandwidth_candidates_um: i.bandwidth_candidates_um.clone(),
+        support: d.support_rule.as_ref().map(|rule| match rule {
+            SupportRule::ExpectedPairCount {
+                maximum_draws_per_simulation,
+                ..
+            } => native::study_fit::SupportPolicy {
+                maximum_draws_per_simulation: *maximum_draws_per_simulation,
+            },
+        }),
     };
     match d.statistic {
         Statistic::LMinusR => {
             serialized(native::analyze_inhomogeneous_spatial_pattern_with_policy(
-                pattern, window, &config, &policy,
+                pattern,
+                window,
+                &config,
+                &policy,
+                Some(capture),
             )?)
         }
         Statistic::GMinusOne => {
@@ -619,6 +840,7 @@ fn evaluate(
                 window,
                 &InhomogeneousPairCorrelationConfig::new(config, d.pair_bandwidth_um)?,
                 &policy,
+                Some(capture),
             )?)
         }
         Statistic::CrossGMinusOne => {
@@ -649,8 +871,10 @@ fn evaluate(
                 source_rows,
                 target_rows,
                 "phenotype",
-                measurement_status,
+                crate::measurement_status_wire::parse(measurement_status)
+                    .ok_or_else(|| Failure::Fatal("unknown phenotype measurement status".into()))?,
                 &policy,
+                Some(capture),
             )?)
         }
     }

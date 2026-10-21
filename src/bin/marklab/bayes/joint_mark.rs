@@ -1,31 +1,45 @@
-use super::{publish_json, BayesCliError};
+use super::cli_schema::BuildJointContinuousMarkModelArgs;
+use super::cli_schema::BuildJointLocationMarkModelArgs;
+use super::{publish_json, CliError};
 use marklab_bayes::{
     build_joint_location_mark_model, sha256_hex, JointCategoricalMarkSpec, JointCategoricalPoint,
     JointLocationGridRow, JointMarkError, RectangularWindow,
 };
 use serde::Serialize;
-use std::{fs, path::PathBuf};
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    pp: PathBuf,
-    gp: PathBuf,
-    xmin: f64,
-    ymin: f64,
-    xmax: f64,
-    ymax: f64,
-    gx: u32,
-    gy: u32,
-    reference: String,
-    lps: f64,
-    mcps: f64,
-    mfps: f64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
-    let pb = fs::read(&pp).map_err(|source| BayesCliError::Io {
+use std::fs;
+pub(super) fn run(args: BuildJointLocationMarkModelArgs) -> Result<(), CliError> {
+    let BuildJointLocationMarkModelArgs {
+        points,
+        grid,
+        xmin_um,
+        ymin_um,
+        xmax_um,
+        ymax_um,
+        grid_x,
+        grid_y,
+        reference_mark,
+        location_prior_sd,
+        mark_coefficient_prior_sd,
+        mark_field_prior_sd,
+        out,
+    } = args;
+    let pp = points;
+    let gp = grid;
+    let xmin = xmin_um;
+    let ymin = ymin_um;
+    let xmax = xmax_um;
+    let ymax = ymax_um;
+    let gx = grid_x;
+    let gy = grid_y;
+    let reference = reference_mark;
+    let lps = location_prior_sd;
+    let mcps = mark_coefficient_prior_sd;
+    let mfps = mark_field_prior_sd;
+    let pb = fs::read(&pp).map_err(|source| CliError::Io {
         path: pp.clone(),
         source,
     })?;
-    let gb = fs::read(&gp).map_err(|source| BayesCliError::Io {
+    let gb = fs::read(&gp).map_err(|source| CliError::Io {
         path: gp.clone(),
         source,
     })?;
@@ -62,7 +76,7 @@ pub(super) fn run(
         mark_coefficient_prior_sd: mcps,
         mark_field_prior_sd: mfps,
     })
-    .map_err(|JointMarkError::Invalid(m)| BayesCliError::Input(m))?;
+    .map_err(|JointMarkError::Invalid(m)| CliError::Input(m))?;
     publish_json(
         &out,
         &Output {
@@ -80,13 +94,13 @@ pub(super) fn run(
 fn read<T: for<'a> serde::Deserialize<'a>, const N: usize>(
     b: &[u8],
     h: [&str; N],
-) -> Result<Vec<T>, BayesCliError> {
+) -> Result<Vec<T>, CliError> {
     let mut r = csv::ReaderBuilder::new()
         .has_headers(true)
         .flexible(false)
         .from_reader(b);
     if r.headers()?.iter().collect::<Vec<_>>() != h {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "joint mark CSV headers differ from exact contract".into(),
         ));
     }
@@ -104,29 +118,42 @@ struct Output {
     mark_counts: std::collections::BTreeMap<String, u32>,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run_continuous(
-    pp: PathBuf,
-    gp: PathBuf,
-    xmin: f64,
-    ymin: f64,
-    xmax: f64,
-    ymax: f64,
-    gx: u32,
-    gy: u32,
-    noise: f64,
-    amplitude: f64,
-    length: f64,
-    jitter: f64,
-    loading_sd: f64,
-    private_sd: f64,
-    out: PathBuf,
-) -> Result<(), BayesCliError> {
-    let pb = fs::read(&pp).map_err(|source| BayesCliError::Io {
+pub(super) fn run_continuous(args: BuildJointContinuousMarkModelArgs) -> Result<(), CliError> {
+    let BuildJointContinuousMarkModelArgs {
+        points,
+        grid,
+        xmin_um,
+        ymin_um,
+        xmax_um,
+        ymax_um,
+        grid_x,
+        grid_y,
+        known_mark_noise_sd,
+        shared_field_amplitude,
+        shared_field_length_scale_um,
+        jitter,
+        mark_loading_prior_sd,
+        private_field_prior_sd,
+        out,
+    } = args;
+    let pp = points;
+    let gp = grid;
+    let xmin = xmin_um;
+    let ymin = ymin_um;
+    let xmax = xmax_um;
+    let ymax = ymax_um;
+    let gx = grid_x;
+    let gy = grid_y;
+    let noise = known_mark_noise_sd;
+    let amplitude = shared_field_amplitude;
+    let length = shared_field_length_scale_um;
+    let loading_sd = mark_loading_prior_sd;
+    let private_sd = private_field_prior_sd;
+    let pb = fs::read(&pp).map_err(|source| CliError::Io {
         path: pp.clone(),
         source,
     })?;
-    let gb = fs::read(&gp).map_err(|source| BayesCliError::Io {
+    let gb = fs::read(&gp).map_err(|source| CliError::Io {
         path: gp.clone(),
         source,
     })?;
@@ -165,7 +192,7 @@ pub(super) fn run_continuous(
             mark_loading_prior_sd: loading_sd,
             private_field_prior_sd: private_sd,
         })
-        .map_err(|JointMarkError::Invalid(m)| BayesCliError::Input(m))?;
+        .map_err(|JointMarkError::Invalid(m)| CliError::Input(m))?;
     publish_json(
         &out,
         &ContinuousOutput {

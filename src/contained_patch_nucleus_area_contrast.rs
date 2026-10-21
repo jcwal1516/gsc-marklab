@@ -4,7 +4,7 @@ use marklab_embeddings::{
     CellPatchAssignmentMode, CellPatchLink, VerifiedCellPatchInputArtifactGraph,
     VerifiedCellPatchLinkArtifact,
 };
-use marklab_workflow::{ArtifactId, ContentDigest, MarklabProject};
+use marklab_project::{ArtifactId, ContentDigest, MarklabProject};
 use thiserror::Error;
 
 use crate::{
@@ -129,11 +129,6 @@ impl ContainedPatchBinaryNucleusAreaContrast {
         self.patch_footprints_artifact_id
     }
 
-    /// Exact contained-link producer artifact identity.
-    pub fn cell_patch_producer_artifact_id(&self) -> ArtifactId {
-        self.cell_patch_producer_artifact_id
-    }
-
     /// Exact verified physical assignment-table identity.
     pub fn cell_patch_assignment_artifact_id(&self) -> ArtifactId {
         self.cell_patch_assignment_artifact_id
@@ -151,7 +146,7 @@ pub enum ContainedPatchBinaryNucleusAreaContrastError {
     /// Exact project, provenance, value, identity, or row admission failed.
     #[error(transparent)]
     WholeInputContrast(#[from] DeclaredBinaryGroupNucleusAreaContrastError),
-    /// Declared interpolation is not an admitted patch-local comparison weight.
+    /// Declared interpolation is not a supported patch-local comparison weight.
     #[error("contained-patch binary nucleus-area contrast requires contained-shared assignments")]
     UnsupportedAssignmentMode,
     /// The declared scalar input and cell-patch link name different owning slides.
@@ -166,8 +161,8 @@ pub enum ContainedPatchBinaryNucleusAreaContrastError {
     /// The verified managed input graph does not describe the live link.
     #[error("contained-patch binary nucleus-area graph disagrees with the live link")]
     CellPatchGraphBindingMismatch,
-    /// The paired physical assignment/edge receipt does not describe the live link.
-    #[error("contained-patch binary nucleus-area receipt disagrees with the live link")]
+    /// The paired physical assignment/edge artifacts do not describe the live link.
+    #[error("contained-patch binary nucleus-area link artifacts disagree with the live link")]
     CellPatchReceiptBindingMismatch,
     /// Assignment traversal exceeds the caller maximum.
     #[error("contained-patch binary nucleus-area assignments {required} exceed caller maximum {maximum}")]
@@ -209,7 +204,7 @@ pub enum ContainedPatchBinaryNucleusAreaContrastError {
 /// Compare declared nucleus area by binary group within exact contained patches.
 ///
 /// The declared scalar binding first validates the whole input. This caller then joins those rows
-/// to the existing contained-shared cell-patch graph and physical receipt, sorts incidences in
+/// to the contained-shared cell-patch graph and physical link artifacts, sorts incidences in
 /// canonical patch order, and gives every eligible patch equal descriptive weight. Overlapping
 /// patches repeat exact incidences and are not independent replicates. Runtime is
 /// `O(N + E log E)` with one `E`-element edge-index allocation. The result proves no observation
@@ -219,7 +214,7 @@ pub enum ContainedPatchBinaryNucleusAreaContrastError {
 /// # Errors
 ///
 /// Returns a typed category when declared-input validation fails, assignment mode, slide, ordered CellIds,
-/// graph, or receipt disagree, a caller limit is insufficient, a checked size overflows, or the
+/// graph, or link artifacts disagree, a caller limit is insufficient, a checked size overflows, or the
 /// bounded edge-index allocation fails.
 #[allow(clippy::too_many_arguments)]
 pub fn contained_patch_binary_nucleus_area_contrast(
@@ -228,7 +223,7 @@ pub fn contained_patch_binary_nucleus_area_contrast(
     nucleus_area_mark: NucleusAreaUm2MarkDeclaration,
     link: &CellPatchLink,
     graph: VerifiedCellPatchInputArtifactGraph,
-    receipt: VerifiedCellPatchLinkArtifact,
+    link_artifacts: VerifiedCellPatchLinkArtifact,
     maximum_rows: usize,
     maximum_assignments: usize,
     maximum_edges: usize,
@@ -276,9 +271,9 @@ pub fn contained_patch_binary_nucleus_area_contrast(
     {
         return Err(ContainedPatchBinaryNucleusAreaContrastError::CellPatchGraphBindingMismatch);
     }
-    if receipt.logical_digest() != link.logical_digest()
-        || receipt.assignment_count() != assignment_count_u64
-        || receipt.edge_count() != edge_count_u64
+    if link_artifacts.logical_digest() != link.logical_digest()
+        || link_artifacts.assignment_count() != assignment_count_u64
+        || link_artifacts.edge_count() != edge_count_u64
     {
         return Err(ContainedPatchBinaryNucleusAreaContrastError::CellPatchReceiptBindingMismatch);
     }
@@ -426,8 +421,8 @@ pub fn contained_patch_binary_nucleus_area_contrast(
         patch_context_artifact_id: link.patch_context_artifact_id(),
         patch_footprints_artifact_id: link.patch_footprints_artifact_id(),
         cell_patch_producer_artifact_id: link.producer_artifact_id(),
-        cell_patch_assignment_artifact_id: receipt.assignment_artifact_id(),
-        cell_patch_edge_artifact_id: receipt.edge_artifact_id(),
+        cell_patch_assignment_artifact_id: link_artifacts.assignment_artifact_id(),
+        cell_patch_edge_artifact_id: link_artifacts.edge_artifact_id(),
     })
 }
 

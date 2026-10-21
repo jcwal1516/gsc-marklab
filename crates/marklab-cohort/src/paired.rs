@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use super::{
-    compensated_sum, CohortInferenceError, InferenceDesign, PermutationAlternative,
-    MAXIMUM_PATIENTS, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS, MAXIMUM_PERMUTATIONS,
+    neumaier_sum, CohortInferenceError, InferenceDesign, PermutationAlternative, MAXIMUM_PATIENTS,
+    MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS, MAXIMUM_PERMUTATIONS,
 };
 
 const PAIRED_SIGN_FLIP_NAMESPACE: u64 = 0x7061_6972_5f73_6967;
@@ -61,10 +61,6 @@ pub struct PairedPatientPermutationResult {
     pub p_value: f64,
     /// Requested replicate count.
     pub permutations_requested: usize,
-    /// Attempted replicate count.
-    pub permutations_attempted: usize,
-    /// Successfully completed replicate count.
-    pub permutations_completed: usize,
     /// Base seed.
     pub seed: u64,
     /// Prespecified alternative.
@@ -154,8 +150,6 @@ pub fn paired_patient_permutation_test(
         studentized_statistic: observed.statistic,
         p_value,
         permutations_requested: spec.permutations,
-        permutations_attempted: spec.permutations,
-        permutations_completed: spec.permutations,
         seed: spec.seed,
         alternative: spec.alternative,
     })
@@ -272,7 +266,7 @@ struct StudentizedMean {
 
 fn studentized_mean(values: &[f64]) -> Result<StudentizedMean, CohortInferenceError> {
     let mean = stable_mean(values);
-    let variance = compensated_sum(values.iter().map(|value| {
+    let variance = neumaier_sum(values.iter().map(|value| {
         let centered = value - mean;
         centered * centered
     })) / (values.len() - 1) as f64;
@@ -299,7 +293,7 @@ fn stable_mean(values: &[f64]) -> f64 {
     if scale == 0.0 {
         return 0.0;
     }
-    (compensated_sum(values.iter().map(|value| value / scale)) / values.len() as f64) * scale
+    (neumaier_sum(values.iter().map(|value| value / scale)) / values.len() as f64) * scale
 }
 
 #[cfg(test)]

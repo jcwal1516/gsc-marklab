@@ -1,40 +1,45 @@
 use std::path::PathBuf;
 
 use marklab_bayes::{
-    berman_turner_refinement, sha256_hex, BermanTurnerError, BermanTurnerNode,
+    berman_turner_refinement, json_sha256, BermanTurnerError, BermanTurnerNode,
     BermanTurnerRefinementSpec, BermanTurnerResolution, RectangularWindow,
 };
 use serde::Serialize;
 
+use super::cli_schema::BermanTurnerRefinementArgs;
 use super::{
     inhomogeneous_poisson::{read_events, read_quadrature},
-    publish_json, BayesCliError,
+    publish_json, CliError,
 };
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    events_path: PathBuf,
-    coarse_quadrature_path: PathBuf,
-    fine_quadrature_path: PathBuf,
-    xmin_um: f64,
-    ymin_um: f64,
-    xmax_um: f64,
-    ymax_um: f64,
-    coarse_grid_x: u32,
-    coarse_grid_y: u32,
-    fine_grid_x: u32,
-    fine_grid_y: u32,
-    intercept: f64,
-    coefficient: f64,
-    convergence_tolerance: f64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: BermanTurnerRefinementArgs) -> Result<(), CliError> {
+    let BermanTurnerRefinementArgs {
+        events,
+        coarse_quadrature,
+        fine_quadrature,
+        xmin_um,
+        ymin_um,
+        xmax_um,
+        ymax_um,
+        coarse_grid_x,
+        coarse_grid_y,
+        fine_grid_x,
+        fine_grid_y,
+        intercept,
+        coefficient,
+        convergence_tolerance,
+        out,
+    } = args;
+    let events_path = events;
+    let coarse_quadrature_path = coarse_quadrature;
+    let fine_quadrature_path = fine_quadrature;
+    let output_path = out;
     let events = read_events(&events_path)?;
     let coarse_quadrature = read_quadrature(&coarse_quadrature_path)?;
     let fine_quadrature = read_quadrature(&fine_quadrature_path)?;
-    let events_sha256 = sha256_hex(&serde_json::to_vec(&events)?);
-    let coarse_quadrature_sha256 = sha256_hex(&serde_json::to_vec(&coarse_quadrature)?);
-    let fine_quadrature_sha256 = sha256_hex(&serde_json::to_vec(&fine_quadrature)?);
+    let events_sha256 = json_sha256(&events)?;
+    let coarse_quadrature_sha256 = json_sha256(&coarse_quadrature)?;
+    let fine_quadrature_sha256 = json_sha256(&fine_quadrature)?;
     let result = berman_turner_refinement(BermanTurnerRefinementSpec {
         window: RectangularWindow {
             xmin_um,
@@ -101,10 +106,10 @@ fn resolution(value: &BermanTurnerResolution) -> ResolutionOutput {
     }
 }
 
-fn map_error(error: BermanTurnerError) -> BayesCliError {
+fn map_error(error: BermanTurnerError) -> CliError {
     match error {
-        BermanTurnerError::InvalidInput(message) => BayesCliError::Input(message),
-        BermanTurnerError::Numerical(message) => BayesCliError::Backend(message),
+        BermanTurnerError::InvalidInput(message) => CliError::Input(message),
+        BermanTurnerError::Numerical(message) => CliError::Backend(message),
     }
 }
 

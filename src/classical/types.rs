@@ -1,3 +1,7 @@
+use crate::result_vocabulary::{
+    BoundaryDistanceOwner, DuplicatePointPolicy, PairTraversal, SpatialExecutionMode,
+    WindowCoordinateFrame, WindowCoordinateUnit, WindowMembershipPolicy,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -220,11 +224,11 @@ pub struct HomogeneousKlPoint {
 #[serde(deny_unknown_fields)]
 pub struct ClassicalWindowSummary {
     /// Physical coordinate unit inherited from the supported pattern input.
-    pub coordinate_unit: String,
-    /// Explicit version-one frame label for existing physical x/y pattern coordinates.
-    pub coordinate_frame: String,
+    pub coordinate_unit: WindowCoordinateUnit,
+    /// Version-one frame label for the pattern's physical x/y coordinates.
+    pub coordinate_frame: WindowCoordinateFrame,
     /// Boundary-inclusive membership policy.
-    pub membership_policy: String,
+    pub membership_policy: WindowMembershipPolicy,
     /// Physical window area.
     pub area_um2: f64,
     /// Total boundary length.
@@ -260,13 +264,13 @@ pub struct ClassicalGeometrySummary {
     /// Exact point/window plan identity.
     pub logical_digest: String,
     /// Execution is always exact in version one.
-    pub execution_mode: String,
+    pub execution_mode: SpatialExecutionMode,
     /// Duplicate-coordinate policy.
-    pub duplicate_policy: String,
+    pub duplicate_policy: DuplicatePointPolicy,
     /// Owner of exact boundary-distance queries.
-    pub boundary_distance_owner: String,
+    pub boundary_distance_owner: BoundaryDistanceOwner,
     /// Exact pair traversal mode.
-    pub pair_traversal: String,
+    pub pair_traversal: PairTraversal,
 }
 
 /// Configuration identity and exact resource policy embedded in every result.
@@ -397,13 +401,13 @@ pub enum ClassicalSpatialError {
     /// Exact observation-window construction or query failed.
     #[error(transparent)]
     Window(#[from] ObservationWindowError),
-    /// Existing geometry substrate failed.
+    /// Geometry construction failed.
     #[error("classical geometry failed: {reason}")]
     Geometry {
         /// Redacted reason.
         reason: String,
     },
-    /// Existing ERL inference rejected the curve family.
+    /// ERL inference rejected the curve family.
     #[error("classical global inference failed: {reason}")]
     Inference {
         /// Redacted reason.

@@ -1,20 +1,21 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::common::summation::kahan_add;
+use marklab_numerics::summation::NeumaierSum;
 
 use crate::{
-    classical::SpatialGeometryPlan2D, compartment_interface::analysis::measurement_status_name,
-    ClassicalSpatialLimits, DeclaredScalarPatternInput, ObservationWindow2D, ScalarMarkId,
-    SoftNeighborhoodCompositionRow,
+    classical::SpatialGeometryPlan2D,
+    marks::{DeclaredScalarPatternInput, ScalarMarkId, SoftNeighborhoodCompositionRow},
+    spatial::ClassicalSpatialLimits,
+    ObservationWindow2D,
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 /// Hard resource ceilings for one prespecified multiscale soft-neighborhood analysis.
 pub struct SoftMultiscaleNeighborhoodLimits {
-    /// Maximum admitted cell rows.
+    /// Maximum accepted cell rows.
     pub maximum_points: usize,
     /// Maximum ordered simplex classes.
     pub maximum_classes: usize,
@@ -129,7 +130,8 @@ pub struct SoftMultiscaleNeighborhoodResult {
     /// Probability-simplex mark identifier.
     pub mark_id: String,
     /// Declared measurement status for the simplex column.
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     /// Physical coordinate-frame identifier.
     pub coordinate_frame_id: String,
     /// Exact observation-window identity.
@@ -138,8 +140,6 @@ pub struct SoftMultiscaleNeighborhoodResult {
     pub class_ids: Vec<String>,
     /// Exact input, radius-list, and resource-policy identity.
     pub configuration_digest: String,
-    /// Number of canonical geometry plans built for all scales; always one.
-    pub geometry_build_count: usize,
     /// Directed neighbor incidences summed across all scales.
     pub total_directed_pair_visits: usize,
     /// One result per caller-supplied radius, in the same order.
@@ -315,12 +315,11 @@ pub fn soft_multiscale_neighborhood_composition(
         case_id: input.pattern().meta.case_id.clone(),
         timepoint: input.pattern().meta.timepoint.clone(),
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(status).into(),
+        measurement_status: status,
         coordinate_frame_id: input.coordinate_frame_id().as_str().into(),
         window_digest: window.descriptor().logical_digest.to_string(),
         class_ids: levels.to_vec(),
         configuration_digest: configuration_digest.to_string(),
-        geometry_build_count: 1,
         total_directed_pair_visits: total_visits,
         scales,
         adjacent_scale_total_variation_distance,
@@ -343,8 +342,7 @@ fn evaluate_scale(
     let mut rows = Vec::new();
     rows.try_reserve_exact(input.pattern().len())
         .map_err(|_| SoftMultiscaleNeighborhoodError::AllocationFailed)?;
-    let mut mass = vec![0.0; classes];
-    let mut mass_correction = vec![0.0; classes];
+    let mut mass = vec![NeumaierSum::new(); classes];
     let mut visits = 0_usize;
     let mut zeros = 0_usize;
     for source in 0..input.pattern().len() {
@@ -370,20 +368,18 @@ fn evaluate_scale(
                 .ok_or(SoftMultiscaleNeighborhoodError::SizeOverflow)?;
             None
         } else {
-            let mut sums = vec![0.0; classes];
-            let mut corrections = vec![0.0; classes];
+            let mut sums = vec![NeumaierSum::new(); classes];
             for neighbor in &neighbors {
                 let start = neighbor.index * classes;
                 for class in 0..classes {
                     let value = f64::from(values[start + class]);
-                    kahan_add(&mut sums[class], &mut corrections[class], value);
-                    kahan_add(&mut mass[class], &mut mass_correction[class], value);
+                    sums[class].add(value);
+                    mass[class].add(value);
                 }
             }
             Some(
                 sums.into_iter()
-                    .zip(corrections)
-                    .map(|(sum, correction)| (sum + correction) / neighbors.len() as f64)
+                    .map(|sum| sum.total() / neighbors.len() as f64)
                     .collect(),
             )
         };
@@ -399,8 +395,7 @@ fn evaluate_scale(
     } else {
         Some(
             mass.into_iter()
-                .zip(mass_correction)
-                .map(|(sum, correction)| (sum + correction) / visits as f64)
+                .map(|sum| sum.total() / visits as f64)
                 .collect(),
         )
     };
@@ -479,7 +474,7 @@ pub enum SoftMultiscaleNeighborhoodError {
     /// The requested probability-simplex column was absent.
     #[error("typed probability-simplex column is missing")]
     MissingProbabilitySimplex,
-    /// The admitted pattern contained no cell rows.
+    /// The validated pattern contained no cell rows.
     #[error("soft multiscale neighborhood requires at least one row")]
     EmptyInput,
     /// The pattern and window use different coordinate frames.

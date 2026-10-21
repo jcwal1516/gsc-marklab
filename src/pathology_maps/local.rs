@@ -1,13 +1,16 @@
 use crate::{
-    local_multivariate_moran_permutation, LocalMultivariateMoranLimits,
-    LocalMultivariateMoranPoint, Result,
+    autocorrelation::{
+        local_multivariate_moran_permutation, LocalMultivariateMoranLimits,
+        LocalMultivariateMoranPoint,
+    },
+    Result,
 };
 
 use super::{
-    admission::Geometry,
     charge,
     input::{Recipe, Slide},
     invalid,
+    preparation::Geometry,
     result::{LocalMap, LocalRow},
 };
 
@@ -132,7 +135,7 @@ pub(super) fn analyze(
         result.permutation_edge_evaluations,
         "local permutation",
     )?;
-    map.permutations_completed = result.permutations_completed;
+    map.permutations_completed = result.permutations_requested;
     for ((index, value), location) in selected.iter().zip(&residuals).zip(result.locations) {
         let z = (value - result.feature_means[0]) / result.feature_standard_deviations[0];
         let lag = if z == 0.0 {

@@ -1,5 +1,6 @@
-use crate::validation::is_lower_hex_sha256 as is_sha;
+use crate::validation::is_sha256 as is_sha;
 
+use marklab_core::backend::ModelMaturity;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use thiserror::Error;
@@ -34,6 +35,16 @@ impl ReplicatedFieldPolicy {
         }
     }
 }
+/// Validated hierarchy descriptor for replicated log-Gaussian Cox-process patterns.
+///
+/// The builder records pattern-to-patient membership, independent-replicate or shared-plus-
+/// replicate field policy, fixed spatial-kernel parameters, and global/patient prior scales.
+/// It combines metadata and input bindings, not fitted likelihood terms. The resulting
+/// `experimental_model_construction` document has no current Python fitting consumer, so
+/// these prior and field declarations are not sampled or calibrated by this constructor. The
+/// separately implemented arbitrary-window replicated LGCP workers use different request
+/// contracts.
+///
 #[derive(Clone, Debug)]
 pub struct ReplicatedLgcpSpec {
     pub patterns: Vec<ReplicatedLgcpPattern>,
@@ -69,7 +80,7 @@ pub struct ReplicatedLgcpModelIr {
     pub likelihood: &'static str,
     pub pattern_combination: &'static str,
     pub generated_quantities: [&'static str; 3],
-    pub maturity: &'static str,
+    pub maturity: ModelMaturity,
 }
 #[derive(Debug, Serialize)]
 pub struct ReplicatedLgcpModel {
@@ -150,7 +161,7 @@ pub fn replicated_hierarchical_lgcp(
                 "patient_intensity",
                 "replicate_intensity",
             ],
-            maturity: "experimental_model_construction",
+            maturity: ModelMaturity::ExperimentalModelConstruction,
         },
         patient_count: per.len() as u32,
         pattern_count: s.patterns.len() as u32,

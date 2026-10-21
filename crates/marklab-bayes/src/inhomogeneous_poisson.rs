@@ -1,13 +1,6 @@
+pub use marklab_data::RectangularWindow;
 use serde::Serialize;
 use thiserror::Error;
-
-#[derive(Clone, Copy, Debug, Serialize)]
-pub struct RectangularWindow {
-    pub xmin_um: f64,
-    pub ymin_um: f64,
-    pub xmax_um: f64,
-    pub ymax_um: f64,
-}
 
 #[derive(Clone, Debug, Serialize)]
 pub struct InhomogeneousPoissonEvent {

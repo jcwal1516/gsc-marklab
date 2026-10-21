@@ -28,6 +28,13 @@ fn default_config_matches_the_supported_v02_controls() {
 }
 
 #[test]
+fn readme_example_config_parses() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/config.toml");
+    AnalysisConfig::from_toml_path(path)
+        .unwrap_or_else(|error| panic!("examples/config.toml no longer parses: {error}"));
+}
+
+#[test]
 fn config_rejects_removed_keys_without_aliases() {
     for old_key in [
         "[analysis]\nphenotype_name = \"legacy\"",

@@ -3,7 +3,7 @@
 use std::{fs, path::Path};
 
 use assert_cmd::Command;
-use marklab::ClassicalSpatialResultDocument;
+use marklab::spatial::ClassicalSpatialResultDocument;
 
 fn write_window(path: &Path) {
     fs::write(
@@ -153,7 +153,7 @@ fn classical_cli_preserves_typed_empty_and_singleton_results() {
         assert_eq!(document.analysis().geometry.point_count, expected_count);
         assert_eq!(
             document.analysis().status,
-            marklab::ClassicalSpatialStatus::InsufficientPoints
+            marklab::spatial::ClassicalSpatialStatus::InsufficientPoints
         );
         assert!(document.analysis().inference.is_none());
     }

@@ -1,14 +1,16 @@
+use crate::is_worker_timeout;
 use crate::validation::all_finite as finite;
-use crate::validation::is_lower_hex_sha256 as is_sha256;
-
-use std::collections::BTreeSet;
+use crate::validation::is_sha256;
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::sbc::{validate_sbc_replicates, SbcCalibration, SbcReplicateRow, SbcSamplerRow};
+use crate::ClaimStatus;
 use crate::{
     hierarchical_agreement::{JAX_VERSION, NUMPYRO_VERSION},
     BackendContract, BayesError, FitState, GriddedLgcpFitModelIr, GriddedLgcpFitWorkerRequest,
-    NutsSamplingSpec, WorkerBackend,
+    NutsSamplingSpec, SbcParameterDiagnostics, WorkerBackend,
 };
 
 const REQUEST_FORMAT: &str = "marklab.numpyro_gridded_lgcp_sbc_worker_request";
@@ -23,6 +25,19 @@ pub struct GriddedLgcpSbcCalibrationPolicy {
     pub minimum_rank_uniformity_p_value: f64,
     pub minimum_coverage: f64,
     pub maximum_coverage: f64,
+}
+
+impl SbcCalibration for GriddedLgcpSbcCalibrationPolicy {
+    fn replicates(&self) -> u32 {
+        self.replicates
+    }
+    fn rank_bins(&self) -> u32 {
+        self.rank_bins
+    }
+    fn passes(&self, diagnostic: &SbcParameterDiagnostics) -> bool {
+        diagnostic.rank_uniformity_p_value >= self.minimum_rank_uniformity_p_value
+            && (self.minimum_coverage..=self.maximum_coverage).contains(&diagnostic.coverage_90)
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -68,7 +83,7 @@ impl NumpyroGriddedLgcpSbcWorkerRequest {
             || minimum_coverage > maximum_coverage
             || !is_sha256(&environment_lock_sha256)
             || !is_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "gridded LGCP SBC controls or identities are invalid".into(),
@@ -96,14 +111,14 @@ impl NumpyroGriddedLgcpSbcWorkerRequest {
                 "gridded LGCP SBC exceeds its simulation or iteration limit".into(),
             ));
         }
-        let source_request_sha256 = crate::sha256_hex(&serde_json::to_vec(&source_request)?);
+        let source_request_sha256 = crate::json_sha256(&source_request)?;
         Ok(Self {
             format: REQUEST_FORMAT,
             version: 1,
             backend: BackendContract {
                 name: "numpyro",
                 version: NUMPYRO_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -151,6 +166,36 @@ pub struct GriddedLgcpSbcReplicate {
     pub max_tree_depth_hits: u64,
 }
 
+impl SbcReplicateRow for GriddedLgcpSbcReplicate {
+    fn replicate(&self) -> u32 {
+        self.replicate
+    }
+    fn ranks(&self) -> Vec<(u32, bool)> {
+        vec![
+            (self.intercept_rank, self.intercept_covered),
+            (self.coefficient_rank, self.coefficient_covered),
+            (self.latent_cell_rank, self.latent_cell_covered),
+        ]
+    }
+    fn truths_valid(&self) -> bool {
+        finite(&[
+            self.true_intercept,
+            self.true_coefficient,
+            self.true_latent_cell,
+        ])
+    }
+    fn sampler(&self) -> SbcSamplerRow {
+        SbcSamplerRow {
+            r_hat: self.r_hat,
+            ess_bulk: self.ess_bulk,
+            ess_tail: self.ess_tail,
+            minimum_ebfmi: Some(self.minimum_ebfmi),
+            divergences: self.divergences,
+            max_tree_depth_hits: self.max_tree_depth_hits,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GriddedLgcpSbcFailure {
@@ -158,21 +203,21 @@ pub struct GriddedLgcpSbcFailure {
     pub reason: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct GriddedLgcpSbcParameterDiagnostics {
-    pub rank_histogram: Vec<u32>,
-    pub rank_uniformity_p_value: f64,
-    pub coverage_90: f64,
-    pub mean_normalized_rank: f64,
+impl crate::sbc::SbcFailureRow for GriddedLgcpSbcFailure {
+    fn replicate(&self) -> u32 {
+        self.replicate
+    }
+    fn reason(&self) -> &str {
+        &self.reason
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GriddedLgcpSbcDiagnostics {
-    pub intercept: GriddedLgcpSbcParameterDiagnostics,
-    pub coefficient: GriddedLgcpSbcParameterDiagnostics,
-    pub latent_cell: GriddedLgcpSbcParameterDiagnostics,
+    pub intercept: SbcParameterDiagnostics,
+    pub coefficient: SbcParameterDiagnostics,
+    pub latent_cell: SbcParameterDiagnostics,
 }
 
 #[derive(Debug, Deserialize)]
@@ -197,11 +242,7 @@ impl NumpyroGriddedLgcpSbcWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != RESULT_FORMAT
             || self.version != 1
-            || self.backend.name != request.backend.name
-            || self.backend.version != request.backend.version
-            || self.backend.python_version != request.backend.python_version
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.jax_version != JAX_VERSION
             || self.request_sha256 != request_sha256
             || self.replicates.len() + self.failures.len()
@@ -213,89 +254,20 @@ impl NumpyroGriddedLgcpSbcWorkerResult {
         }
         let posterior_draws = request.source_request.sampling.chains
             * request.source_request.sampling.draws_per_chain;
-        let mut dispositions = BTreeSet::new();
-        for replicate in &self.replicates {
-            if replicate.replicate >= request.calibration.replicates
-                || !dispositions.insert(replicate.replicate)
-                || replicate.intercept_rank > posterior_draws
-                || replicate.coefficient_rank > posterior_draws
-                || replicate.latent_cell_rank > posterior_draws
-                || !finite(&[
-                    replicate.true_intercept,
-                    replicate.true_coefficient,
-                    replicate.true_latent_cell,
-                    replicate.r_hat,
-                    replicate.ess_bulk,
-                    replicate.ess_tail,
-                    replicate.minimum_ebfmi,
-                ])
-                || replicate.r_hat <= 0.0
-                || replicate.ess_bulk <= 0.0
-                || replicate.ess_tail <= 0.0
-                || replicate.minimum_ebfmi < 0.0
-            {
-                return Err(BayesError::WorkerContract(
-                    "gridded LGCP SBC replicate is invalid".into(),
-                ));
-            }
-        }
-        for failure in &self.failures {
-            if failure.replicate >= request.calibration.replicates
-                || !dispositions.insert(failure.replicate)
-                || failure.reason.is_empty()
-                || failure.reason.len() > 512
-            {
-                return Err(BayesError::WorkerContract(
-                    "gridded LGCP SBC failure disposition is invalid".into(),
-                ));
-            }
-        }
-        if dispositions.len() != request.calibration.replicates as usize {
-            return Err(BayesError::WorkerContract(
-                "gridded LGCP SBC lacks complete replicate disposition".into(),
-            ));
-        }
-        let diagnostics = [
-            &self.diagnostics.intercept,
-            &self.diagnostics.coefficient,
-            &self.diagnostics.latent_cell,
-        ];
-        for diagnostic in diagnostics {
-            if diagnostic.rank_histogram.len() != request.calibration.rank_bins as usize
-                || diagnostic.rank_histogram.iter().sum::<u32>() != self.replicates.len() as u32
-                || !finite(&[
-                    diagnostic.rank_uniformity_p_value,
-                    diagnostic.coverage_90,
-                    diagnostic.mean_normalized_rank,
-                ])
-                || !(0.0..=1.0).contains(&diagnostic.rank_uniformity_p_value)
-                || !(0.0..=1.0).contains(&diagnostic.coverage_90)
-                || !(0.0..=1.0).contains(&diagnostic.mean_normalized_rank)
-            {
-                return Err(BayesError::WorkerContract(
-                    "gridded LGCP SBC aggregate diagnostics are invalid".into(),
-                ));
-            }
-        }
-        let passes = self.failures.is_empty()
-            && [
+        validate_sbc_replicates(
+            &self.replicates,
+            &self.failures,
+            &[
                 &self.diagnostics.intercept,
                 &self.diagnostics.coefficient,
                 &self.diagnostics.latent_cell,
-            ]
-            .into_iter()
-            .all(|diagnostic| {
-                diagnostic.rank_uniformity_p_value
-                    >= request.calibration.minimum_rank_uniformity_p_value
-                    && (request.calibration.minimum_coverage..=request.calibration.maximum_coverage)
-                        .contains(&diagnostic.coverage_90)
-            });
-        if (self.fit_state == FitState::Complete) != passes {
-            return Err(BayesError::WorkerContract(
-                "gridded LGCP SBC fit state disagrees with calibration gates".into(),
-            ));
-        }
-        Ok(())
+            ],
+            &request.calibration,
+            posterior_draws,
+            &request.source_request.diagnostic_policy,
+            self.fit_state,
+        )
+        .map_err(|violation| violation.error("gridded LGCP"))
     }
 
     pub fn into_result(self, request: NumpyroGriddedLgcpSbcWorkerRequest) -> GriddedLgcpSbcResult {
@@ -314,9 +286,9 @@ impl NumpyroGriddedLgcpSbcWorkerResult {
             failures: self.failures,
             diagnostics: self.diagnostics,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_simulation_calibration"
+                ClaimStatus::ExperimentalSimulationCalibration
             } else {
-                "diagnostic_only_failed_calibration"
+                ClaimStatus::DiagnosticOnlyFailedCalibration
             },
             request_sha256: self.request_sha256,
         }
@@ -338,6 +310,6 @@ pub struct GriddedLgcpSbcResult {
     pub replicates: Vec<GriddedLgcpSbcReplicate>,
     pub failures: Vec<GriddedLgcpSbcFailure>,
     pub diagnostics: GriddedLgcpSbcDiagnostics,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }

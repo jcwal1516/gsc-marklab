@@ -1,10 +1,14 @@
 use std::str::FromStr;
 
 use marklab::{
-    ArtifactId, ContentDigest, MeasurementStatus, MultiscaleArtifactBinding,
-    MultiscaleDirectPatchInputArtifacts, MultiscaleDirectPatchModelProvenance,
-    MultiscaleEmbeddingDerivationContract, MultiscaleEmbeddingExecutionProvenance,
-    MultiscaleEmbeddingProvenance, MultiscaleEmbeddingSupport, SlideId,
+    embeddings::{
+        MultiscaleArtifactBinding, MultiscaleDirectPatchInputArtifacts,
+        MultiscaleDirectPatchModelProvenance, MultiscaleEmbeddingDerivationContract,
+        MultiscaleEmbeddingExecutionProvenance, MultiscaleEmbeddingProvenance,
+        MultiscaleEmbeddingSupport,
+    },
+    workflow::{ArtifactId, ContentDigest},
+    MeasurementStatus, SlideId,
 };
 
 const BUDGET: usize = 1 << 20;

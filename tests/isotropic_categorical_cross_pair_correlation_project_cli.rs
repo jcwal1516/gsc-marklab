@@ -72,6 +72,10 @@ s:3,3,0,0,c,baseline,cellvit,true,true,s,Stroma\n").expect("cells");
         .success()
         .stderr(predicates::str::contains("cache_status=hit"));
     assert_eq!(fs::read(&first).unwrap(), fs::read(&second).unwrap());
+    assert_eq!(
+        fs::read(&first).unwrap(),
+        include_bytes!("fixtures/edge_estimators/isotropic_cross_g.json")
+    );
     let value: serde_json::Value = serde_json::from_slice(&fs::read(first).unwrap()).expect("JSON");
     assert_eq!(value["edge_correction"], "isotropic");
     assert_eq!(

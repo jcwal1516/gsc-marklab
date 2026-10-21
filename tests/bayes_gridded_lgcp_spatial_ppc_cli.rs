@@ -103,26 +103,68 @@ fn gridded_lgcp_reports_spatial_cell_dispersion_and_neighbor_contrast() {
     assert_eq!(result["fit_state"], "complete");
     assert_eq!(result["replicate_count"], 20);
     assert_eq!(result["neighbor_pair_count"], 4);
-    for name in ["cell_count_variance", "adjacent_mean_absolute_difference"] {
+    let patterns = result["prediction"]["patterns"]
+        .as_array()
+        .expect("patterns");
+    assert_eq!(patterns.len(), 20);
+    let replicated: Vec<[f64; 2]> = patterns
+        .iter()
+        .map(|pattern| {
+            let cells = pattern["cell_counts"].as_array().expect("counts");
+            assert_eq!(cells.len(), 4);
+            let c: Vec<f64> = cells
+                .iter()
+                .map(|value| value.as_u64().unwrap() as f64)
+                .collect();
+            // For four cells, population variance is the sum of all six squared
+            // pair differences divided by 16, independently of the mean-based calculation.
+            let variance = ((c[0] - c[1]).powi(2)
+                + (c[0] - c[2]).powi(2)
+                + (c[0] - c[3]).powi(2)
+                + (c[1] - c[2]).powi(2)
+                + (c[1] - c[3]).powi(2)
+                + (c[2] - c[3]).powi(2))
+                / 16.0;
+            let contrast = ((c[0] - c[1]).abs()
+                + (c[0] - c[2]).abs()
+                + (c[1] - c[3]).abs()
+                + (c[2] - c[3]).abs())
+                / 4.0;
+            [variance, contrast]
+        })
+        .collect();
+    for (index, (name, observed)) in [
+        ("cell_count_variance", 7.5),
+        ("adjacent_mean_absolute_difference", 3.5),
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let summary = &result["summaries"][name];
-        assert!(summary["observed"].as_f64().expect("observed").is_finite());
-        assert!(summary["replicated_mean"]
-            .as_f64()
-            .expect("replicated")
-            .is_finite());
-        assert!((0.0..=1.0).contains(
-            &summary["probability_replicated_at_least_observed"]
-                .as_f64()
-                .expect("tail")
-        ));
+        let mean = replicated.iter().map(|row| row[index]).sum::<f64>() / 20.0;
+        let sd = (replicated
+            .iter()
+            .map(|row| (row[index] - mean).powi(2))
+            .sum::<f64>()
+            / 19.0)
+            .sqrt();
+        let probability = replicated
+            .iter()
+            .filter(|row| row[index] >= observed)
+            .count() as f64
+            / 20.0;
+        for (field, expected) in [
+            ("observed", observed),
+            ("replicated_mean", mean),
+            ("replicated_sd", sd),
+            ("probability_replicated_at_least_observed", probability),
+        ] {
+            assert!(
+                (summary[field].as_f64().unwrap() - expected).abs() < 1e-12,
+                "{name}, {field}"
+            );
+        }
     }
-    assert_eq!(
-        result["prediction"]["patterns"]
-            .as_array()
-            .expect("patterns")
-            .len(),
-        20
-    );
     assert_eq!(
         result["claim_status"],
         "experimental_discretized_spatial_posterior_predictive"

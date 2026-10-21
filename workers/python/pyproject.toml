@@ -1,5 +1,5 @@
 [project]
-name = "marklab-pymc-worker"
+name = "marklab-python-workers"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
 dependencies = [
@@ -17,3 +17,17 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# Workers run as `python -P`, so they must extend sys.path before importing the support package.
+"marklab_*.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["marklab_worker_support"]

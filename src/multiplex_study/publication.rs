@@ -1,13 +1,14 @@
+use super::model::Availability;
 use std::{fmt::Write as _, fs, path::Path};
 
 use marklab_policy::Maturity;
 
 use super::model::MultiplexStudyResult;
-use crate::{output::OutputTransaction, ContentDigest, MarklabError, Result};
+use crate::{output::OutputTransaction, workflow::ContentDigest, MarklabError, Result};
 
 /// Atomically publish the scientific JSON, claim-bounded Markdown report and content manifest.
 ///
-/// Uses the existing output transaction: a nonempty destination is never overwritten. Partial
+/// Uses the output transaction: a nonempty destination is never overwritten. Partial
 /// study invocations have no result to publish. This does not promote the result's evidence.
 pub fn publish_multiplex_study(result: &MultiplexStudyResult, output: &Path) -> Result<()> {
     result.validate_claim_state()?;
@@ -49,7 +50,7 @@ fn report(result: &MultiplexStudyResult) -> String {
     text.push_str("The inference unit is the patient. Each patient's slides receive equal weight; patients receive equal weight in the prespecified group comparison.\n\n");
     writeln!(text, "Radius: {} µm. Weight policy: `{}`. The selected channel family contains {} Moran/Geary endpoints.\n", result.design.radius_um, result.design.weight_policy, result.endpoint_names.len()).expect("String write");
     text.push_str("**Missingness:** each channel uses its observed-cell subgraph. This conditions the spatial estimand on availability; it does not establish missing-at-random sampling. A required unavailable slide endpoint blocks complete-family patient inference.\n\n");
-    if result.inference.status == "available" {
+    if result.inference.status == Availability::Available {
         text.push_str("## Patient comparison\n\nEffects are the declared group A minus group B. P-values use whole-patient, single-step Max-T adjustment over the complete endpoint family.\n\n| Endpoint | Mean difference | Adjusted p-value |\n|---|---:|---:|\n");
         for endpoint in &result.inference.endpoints {
             // Channel identifiers obey ScalarMarkId's bounded token grammar.

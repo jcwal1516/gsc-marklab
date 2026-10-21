@@ -13,14 +13,14 @@ use adversarial_support::{
     rewrite_parquet_footer, swapped_arrow_columns, trusted_parquet_metadata,
 };
 use arrow::ipc::reader::FileReader;
-use marklab::{
+use marklab::embeddings::{
     preflight_cell_patch_assignment_table_arrow_bytes,
     preflight_cell_patch_assignment_table_parquet_bytes,
     preflight_cell_patch_edge_table_arrow_bytes, preflight_cell_patch_edge_table_parquet_bytes,
     write_cell_patch_assignment_table_arrow, write_cell_patch_assignment_table_parquet,
-    write_cell_patch_edge_table_arrow, write_cell_patch_edge_table_parquet,
-    CellPatchAssignmentMode, CellPatchLink, EmbeddingColumnarBudgets, MultiscaleColumnarError,
-    SpatialArrowFailure, SpatialParquetFailure,
+    write_cell_patch_edge_table_arrow, write_cell_patch_edge_table_parquet, ArrowIpcFailure,
+    CellPatchAssignmentMode, CellPatchLink, ColumnarError, EmbeddingColumnarBudgets,
+    ParquetFailure,
 };
 use parquet::format::{CompressionCodec, Encoding, Statistics};
 use support::{cell_patch_fixture, CellPatchFixtureMode};
@@ -242,8 +242,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
                 &fixture.link,
                 budgets(),
             ),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidFieldNodes,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidFieldNodes,
             })
         ));
 
@@ -256,8 +256,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
                 &fixture.link,
                 budgets(),
             ),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidBuffers,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidBuffers,
             })
         ));
 
@@ -271,8 +271,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
             wrong_nulls[node + 8..node + 16].copy_from_slice(&wrong.to_le_bytes());
             assert!(matches!(
                 preflight_cell_patch_edge_table_arrow_bytes(&wrong_nulls, &fixture.link, budgets(),),
-                Err(MultiscaleColumnarError::Arrow {
-                    reason: SpatialArrowFailure::InvalidFieldNodes,
+                Err(ColumnarError::Arrow {
+                    reason: ArrowIpcFailure::InvalidFieldNodes,
                 })
             ));
         }
@@ -289,8 +289,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
                     &fixture.link,
                     budgets(),
                 ),
-                Err(MultiscaleColumnarError::Arrow {
-                    reason: SpatialArrowFailure::InvalidBuffers,
+                Err(ColumnarError::Arrow {
+                    reason: ArrowIpcFailure::InvalidBuffers,
                 })
             ));
         }
@@ -305,8 +305,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
                         &fixture.link,
                         budgets(),
                     ),
-                    Err(MultiscaleColumnarError::Arrow {
-                        reason: SpatialArrowFailure::InvalidCanonicalRows,
+                    Err(ColumnarError::Arrow {
+                        reason: ArrowIpcFailure::InvalidCanonicalRows,
                     })
                 ));
             }
@@ -321,8 +321,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
                 &fixture.link,
                 budgets(),
             ),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidBuffers,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidBuffers,
             })
         ));
 
@@ -335,8 +335,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
                 &fixture.link,
                 budgets(),
             ),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidCanonicalRows,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidCanonicalRows,
             })
         ));
         let mut wrong_assignment_row = edges.clone();
@@ -348,8 +348,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
                 &fixture.link,
                 budgets(),
             ),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidCanonicalRows,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidCanonicalRows,
             })
         ));
 
@@ -365,8 +365,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
                 &fixture.link,
                 budgets(),
             ),
-            Err(MultiscaleColumnarError::Arrow {
-                reason: SpatialArrowFailure::InvalidCanonicalRows,
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidCanonicalRows,
             })
         ));
 
@@ -393,8 +393,8 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
             };
             assert!(matches!(
                 error,
-                Err(MultiscaleColumnarError::Arrow {
-                    reason: SpatialArrowFailure::InvalidCanonicalRows,
+                Err(ColumnarError::Arrow {
+                    reason: ArrowIpcFailure::InvalidCanonicalRows,
                 })
             ));
         }
@@ -414,8 +414,8 @@ fn cell_patch_arrow_preflight_rejects_metadata_and_message_bounds() {
         .copy_from_slice(&(-1_i32).to_le_bytes());
     assert!(matches!(
         preflight_cell_patch_edge_table_arrow_bytes(&bad_footer_length, &fixture.link, budgets(),),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidFooterLength,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidFooterLength,
         })
     ));
 
@@ -425,8 +425,8 @@ fn cell_patch_arrow_preflight_rejects_metadata_and_message_bounds() {
             &fixture.link,
             budgets(),
         ),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidSchema,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidSchema,
         })
     ));
 
@@ -435,8 +435,8 @@ fn cell_patch_arrow_preflight_rejects_metadata_and_message_bounds() {
     oversized_message[block + 8..block + 12].copy_from_slice(&(128 * 1024_i32).to_le_bytes());
     assert!(matches!(
         preflight_cell_patch_edge_table_arrow_bytes(&oversized_message, &fixture.link, budgets()),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidBlock,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidBlock,
         })
     ));
 
@@ -455,8 +455,8 @@ fn cell_patch_arrow_preflight_rejects_metadata_and_message_bounds() {
     }
     assert!(matches!(
         preflight_cell_patch_edge_table_arrow_bytes(&wrong_metadata, &fixture.link, budgets()),
-        Err(MultiscaleColumnarError::Arrow {
-            reason: SpatialArrowFailure::InvalidApplicationMetadata,
+        Err(ColumnarError::Arrow {
+            reason: ArrowIpcFailure::InvalidApplicationMetadata,
         })
     ));
 }
@@ -491,8 +491,8 @@ fn cell_patch_parquet_preflight_rejects_levels_null_counts_and_rows() {
                     &fixture.link,
                     budgets(),
                 ),
-                Err(MultiscaleColumnarError::Parquet {
-                    reason: SpatialParquetFailure::InvalidPage,
+                Err(ColumnarError::Parquet {
+                    reason: ParquetFailure::InvalidPage,
                 })
             ));
 
@@ -504,8 +504,8 @@ fn cell_patch_parquet_preflight_rejects_levels_null_counts_and_rows() {
                     &fixture.link,
                     budgets(),
                 ),
-                Err(MultiscaleColumnarError::Parquet {
-                    reason: SpatialParquetFailure::InvalidPage,
+                Err(ColumnarError::Parquet {
+                    reason: ParquetFailure::InvalidPage,
                 })
             ));
         }
@@ -533,8 +533,8 @@ fn cell_patch_parquet_preflight_rejects_levels_null_counts_and_rows() {
             };
             assert!(matches!(
                 error,
-                Err(MultiscaleColumnarError::Parquet {
-                    reason: SpatialParquetFailure::InvalidCanonicalRows,
+                Err(ColumnarError::Parquet {
+                    reason: ParquetFailure::InvalidCanonicalRows,
                 })
             ));
         }
@@ -551,8 +551,8 @@ fn cell_patch_parquet_preflight_rejects_levels_null_counts_and_rows() {
                 &fixture.link,
                 budgets(),
             ),
-            Err(MultiscaleColumnarError::Parquet {
-                reason: SpatialParquetFailure::InvalidCanonicalRows,
+            Err(ColumnarError::Parquet {
+                reason: ParquetFailure::InvalidCanonicalRows,
             })
         ));
 
@@ -567,8 +567,8 @@ fn cell_patch_parquet_preflight_rejects_levels_null_counts_and_rows() {
                 &fixture.link,
                 budgets(),
             ),
-            Err(MultiscaleColumnarError::Parquet {
-                reason: SpatialParquetFailure::InvalidCanonicalRows,
+            Err(ColumnarError::Parquet {
+                reason: ParquetFailure::InvalidCanonicalRows,
             })
         ));
 
@@ -584,8 +584,8 @@ fn cell_patch_parquet_preflight_rejects_levels_null_counts_and_rows() {
                 &fixture.link,
                 budgets(),
             ),
-            Err(MultiscaleColumnarError::Parquet {
-                reason: SpatialParquetFailure::InvalidCanonicalRows,
+            Err(ColumnarError::Parquet {
+                reason: ParquetFailure::InvalidCanonicalRows,
             })
         ));
     }
@@ -602,8 +602,8 @@ fn cell_patch_parquet_preflight_rejects_schema_metadata_and_forbidden_features()
     bad_magic[0] = 0;
     assert!(matches!(
         preflight_cell_patch_edge_table_parquet_bytes(&bad_magic, &fixture.link, budgets()),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidMagic,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidMagic,
         })
     ));
 
@@ -613,8 +613,8 @@ fn cell_patch_parquet_preflight_rejects_schema_metadata_and_forbidden_features()
         .copy_from_slice(&(1024 * 1024_u32 + 1).to_le_bytes());
     assert!(matches!(
         preflight_cell_patch_edge_table_parquet_bytes(&oversized_footer, &fixture.link, budgets(),),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidFooterLength,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidFooterLength,
         })
     ));
 
@@ -623,8 +623,8 @@ fn cell_patch_parquet_preflight_rejects_schema_metadata_and_forbidden_features()
     });
     assert!(matches!(
         preflight_cell_patch_edge_table_parquet_bytes(&wrong_schema, &fixture.link, budgets()),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidSchema,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidSchema,
         })
     ));
 
@@ -634,8 +634,8 @@ fn cell_patch_parquet_preflight_rejects_schema_metadata_and_forbidden_features()
     });
     assert!(matches!(
         preflight_cell_patch_edge_table_parquet_bytes(&wrong_metadata, &fixture.link, budgets()),
-        Err(MultiscaleColumnarError::Parquet {
-            reason: SpatialParquetFailure::InvalidMetadata,
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidMetadata,
         })
     ));
 
@@ -682,16 +682,15 @@ fn cell_patch_parquet_preflight_rejects_schema_metadata_and_forbidden_features()
         let rejected = if index == 1 {
             matches!(
                 &observed,
-                Err(MultiscaleColumnarError::Parquet {
-                    reason: SpatialParquetFailure::InvalidFooter
-                        | SpatialParquetFailure::ForbiddenFeature,
+                Err(ColumnarError::Parquet {
+                    reason: ParquetFailure::InvalidFooter | ParquetFailure::ForbiddenFeature,
                 })
             )
         } else {
             matches!(
                 &observed,
-                Err(MultiscaleColumnarError::Parquet {
-                    reason: SpatialParquetFailure::ForbiddenFeature,
+                Err(ColumnarError::Parquet {
+                    reason: ParquetFailure::ForbiddenFeature,
                 })
             )
         };
@@ -708,12 +707,12 @@ fn cell_patch_parquet_preflight_rejects_schema_metadata_and_forbidden_features()
     });
     assert!(matches!(
         preflight_cell_patch_edge_table_parquet_bytes(&oversized_range, &fixture.link, budgets()),
-        Err(MultiscaleColumnarError::Parquet { .. })
+        Err(ColumnarError::Parquet { .. })
     ));
 
     let truncated = &canonical[..canonical.len() - 1];
     assert!(matches!(
         preflight_cell_patch_edge_table_parquet_bytes(truncated, &fixture.link, budgets()),
-        Err(MultiscaleColumnarError::Parquet { .. })
+        Err(ColumnarError::Parquet { .. })
     ));
 }

@@ -1,14 +1,21 @@
-use crate::validation::{diagnostics_satisfy_policy, is_lower_hex_sha256 as is_sha256};
+use crate::is_worker_timeout;
+use crate::validation::{
+    diagnostics_satisfy_policy, is_exact_name, is_sha256, validate_mcse_summary, SummarySupport,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::backend_versions::PYTHON_VERSION;
+use crate::ClaimStatus;
 use crate::{
     model::{PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION},
-    sha256_hex, BackendContract, BayesError, DiagnosticPolicy, FitState, NormalMeanDiagnostics,
-    NutsSamplingSpec, SamplingSummary, SarScalarSummary, WorkerBackend,
+    BackendContract, BayesError, DiagnosticPolicy, FitState, McseScalarSummary, NutsSamplingSpec,
+    PosteriorDiagnostics, SamplingSummary, WorkerBackend,
 };
+use marklab_core::backend::BackendCapability;
+use marklab_core::backend::ModelMaturity;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct DirichletMultinomialPatientData {
@@ -17,6 +24,17 @@ pub struct DirichletMultinomialPatientData {
     pub counts: Vec<u64>,
 }
 
+/// Dirichlet-multinomial patient class counts with a two-group log-ratio model.
+///
+/// Each count vector has its observed total and concentration vector
+/// `phi * pi_group`. Probabilities are `pi_reference = softmax([b, 0])` and
+/// `pi_comparison = softmax([b + d, 0])`, fixing the last entry of `class_ids`
+/// as the zero-logit reference. Independent priors are
+/// `b_k ~ Normal(0, logit_prior_sd)`,
+/// `d_k ~ Normal(0, group_effect_prior_sd)`, and
+/// `phi ~ HalfNormal(concentration_prior_sd)`. Normal scales are SDs and the
+/// half-normal scale is its underlying normal SD. Patient composition vectors
+/// are integrated out during fitting.
 #[derive(Clone, Debug)]
 pub struct DirichletMultinomialGroupSpec {
     pub reference_group: String,
@@ -46,8 +64,8 @@ pub struct DirichletMultinomialGroupModelIr {
     pub likelihood: &'static str,
     pub observation_unit: &'static str,
     pub biological_unit: &'static str,
-    pub backend_capability: &'static str,
-    pub maturity: &'static str,
+    pub backend_capability: BackendCapability,
+    pub maturity: ModelMaturity,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -73,7 +91,6 @@ pub struct DirichletMultinomialGroupWorkerRequest {
 }
 
 impl DirichletMultinomialGroupWorkerRequest {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         spec: DirichletMultinomialGroupSpec,
         sampling: NutsSamplingSpec,
@@ -82,8 +99,8 @@ impl DirichletMultinomialGroupWorkerRequest {
         timeout_seconds: u64,
     ) -> Result<Self, BayesError> {
         sampling.validate()?;
-        if !valid_name(&spec.reference_group)
-            || !valid_name(&spec.comparison_group)
+        if !is_exact_name(&spec.reference_group)
+            || !is_exact_name(&spec.comparison_group)
             || spec.reference_group == spec.comparison_group
             || !(3..=16).contains(&spec.class_ids.len())
             || !spec.logit_prior_sd.is_finite()
@@ -95,13 +112,13 @@ impl DirichletMultinomialGroupWorkerRequest {
             || !(8..=512).contains(&spec.patients.len())
             || !is_sha256(&environment_lock_sha256)
             || !is_sha256(&worker_sha256)
-            || !(1..=3_600).contains(&timeout_seconds)
+            || !is_worker_timeout(timeout_seconds)
         {
             return Err(BayesError::InvalidSpec(
                 "Dirichlet-multinomial group controls or identities are invalid".into(),
             ));
         }
-        if spec.class_ids.iter().any(|class| !valid_name(class))
+        if spec.class_ids.iter().any(|class| !is_exact_name(class))
             || spec.class_ids.iter().collect::<BTreeSet<_>>().len() != spec.class_ids.len()
         {
             return Err(BayesError::InvalidSpec(
@@ -119,7 +136,7 @@ impl DirichletMultinomialGroupWorkerRequest {
                     BayesError::InvalidSpec("Dirichlet-multinomial count overflow".into())
                 })
             })?;
-            if !valid_name(&patient.patient_id)
+            if !is_exact_name(&patient.patient_id)
                 || !patient_ids.insert(patient.patient_id.as_str())
                 || (patient.group != spec.reference_group && patient.group != spec.comparison_group)
                 || patient.counts.len() != spec.class_ids.len()
@@ -171,7 +188,7 @@ impl DirichletMultinomialGroupWorkerRequest {
             backend: BackendContract {
                 name: "pymc",
                 version: PYMC_VERSION,
-                python_version: "3.12",
+                python_version: PYTHON_VERSION,
                 environment_lock_sha256,
                 worker_sha256,
             },
@@ -192,8 +209,8 @@ impl DirichletMultinomialGroupWorkerRequest {
                 likelihood: "dirichlet_multinomial_collapsed_patient_count_vectors",
                 observation_unit: "patient_complete_class_count_vector",
                 biological_unit: "patient",
-                backend_capability: "nuts",
-                maturity: "experimental",
+                backend_capability: BackendCapability::Nuts,
+                maturity: ModelMaturity::Experimental,
             },
             patients,
             sampling,
@@ -210,27 +227,20 @@ impl DirichletMultinomialGroupWorkerRequest {
     }
 }
 
-fn valid_name(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 128
-        && value.trim() == value
-        && !value.chars().any(char::is_control)
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DirichletMultinomialClassPosterior {
     pub class_id: String,
-    pub reference_probability: SarScalarSummary,
-    pub comparison_probability: SarScalarSummary,
-    pub difference_comparison_minus_reference: SarScalarSummary,
+    pub reference_probability: McseScalarSummary,
+    pub comparison_probability: McseScalarSummary,
+    pub difference_comparison_minus_reference: McseScalarSummary,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct DirichletMultinomialGroupPosterior {
     pub classes: Vec<DirichletMultinomialClassPosterior>,
-    pub concentration: SarScalarSummary,
+    pub concentration: McseScalarSummary,
     pub overdispersion_mean: f64,
 }
 
@@ -261,7 +271,7 @@ pub struct DirichletMultinomialGroupWorkerResult {
     pub fit_state: FitState,
     pub sampling: SamplingSummary,
     pub posterior: DirichletMultinomialGroupPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: DirichletMultinomialGroupPosteriorPredictive,
 }
 
@@ -288,11 +298,7 @@ impl DirichletMultinomialGroupWorkerResult {
     ) -> Result<(), BayesError> {
         if self.format != result_format
             || self.version != 1
-            || self.backend.name != backend.name
-            || self.backend.version != backend.version
-            || self.backend.python_version != backend.python_version
-            || self.backend.environment_lock_sha256 != backend.environment_lock_sha256
-            || self.backend.worker_sha256 != backend.worker_sha256
+            || !self.backend.matches(backend)
             || self.request_sha256 != request_sha256
             || self.posterior.classes.len() != request.model.class_ids.len()
             || self.posterior_predictive.classes.len() != request.model.class_ids.len()
@@ -327,9 +333,12 @@ impl DirichletMultinomialGroupWorkerResult {
                     "Dirichlet-multinomial class order mismatch".into(),
                 ));
             }
-            validate_unit_summary(&posterior.reference_probability)?;
-            validate_unit_summary(&posterior.comparison_probability)?;
-            validate_difference_summary(&posterior.difference_comparison_minus_reference)?;
+            validate_summary(&posterior.reference_probability, SummarySupport::Unit)?;
+            validate_summary(&posterior.comparison_probability, SummarySupport::Unit)?;
+            validate_summary(
+                &posterior.difference_comparison_minus_reference,
+                SummarySupport::Difference,
+            )?;
             reference_sum += posterior.reference_probability.mean;
             comparison_sum += posterior.comparison_probability.mean;
             difference_sum += posterior.difference_comparison_minus_reference.mean;
@@ -348,10 +357,8 @@ impl DirichletMultinomialGroupWorkerResult {
                 ));
             }
         }
-        validate_positive_summary(&self.posterior.concentration)?;
-        if self.posterior.concentration.mean <= 0.0
-            || self.posterior.concentration.interval_lower < 0.0
-            || !(0.0..1.0).contains(&self.posterior.overdispersion_mean)
+        validate_summary(&self.posterior.concentration, SummarySupport::Positive)?;
+        if !(0.0..1.0).contains(&self.posterior.overdispersion_mean)
             || (reference_sum - 1.0).abs() > 1e-6
             || (comparison_sum - 1.0).abs() > 1e-6
             || difference_sum.abs() > 1e-6
@@ -388,68 +395,24 @@ impl DirichletMultinomialGroupWorkerResult {
             posterior_predictive: self.posterior_predictive,
             seed: request.sampling.seed,
             claim_status: if self.fit_state == FitState::Complete {
-                "experimental_patient_multiclass_group_composition"
+                ClaimStatus::ExperimentalPatientMulticlassGroupComposition
             } else {
-                "diagnostic_only_nonconverged"
+                ClaimStatus::DiagnosticOnlyNonconverged
             },
             request_sha256: self.request_sha256,
         }
     }
 }
 
-fn validate_finite_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
-    if ![
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]
-    .iter()
-    .all(|value| value.is_finite())
-        || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-    {
-        return Err(BayesError::WorkerContract(
-            "Dirichlet-multinomial posterior summary is invalid".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_unit_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
-    validate_finite_summary(summary)?;
-    if [summary.mean, summary.interval_lower, summary.interval_upper]
-        .iter()
-        .any(|value| !(0.0..=1.0).contains(value))
-    {
-        return Err(BayesError::WorkerContract(
-            "Dirichlet-multinomial probability summary is invalid".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_difference_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
-    validate_finite_summary(summary)?;
-    if [summary.mean, summary.interval_lower, summary.interval_upper]
-        .iter()
-        .any(|value| !(-1.0..=1.0).contains(value))
-    {
-        return Err(BayesError::WorkerContract(
-            "Dirichlet-multinomial difference summary is invalid".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_positive_summary(summary: &SarScalarSummary) -> Result<(), BayesError> {
-    validate_finite_summary(summary)?;
-    if summary.mean <= 0.0 || summary.interval_lower < 0.0 {
-        return Err(BayesError::WorkerContract(
-            "Dirichlet-multinomial positive summary is invalid".into(),
-        ));
-    }
-    Ok(())
+fn validate_summary(
+    summary: &McseScalarSummary,
+    support: SummarySupport,
+) -> Result<(), BayesError> {
+    validate_mcse_summary(
+        summary,
+        support,
+        "Dirichlet-multinomial posterior summary is invalid",
+    )
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -462,12 +425,6 @@ pub struct DirichletMultinomialGroupInputIdentity {
     pub comparison_patients: usize,
 }
 
-pub fn dirichlet_multinomial_group_data_sha256(
-    patients: &[DirichletMultinomialPatientData],
-) -> Result<String, BayesError> {
-    Ok(sha256_hex(&serde_json::to_vec(patients)?))
-}
-
 #[derive(Debug, Serialize)]
 pub struct DirichletMultinomialGroupResult {
     pub format: &'static str,
@@ -478,10 +435,10 @@ pub struct DirichletMultinomialGroupResult {
     pub sampling: SamplingSummary,
     pub fit_state: FitState,
     pub posterior: DirichletMultinomialGroupPosterior,
-    pub diagnostics: NormalMeanDiagnostics,
+    pub diagnostics: PosteriorDiagnostics,
     pub posterior_predictive: DirichletMultinomialGroupPosteriorPredictive,
     pub seed: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
     pub request_sha256: String,
 }
 

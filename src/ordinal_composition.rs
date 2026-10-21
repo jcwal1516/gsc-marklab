@@ -1,17 +1,14 @@
-use marklab_workflow::ContentDigest;
+use marklab_project::ContentDigest;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{
-    compartment_interface::analysis::measurement_status_name, DeclaredScalarPatternInput,
-    ScalarMarkId,
-};
+use crate::marks::{DeclaredScalarPatternInput, ScalarMarkId};
 
 /// Hard resource ceilings for one ordinal composition.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OrdinalClassCompositionLimits {
-    /// Maximum admitted rows.
+    /// Maximum accepted rows.
     pub maximum_points: usize,
     /// Maximum ordered levels.
     pub maximum_levels: usize,
@@ -67,7 +64,8 @@ pub struct OrdinalClassCompositionResult {
     /// Stable ordinal mark identity.
     pub mark_id: String,
     /// Declared measurement status.
-    pub measurement_status: String,
+    #[serde(with = "crate::measurement_status_wire")]
+    pub measurement_status: marklab_data::MeasurementStatus,
     /// Number of complete ordinal rows.
     pub row_count: usize,
     /// Ordered level codebook.
@@ -150,7 +148,7 @@ pub fn ordinal_class_composition(
         .len()
         .checked_add(input.pattern().meta.timepoint.len())
         .and_then(|value| value.checked_add(mark_id.as_str().len()))
-        .and_then(|value| value.checked_add(measurement_status_name(status).len()))
+        .and_then(|value| value.checked_add(crate::measurement_status_wire::name(status).len()))
         .and_then(|value| value.checked_add(64))
         .and_then(|value| value.checked_add(longest_level.saturating_mul(2)))
         .ok_or(OrdinalClassCompositionError::SizeOverflow)?;
@@ -202,7 +200,7 @@ pub fn ordinal_class_composition(
         case_id: input.pattern().meta.case_id.clone(),
         timepoint: input.pattern().meta.timepoint.clone(),
         mark_id: mark_id.as_str().into(),
-        measurement_status: measurement_status_name(status).into(),
+        measurement_status: status,
         row_count: rows,
         level_ids: levels.to_vec(),
         counts,
@@ -261,7 +259,7 @@ pub enum OrdinalClassCompositionError {
     /// The requested typed ordinal mark was absent.
     #[error("typed ordinal mark is missing")]
     MissingOrdinalMark,
-    /// The admitted ordinal table had no rows.
+    /// The validated ordinal table had no rows.
     #[error("ordinal composition requires at least one row")]
     EmptyInput,
     /// The point ceiling was exceeded.

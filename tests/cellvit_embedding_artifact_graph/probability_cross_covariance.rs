@@ -1,11 +1,17 @@
 use super::declared_embedding_support as embedding_support;
 use super::*;
 use marklab::{
-    declared_probability_cell_embedding_cross_covariance_energy, BinaryMarkDeclaration,
-    DeclaredProbabilityCellEmbeddingCrossCovarianceError,
-    DeclaredProbabilityCellEmbeddingCrossCovarianceStatus, DeclaredScalarPatternInput, MarkTable,
-    MeasurementStatus, MissingnessPolicy, ProbabilityMarkDeclaration, ScalarMarkColumn,
-    ScalarMarkId, ScalarMarkModality, ScalarMarkUnit, VectorArtifactRefMarkDeclaration,
+    embeddings::{
+        declared_probability_cell_embedding_cross_covariance_energy,
+        DeclaredProbabilityCellEmbeddingCrossCovarianceError,
+        DeclaredProbabilityCellEmbeddingCrossCovarianceStatus,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarPatternInput, MarkTable, MissingnessPolicy,
+        ProbabilityMarkDeclaration, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality,
+        ScalarMarkUnit, VectorArtifactRefMarkDeclaration,
+    },
+    MeasurementStatus,
 };
 
 const DIMENSION: u32 = 1_280;

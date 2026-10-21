@@ -1,19 +1,30 @@
 #!/usr/bin/env python3
+"""GUDHI worker for exact 3-D alpha complexes and their mod-2 persistence diagrams."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import gudhi
 import numpy as np
 
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def boundary_matrix(lower, upper):
+    """Mod-2 boundary matrix from the ``upper`` simplices to their ``lower`` faces."""
     lower_index = {tuple(simplex): index for index, simplex in enumerate(lower)}
     matrix = np.zeros((len(lower), len(upper)), dtype=np.uint8)
     for column, simplex in enumerate(upper):
@@ -24,9 +35,8 @@ def boundary_matrix(lower, upper):
 
 
 def main():
-    if gudhi.__version__ != "3.13.0" or np.__version__ != "2.4.6" or sys.version_info[:2] != (3, 12):
-        raise ContractError("3-D alpha backend version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
+    require_versions(gudhi=gudhi.__version__, numpy=np.__version__)
+    request_bytes = read_request(16 * MIB)
     request = json.loads(request_bytes)
     if request["format"] != "marklab.gudhi_alpha3d_request" or request["version"] != 1:
         raise ContractError("request identity mismatch")
@@ -37,7 +47,7 @@ def main():
     tree.compute_persistence(
         homology_coeff_field=2,
         min_persistence=0.0,
-        persistence_dim_max=request["maximum_homology_dimension"] >= 3,
+        persistence_dim_max=request["maximum_homology_dimension"] >= tree.dimension(),
     )
     simplices_by_dimension = [[] for _ in range(4)]
     filtration = []
@@ -64,7 +74,8 @@ def main():
             continue
         first = boundary_matrix(lower, middle)
         second = boundary_matrix(middle, upper)
-        maximum_boundary_squared = max(maximum_boundary_squared, int(((first @ second) % 2).max()))
+        boundary_squared = int(((first @ second) % 2).max())
+        maximum_boundary_squared = max(maximum_boundary_squared, boundary_squared)
     diagrams = {}
     for dimension in range(request["maximum_homology_dimension"] + 1):
         intervals = tree.persistence_intervals_in_dimension(dimension)
@@ -80,7 +91,7 @@ def main():
         "format": "marklab.alpha_complex_3d",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "coordinate_frame": request["coordinate_frame"],
         "filtration_convention": "squared_alpha_physical_um2",
         "point_ids": [point["point_id"] for point in points],
@@ -92,13 +103,8 @@ def main():
         "boundary_squared_max_absolute": maximum_boundary_squared,
         "claim_status": "experimental_synthetic_exact_3d_alpha_complex",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, RuntimeError, json.JSONDecodeError, np.linalg.LinAlgError) as error:
-        print(f"3-D alpha worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "3-D alpha worker contract error", errors=(*CONTRACT_ERRORS, RuntimeError))

@@ -7,7 +7,7 @@ use flatbuffers::VerifierOptions;
 pub(super) use super::super::{
     enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
 };
-use super::super::{ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, EmbeddingColumnarError};
+use super::super::{ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, ColumnarError};
 
 pub(super) const ARROW_MAGIC: &[u8; 6] = b"ARROW1";
 pub(super) const CONTINUATION_MARKER: &[u8; 4] = &[0xff; 4];
@@ -36,17 +36,17 @@ pub(super) const METADATA_KEYS: [&str; 7] = [
     "marklab.schema_version",
 ];
 
-pub(super) fn validity_bytes(bit_count: usize) -> Result<usize, EmbeddingColumnarError> {
+pub(super) fn validity_bytes(bit_count: usize) -> Result<usize, ColumnarError> {
     bit_count
         .checked_add(7)
         .map(|value| value / 8)
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
 pub(super) fn validate_all_valid_bitmap(
     bytes: &[u8],
     _bit_count: usize,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if bytes.iter().any(|byte| *byte != 0xff) {
         return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
     }
@@ -56,7 +56,7 @@ pub(super) fn validate_all_valid_bitmap(
 pub(super) fn validate_flatbuffer_schema(
     schema: arrow_ipc::Schema<'_>,
     bindings: CellEmbeddingTablePhysicalBindings,
-) -> Result<u32, EmbeddingColumnarError> {
+) -> Result<u32, ColumnarError> {
     if schema.endianness() != Endianness::Little
         || schema
             .features()
@@ -114,13 +114,13 @@ pub(super) fn validate_flatbuffer_schema(
         return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     validate_utf8_field(fields.get(2), "embedding_status")?;
-    u32::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)
+    u32::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)
 }
 
 pub(super) fn validate_utf8_field(
     field: arrow_ipc::Field<'_>,
     name: &str,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     if field.name() != Some(name)
         || field.nullable()
         || field.dictionary().is_some()
@@ -143,7 +143,7 @@ pub(super) fn validate_application_metadata(
         flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<arrow_ipc::KeyValue<'_>>>,
     >,
     bindings: CellEmbeddingTablePhysicalBindings,
-) -> Result<(), EmbeddingColumnarError> {
+) -> Result<(), ColumnarError> {
     let metadata =
         metadata.ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata))?;
     if metadata.len() != METADATA_KEYS.len() {
@@ -165,7 +165,7 @@ pub(super) fn validate_application_metadata(
         total_bytes = total_bytes
             .checked_add(key.len())
             .and_then(|total| total.checked_add(value.len()))
-            .ok_or(EmbeddingColumnarError::SizeOverflow)?;
+            .ok_or(ColumnarError::SizeOverflow)?;
         if key != expected_key || value != expected_value {
             return Err(arrow_failure(ArrowIpcFailure::InvalidApplicationMetadata));
         }
@@ -179,8 +179,8 @@ pub(super) fn validate_application_metadata(
 pub(super) fn embedding_schema(
     dimension: u32,
     bindings: CellEmbeddingTablePhysicalBindings,
-) -> Result<Schema, EmbeddingColumnarError> {
-    let dimension = i32::try_from(dimension).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+) -> Result<Schema, ColumnarError> {
+    let dimension = i32::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?;
     let fields = vec![
         Field::new("cell_id", DataType::Utf8, false),
         Field::new(
@@ -214,10 +214,7 @@ pub(super) fn metadata_values(bindings: CellEmbeddingTablePhysicalBindings) -> [
     ]
 }
 
-pub(super) fn validate_shape(
-    row_count: usize,
-    dimension: u32,
-) -> Result<(), EmbeddingColumnarError> {
+pub(super) fn validate_shape(row_count: usize, dimension: u32) -> Result<(), ColumnarError> {
     if row_count > MAXIMUM_ROWS {
         return Err(arrow_failure(ArrowIpcFailure::InvalidRowCount));
     }
@@ -227,20 +224,17 @@ pub(super) fn validate_shape(
     Ok(())
 }
 
-pub(super) fn component_bytes(
-    row_count: usize,
-    dimension: u32,
-) -> Result<u64, EmbeddingColumnarError> {
-    let rows = u64::try_from(row_count).map_err(|_| EmbeddingColumnarError::SizeOverflow)?;
+pub(super) fn component_bytes(row_count: usize, dimension: u32) -> Result<u64, ColumnarError> {
+    let rows = u64::try_from(row_count).map_err(|_| ColumnarError::SizeOverflow)?;
     rows.checked_mul(u64::from(dimension))
         .and_then(|value| value.checked_mul(size_of::<f32>() as u64))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
 pub(super) fn nonnegative_usize(
     value: i64,
     failure: ArrowIpcFailure,
-) -> Result<usize, EmbeddingColumnarError> {
+) -> Result<usize, ColumnarError> {
     if value < 0 {
         return Err(arrow_failure(failure));
     }
@@ -250,18 +244,18 @@ pub(super) fn nonnegative_usize(
 pub(super) fn nonnegative_i32_usize(
     value: i32,
     failure: ArrowIpcFailure,
-) -> Result<usize, EmbeddingColumnarError> {
+) -> Result<usize, ColumnarError> {
     if value < 0 {
         return Err(arrow_failure(failure));
     }
     usize::try_from(value).map_err(|_| arrow_failure(failure))
 }
 
-pub(super) fn align(value: usize) -> Result<usize, EmbeddingColumnarError> {
+pub(super) fn align(value: usize) -> Result<usize, ColumnarError> {
     value
         .checked_add(ALIGNMENT - 1)
         .map(|value| value & !(ALIGNMENT - 1))
-        .ok_or(EmbeddingColumnarError::SizeOverflow)
+        .ok_or(ColumnarError::SizeOverflow)
 }
 
 pub(super) fn footer_verifier_options() -> VerifierOptions {
@@ -291,6 +285,6 @@ pub(super) fn schema_message_verifier_options() -> VerifierOptions {
     }
 }
 
-pub(super) fn arrow_failure(reason: ArrowIpcFailure) -> EmbeddingColumnarError {
-    EmbeddingColumnarError::Arrow { reason }
+pub(super) fn arrow_failure(reason: ArrowIpcFailure) -> ColumnarError {
+    ColumnarError::Arrow { reason }
 }

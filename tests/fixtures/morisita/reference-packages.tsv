@@ -1,0 +1,5 @@
+package	version
+R	4.5.2
+jsonlite	2.0.0
+permute	0.9-10
+vegan	2.7-6

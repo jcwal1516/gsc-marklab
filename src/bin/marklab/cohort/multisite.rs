@@ -9,8 +9,8 @@ use marklab_cohort::{
 use serde::{Deserialize, Serialize};
 
 use super::{
-    input::validate_input_file_with_message, publication::publish_json, CliMultisiteModel,
-    CohortError,
+    input::validate_input_file_with_message, publication::publish_json, CohortError,
+    MultisiteCovariateContrastArgs, MultisiteInferenceArgs, MultisitePatientContrastArgs,
 };
 
 #[derive(Debug, Deserialize)]
@@ -78,12 +78,13 @@ pub(crate) struct Sensitivity {
     pub(crate) tau_squared: f64,
 }
 
-pub(super) fn run(
-    input: PathBuf,
-    model: CliMultisiteModel,
-    alpha: f64,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run(args: MultisiteInferenceArgs) -> Result<(), CohortError> {
+    let MultisiteInferenceArgs {
+        input,
+        model,
+        alpha,
+        out,
+    } = args;
     let sites = read_sites(&input)?;
     let result = multisite_spatial_inference(
         &sites,
@@ -95,14 +96,15 @@ pub(super) fn run(
     publish_json(&out, &Output::from(result))
 }
 
-pub(super) fn run_patient_contrast(
-    input: PathBuf,
-    group_a: String,
-    group_b: String,
-    model: CliMultisiteModel,
-    alpha: f64,
-    out: PathBuf,
-) -> Result<(), CohortError> {
+pub(super) fn run_patient_contrast(args: MultisitePatientContrastArgs) -> Result<(), CohortError> {
+    let MultisitePatientContrastArgs {
+        input,
+        group_a,
+        group_b,
+        model,
+        alpha,
+        out,
+    } = args;
     let records = read_patient_records(&input)?;
     let result = multisite_patient_contrast(
         &records,
@@ -117,13 +119,16 @@ pub(super) fn run_patient_contrast(
 }
 
 pub(super) fn run_covariate_contrast(
-    input: PathBuf,
-    group_a: String,
-    group_b: String,
-    model: CliMultisiteModel,
-    alpha: f64,
-    out: PathBuf,
+    args: MultisiteCovariateContrastArgs,
 ) -> Result<(), CohortError> {
+    let MultisiteCovariateContrastArgs {
+        input,
+        group_a,
+        group_b,
+        model,
+        alpha,
+        out,
+    } = args;
     let records = read_covariate_records(&input)?;
     let result = multisite_covariate_patient_contrast(
         &records,

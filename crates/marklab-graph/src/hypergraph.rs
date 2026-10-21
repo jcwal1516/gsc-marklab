@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::GraphError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -59,7 +60,7 @@ pub struct HypergraphSignalResult {
     pub signal_numerator: f64,
     pub signal_denominator: f64,
     pub signal_smoothness: f64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn hypergraph_signal_workflow(
@@ -197,7 +198,7 @@ pub fn hypergraph_signal_workflow(
         signal_numerator,
         signal_denominator,
         signal_smoothness,
-        claim_status: "experimental_declared_hypergraph_signal",
+        claim_status: ClaimStatus::ExperimentalDeclaredHypergraphSignal,
     })
 }
 

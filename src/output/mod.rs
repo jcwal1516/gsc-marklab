@@ -9,7 +9,6 @@ mod figures;
 pub(crate) use figures::xml_text;
 mod manifest;
 mod marked_artifacts;
-mod migrate_v02;
 #[cfg(feature = "csv")]
 mod multimodal_artifacts;
 mod multimodal_result_artifacts;

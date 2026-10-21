@@ -1,28 +1,33 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, NutsSamplingSpec, SarFitInputIdentity, SarFitSpec, SarFitWorkerRequest,
+    json_sha256, sha256_hex, SarFitInputIdentity, SarFitSpec, SarFitWorkerRequest,
     SarFitWorkerResult, SarModelType,
 };
 
-use super::{publish_json, run_worker, sar, BayesCliError};
+use super::cli_schema::SarFitArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, sar, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    region_path: PathBuf,
-    edge_path: PathBuf,
-    data_path: PathBuf,
-    model: sar::CliSarModel,
-    interpretation: sar::CliSarInterpretation,
-    intercept_prior_mean: f64,
-    intercept_prior_sd: f64,
-    coefficient_prior_sd: f64,
-    rho_bound: f64,
-    sigma_prior_sd: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: SarFitArgs) -> Result<(), CliError> {
+    let SarFitArgs {
+        regions,
+        edges,
+        data,
+        model,
+        interpretation,
+        intercept_prior_mean,
+        intercept_prior_sd,
+        coefficient_prior_sd,
+        rho_bound,
+        sigma_prior_sd,
+        timeout_seconds,
+        out,
+        nuts,
+    } = args;
+    let region_path = regions;
+    let edge_path = edges;
+    let data_path = data;
+    let sampling = nuts.spec();
+    let output_path = out;
     let _interpretation = match interpretation {
         sar::CliSarInterpretation::Descriptive => "descriptive",
     };
@@ -32,24 +37,14 @@ pub(super) fn run(
     for edge in &input.weights.weights {
         dense_weights[edge.source_index * dimension + edge.target_index] = edge.weight;
     }
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_sar_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
-    let data_sha256 = sha256_hex(&serde_json::to_vec(&serde_json::json!({
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_pymc_sar_worker.py")?;
+    let data_sha256 = json_sha256(&serde_json::json!({
         "region_ids": input.weights.region_ids,
         "response": input.response,
         "design": input.design,
         "predictor_names": input.predictor_names,
-    }))?);
+    }))?;
     let request = SarFitWorkerRequest::new(
         SarFitSpec {
             model_type: match model {
@@ -69,8 +64,8 @@ pub(super) fn run(
             sigma_prior_sd,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let identity = SarFitInputIdentity {

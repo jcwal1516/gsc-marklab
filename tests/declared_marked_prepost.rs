@@ -1,14 +1,20 @@
 use marklab::{
     compare_declared_marked_prepost, compare_declared_marked_prevalence, compare_marked_prepost,
-    AnalysisEngine, AnalysisSection, BinaryMarkDeclaration, BinaryMarkOrigin, CacheStatus,
-    DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, DeclaredMarkedPrePostError,
-    DeclaredMarkedPrevalenceStatus, DeclaredScalarPatternInput, LocalScheduler, MeasurementStatus,
-    NodeId, Pattern, PatternMeta, ProbabilityMarkDeclaration, ProbabilityThresholdComparator,
-    ResultDocument, ScalarMarkId, SchedulerLimits, WorkflowGraph,
+    marks::{
+        BinaryMarkDeclaration, BinaryMarkOrigin, DeclaredScalarPatternInput,
+        ProbabilityMarkDeclaration, ProbabilityThresholdComparator, ScalarMarkId,
+    },
+    workflow::{
+        CacheStatus, DeclaredMarkedAnalysisNode, DeclaredMarkedAnalysisResult, LocalScheduler,
+        NodeId, SchedulerLimits, WorkflowGraph,
+    },
+    AnalysisEngine, AnalysisSection, DeclaredMarkedPrePostError, DeclaredMarkedPrevalenceStatus,
+    MeasurementStatus, Pattern, ResultDocument,
 };
 
 #[path = "support/declared_scalar.rs"]
 mod support;
+use support::pattern_fixture::pattern_meta;
 use support::*;
 
 const ROW_LIMIT: usize = 4;
@@ -108,9 +114,8 @@ fn paired_declarations(
     (binary, probability)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn input<'a>(
-    project: &marklab::MarklabProject,
+    project: &marklab::workflow::MarklabProject,
     pattern: &'a marklab::Pattern,
     cell_ids: &'a [marklab::CellId],
     slide_id: &marklab::SlideId,
@@ -327,11 +332,11 @@ fn scheduler_outputs_compare_and_report_binary_prevalence_with_distinct_contexts
     assert_eq!(prevalence.post_timepoint, "post");
     assert_eq!(
         prevalence.pre_mark_use.structure_factor_value_kind(),
-        marklab::ScalarMarkValueKind::Probability
+        marklab::marks::ScalarMarkValueKind::Probability
     );
     assert_eq!(
         prevalence.pre_mark_use.other_endpoint_value_kind(),
-        marklab::ScalarMarkValueKind::Binary
+        marklab::marks::ScalarMarkValueKind::Binary
     );
     let reverse = compare_declared_marked_prevalence(&post.output, &pre.output)
         .expect("reverse declared prevalence change");
@@ -587,16 +592,12 @@ fn empty_declared_side_has_typed_prevalence_unavailability_without_nan() {
         Vec::new(),
         Vec::new(),
         Vec::new(),
-        PatternMeta {
-            case_id: "declared-case".into(),
-            timepoint: "empty".into(),
-            protein: "MSH6".into(),
-            slide_id: Some(fixture.slide_id.as_str().into()),
-            section_id: None,
-            stain_batch: None,
-            block_id: None,
-            region_id: None,
-        },
+        pattern_meta(
+            "declared-case".into(),
+            "empty".into(),
+            "MSH6".into(),
+            Some(fixture.slide_id.as_str().into()),
+        ),
     )
     .expect("empty pattern");
     let empty_cell_ids = Vec::new();

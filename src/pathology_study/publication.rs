@@ -108,7 +108,7 @@ pub fn publish_pathology_composition(
     }
     svg.push_str("</g></svg>");
     files.push(("maup.svg".into(), svg));
-    files.push(("report.md".into(),format!("# Composition, density and MAUP\n\nStudy: {}. {} independent patients, {} slides. Counts and observed areas are pooled within patients; patients receive equal weight.\n\nFractions and log-ratios are relative; density is cells/mm². Geometric balances and amalgamated ratios have distinct definitions in result.json. Zeros receive no pseudocount. Missing endpoints never cause patient deletion.\n\nMAUP is the area-weighted variance of tile phenotype density around the patient's pooled density. Observed empty tiles contribute zero density. Whole-domain counts/exposure are conserved. Primary grid: {}. Sign reversals: {:?}. Grid sensitivity is not a combined significance probability.\n\nPatient contrasts use a shared whole-patient Max-T family. Bootstrap intervals are pointwise, not simultaneous. Constant endpoints or numerical inference failures remain unavailable. Family status: {}. These synthetic/experimental results do not establish population validity for an unadmitted real study.\n\npatients.csv and contrasts.csv contain numerical summaries; per-slide GeoJSON contains tissue-clipped tiles in physical micrometres; maup.svg compares effects. Full provenance/design/availability are in result.json.\n",result.study_id,result.patients.len(),result.slides.len(),result.sensitivity.primary,result.sensitivity.sign_reversals,result.inference.unavailable.as_deref().unwrap_or("see per-endpoint availability"))));
+    files.push(("report.md".into(),format!("# Composition, density and MAUP\n\nStudy: {}. {} independent patients, {} slides. Counts and observed areas are pooled within patients; patients receive equal weight.\n\nFractions and log-ratios are relative; density is cells/mm². Geometric balances and amalgamated ratios have distinct definitions in result.json. Zeros receive no pseudocount. Missing endpoints never cause patient deletion.\n\nMAUP is the area-weighted variance of tile phenotype density around the patient's pooled density. Observed empty tiles contribute zero density. Whole-domain counts/exposure are conserved. Primary grid: {}. Sign reversals: {:?}. Grid sensitivity is not a combined significance probability.\n\nPatient contrasts use a shared whole-patient Max-T family. Bootstrap intervals are pointwise, not simultaneous. Constant endpoints or numerical inference failures remain unavailable. Family status: {}. These results are experimental and do not by themselves establish validity for a real study population.\n\npatients.csv and contrasts.csv contain numerical summaries; per-slide GeoJSON contains tissue-clipped tiles in physical micrometres; maup.svg compares effects. Full provenance/design/availability are in result.json.\n",result.study_id,result.patients.len(),result.slides.len(),result.sensitivity.primary,result.sensitivity.sign_reversals,result.inference.unavailable.as_deref().unwrap_or("see per-endpoint availability"))));
     publish(result, output, files)
 }
 
@@ -186,7 +186,22 @@ pub fn publish_pathology_spatial_study(
         }
     }
     svg.push_str("<text x=\"60\" y=\"575\">Experimental fitted-null inference; unsupported patient curves are omitted from drawing, not from inference.</text></g></svg>");
-    let report=format!("# Context-conditioned spatial study\n\nStudy: {}. {} slides, {} patients. Endpoint {}. Intensity {:?}, null {:?}. Standard-border correction.\n\nEach patient curve is the area-weighted mean of its slide curves. All curves must support the complete declared radius axis; no bins, slides or patients are silently dropped. Patient L2 comparison: p={}; status={}. Within-slide ERL probabilities and across-slide Bonferroni probabilities answer a different question from the patient comparison.\n\nGaussian refitting repeats the declared estimator, cross-fitting and enabled bandwidth selection for every simulated pattern. This is experimental parametric-bootstrap inference, not established nominal error control. Plug-in inference conditions on its fitted reference. Compartment inference conditions on the declared compartment counts. Intensity-support failures are reported, and failed slides conservatively consume their reserved work allowance.\n\nNo clinical claim or spatstat/GET parity is established. patient-curves.csv, slide-curves.csv and curves.svg show the available summaries; result.json retains the full design, provenance, intensity and support diagnostics.\n",result.study_id,result.slides.len(),result.patients.len(),endpoint,result.design.intensity.model,result.design.intensity.null_mode,probability(result.inference.p_value),result.inference.unavailable.as_deref().unwrap_or("available"));
+    let report=format!("# Context-conditioned spatial study\n\nStudy: {}. {} slides, {} patients. Endpoint {}. Intensity {:?}, null {:?}. Standard-border correction.\n\nEach patient curve is the area-weighted mean of its slide curves. All curves must support the complete declared radius axis; no bins, slides or patients are silently dropped. Patient L2 comparison: p={}; status={}. Within-slide ERL probabilities and across-slide Bonferroni probabilities answer a different question from the patient comparison.\n\nGaussian refitting repeats the declared estimator, cross-fitting and enabled bandwidth selection for every simulated pattern. This is experimental parametric-bootstrap inference, not established nominal error control. Plug-in inference conditions on its fitted reference. Compartment inference conditions on the declared compartment counts. Intensity-support failures are reported, and failed slides conservatively consume their reserved work allowance.\n\nNo clinical claim is made. patient-curves.csv, slide-curves.csv and curves.svg show the available summaries; null-curves.json holds each slide's observed and simulated curves on the radii its envelope used, for external envelope tests; result.json retains the full design, provenance, intensity and support diagnostics.\n",result.study_id,result.slides.len(),result.patients.len(),endpoint,result.design.intensity.model,result.design.intensity.null_mode,probability(result.inference.p_value),result.inference.unavailable.as_deref().unwrap_or("available"));
+    let null_curves = serde_json::to_string_pretty(&serde_json::json!({
+        "format": "marklab.pathology_spatial_null_curves",
+        "version": 1,
+        "study_id": result.study_id,
+        "statistic": result.design.statistic,
+        "scale": match result.design.statistic {
+            super::spatial::Statistic::LMinusR => "l_minus_radius_um",
+            _ => "g_minus_one",
+        },
+        "radii_um": result.design.radii_um,
+        "alpha": result.design.alpha,
+        "simulations": result.design.permutations,
+        "envelope": "erl_two_sided_on_jointly_eligible_radii",
+        "slides": result.null_curves,
+    }))?;
     publish(
         result,
         output,
@@ -195,6 +210,7 @@ pub fn publish_pathology_spatial_study(
             ("slide-curves.csv".into(), slide_table),
             ("curves.svg".into(), svg),
             ("report.md".into(), report),
+            ("null-curves.json".into(), null_curves),
         ],
     )
 }

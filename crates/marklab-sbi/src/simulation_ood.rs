@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::SbiError;
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -53,9 +54,17 @@ pub struct SimulationOodResult {
     pub observation_id: String,
     pub observed_score: f64,
     pub conformal_p_value: f64,
-    pub status: &'static str,
+    pub status: SupportStatus,
     pub distance_visits: u64,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
+}
+
+marklab_core::vocabulary_enum! {
+    /// Whether the observation lies within the simulator's support.
+    pub enum SupportStatus {
+        InSupport => "in_support",
+        OutOfSupport => "out_of_support",
+    }
 }
 
 pub fn detect_simulation_ood(mut spec: SimulationOodSpec) -> Result<SimulationOodResult, SbiError> {
@@ -149,12 +158,12 @@ pub fn detect_simulation_ood(mut spec: SimulationOodSpec) -> Result<SimulationOo
         observed_score,
         conformal_p_value,
         status: if observed_score > threshold {
-            "out_of_support"
+            SupportStatus::OutOfSupport
         } else {
-            "in_support"
+            SupportStatus::InSupport
         },
         distance_visits,
-        claim_status: "simulation_support_diagnostic_not_model_validity",
+        claim_status: ClaimStatus::SimulationSupportDiagnosticNotModelValidity,
     })
 }
 

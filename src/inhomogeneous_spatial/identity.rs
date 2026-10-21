@@ -1,4 +1,7 @@
-use marklab_workflow::ContentDigest;
+use crate::result_vocabulary::{
+    IntensityBoundaryCorrection, IntensityCrossFit, IntensityEstimator, IntensityKernel,
+};
+use marklab_project::ContentDigest;
 
 use crate::{mark_pair_plan::erl_workspace_bytes, ObservationWindow2D, Pattern};
 
@@ -27,13 +30,14 @@ pub(super) fn into_intensity_summary(
         &fitted.fixed_grid,
     );
     Ok(InhomogeneousIntensitySummary {
-        estimator: "gaussian_kernel".into(),
-        kernel: "isotropic_gaussian_2d".into(),
-        cross_fit: config.cross_fit_folds.map_or_else(
-            || "leave_one_out_n_over_n_minus_one".into(),
-            |folds| format!("balanced_cell_id_rank_{folds}_fold"),
-        ),
-        boundary_correction: "deterministic_cell_center_quadrature".into(),
+        estimator: IntensityEstimator::GaussianKernel,
+        kernel: IntensityKernel::IsotropicGaussian2d,
+        cross_fit: config
+            .cross_fit_folds
+            .map_or(IntensityCrossFit::LeaveOneOut, |folds| {
+                IntensityCrossFit::BalancedCellIdRank { folds }
+            }),
+        boundary_correction: IntensityBoundaryCorrection::DeterministicCellCenterQuadrature,
         bandwidth_um: config.bandwidth_um,
         integration_grid: config.integration_grid,
         retained_probe_count: fitted.grid.probes.len(),

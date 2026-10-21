@@ -5,6 +5,7 @@ use crate::{
     graph_sparse_radius_basis_workflow, GraphError, GraphNodeInput, GraphSparseRadiusBasisResult,
     GraphSparseRadiusBasisSpec,
 };
+use marklab_core::backend::ClaimStatus;
 
 const SUMMARY_BASE_BYTES: u64 = 4_096;
 const SUMMARY_MODE_BYTES: u64 = 512;
@@ -91,7 +92,7 @@ pub struct GraphSparseRadiusFourierEnergyResult {
     pub basis_candidate_pair_evaluations: u64,
     pub basis_matrix_vector_work: u64,
     pub basis_orthogonalization_work: u64,
-    pub claim_status: String,
+    pub claim_status: ClaimStatus,
 }
 
 struct EnergySummary {
@@ -160,7 +161,7 @@ impl GraphSparseRadiusFourierEnergyResult {
                 != "retain_complete_component_zero_eigenspace_then_global_low_modes"
             || self.signal_policy
                 != "project_exact_scalar_signal_with_component_mean_energy_separated"
-            || self.claim_status != "experimental_descriptive_sparse_fourier_energy"
+            || self.claim_status != ClaimStatus::ExperimentalDescriptiveSparseFourierEnergy
             || self.graph_digest.len() != 64
             || !self
                 .graph_digest
@@ -360,7 +361,7 @@ pub fn graph_sparse_radius_fourier_energy_workflow(
         basis_candidate_pair_evaluations: basis.candidate_pair_evaluations,
         basis_matrix_vector_work: basis.matrix_vector_work,
         basis_orthogonalization_work: basis.orthogonalization_work,
-        claim_status: "experimental_descriptive_sparse_fourier_energy".into(),
+        claim_status: ClaimStatus::ExperimentalDescriptiveSparseFourierEnergy,
     })
 }
 

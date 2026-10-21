@@ -1,223 +1,135 @@
+pub(crate) use marklab_bayes::protocol::replicated_arbitrary_window_multitype_lgcp_prior_calibration::{Calibration, Resources, WorkerRequest, WorkerResult, Output, validate_result};
+
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
-use marklab_bayes::{sha256_hex, BackendContract, FitState, WorkerBackend};
-use serde::{Deserialize, Serialize};
+use marklab_bayes::sha256_hex;
+use marklab_bayes::BackendContract;
 
-use super::{
-    publish_json,
-    replicated_arbitrary_window_lgcp_agreement::backend_matches,
-    replicated_arbitrary_window_multitype_lgcp::{self, Args as FitArgs},
-    run_worker, BayesCliError,
-};
+use super::publish_json;
+use super::replicated_arbitrary_window_multitype_lgcp;
+use super::replicated_arbitrary_window_multitype_lgcp::Args as FitArgs;
+use super::run_worker;
+use super::CliError;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_core::backend::ClaimStatus;
+use marklab_core::vocabulary::StatisticalUnit;
 
-const NUMPY_VERSION: &str = "2.4.6";
 const MAXIMUM_ADAPTER_BYTES: u64 = 8 * 1_048_576;
 
-#[derive(Debug, Parser)]
-#[command(name = "marklab")]
-struct Cli {
-    #[command(subcommand)]
-    command: Top,
-}
-
-#[derive(Debug, Subcommand)]
-enum Top {
-    Bayes {
-        #[command(subcommand)]
-        command: Command,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    ReplicatedArbitraryWindowMultitypeLgcpPriorCalibration(Box<Args>),
-}
-
 #[derive(Debug, clap::Args)]
-struct Args {
+pub(crate) struct Args {
+    /// Per-node, per-type quadrature CSV (pattern_id, patient_id, group, type_id, count, ...).
     #[arg(long)]
     input: PathBuf,
+    /// Group level used as the regression reference.
     #[arg(long)]
     reference_group: String,
+    /// Group level whose effect is compared with the reference group.
     #[arg(long)]
     comparison_group: String,
+    /// Point-type label used as the model reference.
     #[arg(long)]
     reference_type: String,
+    /// Prior mean for intercept.
     #[arg(long, allow_hyphen_values = true)]
     intercept_prior_mean: f64,
+    /// Prior scale for intercept.
     #[arg(long)]
     intercept_prior_sd: f64,
+    /// Prior scale for group effect.
     #[arg(long)]
     group_effect_prior_sd: f64,
+    /// Prior scale for covariate effect.
     #[arg(long)]
     covariate_effect_prior_sd: f64,
+    /// Prior scale for patient standard deviation.
     #[arg(long)]
     patient_sd_prior_scale: f64,
+    /// Prior scale for pattern standard deviation.
     #[arg(long)]
     pattern_sd_prior_scale: f64,
+    /// Amplitude of the latent spatial field covariance.
     #[arg(long)]
     field_amplitude: f64,
+    /// Spatial covariance length scale in micrometers.
     #[arg(long)]
     field_length_scale_um: f64,
+    /// Diagonal stabilization added to covariance matrices.
     #[arg(long)]
     jitter: f64,
+    /// Number of independent posterior sampling chains.
     #[arg(long)]
     chains: u32,
+    /// Warmup iterations per posterior sampling chain.
     #[arg(long)]
     tune: u32,
+    /// Posterior draws retained per chain after warmup.
     #[arg(long)]
     draws: u32,
+    /// Target NUTS acceptance probability.
     #[arg(long)]
     target_accept: f64,
+    /// Random seed for reproducible simulation or inference.
     #[arg(long)]
     seed: u64,
+    /// Upper bound on patients.
     #[arg(long)]
     maximum_patients: usize,
+    /// Upper bound on patterns.
     #[arg(long)]
     maximum_patterns: usize,
+    /// Upper bound on types.
     #[arg(long)]
     maximum_types: usize,
+    /// Upper bound on nodes per pattern.
     #[arg(long)]
     maximum_nodes_per_pattern: usize,
+    /// Upper bound on total nodes.
     #[arg(long)]
     maximum_total_nodes: usize,
+    /// Upper bound on total node type rows.
     #[arg(long)]
     maximum_total_node_type_rows: usize,
+    /// Upper bound on total events.
     #[arg(long)]
     maximum_total_events: u64,
+    /// Upper bound on draw node type work.
     #[arg(long)]
     maximum_draw_node_type_work: u64,
+    /// Maximum worker execution time in seconds.
     #[arg(long)]
     timeout_seconds: u64,
+    /// Number of simulated datasets used for posterior calibration.
     #[arg(long)]
     replicates: u32,
+    /// Upper bound on simulation node type work.
     #[arg(long)]
     maximum_simulation_node_type_work: u64,
+    /// Upper bound on working bytes.
     #[arg(long)]
     maximum_working_bytes: u64,
+    /// Largest posterior-mean error in standard-deviation units.
     #[arg(long)]
     maximum_mean_error_sd: f64,
+    /// Largest admitted relative error in posterior standard deviation.
     #[arg(long)]
     maximum_relative_sd_error: f64,
+    /// Largest admitted scaled covariance RMSE in field calibration.
     #[arg(long)]
     maximum_field_covariance_rmse_scale: f64,
+    /// Largest admitted mean of standardized Poisson residuals.
     #[arg(long)]
     maximum_poisson_residual_mean: f64,
+    /// Largest admitted error in the Poisson residual second moment.
     #[arg(long)]
     maximum_poisson_residual_second_moment_error: f64,
+    /// Destination for the analysis output.
     #[arg(long)]
     out: PathBuf,
 }
 
-#[derive(Clone, Debug, Serialize)]
-struct Calibration {
-    replicates: u32,
-    maximum_mean_error_sd: f64,
-    maximum_relative_sd_error: f64,
-    maximum_field_covariance_rmse_scale: f64,
-    maximum_poisson_residual_mean: f64,
-    maximum_poisson_residual_second_moment_error: f64,
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct Resources {
-    node_type_rows: usize,
-    simulation_node_type_work: u64,
-    maximum_simulation_node_type_work: u64,
-    estimated_working_bytes: u64,
-    maximum_working_bytes: u64,
-    timeout_seconds: u64,
-}
-
-#[derive(Serialize)]
-struct WorkerRequest<'a> {
-    format: &'static str,
-    version: u32,
-    backend: BackendContract,
-    numpy_version: &'static str,
-    source_request_sha256: &'a str,
-    source_request: serde_json::Value,
-    calibration: Calibration,
-    resources: Resources,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct MomentCheck {
-    component: String,
-    expected_mean: f64,
-    observed_mean: f64,
-    mean_error_sd: f64,
-    expected_sd: f64,
-    observed_sd: f64,
-    relative_sd_error: f64,
-    passes: bool,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct FieldOracle {
-    maximum_centering_error: f64,
-    covariance_rmse_scale: f64,
-    passes: bool,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PoissonOracle {
-    standardized_residual_count: u64,
-    standardized_residual_mean: f64,
-    standardized_residual_second_moment: f64,
-    passes: bool,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WorkerResult {
-    format: String,
-    version: u32,
-    backend: WorkerBackend,
-    numpy_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    moment_checks: Vec<MomentCheck>,
-    field_oracle: FieldOracle,
-    poisson_oracle: PoissonOracle,
-}
-
-#[derive(Debug, Serialize)]
-struct Output {
-    format: &'static str,
-    version: u32,
-    backend: WorkerBackend,
-    numpy_version: String,
-    input_sha256: String,
-    request_sha256: String,
-    source_request_sha256: String,
-    fit_state: FitState,
-    calibration: Calibration,
-    resources: Resources,
-    moment_checks: Vec<MomentCheck>,
-    field_oracle: FieldOracle,
-    poisson_oracle: PoissonOracle,
-    statistical_unit: &'static str,
-    generative_model: &'static str,
-    analytic_oracles: [&'static str; 3],
-    assumptions: [&'static str; 4],
-    finite_result_policy: &'static str,
-    claim_status: &'static str,
-}
-
-pub(super) fn run_cli() -> Result<(), BayesCliError> {
-    let Top::Bayes { command } = Cli::parse_from(std::env::args_os()).command;
-    let Command::ReplicatedArbitraryWindowMultitypeLgcpPriorCalibration(args) = command;
-    run(*args)
-}
-
-fn run(args: Args) -> Result<(), BayesCliError> {
+pub(super) fn run(args: Args) -> Result<(), CliError> {
     validate_controls(&args)?;
     let prepared = replicated_arbitrary_window_multitype_lgcp::prepare(FitArgs {
         input: args.input,
@@ -253,32 +165,32 @@ fn run(args: Args) -> Result<(), BayesCliError> {
     let input_sha = source["input_sha256"]
         .as_str()
         .filter(|value| value.len() == 64)
-        .ok_or_else(|| BayesCliError::Input("prepared calibration input digest differs".into()))?
+        .ok_or_else(|| CliError::Input("prepared calibration input digest differs".into()))?
         .to_owned();
     let node_type_rows = source["node_type_counts"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared calibration rows differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared calibration rows differ".into()))?
         .len();
     let node_count = source["nodes"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared calibration nodes differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared calibration nodes differ".into()))?
         .len();
     let patient_count = source["patients"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared calibration patients differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared calibration patients differ".into()))?
         .len();
     let pattern_count = source["patterns"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared calibration patterns differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared calibration patterns differ".into()))?
         .len();
     let type_count = source["type_ids"]
         .as_array()
-        .ok_or_else(|| BayesCliError::Input("prepared calibration types differ".into()))?
+        .ok_or_else(|| CliError::Input("prepared calibration types differ".into()))?
         .len();
     let replicates = u64::from(args.replicates);
     let simulation_work = replicates
         .checked_mul(node_type_rows as u64)
-        .ok_or_else(|| BayesCliError::Input("calibration work overflows".into()))?;
+        .ok_or_else(|| CliError::Input("calibration work overflows".into()))?;
     let estimated_working_bytes = replicates
         .checked_mul(type_count as u64)
         .and_then(|value| value.checked_mul(node_count as u64))
@@ -291,11 +203,11 @@ fn run(args: Args) -> Result<(), BayesCliError> {
                 .and_then(|hierarchy| field.checked_add(hierarchy))
         })
         .and_then(|arrays| arrays.checked_add(384 * 1_048_576))
-        .ok_or_else(|| BayesCliError::Input("calibration memory estimate overflows".into()))?;
+        .ok_or_else(|| CliError::Input("calibration memory estimate overflows".into()))?;
     if simulation_work > args.maximum_simulation_node_type_work
         || estimated_working_bytes > args.maximum_working_bytes
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP prior-calibration resource ceiling exceeded".into(),
         ));
     }
@@ -316,12 +228,12 @@ fn run(args: Args) -> Result<(), BayesCliError> {
         maximum_working_bytes: args.maximum_working_bytes,
         timeout_seconds: args.timeout_seconds,
     };
-    let repository = &marklab::python_backend_assets_root()?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let workers = repository.join("workers/python");
     let backend = BackendContract {
         name: "numpy",
         version: NUMPY_VERSION,
-        python_version: "3.12",
+        python_version: PYTHON_VERSION,
         environment_lock_sha256: sha256_hex(&read_bounded(&workers.join("uv.lock"))?),
         worker_sha256: sha256_hex(&read_bounded(&workers.join(
             "marklab_numpy_replicated_arbitrary_window_multitype_lgcp_prior_calibration_worker.py",
@@ -355,7 +267,8 @@ fn run(args: Args) -> Result<(), BayesCliError> {
         &input_sha,
         &calibration,
         simulation_work,
-    )?;
+    )
+    .map_err(super::protocol_error)?;
     publish_json(
         &args.out,
         &Output {
@@ -372,7 +285,7 @@ fn run(args: Args) -> Result<(), BayesCliError> {
             moment_checks: result.moment_checks,
             field_oracle: result.field_oracle,
             poisson_oracle: result.poisson_oracle,
-            statistical_unit: "patient",
+            statistical_unit: StatisticalUnit::Patient,
             generative_model:
                 "patient_pattern_hierarchical_fixed_matern_multitype_poisson_intensity",
             analytic_oracles: [
@@ -388,12 +301,12 @@ fn run(args: Args) -> Result<(), BayesCliError> {
             ],
             finite_result_policy:
                 "every_calibration_metric_must_be_finite_and_every_analytic_check_must_pass",
-            claim_status: "experimental_prior_generative_calibration",
+            claim_status: ClaimStatus::ExperimentalPriorGenerativeCalibration,
         },
     )
 }
 
-fn validate_controls(args: &Args) -> Result<(), BayesCliError> {
+fn validate_controls(args: &Args) -> Result<(), CliError> {
     let thresholds = [
         args.maximum_mean_error_sd,
         args.maximum_relative_sd_error,
@@ -408,105 +321,17 @@ fn validate_controls(args: &Args) -> Result<(), BayesCliError> {
         || args.maximum_simulation_node_type_work == 0
         || args.maximum_working_bytes == 0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "replicated multitype LGCP prior-calibration controls are invalid".into(),
         ));
     }
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn validate_result(
-    result: &WorkerResult,
-    backend: &BackendContract,
-    request_sha: &str,
-    source_sha: &str,
-    input_sha: &str,
-    calibration: &Calibration,
-    simulation_work: u64,
-) -> Result<(), BayesCliError> {
-    let names = [
-        "intercept",
-        "group_effect",
-        "covariate_effect",
-        "patient_sd",
-        "pattern_sd",
-    ];
-    let moments_valid = result.moment_checks.len() == names.len()
-        && result.moment_checks.iter().zip(names).all(|(row, name)| {
-            row.component == name
-                && [
-                    row.expected_mean,
-                    row.observed_mean,
-                    row.mean_error_sd,
-                    row.expected_sd,
-                    row.observed_sd,
-                    row.relative_sd_error,
-                ]
-                .into_iter()
-                .all(f64::is_finite)
-                && row.expected_sd > 0.0
-                && row.observed_sd >= 0.0
-                && row.passes
-                    == (row.mean_error_sd <= calibration.maximum_mean_error_sd
-                        && row.relative_sd_error <= calibration.maximum_relative_sd_error)
-        });
-    let field_valid = [
-        result.field_oracle.maximum_centering_error,
-        result.field_oracle.covariance_rmse_scale,
-    ]
-    .into_iter()
-    .all(f64::is_finite)
-        && result.field_oracle.passes
-            == (result.field_oracle.maximum_centering_error <= 1e-12
-                && result.field_oracle.covariance_rmse_scale
-                    <= calibration.maximum_field_covariance_rmse_scale);
-    let poisson_valid = [
-        result.poisson_oracle.standardized_residual_mean,
-        result.poisson_oracle.standardized_residual_second_moment,
-    ]
-    .into_iter()
-    .all(f64::is_finite)
-        && result.poisson_oracle.standardized_residual_count == simulation_work
-        && result.poisson_oracle.passes
-            == (result.poisson_oracle.standardized_residual_mean.abs()
-                <= calibration.maximum_poisson_residual_mean
-                && (result.poisson_oracle.standardized_residual_second_moment - 1.0).abs()
-                    <= calibration.maximum_poisson_residual_second_moment_error);
-    let passes = moments_valid
-        && result.moment_checks.iter().all(|row| row.passes)
-        && field_valid
-        && result.field_oracle.passes
-        && poisson_valid
-        && result.poisson_oracle.passes;
-    if result.format
-        != "marklab.numpy_replicated_arbitrary_window_multitype_lgcp_prior_calibration_result"
-        || result.version != 1
-        || !backend_matches(&result.backend, backend)
-        || result.numpy_version != NUMPY_VERSION
-        || result.request_sha256 != request_sha
-        || result.source_request_sha256 != source_sha
-        || result.input_sha256 != input_sha
-        || !moments_valid
-        || !field_valid
-        || !poisson_valid
-        || (result.fit_state == FitState::Complete) != passes
-    {
-        return Err(BayesCliError::Backend(
-            "replicated multitype LGCP prior-calibration result differs".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, BayesCliError> {
-    super::input_file::read_regular_file(
+fn read_bounded(path: &std::path::Path) -> Result<Vec<u8>, CliError> {
+    crate::input_file::read_regular_file(
         path,
         MAXIMUM_ADAPTER_BYTES,
         "replicated multitype LGCP prior-calibration adapter is absent or oversized",
     )
-}
-
-pub(super) fn cli_route() -> crate::command_tree::Route {
-    crate::command_tree::Route::new::<Cli>(|| run_cli().map_err(super::into_marklab_error))
 }

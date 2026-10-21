@@ -3,76 +3,72 @@
 
 from __future__ import annotations
 
-import hashlib
-import importlib.util
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
-import numpy as np
 sys.path.append(str(Path(__file__).resolve().parent))
-import marklab_pytensor_config  # noqa: E402,F401
+
+# Configure PyTensor before PyMC is imported.
+from marklab_worker_support import pytensor_config  # noqa: F401
+
+# isort: split
+import numpy as np
 import pymc as pm
 
+import marklab_pymc_gridded_lgcp_worker as gridded
+from marklab_worker_support import versions
+from marklab_worker_support.arbitrary_window import (
+    density_statistics,
+    neighbor_pairs,
+    statistic_check,
+    validate_input_identity,
+)
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    exact,
+    file_sha256,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_digest,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
 
 REQUEST_FORMAT = "marklab.pymc_arbitrary_window_lgcp_request"
 RESULT_FORMAT = "marklab.bayesian_arbitrary_window_lgcp_fit"
-PYMC_VERSION = "6.3.0"
 
 
-class ContractError(ValueError):
-    pass
+def close(left: float, right: float) -> bool:
+    return math.isclose(left, right, rel_tol=1e-12, abs_tol=1e-12)
 
 
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low},{high}]")
-    return value
-
-
-def digest(value: Any, path: str) -> str:
-    if (
-        not isinstance(value, str)
-        or len(value) != 64
-        or any(character not in "0123456789abcdef" for character in value)
-    ):
-        raise ContractError(f"{path} must be a lowercase SHA-256 digest")
-    return value
-
-
-def load_source_worker() -> Any:
-    path = Path(__file__).with_name("marklab_pymc_gridded_lgcp_worker.py")
-    specification = importlib.util.spec_from_file_location("marklab_pymc_gridded_lgcp", path)
-    if specification is None or specification.loader is None:
-        raise ContractError("cannot load the PyMC gridded LGCP worker")
-    module = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(module)
-    return module
+def matern32_covariance(
+    nodes: list[dict[str, Any]], amplitude: float, length_scale: float, jitter: float
+) -> np.ndarray:
+    """Matern-3/2 covariance between node representatives, plus ``jitter`` on the diagonal."""
+    dimension = len(nodes)
+    covariance = np.empty((dimension, dimension), dtype=np.float64)
+    for row in range(dimension):
+        for column in range(dimension):
+            distance = math.hypot(
+                nodes[row]["x_um"] - nodes[column]["x_um"],
+                nodes[row]["y_um"] - nodes[column]["y_um"],
+            )
+            scaled = math.sqrt(3.0) * distance / length_scale
+            covariance[row, column] = amplitude**2 * (1.0 + scaled) * math.exp(-scaled)
+            if row == column:
+                covariance[row, column] += jitter
+    return covariance
 
 
 def validate(
@@ -110,29 +106,16 @@ def validate(
     )
     exact(request["format"], REQUEST_FORMAT, "request.format")
     exact(request["version"], 1, "request.version")
-    backend = obj(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "backend",
+        name="pymc",
+        version=versions.PYMC,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    exact(backend["name"], "pymc", "backend.name")
-    exact(backend["version"], PYMC_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_digest, "backend.lock")
-    exact(backend["worker_sha256"], worker_digest, "backend.worker")
-    digest(request["source_request_sha256"], "source_request_sha256")
-    identity = obj(
-        request["input"],
-        {
-            "events_digest",
-            "event_membership_digest",
-            "quadrature_digest",
-            "window_logical_digest",
-        },
-        "input",
-    )
-    for name, value in identity.items():
-        digest(value, f"input.{name}")
+    sha256_digest(request["source_request_sha256"], "source_request_sha256")
+    validate_input_identity(request["input"])
     obj(
         request["window"],
         {
@@ -147,8 +130,7 @@ def validate(
         },
         "window",
     )
-    source = load_source_worker()
-    config = source.validate(request["source_request"], lock_digest, source_worker_digest)
+    config = gridded.validate(request["source_request"], lock_digest, source_worker_digest)
     nodes = request["nodes"]
     if not isinstance(nodes, list) or len(nodes) != config["covariate"].size:
         raise ContractError("physical node dimensions differ")
@@ -174,14 +156,10 @@ def validate(
         }
         if parsed_node["weight_um2"] <= 0.0:
             raise ContractError("physical node weight must be positive")
+        backend_offset = parsed_node["offset"] + math.log(parsed_node["weight_um2"])
         if (
-            not math.isclose(config["covariate"][index], parsed_node["covariate"], rel_tol=1e-12, abs_tol=1e-12)
-            or not math.isclose(
-                config["offset"][index],
-                parsed_node["offset"] + math.log(parsed_node["weight_um2"]),
-                rel_tol=1e-12,
-                abs_tol=1e-12,
-            )
+            not close(config["covariate"][index], parsed_node["covariate"])
+            or not close(config["offset"][index], backend_offset)
             or config["counts"][index] != parsed_node["count"]
         ):
             raise ContractError("physical node differs from its algebraic backend cell")
@@ -200,17 +178,7 @@ def validate(
     amplitude = number(construction["field_amplitude"], "model.field_amplitude")
     length_scale = number(construction["field_length_scale_um"], "model.field_length_scale")
     jitter = number(construction["jitter"], "model.jitter")
-    expected = np.empty_like(covariance)
-    for row in range(dimension):
-        for column in range(dimension):
-            distance = math.hypot(
-                parsed[row]["x_um"] - parsed[column]["x_um"],
-                parsed[row]["y_um"] - parsed[column]["y_um"],
-            )
-            scaled = math.sqrt(3.0) * distance / length_scale
-            expected[row, column] = amplitude**2 * (1.0 + scaled) * math.exp(-scaled)
-            if row == column:
-                expected[row, column] += jitter
+    expected = matern32_covariance(parsed, amplitude, length_scale, jitter)
     if (
         not np.allclose(covariance, expected, rtol=1e-12, atol=1e-12)
         or np.max(np.abs(np.triu(cholesky, k=1))) > 1e-14
@@ -218,36 +186,20 @@ def validate(
         or not np.allclose(cholesky @ cholesky.T, covariance, rtol=1e-10, atol=1e-12)
     ):
         raise ContractError("physical covariance or Cholesky factor differs")
-    raw_pairs = request["neighbor_pairs"]
-    if not isinstance(raw_pairs, list) or not raw_pairs:
-        raise ContractError("at least one physical neighbor pair is required")
-    pairs = []
-    previous = None
-    for raw in raw_pairs:
-        if not isinstance(raw, list) or len(raw) != 2:
-            raise ContractError("physical neighbor pairs must contain two indices")
-        pair = (
-            integer(raw[0], "neighbor_pairs[].left", 0, dimension - 1),
-            integer(raw[1], "neighbor_pairs[].right", 0, dimension - 1),
-        )
-        if pair[0] >= pair[1] or (previous is not None and pair <= previous):
-            raise ContractError("physical neighbor pairs must be unique and canonical")
-        pairs.append(pair)
-        previous = pair
+    pairs = neighbor_pairs(request["neighbor_pairs"], dimension)
     maximum_pairs = integer(
         request["maximum_neighbor_pairs"], "maximum_neighbor_pairs", 1, 1_000_000
     )
     if len(pairs) > maximum_pairs:
         raise ContractError("physical neighbor-pair ceiling exceeded")
-    if len(nodes) > integer(
-        request["maximum_quadrature_nodes"], "maximum_quadrature_nodes", 4, 36
-    ) or sum(node["count"] for node in parsed) > integer(
+    maximum_nodes = integer(request["maximum_quadrature_nodes"], "maximum_quadrature_nodes", 4, 36)
+    if len(nodes) > maximum_nodes or sum(node["count"] for node in parsed) > integer(
         request["maximum_events"], "maximum_events", 1, 100_000
     ):
         raise ContractError("physical event or node ceiling exceeded")
     if number(request["neighbor_radius_um"], "neighbor_radius_um") <= 0.0:
         raise ContractError("physical neighbor radius must be positive")
-    digest(request["covariance_sha256"], "covariance_sha256")
+    sha256_digest(request["covariance_sha256"], "covariance_sha256")
     maximum_work = integer(
         request["maximum_draw_node_work"], "maximum_draw_node_work", 1, 1_000_000
     )
@@ -267,27 +219,26 @@ def divide_summary(summary: dict[str, float], divisor: float) -> dict[str, float
     return {name: value / divisor for name, value in summary.items()}
 
 
-def spatial_statistics(
-    counts: np.ndarray, weights: np.ndarray, pairs: list[tuple[int, int]]
-) -> tuple[np.ndarray, np.ndarray]:
-    density = counts / weights
-    variance = np.var(density, axis=-1)
-    contrast = np.mean(
-        np.stack(
-            [np.abs(density[..., left] - density[..., right]) for left, right in pairs]
-        ),
-        axis=0,
-    )
-    return variance, contrast
-
-
-def summarize_spatial(observed: float, replicated: np.ndarray) -> dict[str, float]:
+def spatial_posterior_predictive(
+    request: dict[str, Any],
+    config: dict[str, Any],
+    nodes: list[dict[str, Any]],
+    pairs: list[tuple[int, int]],
+    patterns: list[dict[str, Any]],
+) -> dict[str, Any]:
+    weights = np.asarray([node["weight_um2"] for node in nodes], dtype=np.float64)
+    observed = np.asarray([node["count"] for node in nodes], dtype=np.int64)
+    replicated = np.asarray([pattern["cell_counts"] for pattern in patterns], dtype=np.int64)
+    observed_variance, observed_contrast = density_statistics(observed, weights, pairs)
+    replicated_variance, replicated_contrast = density_statistics(replicated, weights, pairs)
     return {
-        "observed": observed,
-        "replicated_mean": float(replicated.mean()),
-        "replicated_sd": float(replicated.std(ddof=1)),
-        "probability_replicated_at_least_observed": float(
-            np.mean(replicated >= observed)
+        "replicate_count": len(patterns),
+        "prediction_seed": config["prediction_seed"],
+        "neighbor_radius_um": request["neighbor_radius_um"],
+        "neighbor_pair_count": len(pairs),
+        "node_density_variance": statistic_check(float(observed_variance), replicated_variance),
+        "neighbor_density_mean_absolute_difference": statistic_check(
+            float(observed_contrast), replicated_contrast
         ),
     }
 
@@ -301,8 +252,15 @@ def fit(
     lock_digest: str,
     worker_digest: str,
 ) -> dict[str, Any]:
-    source = load_source_worker()
-    result = source.fit(config, request_sha256, lock_digest, worker_digest)
+    """Fit the dense gridded LGCP on the weighted quadrature nodes of an exact window.
+
+    Each node is passed to the gridded worker as a backend cell whose offset includes the log of
+    the node weight. The gridded model (Poisson node counts, log intensity ``alpha + beta * x +
+    offset + u`` with normal priors on ``alpha`` and ``beta`` and a non-centred latent field
+    ``u = L z``) is fitted unchanged, with ``L`` the request's physical Matern-3/2 Cholesky
+    factor.
+    """
+    result = gridded.fit(config, request_sha256, lock_digest, worker_digest)
     physical_nodes = []
     for node, cell in zip(nodes, result["cells"], strict=True):
         physical_nodes.append(
@@ -316,27 +274,9 @@ def fit(
         )
     spatial_ppc = None
     if result["patterns"]:
-        weights = np.asarray([node["weight_um2"] for node in nodes], dtype=np.float64)
-        observed = np.asarray([node["count"] for node in nodes], dtype=np.int64)
-        replicated = np.asarray(
-            [pattern["cell_counts"] for pattern in result["patterns"]], dtype=np.int64
+        spatial_ppc = spatial_posterior_predictive(
+            request, config, nodes, pairs, result["patterns"]
         )
-        observed_variance, observed_contrast = spatial_statistics(observed, weights, pairs)
-        replicated_variance, replicated_contrast = spatial_statistics(
-            replicated, weights, pairs
-        )
-        spatial_ppc = {
-            "replicate_count": len(result["patterns"]),
-            "prediction_seed": config["prediction_seed"],
-            "neighbor_radius_um": request["neighbor_radius_um"],
-            "neighbor_pair_count": len(pairs),
-            "node_density_variance": summarize_spatial(
-                float(observed_variance), replicated_variance
-            ),
-            "neighbor_density_mean_absolute_difference": summarize_spatial(
-                float(observed_contrast), replicated_contrast
-            ),
-        }
     construction = request["source_request"]["model"]["construction"]
     draws = config["chains"] * config["draws"]
     return {
@@ -360,7 +300,9 @@ def fit(
             "coefficient_prior_mean": construction["coefficient_prior_mean"],
             "coefficient_prior_sd": construction["coefficient_prior_sd"],
             "likelihood": "weighted_node_poisson_log_gaussian_intensity",
-            "backend_adapter": "equal_area_synthetic_grid_with_log_weight_offsets_and_physical_covariance_override",
+            "backend_adapter": (
+                "equal_area_synthetic_grid_with_log_weight_offsets_and_physical_covariance_override"
+            ),
         },
         "input": request["input"],
         "window": request["window"],
@@ -405,40 +347,16 @@ def fit(
 
 
 def main() -> None:
-    if pm.__version__ != PYMC_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("PyMC or Python version drift")
-    script = Path(__file__)
-    lock_digest = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_digest = hashlib.sha256(script.read_bytes()).hexdigest()
-    source_worker_digest = hashlib.sha256(
-        script.with_name("marklab_pymc_gridded_lgcp_worker.py").read_bytes()
-    ).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha256 = hashlib.sha256(raw).hexdigest()
+    require_versions(pymc=pm.__version__)
+    lock_digest, worker_digest = worker_digests(__file__)
+    source_worker_digest = file_sha256(gridded.__file__)
+    raw = read_request(16 * MIB)
     request, config, nodes, _, pairs = validate(
         json.loads(raw), lock_digest, worker_digest, source_worker_digest
     )
-    result = fit(
-        request,
-        config,
-        nodes,
-        pairs,
-        request_sha256,
-        lock_digest,
-        worker_digest,
-    )
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    result = fit(request, config, nodes, pairs, sha256_hex(raw), lock_digest, worker_digest)
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(
-            f"marklab PyMC arbitrary-window LGCP failed: {type(error).__name__}: {error}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from error
+    run_worker(main, "marklab PyMC arbitrary-window LGCP failed")

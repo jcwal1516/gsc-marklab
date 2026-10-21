@@ -1,7 +1,9 @@
 use super::*;
 use marklab::{
-    BinaryMarkDeclaration, DeclaredScalarPatternInput, MeasurementStatus,
-    ProbabilityMarkDeclaration, ScalarMarkId,
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarPatternInput, ProbabilityMarkDeclaration, ScalarMarkId,
+    },
+    MeasurementStatus,
 };
 
 pub(super) fn fixture_status(status: EmbeddingStatus) -> FixtureEmbeddingStatus {

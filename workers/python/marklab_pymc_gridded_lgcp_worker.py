@@ -1,80 +1,99 @@
 #!/usr/bin/env python3
-"""Static PyMC worker for an exact dense gridded log-Gaussian Cox process."""
+"""PyMC worker for an exact dense gridded log-Gaussian Cox process."""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
-import numpy as np
 sys.path.append(str(Path(__file__).resolve().parent))
-import marklab_pytensor_config  # noqa: E402,F401
+
+# Configure PyTensor before PyMC is imported.
+from marklab_worker_support import pytensor_config  # noqa: F401
+
+# isort: split
+import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-PYMC_VERSION = "6.3.0"
+from marklab_worker_support import versions
+from marklab_worker_support.diagnostics import (
+    mcse_extremes,
+    pymc_sampler_diagnostics,
+    rank_convergence,
+)
+from marklab_worker_support.posterior import summary
+from marklab_worker_support.protocol import (
+    MIB,
+    ContractError,
+    backend_identity,
+    derive_seed,
+    exact,
+    integer,
+    number,
+    obj,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_digest,
+    sha256_hex,
+    validate_backend,
+    worker_digests,
+    write_result,
+)
+
+PRIOR_NAMES = [
+    "intercept",
+    "coefficient",
+    "field_raw",
+    "latent_effect",
+    "intensity",
+    "expected_count",
+]
+MONITORED = ["intercept", "coefficient", "field_raw"]
 
 
-class ContractError(ValueError):
-    pass
-
-
-def obj(value: Any, keys: set[str], path: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or set(value) != keys:
-        actual = set(value) if isinstance(value, dict) else set()
-        raise ContractError(
-            f"{path} fields differ: missing={sorted(keys - actual)}, unknown={sorted(actual - keys)}"
-        )
-    return value
-
-
-def number(value: Any, path: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ContractError(f"{path} must be numeric")
-    result = float(value)
-    if not math.isfinite(result):
-        raise ContractError(f"{path} must be finite")
-    return result
-
-
-def integer(value: Any, path: str, low: int, high: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise ContractError(f"{path} must be an integer in [{low}, {high}]")
-    return value
-
-
-def exact(value: Any, expected: Any, path: str) -> None:
-    if value != expected:
-        raise ContractError(f"{path} must equal {expected!r}")
+def close(left: float, right: float) -> bool:
+    return math.isclose(left, right, rel_tol=1e-12, abs_tol=1e-12)
 
 
 def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:
     request = obj(
         request,
         {
-            "format", "version", "backend", "model", "window", "grid_x", "grid_y",
-            "event_count", "cell_area_um2", "cells", "field_covariance",
-            "field_cholesky", "covariance_sha256", "sampling", "resources",
-            "prediction", "diagnostic_policy",
+            "format",
+            "version",
+            "backend",
+            "model",
+            "window",
+            "grid_x",
+            "grid_y",
+            "event_count",
+            "cell_area_um2",
+            "cells",
+            "field_covariance",
+            "field_cholesky",
+            "covariance_sha256",
+            "sampling",
+            "resources",
+            "prediction",
+            "diagnostic_policy",
         },
         "request",
     )
     exact(request["format"], "marklab.pymc_worker_request", "request.format")
     integer(request["version"], "request.version", 1, 1)
-    backend = obj(
+    validate_backend(
         request["backend"],
-        {"name", "version", "python_version", "environment_lock_sha256", "worker_sha256"},
         "backend",
+        name="pymc",
+        version=versions.PYMC,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
     )
-    exact(backend["name"], "pymc", "backend.name")
-    exact(backend["version"], PYMC_VERSION, "backend.version")
-    exact(backend["python_version"], "3.12", "backend.python")
-    exact(backend["environment_lock_sha256"], lock_digest, "backend.lock")
-    exact(backend["worker_sha256"], worker_digest, "backend.worker")
 
     model = obj(
         request["model"],
@@ -84,21 +103,30 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     construction = obj(
         model["construction"],
         {
-            "family", "coordinate_unit", "window", "cell_rule", "intercept_prior",
-            "intercept_prior_mean", "intercept_prior_sd", "coefficient_prior",
-            "coefficient_prior_mean", "coefficient_prior_sd", "latent_field", "kernel",
-            "field_amplitude", "field_length_scale_um", "jitter", "likelihood", "maturity",
+            "family",
+            "coordinate_unit",
+            "window",
+            "cell_rule",
+            "intercept_prior",
+            "intercept_prior_mean",
+            "intercept_prior_sd",
+            "coefficient_prior",
+            "coefficient_prior_mean",
+            "coefficient_prior_sd",
+            "latent_field",
+            "kernel",
+            "field_amplitude",
+            "field_length_scale_um",
+            "jitter",
+            "likelihood",
+            "maturity",
         },
         "model.construction",
     )
     exact(construction["family"], "gridded_log_gaussian_cox_process", "model.family")
     exact(construction["coordinate_unit"], "micrometer", "model.unit")
     exact(construction["window"], "half_open_rectangle_complete_cells", "model.window")
-    exact(
-        construction["cell_rule"],
-        "center_evaluated_covariate_and_offset",
-        "model.cell_rule",
-    )
+    exact(construction["cell_rule"], "center_evaluated_covariate_and_offset", "model.cell_rule")
     exact(construction["intercept_prior"], "normal", "model.intercept_prior")
     exact(construction["coefficient_prior"], "normal", "model.coefficient_prior")
     exact(construction["latent_field"], "zero_mean_dense_gaussian", "model.field")
@@ -108,7 +136,11 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         "poisson_cell_area_exp_fixed_plus_latent_log_intensity",
         "model.likelihood",
     )
-    exact(construction["maturity"], "experimental_model_construction", "model.construction.maturity")
+    exact(
+        construction["maturity"],
+        "experimental_model_construction",
+        "model.construction.maturity",
+    )
     exact(
         model["field_parameterization"],
         "noncentered_fixed_cholesky_times_standard_normal",
@@ -139,7 +171,7 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     if not 4 <= dimension <= 36 or xmin >= xmax or ymin >= ymax or cell_area <= 0.0:
         raise ContractError("LGCP window, grid, or cell area is invalid")
     expected_area = (xmax - xmin) * (ymax - ymin) / dimension
-    if not math.isclose(cell_area, expected_area, rel_tol=1e-12, abs_tol=1e-12):
+    if not close(cell_area, expected_area):
         raise ContractError("LGCP cell area does not match the window and grid")
 
     cells = request["cells"]
@@ -148,16 +180,20 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     covariate: list[float] = []
     offset: list[float] = []
     counts: list[int] = []
-    midpoint_x: list[float] = []
-    midpoint_y: list[float] = []
     cell_width = (xmax - xmin) / grid_x
     cell_height = (ymax - ymin) / grid_y
+    cell_keys = {
+        "ix",
+        "iy",
+        "midpoint_x_um",
+        "midpoint_y_um",
+        "area_um2",
+        "covariate",
+        "offset",
+        "count",
+    }
     for index, raw in enumerate(cells):
-        cell = obj(
-            raw,
-            {"ix", "iy", "midpoint_x_um", "midpoint_y_um", "area_um2", "covariate", "offset", "count"},
-            f"cells[{index}]",
-        )
+        cell = obj(raw, cell_keys, f"cells[{index}]")
         ix = index % grid_x
         iy = index // grid_x
         exact(cell["ix"], ix, "cell.ix")
@@ -165,22 +201,21 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         x = number(cell["midpoint_x_um"], "cell.midpoint_x")
         y = number(cell["midpoint_y_um"], "cell.midpoint_y")
         if (
-            not math.isclose(x, xmin + (ix + 0.5) * cell_width, rel_tol=1e-12, abs_tol=1e-12)
-            or not math.isclose(y, ymin + (iy + 0.5) * cell_height, rel_tol=1e-12, abs_tol=1e-12)
-            or not math.isclose(number(cell["area_um2"], "cell.area"), cell_area, rel_tol=1e-12, abs_tol=1e-12)
+            not close(x, xmin + (ix + 0.5) * cell_width)
+            or not close(y, ymin + (iy + 0.5) * cell_height)
+            or not close(number(cell["area_um2"], "cell.area"), cell_area)
         ):
             raise ContractError("LGCP cell geometry mismatch")
-        midpoint_x.append(x)
-        midpoint_y.append(y)
         covariate.append(number(cell["covariate"], "cell.covariate"))
         offset.append(number(cell["offset"], "cell.offset"))
         counts.append(integer(cell["count"], "cell.count", 0, 2**63 - 1))
     if sum(counts) != event_count:
         raise ContractError("LGCP cell counts do not sum to the event count")
     covariate_array = np.asarray(covariate, dtype=np.float64)
-    if np.ptp(covariate_array) <= math.sqrt(np.finfo(np.float64).eps) * max(
+    covariate_floor = math.sqrt(np.finfo(np.float64).eps) * max(
         1.0, float(np.abs(covariate_array).max())
-    ):
+    )
+    if np.ptp(covariate_array) <= covariate_floor:
         raise ContractError("LGCP covariate does not vary materially")
 
     covariance_raw = request["field_covariance"]
@@ -198,12 +233,9 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     cholesky = np.asarray(
         [number(value, "field_cholesky[]") for value in cholesky_raw], dtype=np.float64
     ).reshape(dimension, dimension)
-    covariance_digest = request["covariance_sha256"]
+    sha256_digest(request["covariance_sha256"], "covariance_sha256")
     if (
-        not isinstance(covariance_digest, str)
-        or len(covariance_digest) != 64
-        or any(character not in "0123456789abcdef" for character in covariance_digest)
-        or not np.allclose(covariance, covariance.T, rtol=1e-12, atol=1e-12)
+        not np.allclose(covariance, covariance.T, rtol=1e-12, atol=1e-12)
         or np.max(np.abs(np.triu(cholesky, k=1))) > 1e-14
         or np.any(np.diag(cholesky) <= 0.0)
         or not np.allclose(cholesky @ cholesky.T, covariance, rtol=1e-10, atol=1e-12)
@@ -225,17 +257,25 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     resources = obj(
         request["resources"],
         {
-            "maximum_cells", "maximum_total_iterations", "maximum_draw_cell_work",
-            "maximum_output_bytes", "maximum_predictive_replicates",
-            "maximum_predictive_points", "timeout_seconds",
+            "maximum_cells",
+            "maximum_total_iterations",
+            "maximum_draw_cell_work",
+            "maximum_output_bytes",
+            "maximum_predictive_replicates",
+            "maximum_predictive_points",
+            "timeout_seconds",
         },
         "resources",
     )
     if dimension > integer(resources["maximum_cells"], "resources.cells", 4, 36):
         raise ContractError("LGCP cell limit exceeded")
-    maximum_iterations = integer(resources["maximum_total_iterations"], "resources.iterations", 1, 400_000)
+    maximum_iterations = integer(
+        resources["maximum_total_iterations"], "resources.iterations", 1, 400_000
+    )
     maximum_work = integer(resources["maximum_draw_cell_work"], "resources.work", 1, 1_000_000)
-    integer(resources["maximum_output_bytes"], "resources.output", 1, 16 * 1_048_576)
+    maximum_output_bytes = integer(
+        resources["maximum_output_bytes"], "resources.output", 1, 16 * MIB
+    )
     maximum_replicates = integer(
         resources["maximum_predictive_replicates"], "resources.predictive_replicates", 1, 32
     )
@@ -258,9 +298,14 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     policy = obj(
         request["diagnostic_policy"],
         {
-            "prior_predictive_draws", "maximum_r_hat", "minimum_bulk_ess",
-            "minimum_tail_ess", "minimum_ebfmi", "maximum_divergences",
-            "maximum_tree_depth_hits", "maximum_tree_depth",
+            "prior_predictive_draws",
+            "maximum_r_hat",
+            "minimum_bulk_ess",
+            "minimum_tail_ess",
+            "minimum_ebfmi",
+            "maximum_divergences",
+            "maximum_tree_depth_hits",
+            "maximum_tree_depth",
         },
         "policy",
     )
@@ -288,37 +333,113 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
         "predictive_replicates": predictive_replicates,
         "prediction_seed": prediction_seed,
         "maximum_total_points": maximum_total_points,
+        "maximum_output_bytes": maximum_output_bytes,
         "prior_draws": integer(policy["prior_predictive_draws"], "policy.prior_draws", 1, 100_000),
         "maximum_r_hat": number(policy["maximum_r_hat"], "policy.rhat"),
         "minimum_bulk_ess": number(policy["minimum_bulk_ess"], "policy.bulk"),
         "minimum_tail_ess": number(policy["minimum_tail_ess"], "policy.tail"),
         "minimum_ebfmi": number(policy["minimum_ebfmi"], "policy.ebfmi"),
-        "maximum_divergences": integer(policy["maximum_divergences"], "policy.divergences", 0, 2**63 - 1),
-        "maximum_tree_depth_hits": integer(policy["maximum_tree_depth_hits"], "policy.depth_hits", 0, 2**63 - 1),
+        "maximum_divergences": integer(
+            policy["maximum_divergences"], "policy.divergences", 0, 2**63 - 1
+        ),
+        "maximum_tree_depth_hits": integer(
+            policy["maximum_tree_depth_hits"], "policy.depth_hits", 0, 2**63 - 1
+        ),
         "maximum_tree_depth": integer(policy["maximum_tree_depth"], "policy.depth", 1, 32),
     }
 
 
 def seed_for(seed: int, purpose: str, index: int = 0) -> int:
-    digest = hashlib.sha256(f"marklab-pymc-lgcp-v1\0{seed}\0{purpose}\0{index}".encode()).digest()
-    return int.from_bytes(digest[:4], "little")
+    return derive_seed("marklab-pymc-lgcp-v1", seed, purpose, index)
 
 
-def summary(draws: np.ndarray) -> dict[str, float]:
-    return {
-        "mean": float(draws.mean()),
-        "sd": float(draws.std(ddof=1)),
-        "interval_lower": float(np.quantile(draws, 0.025)),
-        "interval_upper": float(np.quantile(draws, 0.975)),
-    }
+def posterior_array(posterior: Any, name: str, shape: tuple[int, ...]) -> np.ndarray:
+    return np.asarray(posterior["posterior"][name].values, dtype=np.float64).reshape(shape)
 
 
-def tree_values(tree: Any, names: list[str]) -> np.ndarray:
-    return np.concatenate([np.asarray(tree[name].values).reshape(-1) for name in names])
+def predictive_patterns(
+    config: dict[str, Any],
+    intercept_draws: np.ndarray,
+    coefficient_draws: np.ndarray,
+    latent_draws: np.ndarray,
+    intensity_draws: np.ndarray,
+    expected_draws: np.ndarray,
+) -> list[dict[str, Any]]:
+    """Simulate posterior-predictive point patterns from evenly spaced posterior draws.
+
+    Each replicate draws Poisson cell counts from one posterior draw of the expected counts and
+    places the points uniformly within their cells.
+    """
+    patterns = []
+    total_pattern_points = 0
+    total_posterior_draws = config["chains"] * config["draws"]
+    for replicate in range(config["predictive_replicates"]):
+        flattened = replicate * total_posterior_draws // config["predictive_replicates"]
+        chain = flattened // config["draws"]
+        draw = flattened % config["draws"]
+        rng = np.random.default_rng(
+            seed_for(config["prediction_seed"], "posterior-predictive-pattern", replicate)
+        )
+        cell_counts = rng.poisson(expected_draws[flattened]).astype(np.int64)
+        pattern_total = int(cell_counts.sum())
+        total_pattern_points += pattern_total
+        if total_pattern_points > config["maximum_total_points"]:
+            raise ContractError("LGCP posterior predictive realization exceeds point cap")
+        points = []
+        for cell_index, count in enumerate(cell_counts):
+            ix = cell_index % config["grid_x"]
+            iy = cell_index // config["grid_x"]
+            x = rng.uniform(
+                config["xmin"] + ix * config["cell_width"],
+                config["xmin"] + (ix + 1) * config["cell_width"],
+                size=int(count),
+            )
+            y = rng.uniform(
+                config["ymin"] + iy * config["cell_height"],
+                config["ymin"] + (iy + 1) * config["cell_height"],
+                size=int(count),
+            )
+            points.extend(
+                {
+                    "point_id": f"rep:{replicate}:cell:{cell_index}:point:{local_index}",
+                    "ix": ix,
+                    "iy": iy,
+                    "x_um": float(x[local_index]),
+                    "y_um": float(y[local_index]),
+                }
+                for local_index in range(int(count))
+            )
+        patterns.append(
+            {
+                "replicate": replicate,
+                "posterior_draw": {
+                    "chain": chain,
+                    "draw": draw,
+                    "intercept": float(intercept_draws[flattened]),
+                    "coefficient": float(coefficient_draws[flattened]),
+                    "latent_effect": latent_draws[flattened].tolist(),
+                    "intensity": intensity_draws[flattened].tolist(),
+                    "expected_count": expected_draws[flattened].tolist(),
+                },
+                "cell_counts": cell_counts.tolist(),
+                "total_count": pattern_total,
+                "points": points,
+            }
+        )
+    return patterns
 
 
 def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str) -> dict[str, Any]:
+    """Fit the gridded LGCP by NUTS and summarize cells and posterior-predictive patterns.
+
+    Likelihood: ``y_k ~ Poisson(A * exp(eta_k))`` for each grid cell ``k`` of area ``A``, with
+    ``eta_k = alpha + beta * x_k + offset_k + u_k``. Priors: ``alpha ~ Normal(intercept_mean,
+    intercept_sd)`` and ``beta ~ Normal(coefficient_mean, coefficient_sd)``. The latent field is
+    non-centred, ``u = L z`` with ``z ~ Normal(0, I)`` and ``L`` the fixed Cholesky factor of the
+    Matern-3/2 cell-midpoint covariance supplied by the request.
+    """
     dimension = config["covariate"].size
+    chain_seeds = [seed_for(config["seed"], "chain", index) for index in range(config["chains"])]
     with pm.Model():
         intercept = pm.Normal("intercept", config["intercept_mean"], config["intercept_sd"])
         coefficient = pm.Normal("coefficient", config["coefficient_mean"], config["coefficient_sd"])
@@ -330,7 +451,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         pm.Poisson("observed_count", mu=expected_count, observed=config["counts"])
         prior = pm.sample_prior_predictive(
             draws=config["prior_draws"],
-            var_names=["intercept", "coefficient", "field_raw", "latent_effect", "intensity", "expected_count"],
+            var_names=PRIOR_NAMES,
             random_seed=seed_for(config["seed"], "prior"),
         )
         posterior = pm.sample(
@@ -339,7 +460,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
             chains=config["chains"],
             cores=1,
             blas_cores=1,
-            random_seed=[seed_for(config["seed"], "chain", index) for index in range(config["chains"])],
+            random_seed=chain_seeds,
             target_accept=config["target_accept"],
             nuts_sampler="pymc",
             nuts={"max_treedepth": config["maximum_tree_depth"]},
@@ -354,12 +475,12 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
             progressbar=False,
         )
 
-    intercept_draws = np.asarray(posterior["posterior"]["intercept"].values, dtype=np.float64).reshape(-1)
-    coefficient_draws = np.asarray(posterior["posterior"]["coefficient"].values, dtype=np.float64).reshape(-1)
-    raw_draws = np.asarray(posterior["posterior"]["field_raw"].values, dtype=np.float64).reshape(-1, dimension)
-    latent_draws = np.asarray(posterior["posterior"]["latent_effect"].values, dtype=np.float64).reshape(-1, dimension)
-    intensity_draws = np.asarray(posterior["posterior"]["intensity"].values, dtype=np.float64).reshape(-1, dimension)
-    expected_draws = np.asarray(posterior["posterior"]["expected_count"].values, dtype=np.float64).reshape(-1, dimension)
+    intercept_draws = posterior_array(posterior, "intercept", (-1,))
+    coefficient_draws = posterior_array(posterior, "coefficient", (-1,))
+    raw_draws = posterior_array(posterior, "field_raw", (-1, dimension))
+    latent_draws = posterior_array(posterior, "latent_effect", (-1, dimension))
+    intensity_draws = posterior_array(posterior, "intensity", (-1, dimension))
+    expected_draws = posterior_array(posterior, "expected_count", (-1, dimension))
     pearson_draws = (config["counts"][None, :] - expected_draws) / np.sqrt(expected_draws)
     replicated = np.asarray(
         predictive["posterior_predictive"]["observed_count"].values, dtype=np.int64
@@ -367,7 +488,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     prior_values = np.concatenate(
         [
             np.asarray(prior["prior"][name].values, dtype=np.float64).reshape(-1)
-            for name in ["intercept", "coefficient", "field_raw", "latent_effect", "intensity", "expected_count"]
+            for name in PRIOR_NAMES
         ]
     )
     prior_finite = bool(np.isfinite(prior_values).all())
@@ -381,16 +502,9 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         and np.isfinite(pearson_draws).all()
         and np.isfinite(replicated).all()
     )
-    monitored = ["intercept", "coefficient", "field_raw"]
-    r_hat = float(tree_values(pm.stats.rhat(posterior, var_names=monitored, method="rank"), monitored).max())
-    bulk = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="bulk"), monitored).min())
-    tail = float(tree_values(pm.stats.ess(posterior, var_names=monitored, method="tail"), monitored).min())
-    mcse_mean = float(tree_values(pm.stats.mcse(posterior, var_names=monitored, method="mean"), monitored).max())
-    mcse_sd = float(tree_values(pm.stats.mcse(posterior, var_names=monitored, method="sd"), monitored).max())
-    energy = np.asarray(posterior["sample_stats"]["energy"].values, dtype=np.float64)
-    ebfmi = float(np.min(np.mean(np.diff(energy, axis=1) ** 2, axis=1) / np.var(energy, axis=1)))
-    divergences = int(np.asarray(posterior["sample_stats"]["diverging"].values).sum())
-    depth_hits = int(np.asarray(posterior["sample_stats"]["reached_max_treedepth"].values).sum())
+    r_hat, bulk, tail = rank_convergence(posterior, MONITORED)
+    mcse_mean, mcse_sd = mcse_extremes(posterior, MONITORED)
+    ebfmi, divergences, depth_hits = pymc_sampler_diagnostics(posterior["sample_stats"])
     constraints_valid = bool(np.all(intensity_draws > 0.0) and np.all(expected_draws > 0.0))
     complete = (
         prior_finite
@@ -404,71 +518,24 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
         and depth_hits <= config["maximum_tree_depth_hits"]
     )
     patterns = []
-    total_pattern_points = 0
     if complete:
-        total_posterior_draws = config["chains"] * config["draws"]
-        for replicate in range(config["predictive_replicates"]):
-            flattened = replicate * total_posterior_draws // config["predictive_replicates"]
-            chain = flattened // config["draws"]
-            draw = flattened % config["draws"]
-            rng = np.random.default_rng(
-                seed_for(config["prediction_seed"], "posterior-predictive-pattern", replicate)
-            )
-            cell_counts = rng.poisson(expected_draws[flattened]).astype(np.int64)
-            pattern_total = int(cell_counts.sum())
-            total_pattern_points += pattern_total
-            if total_pattern_points > config["maximum_total_points"]:
-                raise ContractError("LGCP posterior predictive realization exceeds point cap")
-            points = []
-            for cell_index, count in enumerate(cell_counts):
-                ix = cell_index % config["grid_x"]
-                iy = cell_index // config["grid_x"]
-                x = rng.uniform(
-                    config["xmin"] + ix * config["cell_width"],
-                    config["xmin"] + (ix + 1) * config["cell_width"],
-                    size=int(count),
-                )
-                y = rng.uniform(
-                    config["ymin"] + iy * config["cell_height"],
-                    config["ymin"] + (iy + 1) * config["cell_height"],
-                    size=int(count),
-                )
-                points.extend(
-                    {
-                        "point_id": f"rep:{replicate}:cell:{cell_index}:point:{local_index}",
-                        "ix": ix,
-                        "iy": iy,
-                        "x_um": float(x[local_index]),
-                        "y_um": float(y[local_index]),
-                    }
-                    for local_index in range(int(count))
-                )
-            patterns.append(
-                {
-                    "replicate": replicate,
-                    "posterior_draw": {
-                        "chain": chain,
-                        "draw": draw,
-                        "intercept": float(intercept_draws[flattened]),
-                        "coefficient": float(coefficient_draws[flattened]),
-                        "latent_effect": latent_draws[flattened].tolist(),
-                        "intensity": intensity_draws[flattened].tolist(),
-                        "expected_count": expected_draws[flattened].tolist(),
-                    },
-                    "cell_counts": cell_counts.tolist(),
-                    "total_count": pattern_total,
-                    "points": points,
-                }
-            )
+        patterns = predictive_patterns(
+            config,
+            intercept_draws,
+            coefficient_draws,
+            latent_draws,
+            intensity_draws,
+            expected_draws,
+        )
     cells = [
         {
             "ix": index % config["grid_x"],
             "iy": index // config["grid_x"],
             "count": int(config["counts"][index]),
-            "latent_effect": summary(latent_draws[:, index]),
-            "intensity": summary(intensity_draws[:, index]),
-            "expected_count": summary(expected_draws[:, index]),
-            "pearson_residual": summary(pearson_draws[:, index]),
+            "latent_effect": summary(latent_draws[:, index], chains=config["chains"]),
+            "intensity": summary(intensity_draws[:, index], chains=config["chains"]),
+            "expected_count": summary(expected_draws[:, index], chains=config["chains"]),
+            "pearson_residual": summary(pearson_draws[:, index], chains=config["chains"]),
         }
         for index in range(dimension)
     ]
@@ -477,13 +544,7 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
     return {
         "format": "marklab.pymc_gridded_lgcp_worker_result",
         "version": 1,
-        "backend": {
-            "name": "pymc",
-            "version": pm.__version__,
-            "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
-            "environment_lock_sha256": lock_sha,
-            "worker_sha256": worker_sha,
-        },
+        "backend": backend_identity("pymc", pm.__version__, lock_sha, worker_sha),
         "request_sha256": request_sha,
         "fit_state": "complete" if complete else "nonconverged",
         "sampling": {
@@ -493,8 +554,8 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
             "completed_draws": config["chains"] * config["draws"],
         },
         "posterior": {
-            "intercept": summary(intercept_draws),
-            "coefficient": summary(coefficient_draws),
+            "intercept": summary(intercept_draws, chains=config["chains"]),
+            "coefficient": summary(coefficient_draws, chains=config["chains"]),
         },
         "cells": cells,
         "diagnostics": {
@@ -523,23 +584,13 @@ def fit(config: dict[str, Any], request_sha: str, lock_sha: str, worker_sha: str
 
 
 def main() -> None:
-    if pm.__version__ != PYMC_VERSION or sys.version_info[:2] != (3, 12):
-        raise ContractError("PyMC or Python version drift")
-    script = Path(__file__)
-    lock_sha = hashlib.sha256(script.with_name("uv.lock").read_bytes()).hexdigest()
-    worker_sha = hashlib.sha256(script.read_bytes()).hexdigest()
-    raw = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    if len(raw) > 16 * 1024 * 1024:
-        raise ContractError("request exceeds 16 MiB")
-    request_sha = hashlib.sha256(raw).hexdigest()
-    result = fit(validate(json.loads(raw), lock_sha, worker_sha), request_sha, lock_sha, worker_sha)
-    sys.stdout.write(json.dumps(result, allow_nan=False, sort_keys=True, separators=(",", ":")))
-    sys.stdout.write("\n")
+    require_versions(pymc=pm.__version__)
+    lock_sha, worker_sha = worker_digests(__file__)
+    raw = read_request(16 * MIB)
+    config = validate(json.loads(raw), lock_sha, worker_sha)
+    result = fit(config, sha256_hex(raw), lock_sha, worker_sha)
+    write_result(result, max_bytes=config["maximum_output_bytes"])
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Exception as error:
-        print(f"marklab PyMC gridded LGCP worker failed: {type(error).__name__}: {error}", file=sys.stderr)
-        raise SystemExit(2) from error
+    run_worker(main, "marklab PyMC gridded LGCP worker failed")

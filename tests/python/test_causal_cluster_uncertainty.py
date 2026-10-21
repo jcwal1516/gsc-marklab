@@ -1,11 +1,10 @@
 import importlib.util
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 import numpy as np
 from scipy.optimize import minimize
 from scipy.special import expit
-
 
 MODULE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -37,7 +36,9 @@ class ClusterUncertaintyTest(unittest.TestCase):
             "power_monotonicity",
         ):
             with self.subTest(control=name):
-                self.assertEqual(entries[name]["status"], "not_verified_unexecuted_control")
+                self.assertEqual(
+                    entries[name]["status"], "not_verified_unexecuted_control"
+                )
                 self.assertIsNone(entries[name]["value"])
         self.assertEqual(
             result["overall_status"],
@@ -80,13 +81,15 @@ class ClusterUncertaintyTest(unittest.TestCase):
             [term["power"] for term in original["dose_response"]["polynomial_terms"]],
             [1, 2],
         )
-        quadratic = worker.observational({
-            **spec,
-            "rows": [
-                {**row, "outcome": row["outcome"] + 3.0 * row["dose"] ** 2}
-                for row in rows
-            ],
-        })
+        quadratic = worker.observational(
+            {
+                **spec,
+                "rows": [
+                    {**row, "outcome": row["outcome"] + 3.0 * row["dose"] ** 2}
+                    for row in rows
+                ],
+            }
+        )
         for index, expected_change in [(0, 0.0), (1, 3.0)]:
             self.assertAlmostEqual(
                 quadratic["dose_response"]["polynomial_terms"][index]["coefficient"]
@@ -122,7 +125,7 @@ class ClusterUncertaintyTest(unittest.TestCase):
             heldout = np.asarray([fold_for[value] == fold for value in cluster_ids])
             training = ~heldout
             fit = minimize(
-                lambda coefficients: float(
+                lambda coefficients, training=training: float(
                     np.sum(
                         np.logaddexp(0.0, design[training] @ coefficients)
                         - treatment[training] * (design[training] @ coefficients)
@@ -136,12 +139,14 @@ class ClusterUncertaintyTest(unittest.TestCase):
             propensity[heldout] = expit(design[heldout] @ fit.x)
             control = training & (treatment == 0.0)
             treated = training & (treatment == 1.0)
-            mean_control[heldout] = design[heldout] @ np.linalg.lstsq(
-                design[control], outcome[control], rcond=None
-            )[0]
-            mean_treated[heldout] = design[heldout] @ np.linalg.lstsq(
-                design[treated], outcome[treated], rcond=None
-            )[0]
+            mean_control[heldout] = (
+                design[heldout]
+                @ np.linalg.lstsq(design[control], outcome[control], rcond=None)[0]
+            )
+            mean_treated[heldout] = (
+                design[heldout]
+                @ np.linalg.lstsq(design[treated], outcome[treated], rcond=None)[0]
+            )
         expected_scores = (
             mean_treated
             - mean_control

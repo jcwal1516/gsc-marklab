@@ -4,6 +4,7 @@ use rand_chacha::ChaCha20Rng;
 use serde::Serialize;
 
 use crate::{rejection_abc_growth_front, RejectionAbcGrowthFrontSpec, SbiError};
+use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug)]
 pub struct GrowthFrontRejectionAbcSbcSpec {
@@ -36,7 +37,15 @@ pub struct SbcReplicate {
     pub interval_upper: Option<f64>,
     pub covered: Option<bool>,
     pub proposals_attempted: Option<u32>,
-    pub status: &'static str,
+    pub status: SbcReplicateStatus,
+}
+
+marklab_core::vocabulary_enum! {
+    /// Whether one calibration replicate produced inference.
+    pub enum SbcReplicateStatus {
+        Complete => "complete",
+        InferenceFailed => "inference_failed",
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -68,7 +77,7 @@ pub struct GrowthFrontRejectionAbcSbcResult {
     pub coverage: SbcCoverage,
     pub maximum_total_declared_cell_steps: u64,
     pub random_seed_namespace: &'static str,
-    pub claim_status: &'static str,
+    pub claim_status: ClaimStatus,
 }
 
 pub fn growth_front_rejection_abc_sbc(
@@ -126,7 +135,7 @@ pub fn growth_front_rejection_abc_sbc(
                     interval_upper: None,
                     covered: None,
                     proposals_attempted: None,
-                    status: "inference_failed",
+                    status: SbcReplicateStatus::InferenceFailed,
                 });
                 continue;
             }
@@ -159,7 +168,7 @@ pub fn growth_front_rejection_abc_sbc(
             interval_upper: Some(upper),
             covered: Some(covered),
             proposals_attempted: Some(inference.proposals_attempted),
-            status: "complete",
+            status: SbcReplicateStatus::Complete,
         });
     }
     if successful_ranks.is_empty() {
@@ -197,7 +206,7 @@ pub fn growth_front_rejection_abc_sbc(
         },
         maximum_total_declared_cell_steps: maximum_work,
         random_seed_namespace: "growth_front_rejection_abc_sbc_v1_chacha20",
-        claim_status: "synthetic_sbc_diagnostic_not_biological_calibration",
+        claim_status: ClaimStatus::SyntheticSbcDiagnosticNotBiologicalCalibration,
     })
 }
 

@@ -1,23 +1,23 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashSet},
-    fs, io,
+    io,
     path::PathBuf,
 };
 
 use marklab_cohort::{hierarchical_bootstrap, HierarchicalBootstrapSpec, HierarchicalScalarRecord};
-use marklab_workflow::{
-    execute_algorithm, ArtifactRef, ArtifactSchema, CacheKeyMaterial, CacheStatus, ContentDigest,
-    DurableProject, DurableProjectLimits, LocalScheduler, MarklabProject, NodeError, NodeId,
-    NodeSpec, SchedulerLimits, WorkflowGraph, WorkflowNode,
-};
+use marklab_project::ContentDigest;
+use marklab_workflow::NodeError;
 
 use super::super::cohort::hierarchical_bootstrap::{
     read_records_from_bytes, HierarchicalBootstrapOutput,
 };
+use super::cli_schema::{
+    CohortHierarchicalBootstrapLimits, CohortHierarchicalBootstrapProjectArgs,
+};
 use super::{
-    bayes, native_runtime_provenance, report_recovery, source_artifact, BayesCliError,
-    MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES, PROJECT_CONTROL_BYTES, PROJECT_LEDGER_BYTES,
-    PROJECT_LEDGER_RECORDS, PROJECT_RECORD_BYTES,
+    durable::{self, Codec, NodeContract, Source, SourceNode},
+    CliError, MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES,
 };
 
 const INPUT_KIND: &str =
@@ -28,19 +28,23 @@ const FIXED_MAXIMUM_PATIENTS: usize = 1_000_000;
 const FIXED_MAXIMUM_SPECIMENS: usize = 1_000_000;
 const FIXED_MAXIMUM_BOOTSTRAP_DRAWS: u64 = 100_000_000;
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    project_path: PathBuf,
-    input_path: PathBuf,
-    replicates: usize,
-    seed: u64,
-    alpha: f64,
-    maximum_patients: usize,
-    maximum_specimens: usize,
-    maximum_bootstrap_draws: u64,
-    memory_budget_mib: usize,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: CohortHierarchicalBootstrapProjectArgs) -> Result<(), CliError> {
+    let CohortHierarchicalBootstrapProjectArgs {
+        project: project_path,
+        input: input_path,
+        replicates,
+        seed,
+        alpha,
+        limits,
+        out: output_path,
+    } = args;
+    let CohortHierarchicalBootstrapLimits {
+        maximum_patients,
+        maximum_specimens,
+        maximum_bootstrap_draws,
+        memory_budget_mib,
+    } = limits;
+    const LABEL: &str = "hierarchical-bootstrap input";
     validate_declared_limits(
         maximum_patients,
         maximum_specimens,
@@ -49,15 +53,14 @@ pub(super) fn run(
     )?;
     let memory_bytes = memory_budget_mib
         .checked_mul(1024 * 1024)
-        .ok_or_else(|| BayesCliError::Input("--memory-budget-mib is too large".into()))?;
+        .ok_or_else(|| CliError::Input("--memory-budget-mib is too large".into()))?;
     let input_path_identity = serde_json::to_vec(&input_path).map_err(|error| {
-        BayesCliError::Input(format!("input path is not JSON-serializable: {error}"))
+        CliError::Input(format!("input path is not JSON-serializable: {error}"))
     })?;
     let input_bytes = read_bounded(&input_path, memory_bytes)?;
-    let input_artifact = ArtifactRef::from_bytes(INPUT_KIND, &input_bytes)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+    let source = Source::from_bytes(input_path.clone(), INPUT_KIND, &input_bytes)?;
     let records = read_records_from_bytes(&input_bytes)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
+        .map_err(|error| CliError::Input(error.to_string()))?;
     let requirements = preflight(
         &records,
         replicates,
@@ -68,74 +71,46 @@ pub(super) fn run(
     )?;
     let retained = retained_bytes(input_bytes.len(), &requirements, replicates)?;
     if retained > memory_bytes {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "hierarchical-bootstrap retained-memory estimate {retained} exceeds budget {memory_bytes}"
         )));
     }
-    if source_artifact(&input_path, INPUT_KIND)? != input_artifact {
-        return Err(BayesCliError::Input(
-            "hierarchical-bootstrap input changed while prepared".into(),
-        ));
-    }
+    source.ensure_unchanged(LABEL)?;
 
     let analysis = HierarchicalBootstrapSpec {
         replicates,
         seed,
         alpha,
     };
-    let node = CohortHierarchicalBootstrapNode::new(
+    let (analysis, contract) = CohortHierarchicalBootstrap::new(
         input_path,
         input_path_identity,
-        input_artifact.clone(),
         records,
         analysis,
         requirements,
-        maximum_patients,
-        maximum_specimens,
-        maximum_bootstrap_draws,
-        memory_budget_mib,
+        limits,
     )?;
-    let runtime = native_runtime_provenance()?;
-    let limits = DurableProjectLimits::new(
-        PROJECT_CONTROL_BYTES,
-        PROJECT_LEDGER_BYTES,
-        PROJECT_LEDGER_RECORDS,
-        PROJECT_RECORD_BYTES,
-        MAXIMUM_RESULT_BYTES,
-    )
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let mut durable = DurableProject::open_or_create(&project_path, limits)
-        .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    report_recovery(&durable);
-    let mut project = MarklabProject::with_inline_artifact_limit(MAXIMUM_RESULT_BYTES)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    project
-        .register_reference(input_artifact)
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let graph = WorkflowGraph::new([node.spec().clone()])
-        .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let scheduler = LocalScheduler::new(SchedulerLimits {
-        max_inline_output_bytes: MAXIMUM_RESULT_BYTES,
-    })
-    .map_err(|error| BayesCliError::Input(error.to_string()))?;
-    let execution = execute_algorithm(
-        &mut durable,
-        &mut project,
-        &graph,
+    let node = SourceNode::new(
+        contract,
+        LABEL,
+        vec![source],
+        analysis,
+        CohortHierarchicalBootstrap::execute,
+        |analysis, output| analysis.validate(output).map_err(NodeError::decode),
+    )?;
+
+    let run = durable::execute_node(
+        &project_path,
         &node,
-        &scheduler,
-        ArtifactSchema::new("marklab.cohort_hierarchical_bootstrap", 1)
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-        runtime,
+        ("marklab.cohort_hierarchical_bootstrap", 1),
+        MAXIMUM_RESULT_BYTES,
+    )?;
+    durable::publish(
+        "cohort-hierarchical-bootstrap",
+        &output_path,
+        &run.output,
+        run.cache_status,
     )
-    .map_err(|error| BayesCliError::Backend(error.to_string()))?;
-    bayes::publish_json(&output_path, &execution.output)?;
-    let cache_status = match execution.cache_status {
-        CacheStatus::Hit => "hit",
-        CacheStatus::Miss => "miss",
-    };
-    eprintln!("project cohort-hierarchical-bootstrap cache_status={cache_status}");
-    Ok(())
 }
 
 fn validate_declared_limits(
@@ -143,13 +118,13 @@ fn validate_declared_limits(
     maximum_specimens: usize,
     maximum_bootstrap_draws: u64,
     memory_budget_mib: usize,
-) -> Result<(), BayesCliError> {
+) -> Result<(), CliError> {
     if maximum_patients == 0
         || maximum_specimens == 0
         || maximum_bootstrap_draws == 0
         || memory_budget_mib == 0
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "hierarchical-bootstrap resource limits must be positive".into(),
         ));
     }
@@ -157,7 +132,7 @@ fn validate_declared_limits(
         || maximum_specimens > FIXED_MAXIMUM_SPECIMENS
         || maximum_bootstrap_draws > FIXED_MAXIMUM_BOOTSTRAP_DRAWS
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "hierarchical-bootstrap declared resource limits exceed fixed production ceilings"
                 .into(),
         ));
@@ -165,22 +140,16 @@ fn validate_declared_limits(
     Ok(())
 }
 
-fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, BayesCliError> {
-    let metadata = fs::metadata(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
+fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, CliError> {
     let maximum = (MAXIMUM_INPUT_BYTES as usize).min(memory_bytes);
-    if !metadata.is_file() || metadata.len() > maximum as u64 {
-        return Err(BayesCliError::Input(format!(
+    crate::input_file::read_regular_file(
+        path,
+        maximum as u64,
+        &format!(
             "hierarchical-bootstrap input must be a regular file within {maximum} bytes: {}",
             path.display()
-        )));
-    }
-    fs::read(path).map_err(|source| BayesCliError::Io {
-        path: path.to_owned(),
-        source,
-    })
+        ),
+    )
 }
 
 #[derive(Clone)]
@@ -198,24 +167,24 @@ fn preflight(
     maximum_patients: usize,
     maximum_specimens: usize,
     maximum_bootstrap_draws: u64,
-) -> Result<Requirements, BayesCliError> {
+) -> Result<Requirements, CliError> {
     if replicates == 0 || replicates > 1_000_000 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "bootstrap replicates must be between 1 and 1000000".into(),
         ));
     }
     if !alpha.is_finite() || alpha <= 0.0 || alpha >= 0.5 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "bootstrap alpha must be finite and strictly between zero and one half".into(),
         ));
     }
     if records.len() < 2 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "hierarchical bootstrap requires at least two specimen rows".into(),
         ));
     }
     if records.len() > maximum_specimens {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "hierarchical-bootstrap specimen count {} exceeds maximum_specimens {maximum_specimens}",
             records.len()
         )));
@@ -229,13 +198,13 @@ fn preflight(
             || record.specimen_id.trim() != record.specimen_id
             || !record.endpoint.is_finite()
         {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "hierarchical-bootstrap records require exact patient/specimen IDs and finite endpoints"
                     .into(),
             ));
         }
         if !specimen_ids.insert(record.specimen_id.as_str()) {
-            return Err(BayesCliError::Input(format!(
+            return Err(CliError::Input(format!(
                 "duplicate specimen_id: {}",
                 record.specimen_id
             )));
@@ -243,12 +212,12 @@ fn preflight(
         *patients.entry(record.patient_id.as_str()).or_default() += 1;
     }
     if patients.len() < 2 {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "hierarchical bootstrap requires at least two patients".into(),
         ));
     }
     if patients.len() > maximum_patients {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "hierarchical-bootstrap patient count {} exceeds maximum_patients {maximum_patients}",
             patients.len()
         )));
@@ -262,11 +231,9 @@ fn preflight(
                 .and_then(|specimens| patients.checked_mul(specimens))
         })
         .and_then(|per_replicate| per_replicate.checked_mul(replicates as u64))
-        .ok_or_else(|| {
-            BayesCliError::Input("hierarchical-bootstrap draw count overflowed".into())
-        })?;
+        .ok_or_else(|| CliError::Input("hierarchical-bootstrap draw count overflowed".into()))?;
     if draw_count > maximum_bootstrap_draws {
-        return Err(BayesCliError::Input(format!(
+        return Err(CliError::Input(format!(
             "hierarchical-bootstrap {draw_count} bootstrap draws exceed maximum_bootstrap_draws {maximum_bootstrap_draws}"
         )));
     }
@@ -282,7 +249,7 @@ fn retained_bytes(
     source_bytes: usize,
     requirements: &Requirements,
     replicates: usize,
-) -> Result<usize, BayesCliError> {
+) -> Result<usize, CliError> {
     source_bytes
         .checked_mul(2)
         .and_then(|value| value.checked_add(requirements.specimen_count.saturating_mul(512)))
@@ -297,37 +264,32 @@ fn retained_bytes(
             )
         })
         .and_then(|value| value.checked_add(64 * 1024))
-        .ok_or_else(|| {
-            BayesCliError::Input("hierarchical-bootstrap memory estimate overflowed".into())
-        })
+        .ok_or_else(|| CliError::Input("hierarchical-bootstrap memory estimate overflowed".into()))
 }
 
-struct CohortHierarchicalBootstrapNode {
-    spec: NodeSpec,
+struct CohortHierarchicalBootstrap {
     input_path: PathBuf,
     input_path_identity: Vec<u8>,
-    input_artifacts: Vec<ArtifactRef>,
     records: Vec<HierarchicalScalarRecord>,
     analysis: HierarchicalBootstrapSpec,
     requirements: Requirements,
-    configuration_digest: ContentDigest,
-    execution_policy: Vec<u8>,
 }
 
-impl CohortHierarchicalBootstrapNode {
-    #[allow(clippy::too_many_arguments)]
+impl CohortHierarchicalBootstrap {
     fn new(
         input_path: PathBuf,
         input_path_identity: Vec<u8>,
-        input_artifact: ArtifactRef,
         records: Vec<HierarchicalScalarRecord>,
         analysis: HierarchicalBootstrapSpec,
         requirements: Requirements,
-        maximum_patients: usize,
-        maximum_specimens: usize,
-        maximum_bootstrap_draws: u64,
-        memory_budget_mib: usize,
-    ) -> Result<Self, BayesCliError> {
+        limits: CohortHierarchicalBootstrapLimits,
+    ) -> Result<(Self, NodeContract), CliError> {
+        let CohortHierarchicalBootstrapLimits {
+            maximum_patients,
+            maximum_specimens,
+            maximum_bootstrap_draws,
+            memory_budget_mib,
+        } = limits;
         let alpha_bits = analysis.alpha.to_bits().to_string();
         let configuration_digest = ContentDigest::from_framed([
             b"marklab-cohort-hierarchical-bootstrap-configuration-v1".as_slice(),
@@ -345,28 +307,25 @@ impl CohortHierarchicalBootstrapNode {
             analysis.replicates, analysis.seed
         )
         .into_bytes();
-        Ok(Self {
-            spec: NodeSpec::new(
-                NodeId::new("cohort-hierarchical-bootstrap")
-                    .map_err(|error| BayesCliError::Input(error.to_string()))?,
-                "cohort_hierarchical_bootstrap",
-                1,
-                Vec::new(),
-            )
-            .map_err(|error| BayesCliError::Input(error.to_string()))?,
-            input_path,
-            input_path_identity,
-            input_artifacts: vec![input_artifact],
-            records,
-            analysis,
-            requirements,
-            configuration_digest,
-            execution_policy,
-        })
-    }
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
+        Ok((
+            Self {
+                input_path,
+                input_path_identity,
+                records,
+                analysis,
+                requirements,
+            },
+            NodeContract {
+                id: "cohort-hierarchical-bootstrap",
+                kind: "cohort_hierarchical_bootstrap",
+                version: 1,
+                configuration_digest,
+                execution_policy: Cow::Owned(execution_policy),
+                implementation_identity: IMPLEMENTATION_IDENTITY,
+                output_kind: OUTPUT_KIND,
+                codec: Codec::ExactFloatJson,
+            },
+        ))
     }
 
     fn validate(&self, output: &HierarchicalBootstrapOutput) -> io::Result<()> {
@@ -400,68 +359,13 @@ impl CohortHierarchicalBootstrapNode {
         }
         Ok(())
     }
-}
 
-impl WorkflowNode for CohortHierarchicalBootstrapNode {
-    type Output = HierarchicalBootstrapOutput;
-
-    fn spec(&self) -> &NodeSpec {
-        &self.spec
-    }
-
-    fn input_artifacts(&self) -> &[ArtifactRef] {
-        &self.input_artifacts
-    }
-
-    fn verify_input_content(&self) -> Result<(), NodeError> {
-        let current = source_artifact(&self.input_path, INPUT_KIND).map_err(NodeError::input)?;
-        if self.input_artifacts.first() != Some(&current) {
-            return Err(NodeError::input(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "hierarchical-bootstrap input identity changed",
-            )));
-        }
-        if serde_json::to_vec(&self.input_path).ok().as_deref()
-            != Some(self.input_path_identity.as_slice())
-        {
-            return Err(NodeError::input(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "hierarchical-bootstrap input path identity changed",
-            )));
-        }
-        Ok(())
-    }
-
-    fn cache_key_material(&self) -> CacheKeyMaterial<'_> {
-        CacheKeyMaterial {
-            configuration_digest: self.configuration_digest,
-            execution_policy: &self.execution_policy,
-            implementation_identity: IMPLEMENTATION_IDENTITY,
-        }
-    }
-
-    fn execute(&self) -> Result<Self::Output, NodeError> {
+    fn execute(&self) -> Result<HierarchicalBootstrapOutput, NodeError> {
         let result =
             hierarchical_bootstrap(&self.records, &self.analysis).map_err(NodeError::execution)?;
         Ok(HierarchicalBootstrapOutput::from_result(
             self.input_path.clone(),
             result,
         ))
-    }
-
-    fn encode_output(&self, output: &Self::Output) -> Result<Box<[u8]>, NodeError> {
-        self.validate(output).map_err(NodeError::encoding)?;
-        marklab::exact_float_json::encode(output).map_err(NodeError::encoding)
-    }
-
-    fn decode_output(&self, bytes: &[u8]) -> Result<Self::Output, NodeError> {
-        let output: HierarchicalBootstrapOutput =
-            marklab::exact_float_json::decode(bytes).map_err(NodeError::decode)?;
-        self.validate(&output).map_err(NodeError::decode)?;
-        Ok(output)
-    }
-
-    fn output_kind(&self) -> &'static str {
-        OUTPUT_KIND
     }
 }

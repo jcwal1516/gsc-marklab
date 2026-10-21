@@ -1,11 +1,14 @@
+use marklab_bayes::is_worker_timeout;
 use std::{collections::HashSet, path::PathBuf};
 
 use marklab_topology::sha256_hex;
 use serde::{Deserialize, Serialize};
 
-use super::super::topology::{
-    publish_json, read_input, read_required, run_worker, TopologyCliError,
-};
+use super::super::topology::{publish_json, read_input, read_required, run_worker};
+use crate::cli_error::CliError;
+use marklab_bayes::backend_versions::NUMPY_VERSION;
+use marklab_bayes::backend_versions::PYTHON_VERSION;
+use marklab_bayes::backend_versions::SCIPY_VERSION;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -42,10 +45,7 @@ struct LandmarkUncertaintySpec {
     seed: u64,
     timeout_seconds: u64,
 }
-pub(super) fn run_landmark_uncertainty(
-    input: PathBuf,
-    out: PathBuf,
-) -> Result<(), TopologyCliError> {
+pub(super) fn run_landmark_uncertainty(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
     let bytes = read_input(&input)?;
     let mut spec: LandmarkUncertaintySpec = serde_json::from_slice(&bytes)?;
     spec.source_cells
@@ -53,7 +53,7 @@ pub(super) fn run_landmark_uncertainty(
     spec.target_cells
         .sort_by(|left, right| left.cell_id.cmp(&right.cell_id));
     validate_landmark_uncertainty(&spec)?;
-    let repository = marklab::python_backend_assets_root()?;
+    let repository = marklab::backend::python_backend_assets_root()?;
     let lock_path = repository.join("workers/python/uv.lock");
     let worker_path =
         repository.join("workers/python/marklab_scipy_landmark_uncertainty_worker.py");
@@ -64,9 +64,9 @@ pub(super) fn run_landmark_uncertainty(
         "version": 1,
         "backend": {
             "name": "scipy_gaussian_process_landmark_posterior",
-            "scipy_version": "1.18.1",
-            "numpy_version": "2.4.6",
-            "python_version": "3.12",
+            "scipy_version": SCIPY_VERSION,
+            "numpy_version": NUMPY_VERSION,
+            "python_version": PYTHON_VERSION,
             "license": "BSD-3-Clause",
             "environment_lock_sha256": sha256_hex(&lock),
             "worker_sha256": sha256_hex(&worker)
@@ -99,14 +99,14 @@ pub(super) fn run_landmark_uncertainty(
         || result["request_sha256"] != sha256_hex(&request_bytes)
         || result["claim_status"] != "probabilistic_compatibility_not_cell_identity"
     {
-        return Err(TopologyCliError::Backend(
+        return Err(CliError::Backend(
             "landmark uncertainty result identity mismatch".into(),
         ));
     }
     publish_json(&out, &result)
 }
 
-fn validate_landmark_uncertainty(spec: &LandmarkUncertaintySpec) -> Result<(), TopologyCliError> {
+fn validate_landmark_uncertainty(spec: &LandmarkUncertaintySpec) -> Result<(), CliError> {
     let unique_points = |points: &[[f64; 2]]| {
         let mut unique = HashSet::new();
         points.iter().all(|point| {
@@ -160,9 +160,9 @@ fn validate_landmark_uncertainty(spec: &LandmarkUncertaintySpec) -> Result<(), T
         || spec.feature_cost_scale <= 0.0
         || !spec.dustbin_cost.is_finite()
         || spec.dustbin_cost <= 0.0
-        || !(1..=3_600).contains(&spec.timeout_seconds)
+        || !is_worker_timeout(spec.timeout_seconds)
     {
-        return Err(TopologyCliError::Input(
+        return Err(CliError::Input(
             "landmark uncertainty requires unique paired landmarks, exact-frame finite cell features, a positive GP/noise model, bounded draws, and positive spatial/feature/dustbin costs"
                 .into(),
         ));

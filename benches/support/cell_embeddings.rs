@@ -1,22 +1,27 @@
 use std::{collections::BTreeMap, io::Write, mem::size_of, str::FromStr};
 
 use marklab::{
-    import_cellvit_he_bundle_bytes, publish_cell_embedding_row_link_arrow,
-    publish_cell_embedding_table_arrow, publish_cell_embedding_table_parquet,
-    read_cell_embedding_table_arrow_from_store, read_cell_embedding_table_parquet_from_store,
-    scan_cell_embedding_table_arrow_from_store, scan_cell_embedding_table_parquet_from_store,
-    ArtifactCatalog, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef,
-    ArtifactSchema, CanonicalDecimal, CellEmbeddingExecutionProvenance,
-    CellEmbeddingInputArtifacts, CellEmbeddingModelProvenance, CellEmbeddingProvenance,
-    CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, CellEmbeddingTable,
-    CellEmbeddingTablePhysicalBindings, CellEmbeddingTensorContract, CellId, CellIdentityMap,
-    CellIdentityMapEntry, CellVitHeArtifactBindings, CellVitHeImportRequest, CohortHierarchy,
-    ContentDigest, ContentDigestWriter, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
-    CoordinateSpace, CoordinateUnit, EmbeddingColumnarBudgets, EmbeddingQcSummary,
-    EmbeddingSpatialContext, FrameTransform, HierarchyId, HierarchyNode, ImageCoordinateConvention,
-    LocalArtifactStore, PatchBoundaryPolicy, PatientId, PositiveRational, ReplicationRole, SlideId,
-    SourceBundleBudgets, SpatialAxis, StoreId, TransformId, TransformMatrix,
-    VerifiedCellEmbeddingArtifactGraph,
+    embeddings::{
+        import_cellvit_he_bundle_bytes, publish_cell_embedding_row_link_arrow,
+        publish_cell_embedding_table_arrow, publish_cell_embedding_table_parquet,
+        read_cell_embedding_table_arrow_from_store, read_cell_embedding_table_parquet_from_store,
+        scan_cell_embedding_table_arrow_from_store, scan_cell_embedding_table_parquet_from_store,
+        CanonicalDecimal, CellEmbeddingExecutionProvenance, CellEmbeddingInputArtifacts,
+        CellEmbeddingModelProvenance, CellEmbeddingProvenance, CellEmbeddingRowLink,
+        CellEmbeddingRowLinkEntry, CellEmbeddingTable, CellEmbeddingTablePhysicalBindings,
+        CellEmbeddingTensorContract, CellIdentityMap, CellIdentityMapEntry,
+        CellVitHeArtifactBindings, CellVitHeImportRequest, EmbeddingColumnarBudgets,
+        EmbeddingQcSummary, EmbeddingSpatialContext, PatchBoundaryPolicy, PositiveRational,
+        SourceBundleBudgets, VerifiedCellEmbeddingArtifactGraph,
+    },
+    workflow::{
+        ArtifactCatalog, ArtifactId, ArtifactKey, ArtifactLocator, ArtifactRecord, ArtifactRef,
+        ArtifactSchema, ContentDigest, ContentDigestWriter, LocalArtifactStore, StoreId,
+    },
+    CellId, CohortHierarchy, CoordinateFrame, CoordinateFrameId, CoordinateRegistry,
+    CoordinateSpace, CoordinateUnit, FrameTransform, HierarchyId, HierarchyNode,
+    ImageCoordinateConvention, PatientId, ReplicationRole, SlideId, SpatialAxis, TransformId,
+    TransformMatrix,
 };
 use tempfile::TempDir;
 
@@ -216,7 +221,7 @@ fn expected_outcome(profile: BenchmarkProfile) -> WorkloadOutcome {
 struct SmokeFixture {
     _root: TempDir,
     store: LocalArtifactStore,
-    expected: marklab::ExpectedCellSet,
+    expected: marklab::embeddings::ExpectedCellSet,
     identity_map: CellIdentityMap,
     hierarchy: CohortHierarchy,
     row_link: CellEmbeddingRowLink,
@@ -245,7 +250,7 @@ impl SmokeFixture {
         )
         .expect("benchmark store");
         let cells = benchmark_cells(SMOKE_ROWS);
-        let expected = marklab::ExpectedCellSet::new("benchmark-all.v1", cells.clone())
+        let expected = marklab::embeddings::ExpectedCellSet::new("benchmark-all.v1", cells.clone())
             .expect("benchmark expected cells");
         let hierarchy = benchmark_hierarchy(&expected);
 
@@ -473,10 +478,9 @@ struct PublishedGraphRecords {
     catalog: ArtifactCatalog,
 }
 
-#[allow(clippy::too_many_arguments)]
 fn publish_graph_records(
     store: &LocalArtifactStore,
-    expected: &marklab::ExpectedCellSet,
+    expected: &marklab::embeddings::ExpectedCellSet,
     hierarchy: &CohortHierarchy,
     cells: &[CellId],
     source_csv: &[u8],
@@ -759,7 +763,7 @@ fn benchmark_context() -> EmbeddingSpatialContext {
     .expect("benchmark spatial context")
 }
 
-fn benchmark_hierarchy(expected: &marklab::ExpectedCellSet) -> CohortHierarchy {
+fn benchmark_hierarchy(expected: &marklab::embeddings::ExpectedCellSet) -> CohortHierarchy {
     let patient = HierarchyId::from(PatientId::new("benchmark-patient").expect("patient"));
     let slide = HierarchyId::from(SlideId::new("benchmark-slide").expect("slide"));
     let mut nodes = vec![
@@ -788,7 +792,7 @@ fn build_domain_table(
     maximum_retained_bytes: usize,
 ) -> CellEmbeddingTable {
     let cells = benchmark_cells(row_count);
-    let expected = marklab::ExpectedCellSet::new("benchmark-domain.v1", cells)
+    let expected = marklab::embeddings::ExpectedCellSet::new("benchmark-domain.v1", cells)
         .expect("benchmark domain expected cells");
     let component_count = row_count
         .checked_mul(usize::try_from(dimension).expect("benchmark dimension"))
@@ -1109,7 +1113,7 @@ fn publish_record(
     kind: &str,
     bytes: &[u8],
     dependencies: Vec<ArtifactId>,
-    table: Option<marklab::TableManifest>,
+    table: Option<marklab::workflow::TableManifest>,
 ) -> ArtifactRecord {
     let draft = ArtifactRecord::new(
         ArtifactRef::from_bytes(kind, bytes).expect("benchmark artifact content"),

@@ -10,7 +10,6 @@ use super::{
 use crate::EmbeddingError;
 
 const PROVENANCE_FORMAT: &str = "marklab.cell_embedding_provenance";
-const PROVENANCE_VERSION: u32 = 1;
 const MAX_PROVENANCE_BYTES: usize = 64 * 1024;
 
 impl CellEmbeddingProvenance {
@@ -67,8 +66,8 @@ struct WireProvenance {
     output_dtype: String,
     output_normalization: WireNone,
     input_channel_order: String,
-    input_channel_mean: [String; 3],
-    input_channel_std: [String; 3],
+    input_channel_mean: Vec<String>,
+    input_channel_std: Vec<String>,
     modality: String,
     stain: String,
     preprocessing_artifact_id: String,
@@ -96,7 +95,7 @@ impl From<&CellEmbeddingProvenance> for WireProvenance {
         let inputs = &provenance.inputs;
         Self {
             format: PROVENANCE_FORMAT.to_owned(),
-            version: PROVENANCE_VERSION,
+            version: provenance.format_version(),
             model_family: model.model_family.clone(),
             model_version: model.model_version.clone(),
             encoder_architecture: model.encoder_architecture.clone(),
@@ -108,17 +107,25 @@ impl From<&CellEmbeddingProvenance> for WireProvenance {
             citation: model.citation.clone(),
             extraction_tensor: model.extraction_tensor.clone(),
             extraction_layer: model.extraction_layer,
-            pooling: "nucleus_bbox_intersecting_token_mean".to_owned(),
+            pooling: tensor.pooling.clone(),
             output_dimension: tensor.output_dimension,
             output_dtype: "f32".to_owned(),
             output_normalization: WireNone {
-                kind: "none".to_owned(),
+                kind: tensor.output_normalization.clone(),
             },
-            input_channel_order: "rgb".to_owned(),
-            input_channel_mean: tensor.input_channel_mean.clone().map(|value| value.0),
-            input_channel_std: tensor.input_channel_std.clone().map(|value| value.0),
-            modality: "brightfield".to_owned(),
-            stain: "he".to_owned(),
+            input_channel_order: tensor.input_channel_order.clone(),
+            input_channel_mean: tensor
+                .input_channel_mean
+                .iter()
+                .map(|value| value.0.clone())
+                .collect(),
+            input_channel_std: tensor
+                .input_channel_std
+                .iter()
+                .map(|value| value.0.clone())
+                .collect(),
+            modality: tensor.modality.clone(),
+            stain: tensor.stain.clone(),
             preprocessing_artifact_id: execution.preprocessing_artifact_id.to_string(),
             run_config_artifact_id: execution.run_config_artifact_id.to_string(),
             environment_artifact_id: execution.environment_artifact_id.to_string(),
@@ -144,14 +151,15 @@ impl WireProvenance {
             return Err(EmbeddingError::ProvenanceIncomplete);
         }
         if self.format != PROVENANCE_FORMAT
-            || self.version != PROVENANCE_VERSION
-            || self.pooling != "nucleus_bbox_intersecting_token_mean"
+            || !matches!(self.version, 1 | 2)
             || self.output_dtype != "f32"
-            || self.output_normalization.kind != "none"
-            || self.input_channel_order != "rgb"
-            || self.modality != "brightfield"
-            || self.stain != "he"
             || self.missing_vector_policy != "explicit_status_no_imputation"
+            || (self.version == 1
+                && (self.pooling != "nucleus_bbox_intersecting_token_mean"
+                    || self.output_normalization.kind != "none"
+                    || self.input_channel_order != "rgb"
+                    || self.modality != "brightfield"
+                    || self.stain != "he"))
         {
             return Err(EmbeddingError::InvalidProvenanceJson);
         }
@@ -168,21 +176,36 @@ impl WireProvenance {
             self.extraction_tensor,
             self.extraction_layer,
         )?;
-        let [mean_r, mean_g, mean_b] = self.input_channel_mean;
-        let [std_r, std_g, std_b] = self.input_channel_std;
-        let tensor = CellEmbeddingTensorContract::rgb_he_raw(
-            self.output_dimension,
-            [
-                CanonicalDecimal::new(mean_r)?,
-                CanonicalDecimal::new(mean_g)?,
-                CanonicalDecimal::new(mean_b)?,
-            ],
-            [
-                CanonicalDecimal::new(std_r)?,
-                CanonicalDecimal::new(std_g)?,
-                CanonicalDecimal::new(std_b)?,
-            ],
-        )?;
+        let mean = self
+            .input_channel_mean
+            .into_iter()
+            .map(CanonicalDecimal::new)
+            .collect::<Result<Vec<_>, _>>()?;
+        let std = self
+            .input_channel_std
+            .into_iter()
+            .map(CanonicalDecimal::new)
+            .collect::<Result<Vec<_>, _>>()?;
+        let tensor = if self.version == 1 {
+            CellEmbeddingTensorContract::rgb_he_raw(
+                self.output_dimension,
+                mean.try_into()
+                    .map_err(|_| EmbeddingError::InvalidProvenanceJson)?,
+                std.try_into()
+                    .map_err(|_| EmbeddingError::InvalidProvenanceJson)?,
+            )?
+        } else {
+            CellEmbeddingTensorContract::new(
+                self.output_dimension,
+                self.pooling,
+                self.output_normalization.kind,
+                self.input_channel_order,
+                mean,
+                std,
+                self.modality,
+                self.stain,
+            )?
+        };
         let execution = CellEmbeddingExecutionProvenance::new(
             parse_artifact_id(&self.preprocessing_artifact_id)?,
             parse_artifact_id(&self.run_config_artifact_id)?,

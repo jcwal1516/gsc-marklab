@@ -1,20 +1,33 @@
 #!/usr/bin/env python3
+"""Probabilistic CCA of two paired Gaussian views by penalized expectation-maximization."""
 
-import hashlib
 import json
 import math
 import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
 
 import numpy as np
 import scipy
 from scipy import linalg
 
-
-class ContractError(Exception):
-    pass
+from marklab_worker_support.factor_models import standardize_paired_rows
+from marklab_worker_support.protocol import (
+    CONTRACT_ERRORS,
+    MIB,
+    ContractError,
+    exact,
+    read_request,
+    require_versions,
+    run_worker,
+    sha256_hex,
+    write_result,
+)
 
 
 def log_likelihood(observations, loadings, noise):
+    """Gaussian log-likelihood of the rows under covariance ``W W' + diag(noise)``."""
     covariance = loadings @ loadings.T + np.diag(noise)
     factor = linalg.cho_factor(covariance, lower=True, check_finite=True)
     solved = linalg.cho_solve(factor, observations.T, check_finite=True).T
@@ -30,6 +43,7 @@ def log_likelihood(observations, loadings, noise):
 
 
 def posterior_scores(observations, loadings, noise):
+    """Posterior mean of the latent scores given loadings and diagonal noise variances."""
     precision_loadings = loadings / noise[:, None]
     middle = np.eye(loadings.shape[1]) + loadings.T @ precision_loadings
     return observations @ precision_loadings @ linalg.inv(middle)
@@ -46,11 +60,7 @@ def canonical_correlations(left, right):
     def inverse_square_root(covariance):
         eigenvalues, eigenvectors = linalg.eigh(covariance, check_finite=True)
         spectral_scale = max(float(np.max(eigenvalues)), 0.0)
-        tolerance = (
-            np.finfo(np.float64).eps
-            * max(covariance.shape)
-            * spectral_scale
-        )
+        tolerance = np.finfo(np.float64).eps * max(covariance.shape) * spectral_scale
         retained = eigenvalues > tolerance
         inverse_roots = np.zeros_like(eigenvalues)
         inverse_roots[retained] = 1.0 / np.sqrt(eigenvalues[retained])
@@ -64,57 +74,26 @@ def canonical_correlations(left, right):
     return np.clip(linalg.svdvals(whitened, check_finite=True), 0.0, 1.0).tolist()
 
 
-def main():
-    if np.__version__ != "2.4.6" or scipy.__version__ != "1.18.1":
-        raise ContractError("NumPy or SciPy version drift")
-    if sys.version_info[:2] != (3, 12):
-        raise ContractError("Python version drift")
-    request_bytes = sys.stdin.buffer.read(16 * 1024 * 1024 + 1)
-    request = json.loads(request_bytes)
-    if request["format"] != "marklab.scipy_pcca_em_request" or request["version"] != 1:
-        raise ContractError("request identity mismatch")
-    design = request["design"]
-    if (
-        design["entity_level"] != "patient"
-        or design["modality_x"]["id"] == design["modality_y"]["id"]
-        or design["modality_x"]["measurement_status"] != "measured"
-        or design["modality_y"]["measurement_status"] != "measured"
-        or design["modality_x"]["likelihood"] != "gaussian"
-        or design["modality_y"]["likelihood"] != "gaussian"
-        or design["missingness_assumption"] != "complete_paired_rows"
-    ):
-        raise ContractError("pCCA design is not paired measured patient-level Gaussian data")
-    rows = request["rows"]
-    x = np.asarray([row["x"] for row in rows], dtype=float)
-    y = np.asarray([row["y"] for row in rows], dtype=float)
-    train = np.asarray([row["split"] == "train" for row in rows], dtype=bool)
-    test = np.asarray([row["split"] == "test" for row in rows], dtype=bool)
-    if train.sum() < 8 or test.sum() < 1 or not np.isfinite(x).all() or not np.isfinite(y).all():
-        raise ContractError("pCCA rows require finite train and held-out data")
-    means_x = x[train].mean(axis=0)
-    means_y = y[train].mean(axis=0)
-    scales_x = x[train].std(axis=0, ddof=0)
-    scales_y = y[train].std(axis=0, ddof=0)
-    if np.any(scales_x <= 0.0) or np.any(scales_y <= 0.0):
-        raise ContractError("training features must vary")
-    standardized_x = (x - means_x) / scales_x
-    standardized_y = (y - means_y) / scales_y
-    observations = np.concatenate([standardized_x[train], standardized_y[train]], axis=1)
-    dx = x.shape[1]
-    latent = request["latent_dimensions"]
-    cross = standardized_x[train].T @ standardized_y[train] / train.sum()
-    left, _, right_t = linalg.svd(cross, full_matrices=False)
-    loadings = 0.5 * np.vstack([left[:, :latent], right_t.T[:, :latent]])
-    noise = np.full(observations.shape[1], 0.75, dtype=float)
+def fit_pcca_em(observations, loadings, noise, request):
+    """Fit probabilistic CCA (a two-block factor analysis) by expectation-maximization.
+
+    Model for a standardized paired row ``x = [x_view_1, x_view_2]``: ``z ~ Normal(0, I_k)``
+    and ``x | z ~ Normal(W z, diag(noise))``, so ``x ~ Normal(0, W W' + diag(noise))``. The
+    M-step adds ``regularization * I`` to the latent second moment (a ridge penalty on ``W``)
+    and floors each noise variance at ``noise_floor``. Iterates until the largest parameter
+    change is at most ``convergence_tolerance`` or ``maximum_iterations`` is reached.
+    """
+    latent = loadings.shape[1]
+    row_count = observations.shape[0]
     trace = []
     converged = False
     monotone_violations = 0
-    for iteration in range(request["maximum_iterations"]):
+    for _ in range(request["maximum_iterations"]):
         scores = posterior_scores(observations, loadings, noise)
         precision_loadings = loadings / noise[:, None]
         posterior_covariance = linalg.inv(np.eye(latent) + loadings.T @ precision_loadings)
         sum_cross = observations.T @ scores
-        sum_second = train.sum() * posterior_covariance + scores.T @ scores
+        sum_second = row_count * posterior_covariance + scores.T @ scores
         updated_loadings = sum_cross @ linalg.inv(
             sum_second + request["regularization"] * np.eye(latent)
         )
@@ -123,7 +102,7 @@ def main():
             - updated_loadings @ sum_cross.T
             - sum_cross @ updated_loadings.T
             + updated_loadings @ sum_second @ updated_loadings.T
-        ) / train.sum()
+        ) / row_count
         updated_noise = np.maximum(np.diag(residual), request["noise_floor"])
         value = log_likelihood(observations, updated_loadings, updated_noise)
         if trace and value < trace[-1] - 1e-7:
@@ -138,6 +117,47 @@ def main():
         if change <= request["convergence_tolerance"]:
             converged = True
             break
+    return loadings, noise, trace, converged, monotone_violations
+
+
+def main() -> None:
+    require_versions(numpy=np.__version__, scipy=scipy.__version__)
+    request_bytes = read_request(16 * MIB)
+    request = json.loads(request_bytes)
+    exact(request["format"], "marklab.scipy_pcca_em_request", "request.format")
+    exact(request["version"], 1, "request.version")
+    design = request["design"]
+    if (
+        design["entity_level"] != "patient"
+        or design["modality_x"]["id"] == design["modality_y"]["id"]
+        or design["modality_x"]["measurement_status"] != "measured"
+        or design["modality_y"]["measurement_status"] != "measured"
+        or design["modality_x"]["likelihood"] != "gaussian"
+        or design["modality_y"]["likelihood"] != "gaussian"
+        or design["missingness_assumption"] != "complete_paired_rows"
+    ):
+        raise ContractError("pCCA design is not paired measured patient-level Gaussian data")
+    rows = request["rows"]
+    paired = standardize_paired_rows(rows)
+    train = paired.train
+    test = paired.test
+    standardized_x = paired.standardized_x
+    standardized_y = paired.standardized_y
+    observations = np.concatenate([standardized_x[train], standardized_y[train]], axis=1)
+    dx = paired.x.shape[1]
+    latent = request["latent_dimensions"]
+
+    # Initialize the loadings from the leading singular vectors of the training
+    # cross-covariance and every noise variance at 0.75.
+    cross = standardized_x[train].T @ standardized_y[train] / train.sum()
+    left, _, right_t = linalg.svd(cross, full_matrices=False)
+    initial_loadings = 0.5 * np.vstack([left[:, :latent], right_t.T[:, :latent]])
+    initial_noise = np.full(observations.shape[1], 0.75, dtype=float)
+    loadings, noise, trace, converged, monotone_violations = fit_pcca_em(
+        observations, initial_loadings, initial_noise, request
+    )
+
+    # Make the largest-magnitude first-view loading of every factor positive.
     for column in range(latent):
         pivot = int(np.argmax(np.abs(loadings[:dx, column])))
         if loadings[pivot, column] < 0.0:
@@ -152,22 +172,15 @@ def main():
         np.concatenate([standardized_x, standardized_y], axis=1), loadings, noise
     )
     prediction_y_standardized = scores_x @ loadings_y.T
-    prediction_y = prediction_y_standardized * scales_y + means_y
-    heldout_rmse = float(np.sqrt(np.mean((prediction_y[test] - y[test]) ** 2)))
+    prediction_y = prediction_y_standardized * paired.scales_y + paired.means_y
+    heldout_rmse = float(np.sqrt(np.mean((prediction_y[test] - paired.y[test]) ** 2)))
     result = {
         "format": "marklab.probabilistic_cca",
         "version": 1,
         "backend": request["backend"],
-        "request_sha256": hashlib.sha256(request_bytes).hexdigest(),
+        "request_sha256": sha256_hex(request_bytes),
         "design": {**design, "validation_status": "passed", "paired_row_count": len(rows)},
-        "standardization": {
-            "fit_split": "train_only",
-            "fit_row_count": int(train.sum()),
-            "mean_x": means_x.tolist(),
-            "scale_x": scales_x.tolist(),
-            "mean_y": means_y.tolist(),
-            "scale_y": scales_y.tolist(),
-        },
+        "standardization": paired.standardization_record(),
         "parameters": {
             "loadings_x": loadings_x.tolist(),
             "loadings_y": loadings_y.tolist(),
@@ -176,7 +189,7 @@ def main():
         },
         "posterior_scores": [
             {"entity_id": row["entity_id"], "split": row["split"], "mean": score.tolist()}
-            for row, score in zip(rows, joint_scores)
+            for row, score in zip(rows, joint_scores, strict=True)
         ],
         "canonical_correlations": canonical_correlations(scores_x[train], scores_y[train]),
         "heldout_row_count": int(test.sum()),
@@ -191,13 +204,8 @@ def main():
         },
         "claim_status": "experimental_synthetic_paired_gaussian_pcca",
     }
-    json.dump(result, sys.stdout, allow_nan=False, separators=(",", ":"), sort_keys=True)
-    sys.stdout.write("\n")
+    write_result(result)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except (ContractError, KeyError, TypeError, ValueError, json.JSONDecodeError, linalg.LinAlgError) as error:
-        print(f"pCCA worker contract error: {error}", file=sys.stderr)
-        raise SystemExit(2)
+    run_worker(main, "pCCA worker contract error", errors=CONTRACT_ERRORS)

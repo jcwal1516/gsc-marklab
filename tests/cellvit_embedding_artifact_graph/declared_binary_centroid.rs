@@ -1,12 +1,17 @@
 use super::declared_embedding_support as embedding_support;
 use super::*;
 use marklab::{
-    declared_binary_cell_embedding_centroid_discrepancy, BinaryMarkDeclaration,
-    DeclaredBinaryCellEmbeddingCentroidDiscrepancyError,
-    DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus, DeclaredScalarInputError,
-    DeclaredScalarPatternInput, MarkTable, MeasurementStatus, MissingnessPolicy,
-    ProbabilityMarkDeclaration, ScalarMarkColumn, ScalarMarkId, ScalarMarkModality, ScalarMarkUnit,
-    VectorArtifactRefMarkDeclaration,
+    embeddings::{
+        declared_binary_cell_embedding_centroid_discrepancy,
+        DeclaredBinaryCellEmbeddingCentroidDiscrepancyError,
+        DeclaredBinaryCellEmbeddingCentroidDiscrepancyStatus,
+    },
+    marks::{
+        BinaryMarkDeclaration, DeclaredScalarInputError, DeclaredScalarPatternInput, MarkTable,
+        MissingnessPolicy, ProbabilityMarkDeclaration, ScalarMarkColumn, ScalarMarkId,
+        ScalarMarkModality, ScalarMarkUnit, VectorArtifactRefMarkDeclaration,
+    },
+    MeasurementStatus,
 };
 
 const DIMENSION: u32 = 1_280;

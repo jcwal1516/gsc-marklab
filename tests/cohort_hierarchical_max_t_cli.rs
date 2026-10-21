@@ -81,5 +81,5 @@ fn hierarchical_max_t_cli_opens_only_ordered_complete_families() {
     assert_eq!(result["patients"]["total"], 8);
     assert_eq!(result["patients"]["group_a"], 4);
     assert_eq!(result["patients"]["group_b"], 4);
-    assert_eq!(result["permutations"]["completed"], 199);
+    assert_eq!(result["permutations"]["requested"], 199);
 }

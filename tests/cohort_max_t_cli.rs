@@ -73,7 +73,7 @@ b-2,B,e2,3\n",
             .abs()
             < 1e-12
     );
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }
 
 #[test]
@@ -129,7 +129,7 @@ fn max_t_cli_accepts_complete_patient_blocks_for_the_endpoint_family() {
     assert_eq!(result["design"]["block_count"], 2);
     assert_eq!(result["groups"]["group_a_patients"], 4);
     assert_eq!(result["groups"]["group_b_patients"], 4);
-    assert_eq!(result["permutations"]["completed"], 99);
+    assert_eq!(result["permutations"], 99);
 }
 
 #[test]

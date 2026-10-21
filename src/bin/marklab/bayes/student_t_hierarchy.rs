@@ -1,34 +1,16 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, GaussianHierarchyInputIdentity, NutsSamplingSpec, StudentTHierarchySpec,
+    json_sha256, sha256_hex, GaussianHierarchyInputIdentity, StudentTHierarchySpec,
     StudentTHierarchyWorkerRequest, StudentTHierarchyWorkerResult,
 };
 
-use super::{hierarchical, publish_json, run_worker, BayesCliError};
+use super::cli_schema::{StudentTHierarchyArgs, StudentTHierarchyModelArgs};
+use super::worker_identity;
+use super::{hierarchical, publish_json, run_worker, CliError};
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    global_prior_mean: f64,
-    global_prior_sd: f64,
-    between_patient_sd_prior: f64,
-    observation_sd_prior: f64,
-    degrees_of_freedom_excess_rate: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
-    let prepared = prepare(
-        input_path,
-        global_prior_mean,
-        global_prior_sd,
-        between_patient_sd_prior,
-        observation_sd_prior,
-        degrees_of_freedom_excess_rate,
-        sampling,
-        timeout_seconds,
-    )?;
+pub(super) fn run(args: StudentTHierarchyArgs) -> Result<(), CliError> {
+    let StudentTHierarchyArgs { model, out } = args;
+    let output_path = out;
+    let prepared = prepare(model)?;
     let result = execute(&prepared)?;
     publish_json(
         &output_path,
@@ -44,30 +26,23 @@ pub(crate) struct PreparedStudentTHierarchy {
     pub(crate) timeout_seconds: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn prepare(
-    input_path: PathBuf,
-    global_prior_mean: f64,
-    global_prior_sd: f64,
-    between_patient_sd_prior: f64,
-    observation_sd_prior: f64,
-    degrees_of_freedom_excess_rate: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-) -> Result<PreparedStudentTHierarchy, BayesCliError> {
+    model: StudentTHierarchyModelArgs,
+) -> Result<PreparedStudentTHierarchy, CliError> {
+    let StudentTHierarchyModelArgs {
+        input: input_path,
+        global_prior_mean,
+        global_prior_sd,
+        between_patient_sd_prior,
+        observation_sd_prior,
+        degrees_of_freedom_excess_rate,
+        nuts,
+        timeout_seconds,
+    } = model;
+    let sampling = nuts.spec();
     let patients = hierarchical::read_patients(&input_path)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_student_t_hierarchy_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_pymc_student_t_hierarchy_worker.py")?;
     let request = StudentTHierarchyWorkerRequest::new(
         StudentTHierarchySpec {
             global_prior_mean,
@@ -78,15 +53,15 @@ pub(crate) fn prepare(
             patients,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
     let input_identity = GaussianHierarchyInputIdentity {
         path: input_path.display().to_string(),
         patients: request.patients.len(),
         observations: request.observation_count(),
-        patient_data_sha256: sha256_hex(&serde_json::to_vec(&request.patients)?),
+        patient_data_sha256: json_sha256(&request.patients)?,
     };
     let request_bytes = serde_json::to_vec(&request)?;
     let request_sha256 = sha256_hex(&request_bytes);
@@ -101,8 +76,8 @@ pub(crate) fn prepare(
 
 pub(crate) fn execute(
     prepared: &PreparedStudentTHierarchy,
-) -> Result<StudentTHierarchyWorkerResult, BayesCliError> {
-    let repository = &marklab::python_backend_assets_root()?;
+) -> Result<StudentTHierarchyWorkerResult, CliError> {
+    let repository = &marklab::backend::python_backend_assets_root()?;
     let result_bytes = run_worker(
         repository,
         "marklab_pymc_student_t_hierarchy_worker.py",

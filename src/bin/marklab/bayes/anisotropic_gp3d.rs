@@ -1,13 +1,13 @@
-use std::{fs, path::PathBuf};
-
 use marklab_bayes::{
-    sha256_hex, AnisotropicGp3dInputIdentity, AnisotropicGp3dObservation,
+    json_sha256, sha256_hex, AnisotropicGp3dInputIdentity, AnisotropicGp3dObservation,
     AnisotropicGp3dPredictionCoordinate, AnisotropicGp3dSpec, AnisotropicGp3dWorkerRequest,
-    AnisotropicGp3dWorkerResult, NutsSamplingSpec,
+    AnisotropicGp3dWorkerResult,
 };
 use serde::Deserialize;
 
-use super::{publish_json, run_worker, BayesCliError, MAXIMUM_INPUT_BYTES};
+use super::cli_schema::AnisotropicGp3dArgs;
+use super::worker_identity;
+use super::{publish_json, run_worker, CliError, MAXIMUM_INPUT_BYTES};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -28,34 +28,35 @@ struct PredictionRow {
     z_um: f64,
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(super) fn run(
-    input_path: PathBuf,
-    prediction_path: PathBuf,
-    mean_prior_mean: f64,
-    mean_prior_sd: f64,
-    amplitude_prior_sd: f64,
-    length_scale_prior_sd_um: [f64; 3],
-    noise_prior_sd: f64,
-    jitter: f64,
-    sampling: NutsSamplingSpec,
-    timeout_seconds: u64,
-    output_path: PathBuf,
-) -> Result<(), BayesCliError> {
+pub(super) fn run(args: AnisotropicGp3dArgs) -> Result<(), CliError> {
+    let AnisotropicGp3dArgs {
+        input,
+        predict,
+        mean_prior_mean,
+        mean_prior_sd,
+        amplitude_prior_sd,
+        length_scale_x_prior_sd_um,
+        length_scale_y_prior_sd_um,
+        length_scale_z_prior_sd_um,
+        noise_prior_sd,
+        jitter,
+        timeout_seconds,
+        out,
+        nuts,
+    } = args;
+    let input_path = input;
+    let prediction_path = predict;
+    let length_scale_prior_sd_um = [
+        length_scale_x_prior_sd_um,
+        length_scale_y_prior_sd_um,
+        length_scale_z_prior_sd_um,
+    ];
+    let sampling = nuts.spec();
+    let output_path = out;
     let observations = read_observations(&input_path)?;
     let predictions = read_predictions(&prediction_path)?;
-    let repository = &marklab::python_backend_assets_root()?;
-    let worker_directory = repository.join("workers/python");
-    let lock_path = worker_directory.join("uv.lock");
-    let lock_bytes = fs::read(&lock_path).map_err(|source| BayesCliError::Io {
-        path: lock_path,
-        source,
-    })?;
-    let worker_path = worker_directory.join("marklab_pymc_anisotropic_gp3d_worker.py");
-    let worker_bytes = fs::read(&worker_path).map_err(|source| BayesCliError::Io {
-        path: worker_path,
-        source,
-    })?;
+    let repository = &marklab::backend::python_backend_assets_root()?;
+    let identity = worker_identity(repository, "marklab_pymc_anisotropic_gp3d_worker.py")?;
     let request = AnisotropicGp3dWorkerRequest::new(
         AnisotropicGp3dSpec {
             mean_prior_mean,
@@ -68,14 +69,14 @@ pub(super) fn run(
             predictions,
         },
         sampling,
-        sha256_hex(&lock_bytes),
-        sha256_hex(&worker_bytes),
+        identity.environment_lock_sha256,
+        identity.worker_sha256,
         timeout_seconds,
     )?;
-    let data_sha256 = sha256_hex(&serde_json::to_vec(&serde_json::json!({
+    let data_sha256 = json_sha256(&serde_json::json!({
         "observations": &request.observations,
         "predictions": &request.predictions,
-    }))?);
+    }))?;
     let input = AnisotropicGp3dInputIdentity {
         observation_path: input_path.display().to_string(),
         prediction_path: prediction_path.display().to_string(),
@@ -96,9 +97,7 @@ pub(super) fn run(
     publish_json(&output_path, &result.into_fit(request, input))
 }
 
-fn read_observations(
-    path: &std::path::Path,
-) -> Result<Vec<AnisotropicGp3dObservation>, BayesCliError> {
+fn read_observations(path: &std::path::Path) -> Result<Vec<AnisotropicGp3dObservation>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -106,7 +105,7 @@ fn read_observations(
         .iter()
         .eq(["observation_id", "x_um", "y_um", "z_um", "value"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "anisotropic 3-D GP observation headers must be exactly: observation_id,x_um,y_um,z_um,value"
                 .into(),
         ));
@@ -120,7 +119,7 @@ fn read_observations(
             value: row.value,
         });
         if values.len() > 64 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "anisotropic 3-D GP observation count exceeds 64".into(),
             ));
         }
@@ -130,7 +129,7 @@ fn read_observations(
 
 fn read_predictions(
     path: &std::path::Path,
-) -> Result<Vec<AnisotropicGp3dPredictionCoordinate>, BayesCliError> {
+) -> Result<Vec<AnisotropicGp3dPredictionCoordinate>, CliError> {
     validate_file(path)?;
     let mut reader = csv::ReaderBuilder::new().from_path(path)?;
     if !reader
@@ -138,7 +137,7 @@ fn read_predictions(
         .iter()
         .eq(["prediction_id", "x_um", "y_um", "z_um"])
     {
-        return Err(BayesCliError::Input(
+        return Err(CliError::Input(
             "anisotropic 3-D GP prediction headers must be exactly: prediction_id,x_um,y_um,z_um"
                 .into(),
         ));
@@ -151,7 +150,7 @@ fn read_predictions(
             coordinates_um: [row.x_um, row.y_um, row.z_um],
         });
         if values.len() > 512 {
-            return Err(BayesCliError::Input(
+            return Err(CliError::Input(
                 "anisotropic 3-D GP prediction count exceeds 512".into(),
             ));
         }
@@ -159,8 +158,8 @@ fn read_predictions(
     Ok(values)
 }
 
-fn validate_file(path: &std::path::Path) -> Result<(), BayesCliError> {
-    super::input_file::validate_regular_file(
+fn validate_file(path: &std::path::Path) -> Result<(), CliError> {
+    crate::input_file::validate_regular_file(
         path,
         MAXIMUM_INPUT_BYTES,
         "anisotropic 3-D GP input must be a regular file within the 16 MiB limit",

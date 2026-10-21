@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use crate::common::{finite::canonical_zero, summation::kahan_add};
+use marklab_numerics::summation::NeumaierSum;
+
+use crate::common::finite::canonical_zero;
 
 use crate::{geom::spatial_index::SpatialIndex2D, ObservationWindow2D, Pattern};
 
@@ -55,7 +57,7 @@ pub(super) struct FittedIntensity {
 struct KernelScratch {
     neighbors: Vec<usize>,
     column_factors: Vec<f64>,
-    fold_sums: Vec<(f64, f64)>,
+    fold_sums: Vec<NeumaierSum>,
     fold_near: Vec<usize>,
 }
 
@@ -292,8 +294,7 @@ fn boundary_mass(
             .column_factors
             .push((-(offset * offset) / scale).exp());
     }
-    let mut sum = 0.0;
-    let mut correction = 0.0;
+    let mut sum = NeumaierSum::new();
     for (row, center) in grid.row_centers_um.iter().enumerate() {
         let probes = &grid.probes[grid.row_starts[row]..grid.row_starts[row + 1]];
         if probes.is_empty() {
@@ -302,23 +303,14 @@ fn boundary_mass(
         counters.charge_intensity(config)?;
         let offset = location.1 - center;
         let row_factor = (-(offset * offset) / scale).exp();
-        let mut row_sum = 0.0;
-        let mut row_correction = 0.0;
+        let mut row_sum = NeumaierSum::new();
         for probe in probes {
-            kahan_add(
-                &mut row_sum,
-                &mut row_correction,
-                scratch.column_factors[probe.column],
-            );
+            row_sum.add(scratch.column_factors[probe.column]);
         }
-        kahan_add(
-            &mut sum,
-            &mut correction,
-            row_factor * (row_sum + row_correction),
-        );
+        sum.add(row_factor * row_sum.total());
     }
     positive(
-        (sum + correction) * grid.cell_area_um2 / (std::f64::consts::PI * scale),
+        sum.total() * grid.cell_area_um2 / (std::f64::consts::PI * scale),
         "kernel boundary mass is nonpositive or non-finite",
     )
 }
@@ -380,7 +372,7 @@ impl<'a> KernelEvents<'a> {
         let mut sums = Vec::new();
         sums.try_reserve_exact(self.x.len())
             .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
-        sums.resize(self.x.len(), (0.0, 0.0));
+        sums.resize(self.x.len(), NeumaierSum::new());
         for left in 0..self.x.len() {
             for right in left + 1..self.x.len() {
                 if excluded(left, right) {
@@ -388,17 +380,11 @@ impl<'a> KernelEvents<'a> {
                 }
                 counters.charge_intensity(config)?;
                 let value = self.kernel((self.x[left], self.y[left]), right, config);
-                let (sum, correction) = &mut sums[left];
-                kahan_add(sum, correction, value);
-                let (sum, correction) = &mut sums[right];
-                kahan_add(sum, correction, value);
+                sums[left].add(value);
+                sums[right].add(value);
             }
         }
-        Ok(Some(
-            sums.into_iter()
-                .map(|(sum, correction)| sum + correction)
-                .collect(),
-        ))
+        Ok(Some(sums.into_iter().map(|sum| sum.total()).collect()))
     }
 
     /// Sum kernels from the events selected by `eligible` at `location`.
@@ -419,21 +405,16 @@ impl<'a> KernelEvents<'a> {
         scratch: &mut KernelScratch,
     ) -> Result<f64, InhomogeneousSpatialError> {
         self.collect_near(location, config, scratch)?;
-        let mut sum = 0.0;
-        let mut correction = 0.0;
+        let mut sum = NeumaierSum::new();
         let mut evaluated = 0_usize;
         for &event in &scratch.neighbors {
             if eligible(event) {
                 counters.charge_intensity(config)?;
                 evaluated += 1;
-                kahan_add(
-                    &mut sum,
-                    &mut correction,
-                    self.kernel(location, event, config),
-                );
+                sum.add(self.kernel(location, event, config));
             }
         }
-        let mut value = sum + correction;
+        let mut value = sum.total();
         if !negligible_tail(eligible_count - evaluated, value, config) {
             value = self.full_sum(location, &eligible, config, counters)?;
         }
@@ -458,7 +439,7 @@ impl<'a> KernelEvents<'a> {
         self.collect_near(location, config, scratch)?;
         let folds = plan.fold_counts.len();
         scratch.fold_sums.clear();
-        scratch.fold_sums.resize(folds, (0.0, 0.0));
+        scratch.fold_sums.resize(folds, NeumaierSum::new());
         scratch.fold_near.clear();
         scratch.fold_near.resize(folds, 0);
         for &event in &scratch.neighbors {
@@ -466,20 +447,18 @@ impl<'a> KernelEvents<'a> {
             let value = self.kernel(location, event, config);
             let heldout = plan.assignments[event];
             scratch.fold_near[heldout] += 1;
-            for (fold, (sum, correction)) in scratch.fold_sums.iter_mut().enumerate() {
+            for (fold, sum) in scratch.fold_sums.iter_mut().enumerate() {
                 if fold != heldout {
-                    kahan_add(sum, correction, value);
+                    sum.add(value);
                 }
             }
         }
         let count = self.x.len();
-        let mut sum = 0.0;
-        let mut correction = 0.0;
+        let mut sum = NeumaierSum::new();
         for fold in 0..folds {
             let training = count - plan.fold_counts[fold];
             let evaluated = scratch.neighbors.len() - scratch.fold_near[fold];
-            let (fold_sum, fold_correction) = scratch.fold_sums[fold];
-            let mut raw = fold_sum + fold_correction;
+            let mut raw = scratch.fold_sums[fold].total();
             if !negligible_tail(training - evaluated, raw, config) {
                 raw = self.full_sum(
                     location,
@@ -493,14 +472,10 @@ impl<'a> KernelEvents<'a> {
                 "cross-fitted kernel intensity sum is nonpositive or non-finite",
             )?;
             let heldout_weight = plan.fold_counts[fold] as f64 / count as f64;
-            kahan_add(
-                &mut sum,
-                &mut correction,
-                heldout_weight * count as f64 / training as f64 * raw,
-            );
+            sum.add(heldout_weight * count as f64 / training as f64 * raw);
         }
         positive(
-            sum + correction,
+            sum.total(),
             "cross-fitted fixed intensity is nonpositive or non-finite",
         )
     }
@@ -534,17 +509,12 @@ impl<'a> KernelEvents<'a> {
         config: &InhomogeneousSpatialConfig,
         counters: &mut Counters,
     ) -> Result<f64, InhomogeneousSpatialError> {
-        let mut sum = 0.0;
-        let mut correction = 0.0;
+        let mut sum = NeumaierSum::new();
         for event in (0..self.x.len()).filter(|event| eligible(*event)) {
             counters.charge_intensity(config)?;
-            kahan_add(
-                &mut sum,
-                &mut correction,
-                self.kernel(location, event, config),
-            );
+            sum.add(self.kernel(location, event, config));
         }
-        Ok(sum + correction)
+        Ok(sum.total())
     }
 
     fn kernel(
@@ -654,15 +624,14 @@ fn fixed_probe_cdf(
     cdf.try_reserve_exact(grid.probes.len())
         .and_then(|()| fixed_grid.try_reserve_exact(grid.probes.len()))
         .map_err(|_| InhomogeneousSpatialError::AllocationFailed)?;
-    let mut total = 0.0;
-    let mut correction = 0.0;
+    let mut total = NeumaierSum::new();
     for (probe_index, probe) in grid.probes.iter().enumerate() {
         let location = (probe.x_um, probe.y_um);
         let raw = events.fixed_sum(location, cross_fit.as_ref(), config, counters, scratch)?;
         let intensity = raw / boundary_mass(location, grid, config, counters, scratch)?;
         let mass = intensity * grid.cell_area_um2;
-        kahan_add(&mut total, &mut correction, mass);
-        cdf.push(total + correction);
+        total.add(mass);
+        cdf.push(total.total());
         fixed_grid.push(InhomogeneousIntensityGridPoint {
             probe_index,
             x_um: probe.x_um,
@@ -671,7 +640,7 @@ fn fixed_probe_cdf(
             cell_mass: mass,
         });
     }
-    let total = total + correction;
+    let total = total.total();
     if !total.is_finite() || total <= 0.0 {
         return Err(InhomogeneousSpatialError::Dependency(
             "fixed intensity grid has invalid total mass".into(),
