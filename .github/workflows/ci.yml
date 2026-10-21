@@ -38,7 +38,7 @@ jobs:
   backend-integration:
     name: backend-integration (${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
-    # About 190 test-minutes split six ways; the calibration profile runs nightly.
+    # About 190 test-minutes split six ways; the calibration profile runs weekly.
     timeout-minutes: 90
     strategy:
       fail-fast: false

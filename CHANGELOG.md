@@ -217,7 +217,7 @@
 
 - Pull-request CI runs the backend tests in six parallel shards and leaves out the Bayesian
   calibration, prior-sensitivity and PyMC/NumPyro agreement tests (nextest profiles `pr` and
-  `calibration` in `.config/nextest.toml`). Those run nightly in the Backend calibration
+  `calibration` in `.config/nextest.toml`). Those run weekly in the Backend calibration
   workflow. The backend job had taken about three hours on two test threads.
 - Organize scientific implementations and worker contracts into domain crates, expose
   namespaced Rust APIs, and parse CLI commands through a shared typed command tree.
