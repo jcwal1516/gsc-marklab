@@ -1,0 +1,11 @@
+# Calibration tests refit Bayesian models many times through the PyMC/NumPyro backend:
+# simulation-based calibration, prior-sensitivity grids and cross-backend agreement. They are
+# about 45% of the backend test time but rarely change between pull requests, so pull requests
+# run the `pr` profile and the nightly backend-calibration workflow runs `calibration`. The
+# native normal-mean, SBI and causal sensitivity tests are fast and stay in `pr`.
+
+[profile.pr]
+default-filter = "not ((binary(/^bayes_.+_(sbc|sensitivity|agreement)_cli$/) and not binary(/^bayes_normal_mean_/)) or binary(/^durable_.+_sbc_project$/))"
+
+[profile.calibration]
+default-filter = "(binary(/^bayes_.+_(sbc|sensitivity|agreement)_cli$/) and not binary(/^bayes_normal_mean_/)) or binary(/^durable_.+_sbc_project$/)"

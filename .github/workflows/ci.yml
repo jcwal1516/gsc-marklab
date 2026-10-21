@@ -36,8 +36,14 @@ jobs:
       - run: cargo test --locked --package marklab --features wsi,cli --test wsi_integration
 
   backend-integration:
+    name: backend-integration (${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    # About 190 test-minutes split six ways; the calibration profile runs nightly.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     env:
       UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/target/pymc-venv
       MARKLAB_RUNTIME_ROOT: ${{ github.workspace }}
@@ -58,6 +64,37 @@ jobs:
           python-version: "3.12"
           enable-cache: true
           cache-dependency-glob: workers/python/uv.lock
+      - name: Install the committed backend environment
+        run: uv sync --project workers/python --locked --python 3.12
+      - name: Build and admit the scientific runtime
+        run: |
+          cargo build --locked --package marklab --all-features --bin marklab
+          target/debug/marklab backend doctor
+      - name: Required workspace and real-backend integration tests
+        run: >-
+          cargo nextest run --locked --workspace --all-features --profile pr
+          --partition hash:${{ matrix.shard }}/6 --test-threads 2 --no-fail-fast
+
+  python-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      UV_PROJECT_ENVIRONMENT: ${{ github.workspace }}/target/pymc-venv
+      MARKLAB_RUNTIME_ROOT: ${{ github.workspace }}
+      MARKLAB_PYTHON: ${{ github.workspace }}/target/pymc-venv/bin/python
+      MARKLAB_BACKEND_CACHE: ${{ github.workspace }}/target/pymc-cache
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: 1.99.0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.7.17"
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: workers/python/uv.lock
       - name: Lint and format-check Python workers
         run: |
           uvx ruff@0.16.10 check workers/python
@@ -68,8 +105,6 @@ jobs:
         run: |
           cargo build --locked --package marklab --all-features --bin marklab
           target/debug/marklab backend doctor
-      - name: Required workspace and real-backend integration tests
-        run: cargo nextest run --locked --workspace --all-features --test-threads 2 --no-fail-fast
       - name: Python scientific and adapter regression tests
         run: |
           "$MARKLAB_PYTHON" -m unittest discover -s tests/python -p 'test_*.py'
