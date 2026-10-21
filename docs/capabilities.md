@@ -200,9 +200,10 @@ measurements you supply; it does not draw annotations itself. See
 **`marklab pathology architecture`** (Research) derives the advancing tumor front from
 declared epithelium polygons and reports glandular, solid and fragmented epithelium,
 fragmentation, lumens, curvature, branching, tumor buds and nuclear shape in distance
-bands from that front, with an ITBCC-style budding hotspot. Region
-polygons and classes come from you; it does not segment tissue. See
-[pathology architecture](pathology-architecture.md).
+bands from that front, with an ITBCC-style budding hotspot, and attaches spatial-
+transcriptomic spots and registered cells to those regions. Region polygons and classes
+come from you; it does not segment tissue. The Python client converts QuPath annotation
+exports and runs it. See [pathology architecture](pathology-architecture.md).
 
 **`marklab pathology composition`, `spatial-study` and `scan`** (Research) compare
 cell-type composition and density between patients, fit spatial curves, and scan for

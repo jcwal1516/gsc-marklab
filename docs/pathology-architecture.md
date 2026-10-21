@@ -28,6 +28,49 @@ a lumen, two small fragments, ten cells and five spots, chosen so every area and
 can be checked by hand.
 Its design values are not recommendations.
 
+## Labels from QuPath
+
+The Python client converts one QuPath annotation export (*File > Export objects as
+GeoJSON*, annotations only) into a recipe slide and runs the command. Install the client's
+`upstream-formats` extra (Shapely) first.
+
+```python
+import marklab_client, upstream_formats
+
+slide = upstream_formats.qupath_architecture_slide(
+    "slide-1.geojson",
+    slide_id="slide-1", patient_id="patient-1", coordinate_frame_id="slide-1-um",
+    coordinate_scale_um=(0.25, 0.25),  # micrometres per full-resolution pixel
+    layers={
+        "Tissue": "window", "Artifact": "artifact", "Epithelium": "epithelium",
+        "Lumen": "lumens", "Mucin": "mucin", "Front exclusion": "front_exclusions",
+        "Front": "declared_front", "Glandular": "region:glandular", "Solid": "region:solid",
+        "Moderately fragmented": "region:moderately_fragmented",
+        "Highly fragmented": "region:highly_fragmented",
+    },
+    boundary_uncertainty_um=2.0,
+)
+slide["cells"] = cells  # optional, from your nucleus model, in the same frame
+slide["spots"] = spots  # optional, registered capture spots
+result = marklab_client.run_pathology_architecture(recipe, out="architecture-out")
+```
+
+Every QuPath class in the file must be mapped (use `"ignore"` to skip one). A practical
+labeling order:
+
+1. **Tissue** around the section, and **Artifact** over folds, tears, blur and pen marks.
+2. **Epithelium** around tumor glands and sheets. A gland can be drawn by its outer edge
+   with a **Lumen** inside; lumens and **Mucin** are cut out of epithelium.
+3. Coarse architecture regions (**Glandular**, **Solid**, **Moderately fragmented**,
+   **Highly fragmented**) that do not overlap each other.
+4. **Front** as a polyline along the advancing edge, and **Front exclusion** over tumor
+   boundary that is not invasive front (a luminal surface inside the section, a lateral
+   margin against adjacent mucosa).
+
+Coordinates keep QuPath's image orientation, with y pointing down. Nucleus angles must be
+measured in that same frame. Each layer is shrunk by 0.001 um so that polygons touching at
+a point become disjoint, which the native validator requires.
+
 ## Recipe
 
 Start from the example recipe (version 1). Unknown fields are errors. Coordinates are

@@ -65,6 +65,67 @@ WINDOW = {
 }
 
 
+ARCHITECTURE_LAYERS = {
+    "Tissue": "window",
+    "Artifact": "artifact",
+    "Epithelium": "epithelium",
+    "Lumen": "lumens",
+    "Glandular": "region:glandular",
+    "Fragmented": "region:highly_fragmented",
+    "Front": "declared_front",
+    "Other": "ignore",
+}
+
+
+def rectangle(left, bottom, right, top):
+    return [[left, bottom], [right, bottom], [right, top], [left, top], [left, bottom]]
+
+
+def annotation(identity, classification, geometry):
+    return {
+        "type": "Feature",
+        "id": identity,
+        "geometry": geometry,
+        "properties": {
+            "objectType": "annotation",
+            "classification": {"name": classification, "color": [0, 0, 0]},
+            "isLocked": False,
+        },
+    }
+
+
+def architecture_export():
+    polygon = lambda ring: {"type": "Polygon", "coordinates": [ring]}  # noqa: E731
+    return [
+        annotation("tissue", "Tissue", polygon(rectangle(0, 0, 2000, 2000))),
+        annotation("artifact", "Artifact", polygon(rectangle(1900, 1900, 2000, 2000))),
+        # The gland is drawn by its outer boundary; the lumen is carved out of it.
+        annotation("gland", "Epithelium", polygon(rectangle(600, 600, 1400, 1400))),
+        annotation("fragment", "Epithelium", polygon(rectangle(1610, 960, 1630, 980))),
+        annotation("lumen", "Lumen", polygon(rectangle(900, 900, 1100, 1100))),
+        annotation("glandular", "Glandular", polygon(rectangle(580, 580, 1420, 1420))),
+        annotation("fragmented", "Fragmented", polygon(rectangle(1500, 900, 1700, 1100))),
+        annotation(
+            "front", "Front", {"type": "LineString", "coordinates": [[1410, 700], [1410, 1300]]}
+        ),
+        annotation("note", "Other", {"type": "Point", "coordinates": [10, 10]}),
+    ]
+
+
+def architecture_slide(directory, features=None):
+    source = Path(directory) / "annotations.geojson"
+    write_geojson(source, architecture_export() if features is None else features)
+    return upstream_formats.qupath_architecture_slide(
+        source,
+        slide_id="slide",
+        patient_id="patient",
+        coordinate_frame_id="slide-um",
+        coordinate_scale_um=(0.5, 0.5),
+        layers=ARCHITECTURE_LAYERS,
+        boundary_uncertainty_um=2.0,
+    )
+
+
 def write_csv(path, rows):
     with path.open("w", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
@@ -255,6 +316,87 @@ class UpstreamFormatTests(unittest.TestCase):
                     coordinate_scale_um=(1.0, 1.0),
                     classification_channel=QUPATH_CLASSIFICATION,
                 )
+
+    def test_qupath_architecture_layers_are_scaled_carved_and_mapped_explicitly(self):
+        from shapely.geometry import shape
+
+        with tempfile.TemporaryDirectory() as directory:
+            slide = architecture_slide(directory)
+        area = lambda key: shape(slide[key]).area  # noqa: E731
+        # 1000-um tissue minus a 50-um artifact corner, each layer shrunk by 0.001 um.
+        self.assertAlmostEqual(area("window"), 1000**2 - 50**2, delta=10)
+        self.assertAlmostEqual(area("epithelium"), 400**2 - 100**2 + 10**2, delta=5)
+        self.assertAlmostEqual(area("lumens"), 100**2, delta=1)
+        self.assertEqual(len(slide["epithelium"]["coordinates"]), 2)
+        self.assertEqual(
+            [region["id"] for region in slide["architecture_regions"]],
+            ["region-glandular", "region-highly_fragmented"],
+        )
+        front = slide["declared_front"]["coordinates"][0]
+        self.assertEqual({point[0] for point in front}, {705.0})
+        self.assertNotIn("mucin", slide)
+
+    def test_qupath_architecture_rejects_unmapped_overlapping_and_detection_objects(self):
+        polygon = {"type": "Polygon", "coordinates": [rectangle(700, 700, 1600, 1000)]}
+        detection = annotation("cell", "Tissue", polygon)
+        detection["properties"]["objectType"] = "detection"
+        cases = [
+            (architecture_export() + [annotation("x", "Stroma", polygon)], "not mapped"),
+            (architecture_export() + [annotation("x", "Fragmented", polygon)], "overlap"),
+            (architecture_export() + [detection], "annotation"),
+            (architecture_export()[1:], "window"),
+            (
+                architecture_export()
+                + [annotation("x", "Front", polygon)],
+                "LineString",
+            ),
+        ]
+        for features, message in cases:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as directory:
+                with self.assertRaisesRegex(ValueError, message):
+                    architecture_slide(directory, features)
+
+    def test_qupath_architecture_slide_runs_through_the_native_command(self):
+        binary = CLIENT_ROOT.parents[1] / "target/debug/marklab"
+        if not binary.is_file():
+            self.skipTest("native marklab binary is not built")
+        with tempfile.TemporaryDirectory() as directory:
+            recipe = {
+                "format": "marklab.pathology_architecture_recipe",
+                "version": 1,
+                "study_id": "qupath-architecture",
+                "architecture": {
+                    "classes": ["glandular", "highly_fragmented"],
+                    "measurement_status": "measured",
+                    "provenance": "QuPath annotation classes",
+                },
+                "epithelium": {"measurement_status": "measured", "provenance": "QuPath"},
+                "declared_front": {"measurement_status": "measured", "provenance": "QuPath"},
+                "design": {
+                    "closing_radius_um": 30.0,
+                    "minimum_bulk_area_um2": 10000.0,
+                    "tissue_edge_tolerance_um": 25.0,
+                    "band_edges_um": [-200.0, -100.0, 0.0, 100.0, 200.0],
+                    "contour_sample_spacing_um": 1.0,
+                    "curvature_smoothing_um": 2.0,
+                },
+                "slides": [architecture_slide(directory)],
+            }
+            result = marklab_client.run_pathology_architecture(
+                recipe, out=Path(directory) / "out", binary=binary
+            )
+        slide = result["slides"][0]
+        self.assertEqual(slide["front"]["status"], "available")
+        self.assertAlmostEqual(slide["front"]["length_um"], 1600, delta=1)
+        gland = next(row for row in slide["components"] if row["class"] == "glandular")
+        self.assertEqual(gland["lumen_count"], 1)
+        fragment = next(row for row in slide["components"] if row["class"] == "highly_fragmented")
+        # The fragment centre (810, 485) um is 110 um outside the gland's right side.
+        self.assertAlmostEqual(fragment["signed_front_distance_um"], 110, delta=0.01)
+        # The declared line runs 5 um outside the middle of the right side.
+        agreement = slide["front"]["declared_agreement"]["declared_to_derived"]
+        self.assertAlmostEqual(agreement["mean_um"], 5, delta=0.01)
+        self.assertAlmostEqual(agreement["maximum_um"], 5, delta=0.01)
 
     def test_steinbock_csv_joins_objects_and_preserves_ids_axes_scale_and_values(self):
         with tempfile.TemporaryDirectory() as directory:

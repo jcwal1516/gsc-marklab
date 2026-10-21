@@ -1,4 +1,4 @@
-"""Thin client for the native, durable Marklab multiplex study service.
+"""Thin client for the native, durable Marklab multiplex study and architecture services.
 
 This module uses only the Python standard library. It does not implement statistics or import
 AnnData/Pandas/NumPy; anndata_slide consumes an existing AnnData object through its public API.
@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 MAXIMUM_RECIPE_BYTES = 16 * 1024 * 1024
+MAXIMUM_ARCHITECTURE_RECIPE_BYTES = 64 * 1024 * 1024
 
 
 class MarklabError(RuntimeError):
@@ -191,6 +192,56 @@ def run_study(
         or document.get("version") != 1
     ):
         raise MarklabError("native result has an unsupported study profile")
+    return document
+
+
+def run_pathology_architecture(
+    recipe: Mapping[str, Any],
+    *,
+    out: str | Path,
+    binary: str | Path = "marklab",
+    timeout_seconds: float = 600,
+) -> dict[str, Any]:
+    """Run ``marklab pathology architecture`` on a complete recipe and return its result.
+
+    The recipe declares polygons produced upstream (for example with
+    ``upstream_formats.qupath_architecture_slide``); nothing is segmented here. The output
+    directory must be new or empty. Tables and GeoJSON overlays are written beside
+    ``result.json``. Exceptions retain native diagnostics.
+    """
+    encoded = json.dumps(recipe, allow_nan=False, sort_keys=True, separators=(",", ":")).encode(
+        "utf-8"
+    )
+    if len(encoded) > MAXIMUM_ARCHITECTURE_RECIPE_BYTES:
+        raise ValueError("architecture recipe exceeds the admitted 64 MiB profile")
+    if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        raise ValueError("timeout_seconds must be finite and positive")
+    with tempfile.TemporaryDirectory(prefix="marklab-client-") as temporary:
+        source = Path(temporary) / "recipe.json"
+        source.write_bytes(encoded)
+        command = [
+            str(binary), "pathology", "architecture", "--recipe", str(source), "--out", str(out),
+        ]
+        try:
+            completed = subprocess.run(
+                command, check=False, capture_output=True, text=True, timeout=timeout_seconds
+            )
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise MarklabError(f"native architecture launch/execution failed: {error}") from error
+        if completed.returncode:
+            raise MarklabError(
+                f"native architecture exited {completed.returncode}: {completed.stderr.strip()}"
+            )
+    result_path = Path(out) / "result.json"
+    try:
+        document = json.loads(result_path.read_bytes())
+    except (OSError, ValueError) as error:
+        raise MarklabError(f"cannot read native result {result_path}: {error}") from error
+    if (
+        document.get("format") != "marklab.pathology_architecture_result"
+        or document.get("version") != 1
+    ):
+        raise MarklabError("native result has an unsupported architecture profile")
     return document
 
 
