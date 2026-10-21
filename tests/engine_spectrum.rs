@@ -73,6 +73,22 @@ fn engine_reports_permutation_whitened_low_k_excess_for_clustered_marks() {
         .xi_stability_interval_um
         .expect("xi stability interval");
     assert!(xi_interval[0] <= xi_um && xi_um <= xi_interval[1]);
+    let eligible_xi = result
+        .spectrum_curve
+        .iter()
+        .filter(|point| point.inference_eligible)
+        .map(|point| 2.0 * std::f64::consts::PI / point.k)
+        .collect::<Vec<_>>();
+    let peak = eligible_xi
+        .iter()
+        .position(|xi| xi.to_bits() == xi_um.to_bits())
+        .expect("xi is an eligible shell");
+    let resolution = spectrum.xi_resolution.as_ref().expect("xi resolution");
+    assert_eq!(resolution.lower_um, eligible_xi.get(peak + 1).copied());
+    assert_eq!(
+        resolution.upper_um,
+        peak.checked_sub(1).map(|index| eligible_xi[index])
+    );
     assert!(spectrum.alpha.is_some());
     assert!(
         result

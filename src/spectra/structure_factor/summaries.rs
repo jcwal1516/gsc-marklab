@@ -16,6 +16,8 @@ pub(super) struct SpectrumScalarReadouts {
     pub(super) dominant_k: Option<f64>,
     pub(super) xi_um: Option<f64>,
     pub(super) xi_stability_interval_um: Option<[f64; 2]>,
+    pub(super) xi_lower_um: Option<f64>,
+    pub(super) xi_upper_um: Option<f64>,
     pub(super) alpha: Option<f64>,
 }
 
@@ -226,6 +228,8 @@ pub(super) fn summarize_permutation_whitening_from_shells(
         dominant_k: observed_readouts.dominant_k,
         xi_um: observed_readouts.xi_um,
         xi_stability_interval_um: observed_readouts.xi_stability_interval_um,
+        xi_lower_um: observed_readouts.xi_lower_um,
+        xi_upper_um: observed_readouts.xi_upper_um,
         xi_um_p_value,
         alpha: observed_readouts.alpha,
         alpha_p_value,
@@ -244,6 +248,8 @@ pub(super) fn spectrum_scalar_readouts(
             dominant_k: None,
             xi_um: None,
             xi_stability_interval_um: None,
+            xi_lower_um: None,
+            xi_upper_um: None,
             alpha: None,
         };
     }
@@ -259,7 +265,14 @@ pub(super) fn spectrum_scalar_readouts(
         .filter(|(index, power)| *index < k_values.len() && power.is_finite())
         .max_by(|(_, left), (_, right)| left.total_cmp(right));
     let dominant_k = dominant.map(|(index, _)| k_values[index]);
-    let xi_um = dominant_k.map(|k| 2.0 * std::f64::consts::PI / k);
+    let xi_of = |k: f64| 2.0 * std::f64::consts::PI / k;
+    let xi_um = dominant_k.map(xi_of);
+    // The shells next to the peak bracket its scale; a missing side means the peak is at
+    // the edge of the eligible range, so the correlation length is not bounded that way.
+    let xi_lower_um = dominant.and_then(|(index, _)| k_values.get(index + 1).copied().map(xi_of));
+    let xi_upper_um = dominant
+        .and_then(|(index, _)| index.checked_sub(1))
+        .map(|index| xi_of(k_values[index]));
     let xi_stability_interval_um = xi_stability_interval_um(k_values, whitened_power);
     let alpha = fit_low_k_alpha
         .then(|| low_k_log_slope(&k_values[..low_count], &whitened_power[..low_count]))
@@ -270,6 +283,8 @@ pub(super) fn spectrum_scalar_readouts(
         dominant_k,
         xi_um,
         xi_stability_interval_um,
+        xi_lower_um,
+        xi_upper_um,
         alpha,
     }
 }

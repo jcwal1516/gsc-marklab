@@ -20,8 +20,8 @@ example `marklab::spatial::ClassicalSpatialAnalysisNode`. Internal modules are p
 
 **Stability.** The crate is pre-1.0, so the Rust API follows normal semver rules for
 0.x versions. The JSON written to `result.json` is a separate, stricter contract
-([result format 0.4](result-format-0.4.md)): its shape and field names do not change
-within 0.4. Experimental workflows write their own versioned documents, separate from
+([result format 0.5](result-format-0.5.md)): its shape and field names do not change
+within 0.5. Experimental workflows write their own versioned documents, separate from
 0.4. For example, the categorical-pair workflow writes `marklab.categorical-pair/2`;
 its fields and inference semantics are documented in
 [directed categorical pairs](categorical-pairs.md).

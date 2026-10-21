@@ -20,7 +20,7 @@ pub use marked::{
     PrimaryEndpointKind, QcSummary, ResidualTerritory, ResolvedComponentMode, ScaleEnergyBand,
     ScaleEnergyPoint, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
     SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary,
-    WindowSummary,
+    WindowSummary, XiPeakShell, XiResolution,
 };
 pub use multimodal::{
     CrossInteractionCurve, CrossInteractionPoint, EnrichmentStatisticUnavailableReason,

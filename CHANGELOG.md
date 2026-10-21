@@ -4,6 +4,11 @@
 
 ### Scientific and serialized contracts
 
+- Result format 0.5 adds `xi_resolution` to spectrum and component summaries: whether the
+  shell that sets `xi_um` lies inside the eligible range or at its lowest- or highest-`k`
+  edge, and the wavelengths of its eligible neighbours. At the lowest-`k` edge the window
+  may hide a longer correlation length; `report.md` says so.
+
 - Preserve configured permutation strata when computing component spectra, including the
   unavailable result for a component with no exchangeable labels. Reject conflicting source
   cell IDs at the declared-input boundary and invalid probability rows at the direct analysis
@@ -105,7 +110,7 @@
   CellViT reader and canonical bytes remain supported.
 - Add bounded model-independent float32 NPY readers and `bayes vector-semivariogram
   --vectors`. Separate-NPY runs use result version 2 to bind both coordinate and vector
-  sources; existing CSV-only results and the main format-0.4 reader are unchanged.
+  sources; existing CSV-only results and the main result reader are unchanged.
 - Compute the unweighted sample-covariance correction directly as `(n - 1)/n`
   while retaining scaled compensated cross products. The exact three-row oracle's
   first diagonal changes from `0.9999999999999999` to `1.0`; effective sample size
@@ -122,7 +127,7 @@
   not replayed. Nonrectangular geometry still uses the existing polygon path.
 - Preserve correctly rounded floating-point values when reading JSON results and
   cache inputs. Decimal values such as `57.925000000000004` must reopen as that same
-  binary64 value. Existing strict result validation and the format-0.4 reader remain.
+  binary64 value. Existing strict result validation and the main result reader remain.
   Durable source-node cache identities include the JSON number-parsing policy, so a
   result cached under the previous parser is recomputed once instead of replayed.
 - Add the explicit `binary_symmetric_including_isolates` Moran/Geary policy. It retains
@@ -131,9 +136,10 @@
 - Add directed categorical cross-L curves and transformed ERL bounds to cross-K results.
   The expanded standalone contract is `marklab.categorical-pair/2`, with a new durable
   artifact schema. Cross-K and mark-connection definitions are unchanged.
-- The main result document is format 0.4. Its reader accepts 0.4; it does not convert
-  0.2 or 0.3. See [the format notes](docs/result-format-0.4.md) for changes introduced
-  earlier in this development batch, including typed metadata and permutation-count fields.
+- The main result document is format 0.5. Its reader accepts 0.5; it does not convert
+  0.2, 0.3 or 0.4. See [the format notes](docs/result-format-0.5.md) for changes introduced
+  in this development batch, including typed metadata, permutation-count fields and
+  `xi_resolution`.
 
 ### Public-data validation and interoperability
 

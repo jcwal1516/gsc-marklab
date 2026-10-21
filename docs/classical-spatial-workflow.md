@@ -92,7 +92,7 @@ the seed, alpha, the number of cells and the number of radii tested.
 ## Results
 
 The command runs through Marklab's workflow scheduler. `result.json` is a `marklab.classical_spatial` version
-1 document, separate from result format 0.4. It records the input, the outline, the
+1 document, separate from result format 0.5. It records the input, the outline, the
 settings and the identities used for caching.
 
 The overall status is one of:

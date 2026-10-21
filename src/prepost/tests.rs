@@ -51,6 +51,7 @@ fn minimal_analysis_result(case_id: &str, timepoint: &str) -> MarkedPatternResul
             }),
             xi_um: Some(10.0),
             xi_stability_interval_um: Some([8.0, 12.0]),
+            xi_resolution: None,
             low_k_excess: 1.0,
             low_k_excess_p_value: Some(1.0),
             alpha: Some(0.0),

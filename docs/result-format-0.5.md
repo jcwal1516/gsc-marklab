@@ -1,15 +1,15 @@
-# Result format 0.4
+# Result format 0.5
 
 The marked-pattern and H&E/IHC multimodal analyses use this format, as do their
 pre/post comparisons. Other commands, including classical spatial, pathology and multiplex
-studies, write separately versioned documents. This page describes format 0.4 and how it
+studies, write separately versioned documents. This page describes format 0.5 and how it
 represents missing values.
 
 ## The document
 
 ```json
 {
-  "format_version": "0.4",
+  "format_version": "0.5",
   "provenance": {
     "program": "marklab",
     "crate_version": "..."
@@ -86,10 +86,23 @@ this one definition.
 
 `SpectrumSummary.xi_um` is `2π / k` for the shell with the largest whitened power among the
 `spectrum_curve` points with `inference_eligible = true`. It can only take the shell values
-listed there, so the neighbouring eligible shells set its resolution. When the largest
-whitened power is in the lowest-`k` eligible shell, `xi_um` is the largest scale the window
-resolves: the correlation length is at least that value and may be larger. To detect this,
-compare `xi_um` with `2π / k` of the first eligible `spectrum_curve` point.
+listed there. `xi_resolution`, present whenever `xi_um` is, says how well that locates the
+correlation length:
+
+- `peak_shell` is `interior` when eligible shells lie on both sides of the peak, `lowest_k`
+  when the peak is in the lowest-`k` eligible shell, `highest_k` when it is in the
+  highest-`k` eligible shell, and `only_shell` when only one shell is eligible.
+- `lower_um` and `upper_um` are `2π / k` of the neighbouring eligible shells at higher and
+  lower `k`. If the whitened spectrum has a single smooth peak, its scale lies between them.
+  Each is absent when no eligible shell lies on that side.
+
+`lowest_k` means the peak is at the largest scale the window resolves. The correlation
+length is then above `lower_um` and may be longer than the window can show, so treat
+`xi_um` as censored, not as a measurement; comparing it across windows of different sizes
+compares the windows. `highest_k` is the same limit at short scales. `report.md` states
+which case applies. Each `ComponentAnalysisSummary` carries the same field for its own
+spectrum.
+
 `xi_stability_interval_um` spans the eligible shells whose whitened power is at least 95% of
 the peak; it is a single value when one shell dominates.
 
@@ -250,10 +263,20 @@ Single-section results never contain comparison fields; comparisons exist only i
 multimodal fields (registration, fused cells, neighborhood enrichment, cross-interaction or
 territory profiles).
 
+## Changes from 0.4
+
+Marklab reads only 0.5 documents. Earlier `result.json` documents, including 0.4, are
+rejected with an unsupported-version error; regenerate them from the original inputs.
+
+`SpectrumSummary` and `ComponentAnalysisSummary` gain `xi_resolution`, which says whether
+`xi_um` is bracketed by neighbouring shells or sits at the edge of the eligible range (see
+[spectral correlation length](#spectral-correlation-length)). No other field changed. The
+marked-analysis workflow identities include the format version, so results cached by
+earlier builds are recomputed.
+
 ## Changes from 0.3
 
-Marklab reads only 0.4 documents. Earlier `result.json` documents, including 0.2 and 0.3,
-are rejected with an unsupported-version error; regenerate them from the original inputs.
+Format 0.4 did not convert 0.2 or 0.3 documents.
 
 ### Fields that restated a constant
 

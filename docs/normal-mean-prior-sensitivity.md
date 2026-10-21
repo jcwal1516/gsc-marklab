@@ -95,4 +95,4 @@ keeps the same scientific fields and definitions but drops the Python version, e
 lock and worker fields; `request_sha256` identifies the sorted inputs and timeout. Programs
 reading these files need to accept version 2 and its backend value. The old SciPy version 1
 request and result types remain in `marklab-bayes` for compatibility and as an independent
-reference check. This change does not affect result format 0.4 or the PyMC-based commands.
+reference check. This change does not affect the main result format or the PyMC-based commands.

@@ -30,7 +30,7 @@ The result is a separate version-1 artifact with format
 `marklab.categorical_enrichment_result`. It retains frame/channel IDs, ordered
 classes and class counts, radius, graph edge-pair counts, permutation count, seed,
 and one row for each unordered class pair, including same-class pairs. Pair labels
-are in lexical order. Existing multimodal result-format 0.4 enrichment fields keep
+are in lexical order. Existing multimodal result-format enrichment fields keep
 their definitions.
 
 ## Exact fixed-count null moments

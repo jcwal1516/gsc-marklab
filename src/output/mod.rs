@@ -43,6 +43,7 @@ pub use result_types::{
     RegistrationSummary, ResidualTerritory, ResolvedComponentMode, ResultDocument, ScaleEnergyBand,
     ScaleEnergyPoint, SpectrumConfoundingConclusion, SpectrumNullInferenceSummary,
     SpectrumNullModel, SpectrumNullSensitivitySummary, SpectrumPoint, SpectrumSummary, StatusFlag,
-    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, RESULT_FORMAT_VERSION,
+    TerritoryPrePostSummary, TerritoryProfile, TimingStage, WindowSummary, XiPeakShell,
+    XiResolution, RESULT_FORMAT_VERSION,
 };
 pub use writer::OutputWriter;

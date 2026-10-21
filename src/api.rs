@@ -8,7 +8,7 @@ use crate::{
     memory_budget::{estimate_peak_memory, MemoryEstimate, MemoryInputs},
     output::{
         AnalysisStatus, Interpretation, InterpretationClass, MarkedPatternResult, StatusFlag,
-        TimingStage,
+        TimingStage, XiResolution,
     },
     scalar_mark::{
         DeclaredMarkUse, DeclaredScalarIdentity, DeclaredScalarInputError,
@@ -400,4 +400,15 @@ fn optional_point_bytes(pattern: &Pattern) -> usize {
 
 fn finite_option(value: f64) -> Option<f64> {
     value.is_finite().then_some(value)
+}
+
+fn xi_resolution(
+    spectrum: &crate::spectra::structure_factor::PermutationWhitenedSpectrum,
+) -> Option<XiResolution> {
+    spectrum.xi_um.and_then(finite_option).map(|_| {
+        XiResolution::from_neighbours(
+            spectrum.xi_lower_um.and_then(finite_option),
+            spectrum.xi_upper_um.and_then(finite_option),
+        )
+    })
 }
