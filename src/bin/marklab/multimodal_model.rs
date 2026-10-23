@@ -25,6 +25,15 @@ use validation::run_validation_suite;
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum MultimodalModelCommand {
+    /// Learn nonnegative modality kernel weights with nested patient cross-validation.
+    KernelFusion {
+        /// Strict patient features, target, fold assignments and resource limits.
+        #[arg(long)]
+        input: PathBuf,
+        /// New JSON result file; it must not already exist.
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Estimate shared structure with probabilistic canonical correlation analysis.
     Pcca {
         /// JSON specification containing observations and settings for this analysis.
@@ -143,6 +152,7 @@ pub(crate) enum MultimodalModelCommand {
 
 pub(crate) fn run_cli(command: MultimodalModelCommand) -> Result<(), CliError> {
     match command {
+        MultimodalModelCommand::KernelFusion { input, out } => run_kernel_fusion(input, out),
         MultimodalModelCommand::Pcca { input, out } => run_pcca(input, out),
         MultimodalModelCommand::BayesianPcca { input, out } => run_bayesian_pcca(input, out),
         MultimodalModelCommand::Mofa { input, out } => run_mofa(input, out),
@@ -172,6 +182,28 @@ pub(crate) fn run_cli(command: MultimodalModelCommand) -> Result<(), CliError> {
             out,
         } => run_validation_suite(seed, timeout_seconds, out),
     }
+}
+
+fn run_kernel_fusion(input: PathBuf, out: PathBuf) -> Result<(), CliError> {
+    let bytes = super::input_file::read_regular_file(
+        &input,
+        16 * 1024 * 1024,
+        "kernel-fusion input must be a regular file within 16 MiB",
+    )?;
+    let spec: marklab_prediction::KernelFusionSpec = serde_json::from_slice(&bytes)?;
+    let result = marklab_prediction::learn_multimodal_kernels(spec)
+        .map_err(|error| CliError::Input(error.to_string()))?;
+    use super::exclusive_json_output::{publish_pretty_json, ExclusiveJsonOutputError};
+    publish_pretty_json(&out, &result, "kernel-fusion").map_err(|error| match error {
+        ExclusiveJsonOutputError::OutputExists => {
+            CliError::Input(format!("output already exists: {}", out.display()))
+        }
+        ExclusiveJsonOutputError::OutputMustNameFile => {
+            CliError::Input("output must name a file".into())
+        }
+        ExclusiveJsonOutputError::Io { path, source } => CliError::Io { path, source },
+        ExclusiveJsonOutputError::Json(error) => CliError::Json(error),
+    })
 }
 
 pub(crate) fn execute(command: MultimodalModelCommand) -> marklab::Result<()> {

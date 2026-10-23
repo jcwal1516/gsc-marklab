@@ -24,6 +24,7 @@ pub(crate) fn run(command: Commands) -> Result<()> {
             SimulateCommands::SpatialCompetition(args) => simulate::spatial_competition::run(args),
             SimulateCommands::AgentCompetition(args) => simulate::agent_competition::run(args),
             SimulateCommands::ReactionDiffusion(args) => simulate::reaction_diffusion::run(args),
+            SimulateCommands::PhaseField(args) => simulate::phase_field::run(args),
             SimulateCommands::EvolveInterface(args) => simulate::level_set::run(args),
             SimulateCommands::VascularTransport(args) => simulate::vascular_transport::run(args),
             SimulateCommands::MechanisticTissue { input, out } => {

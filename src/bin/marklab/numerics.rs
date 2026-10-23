@@ -14,6 +14,24 @@ const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Debug, Subcommand)]
 pub(crate) enum NumericsCommand {
+    /// Decompose discrete two-source information with the declared Williams-Beer I_min estimator.
+    PartialInformationDecomposition {
+        /// Strict joint-count table and categorical variable declarations.
+        #[arg(long)]
+        input: PathBuf,
+        /// New JSON result file; it must not already exist.
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Measure local axial orientation and resolved nematic defects on a declared grid.
+    NematicOrientation {
+        /// Strict oriented-cell, window and field-grid specification.
+        #[arg(long)]
+        input: PathBuf,
+        /// New JSON result file; it must not already exist.
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Measure distance-dependent enrichment between ordered cell classes.
     CategoricalCoOccurrence(super::co_occurrence::Arguments),
     /// Compare categorical edge counts with a fixed-count label null.
@@ -112,6 +130,26 @@ pub(crate) enum NumericsCommand {
 
 pub(crate) fn run_cli(command: NumericsCommand) -> Result<(), CliError> {
     match command {
+        NumericsCommand::PartialInformationDecomposition { input, out } => {
+            let bytes = super::input_file::read_regular_file(
+                &input,
+                MAXIMUM_INPUT_BYTES,
+                "partial information input must be a regular file within 16 MiB",
+            )?;
+            let result = marklab::marks::partial_information_decomposition_from_json(&bytes)
+                .map_err(|error| CliError::Input(error.to_string()))?;
+            publish_json(&out, &result)
+        }
+        NumericsCommand::NematicOrientation { input, out } => {
+            let bytes = super::input_file::read_regular_file(
+                &input,
+                MAXIMUM_INPUT_BYTES,
+                "nematic input must be a regular file within 16 MiB",
+            )?;
+            let result = marklab::structure::nematic_orientation_from_json(&bytes)
+                .map_err(|error| CliError::Input(error.to_string()))?;
+            publish_json(&out, &result)
+        }
         NumericsCommand::CategoricalCoOccurrence(args) => super::co_occurrence::run(args),
         NumericsCommand::CategoricalEnrichment { input, out } => {
             let bytes = super::input_file::read_regular_file(

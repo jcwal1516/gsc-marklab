@@ -13,4 +13,6 @@ pub(crate) mod landy_szalay;
 pub(crate) mod mapper;
 pub(crate) mod morisita;
 pub(crate) mod mutual_information;
+pub(crate) mod nematic;
+pub(crate) mod partial_information;
 pub(crate) mod surrogates;

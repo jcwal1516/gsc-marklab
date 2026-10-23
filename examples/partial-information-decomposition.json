@@ -1,0 +1,18 @@
+{
+  "format": "marklab.partial_information_decomposition_request",
+  "version": 1,
+  "estimator": "williams_beer_i_min",
+  "statistical_unit": "patient",
+  "target": {"name": "xor_response", "levels": ["0", "1"], "definition": "synthetic XOR of two independent bits"},
+  "sources": [
+    {"name": "morphology", "levels": ["0", "1"], "definition": "synthetic first bit"},
+    {"name": "cells", "levels": ["0", "1"], "definition": "synthetic second bit"}
+  ],
+  "counts": [
+    {"target": 0, "source_a": 0, "source_b": 0, "count": 10},
+    {"target": 1, "source_a": 0, "source_b": 1, "count": 10},
+    {"target": 1, "source_a": 1, "source_b": 0, "count": 10},
+    {"target": 0, "source_a": 1, "source_b": 1, "count": 10}
+  ],
+  "limits": {"maximum_entries": 100, "maximum_states": 100, "maximum_observations": 10000}
+}

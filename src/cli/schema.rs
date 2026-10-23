@@ -106,6 +106,8 @@ pub enum SimulateCommands {
     AgentCompetition(simulate::agent_competition::AgentCompetitionArgs),
     /// Simulate a periodic two-dimensional reaction-diffusion field.
     ReactionDiffusion(simulate::reaction_diffusion::ReactionDiffusionArgs),
+    /// Simulate conserved phase separation with a periodic two-dimensional Cahn-Hilliard model.
+    PhaseField(simulate::phase_field::PhaseFieldArgs),
     /// Evolve a tissue interface with a two-dimensional level-set method.
     EvolveInterface(simulate::level_set::EvolveInterfaceArgs),
     /// Simulate transport from vessels through a static two-dimensional flow field.

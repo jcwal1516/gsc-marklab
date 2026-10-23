@@ -9,6 +9,7 @@ mod competition;
 mod level_set;
 mod matern_cluster;
 mod mechanistic;
+mod phase_field;
 mod reaction_diffusion;
 mod summary_matching;
 mod thomas;
@@ -36,6 +37,10 @@ pub use matern_cluster::{
 pub use mechanistic::{
     simulate_mechanistic_tissue, MechanisticCouplingDiagnostics, MechanisticIntervalSummary,
     MechanisticTissueResult, MechanisticTissueSpec,
+};
+pub use phase_field::{
+    simulate_phase_field, PhaseFieldConservationSummary, PhaseFieldEnergySummary, PhaseFieldResult,
+    PhaseFieldSnapshot, PhaseFieldSolverDiagnostics, PhaseFieldSpec, PhaseFieldStateCell,
 };
 pub use reaction_diffusion::{
     simulate_reaction_diffusion, ReactionDiffusionPatternDiagnostics, ReactionDiffusionResult,

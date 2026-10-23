@@ -20,7 +20,247 @@ fit or synthetic test alone cannot promote a method. Existing serialized `experi
 `research_only`, `established` and `validated` policy values use the older, caller-supplied
 policy vocabulary; they are not certificates that this evidence ladder has been met.
 
+## From tissue to a mathematical object
+
+Marklab starts after pixels have been turned into declared objects. It can inspect or crop a
+whole-slide image, and it has bounded adapters for several upstream tables and annotation formats,
+but it does not segment nuclei, classify cells or infer a tissue outline from an arbitrary slide.
+Those upstream decisions determine what the later mathematics means.
+
+| Declared object | Typical fields | What it enables |
+|---|---|---|
+| Cell or event point pattern | Physical coordinates, observation window, patient and slide identity | K/L, pair correlation, nearest-neighbour and empty-space functions, point-process models, topology and graphs |
+| Marked point pattern | Cell class, binary mark, continuous measurement or probability attached to each point | Random-labeling tests, cross-type functions, mark covariance, variograms, local maps and conditional mark models |
+| Compartments and annotations | Polygons, holes, interfaces, region class and physical calibration | Border correction, distance profiles, mixing/contact measurements, invasive-front and architecture summaries |
+| Raster or voxel support | Binary mask, pixel/voxel size, connectivity and declared 2-D/3-D window | Morphology, raster topology, voxel K and registered serial-section analyses |
+| Feature vectors | Row-aligned cell, patch, region or slide embeddings with provenance | Spatial embedding summaries, factors, kernels, retrieval and held-out prediction fusion |
+| Graph or complex | Nodes, weighted or typed edges, hyperedges or cells of a complex | Autocorrelation, centrality, graph spectra, diffusion, scattering, motifs and Hodge decomposition |
+| Patient-level table | Prespecified endpoints per independent patient, with groups, blocks or sites | Permutation tests, Max-T, equivalence, bootstrap, multivariate distances and multisite inference |
+| Repeated or simulated state | Time-indexed observations, state-space matrices, initial field and model parameters | Filtering and smoothing, mechanistic simulation, SBI and posterior-predictive checks |
+
+Coordinates must be in physical units for spatial interpretation. The observation window is part
+of the data: excluding a hole, clipping a region or treating a rectangle as fully observed changes
+which pairs and empty locations could have been seen. A cell class supplied by a model remains a
+declared observation; Marklab does not turn it into biological ground truth.
+
+## Mathematical and mapping families
+
+The sections below explain the major calculations and how they relate. The detailed evidence table
+that follows remains the authority for exactly which variants have independent or public-data
+agreement.
+
+### Point-pattern geometry and spatial scale
+
+For a point pattern in a declared window, Ripley's `K(r)` estimates the amount of pattern within
+radius `r` of a typical point after the selected edge correction. `L(r)=sqrt(K(r)/π)` puts the
+answer back on a distance scale; `L(r)-r` is zero in expectation for homogeneous complete spatial
+randomness (CSR), not for every fitted or conditional null. Pair correlation `g(r)` is a local,
+annular counterpart to cumulative K. Inhomogeneous forms reweight pairs by supplied or estimated
+intensity, and cross-type forms direct the question from one cell class to another.
+
+`G(r)` is the distribution of point-to-nearest-point distance, `F(r)` is empty-space-to-nearest-
+point distance from declared probes, and `J(r)=(1-G(r))/(1-F(r))` where the ratio is supported.
+These answer different questions: K accumulates neighbours across scales, g localizes the scale,
+G emphasizes crowding around observed cells, and F includes empty tissue. Border, translation and
+isotropic corrections are estimator choices rather than cosmetic options. Gaussian bandwidth
+selection, piecewise-compartment intensity and polygon windows likewise change the estimand.
+
+CSR simulations move points in the window. Random labeling holds coordinates fixed and permutes
+marks. A fitted point-process posterior generates from its fitted intensity or interaction model.
+These nulls are not interchangeable, and Marklab records the chosen one in the result.
+
+### Cell classes, neighborhoods, compartments and maps
+
+Categorical pair counts, co-occurrence and enrichment describe how declared cell classes share a
+radius graph or distance band. Cross-K/L and cross-g preserve direction: tumour-to-lymphocyte need
+not equal lymphocyte-to-tumour after normalization. Exact fixed-margin moments and label
+permutations ask whether labels occupy a fixed graph unusually; they do not infer a communication
+mechanism. Composition and diversity instead ignore most geometry and summarize proportions,
+Shannon entropy or effective class count.
+
+Pathology maps attach measurements to declared tissue geography. They provide marker/density
+profiles versus signed or unsigned distance from annotations, neighborhood composition maps,
+local hotspot/outlier summaries and enrichment scans. Architecture functions operate on supplied
+epithelium and nucleus geometry: components, lumens, fragmentation, contour curvature, skeleton
+branches, nuclear shape, distance bands from the invasive front, budding hotspots and overlap of
+registered cells or transcriptomic spots. These functions map and summarize upstream regions;
+they do not draw the annotations or classify tumour.
+
+### Continuous marks, fields and local association
+
+Scalar and vector measurements can be treated as fields over points, regions or graph nodes.
+Covariance and semivariance by distance describe how quickly similar values decorrelate. Ordinary
+kriging predicts from a declared variogram and reports held-out checks; the variogram and
+stationarity assumption remain inputs. Moran's I and Geary's C measure global autocorrelation
+under declared spatial weights, while local Moran and hotspot summaries localize association.
+Kernel dependence, entropy and mutual information answer broader dependence questions; the
+variogram-matching null exists because ordinary shuffling can be badly anti-conservative for two
+independently autocorrelated fields.
+
+Additional structure descriptors cover quadrat dispersion (Morisita), lacunarity and box-counting
+dimension, Landy-Szalay two-point correlation, Mapper graphs, k-atic bond orientation and nematic
+axial order. Nematic tensors summarize unoriented axes and screen resolved ±1/2 defects in a
+declared grid; they do not measure force. Two-source partial information decomposition uses the
+declared Williams–Beer `I_min` estimator to split discrete information into redundant,
+source-unique and synergistic terms. Its categories must be supplied in advance, and its
+decomposition is descriptive rather than causal or bias-corrected.
+
+### Fourier, spectral and multiscale analysis
+
+Marklab uses Fourier ideas in several distinct places:
+
+- The marked spatial spectrum evaluates Fourier coefficients of centered marks at the observed
+  cell coordinates, with label permutations as its reference. A separate tapered raster FFT
+  provides a gridding diagnostic. Peaks indicate preferred wavelengths or directions under the
+  declared window and wavevector convention. A spectral correlation length summarizes where power
+  is concentrated; it is not a physical interaction length by itself.
+- The unmarked structure factor uses point locations without cell marks. Low-wave-
+  number behavior supports descriptive hyperuniformity statistics `H` and `α` on fully observed
+  rectangles. This is a different object from a fixed-label mark spectrum.
+- Multiscale residuals and component modes split a pattern across declared spatial scales. Their
+  gridding-sensitivity diagnostic uses a fixed 25% guide, not a formal agreement guarantee.
+- Graph Fourier bases diagonalize a declared graph Laplacian. Heat kernels, Chebyshev diffusion,
+  graph and diffusion wavelets, and scattering propagate node signals across graph scales. Changing
+  the radius, edge weights or Laplacian changes the basis and therefore the features.
+- Reaction-diffusion and phase-field solvers use spectral or finite-difference operators to evolve
+  a declared dynamical model. Mathematical stability is evidence about the solver, not evidence
+  that tissue follows the equations.
+
+For a centered field `z(x)`, a schematic spatial coefficient is
+`Z(k)=Σ_x z(x) exp(-i k·x)` and power is proportional to `|Z(k)|²`. Windowing, admissible
+wavevectors, centering and normalization determine which numerical quantity is being reported.
+Comparing a spectrum across slides therefore requires the same physical scale and conventions.
+
+### Embeddings, multimodal factors and three kinds of fusion
+
+Embedding inputs are row-aligned vectors produced upstream. Marklab checks identity, dimensionality
+and provenance, then can compute vector semivariograms, projected-component variograms,
+distance-dependent cross-covariance, kernel mark correlation, graph Dirichlet energy, graph
+smoothness tests, local roughness, multiscale kernels and leakage-controlled analogous-region
+retrieval. These describe the supplied representation. They do not validate the image encoder or
+make an attention score a cell-level mechanism.
+
+It is useful to separate three operations that are often all called “fusion”:
+
+1. **Spatial/class fusion:** after registration, categorical classes or continuous marks from two
+   sections are compared through cell matching, neighborhood enrichment, cross-interaction curves,
+   territories and source-section-aware null models. Geometry and registration uncertainty matter.
+2. **Representation fusion:** multiview factors, probabilistic CCA, MOFA-style models, tensor
+   factors, spatial matrix factors and shared/private latent-factor models seek a lower-dimensional
+   representation across modalities. A spatial latent factor may use a dense GP or SPDE prior.
+3. **Predictive fusion:** late fusion calibrates patient-level out-of-fold modality probabilities;
+   predictive stacking weights held-out log predictive densities; mixture-of-experts uses declared
+   context to gate out-of-fold experts and reports OOD scores. These are held-out prediction
+   comparisons, not explanations of morphology.
+
+[Learned multimodal kernel fusion](multimodal-kernel-fusion.md) is an explicit supervised
+comparison at the patient level. Each modality forms a training-standardized, centered kernel with
+unit mean diagonal. For weights on the simplex, `K_w = Σ_m w_m K_m`; kernel ridge solves
+`(K_w + λI)α = y - mean(y)`. A finite simplex lattice and `λ` are selected only inside inner
+patient folds, then evaluated on the outer held-out patients. Equal-weight and every single-
+modality kernel are tuned and reported as baselines. Linear kernels capture scaled dot-product
+similarity; RBF kernels use `exp(-mean_squared_z_distance/(2 bandwidth²))`. The learned weights are
+predictive tuning choices on that grid, not continuous global optima or biological importance.
+
+### Graphs, topology and transport
+
+A physical-radius graph turns positions into a network; a supplied graph may instead represent any
+declared relation. Marklab provides degree/closeness/clustering summaries, graph spectra, heat and
+wavelet features, typed message passing, hypergraphs, triangle motifs, diffusion scattering and
+Hodge decomposition of edge signals or cellular complexes. None of these learns a community or
+tissue niche unless a separate model supplies it.
+
+Topology tracks connectivity and loops across a scale filtration. Alpha and witness persistence,
+diagram comparison, bottleneck/coordinate stability, threshold connectivity, and binary-raster
+morphology answer whether features persist under scale or perturbation. Persistence does not name
+the biological structure that caused a bar in the diagram.
+
+Optimal transport supplies couplings between source and target mass. Balanced, partial and
+unbalanced Sinkhorn use a cross-cost matrix. Fused Gromov-Wasserstein combines feature cost with
+the internal pairwise structure of both samples; partial and KL-relaxed unbalanced variants alter
+the mass constraints. A coupling is an alignment under those costs, not proof that two rows are the
+same cell or cell type.
+
+### Bayesian models and model checking
+
+The Bayesian family is not one monolithic tissue model. It includes:
+
+- Gaussian, Student-t, negative-binomial, beta-binomial, hurdle, Dirichlet-multinomial and ordinal
+  patient, slide and site hierarchies, crossed and nested random effects, and meta-analysis;
+- Gaussian processes, multi-output and variational GPs, predictive processes, nearest-neighbour GP
+  densities, CAR/SAR/GMRF, BYM/BYM2, spatially varying coefficients, resource-distance models and
+  dense or SPDE spatial fields;
+- inhomogeneous Poisson processes, rectangular or polygon-window LGCPs, replicated and multitype
+  LGCPs, conditional multitype marks, joint location/mark/embedding models, Strauss/Geyer
+  interactions and Thomas/Matérn cluster models;
+- normal-mean SMC, HMC, Laplace and grid-integrated approximations, PSIS-LOO comparison, and
+  simulation-based growth-front inference.
+
+Model-checking commands have different jobs. Cross-backend agreement asks whether PyMC and
+NumPyro implementations give compatible summaries. Simulation-based calibration tests rank or
+coverage behavior under simulated parameters. Prior sensitivity changes declared priors.
+Quadrature or kernel sensitivity changes numerical or model resolution. Posterior-predictive checks
+compare simulated and observed summaries. PSIS-LOO compares predictive fit. Passing one check does
+not imply that the model is biologically correct or calibrated for a patient cohort.
+
+Sampling fits have model-specific diagnostics: inspect R-hat, effective sample size, divergences
+and other required checks where the sampler supplies them. A nonconverged fit remains diagnostic.
+The [Python worker environment](python-backends.md) is version-locked and isolated;
+`backend doctor` checks installation, not scientific suitability. Normal-mean prior sensitivity is
+native Rust ([calculation and limits](normal-mean-prior-sensitivity.md)). The advanced Thomas model,
+anisotropic 3-D GP and crossed/nested variance partition have additional interpretation limits
+retained later on this page.
+
+### Population inference and prediction
+
+The cohort family takes patients, paired patients, clusters or declared blocks as exchangeable
+units. It includes patient-label permutation, paired tests, covariate-adjusted Freedman-Lane tests,
+cluster permutations, repeated measures, single-step, step-down or hierarchical Max-T, functional
+curve tests, MMD, energy distance, equivalence, noninferiority, hierarchical bootstrap, multisite
+fixed/random-effects synthesis, fingerprint distance and nested-field reduction. Cell count does
+not increase the number of independent patients.
+
+Prediction utilities calibrate probabilities, construct grouped conformal sets, score distance
+from training support and apply declared abstention thresholds. They require honest train,
+calibration and test roles. Coverage or calibration on one split does not establish transport to a
+new site or scanner.
+
+### Registration, 3-D, longitudinal, causal and generative research
+
+Registration includes nonrigid and stationary-velocity-field image alignment, diffeomorphic
+landmark alignment, landmark/velocity uncertainty and multi-specimen atlases. Three-dimensional
+workflows include homogeneous, cross-type and intensity-reweighted K in cuboid or voxel windows,
+physical-radius graphs, exact 3-D alpha complexes, serial-section reconstruction, registered
+longitudinal voxel K and clone-location models. A deformation can arise from sectioning or mounting
+and is not automatically biological change.
+
+Longitudinal commands provide linear-Gaussian Kalman filtering and RTS smoothing, nonlinear
+Gaussian filtering, particle smoothing and phylogenetic-spatial distance association. Causal
+commands implement randomized interference and exposure mapping, Gaussian expected information
+gain, Manski and Rosenbaum bounds, confounder sensitivity, cross-fitted observational estimators,
+randomized perturbation mediation/spillover analysis and budgeted active design. Their causal
+meaning depends on the declared design and identification assumptions.
+
+Simulation includes random labeling, Fisher-KPP fronts, Lotka-Volterra and stochastic agents,
+reaction-diffusion, level-set interfaces, vascular transport, a coupled mechanistic model,
+Cahn-Hilliard phase separation and summary matching. Neural point-process and point-set generators,
+ABC, SMC, synthetic likelihood, neural SBI, simulation-support checks, SBC and posterior-predictive
+laboratories support method development. Matching summaries or recovering parameters in a
+simulator does not identify a mechanism in tissue. These families remain Research tools without an
+independent reference comparison and public real-data demonstration except where a narrower row in
+the evidence table says otherwise; [research workflows](research-workflows.md) gives their model-
+specific assumptions.
+
 ## Method coverage
+
+Four additional Research workflows were implemented on 23 October 2026:
+
+| Workflow | Implemented behavior | Evidence and boundary |
+|---|---|---|
+| [Multimodal kernel fusion](multimodal-kernel-fusion.md) | Learn nonnegative linear/RBF kernel weights and ridge penalties inside nested patient folds; compare equal weights and single modalities | Synthetic linear oracle and held-out-label leakage checks; finite weight grid, continuous target, no cohort-performance or causal-weight claim |
+| [Nematic orientation and defects](nematic-orientation.md) | Weighted global/local axial order, regular-grid director field, resolved ±1/2 defects | Known tensors, rotated positive/negative defect fields and hole exclusions; static shape measurements, no force inference |
+| [Partial information decomposition](partial-information-decomposition.md) | Two-source discrete Williams–Beer I_min redundancy, unique information and synergy | Copy, XOR, independent, unique and joint-target controls; declared categorical bins, no bias correction or causal interpretation |
+| [Cahn–Hilliard phase field](phase-field.md) | Periodic 2-D conserved phase separation with stepwise mass and discrete-energy checks | Constant and spectral-mode oracles, conservation and energy decay; declared hypothetical dynamics, no biological parameter fitting |
 
 This inventory was checked against the command tree, workspace crates and linked upstream
 documentation on 10 October 2026. **Implemented** means the stated calculation exists,
@@ -142,135 +382,141 @@ where an individual model still lacks a complete public demonstration; a command
 3. **Research families:** independent reference comparisons and public real-data
    demonstrations for the [research workflows](research-workflows.md).
 
-## One tissue section
+## How the capabilities combine
 
-**`marklab analyze`** (Research) takes cells with a yes/no label, or a probability, and tests
-whether the labeled cells are arranged differently than if the labels were shuffled at
-random among the same cells. It reports:
+Marklab does not impose one universal pipeline. The same admitted cell table can support different
+questions, but each branch must keep its own observation window, mark definition, null model and
+unit of inference.
 
-- whether labeled cells sit closer to each other than chance predicts (clustering) or
-  farther apart (dispersion), across a range of distances;
-- whether the pattern has a preferred direction;
-- the size scales at which labeled cells concentrate, from a spectrum of the pattern;
-- maps of the regions where labeled cells are over-represented.
+### One section
 
-**`marklab classical`** and **`marklab nearest-space`** apply standard point-pattern
-statistics to all retained cells, ignoring the label: Ripley's K and L functions,
-nearest-neighbor distances and empty-space distances, each compared with completely
-random placement. The demonstrated rectangular observed curves are Experimental;
-their inferential extensions remain Research. See the
-[classical workflow](classical-spatial-workflow.md).
+`marklab analyze` takes cells with a binary mark or probability and asks whether those marks are
+arranged differently than fixed-count label shuffling on the same coordinates. It combines
+multiscale clustering/dispersion, directional summaries, a mark spectrum, component modes and
+local over-representation maps in one versioned result. It is a useful broad screen, but its
+outputs are related views of one marked pattern rather than independent confirmatory tests.
 
-The directed categorical cross-K/L workflow has [public-data spatstat agreement](categorical-pairs.md)
-and is Experimental for its documented standard border correction.
+`classical` and `nearest-space` ignore the mark and ask whether all retained cells depart from CSR
+through K/L, G, F and J. Directed categorical pairs, cross-g, co-occurrence and enrichment then ask
+which declared classes contribute to the pattern. Scalar and vector marks can branch into
+variograms, covariance, mutual information, autocorrelation, kriging, embedding kernels or graph
+signals. The [classical workflow](classical-spatial-workflow.md) and [categorical-pair
+conventions](categorical-pairs.md) define the demonstrated estimators.
 
-## Comparing sections
+Annotations create another branch. `pathology maps` measures marker or density change with distance
+from supplied structures and maps neighborhoods and hotspots. `pathology architecture` derives
+front-relative, gland, lumen, fragmentation, skeleton, budding and nuclear-shape summaries from
+declared epithelium and nuclei, and can attach spots and registered cells. `pathology composition`,
+`spatial-study` and `scan` move those quantities toward patient comparison, spatial curves and
+enrichment scans. See [pathology maps](pathology-maps.md), [architecture](pathology-architecture.md)
+and [pathology studies](pathology-studies.md). The pathology study routes have 23 synthetic
+scenarios but no real-study calibration; sparse cell types require the support rule to be declared
+before analysis.
 
-**`marklab prepost`** (Research) compares two analyzed sections, such as one taken before
-treatment and one after. It describes how each measurement changed. The two sections are
-different pieces of tissue, so this is not a test of what happened to the same cells.
+### Two sections, stains or timepoints
 
-**`marklab multimodal`** (Research) analyzes an H&E and an IHC section of the same tissue together.
-It aligns them, measures how different cell types sit relative to each other, and fits
-factor models across the two stains. Its spatial factor can use a dense Gaussian-process prior
-or a mesh-based SPDE prior; the two recover the same synthetic factor
-([SPDE spatial factor](python-backends.md#spde-spatial-factor)).
+`prepost` compares two completed section analyses axis by axis. Because the sections contain
+different physical cells, it describes change between samples; it is not a paired-cell treatment
+effect. `multimodal` registers an H&E/IHC pair, matches declared observations, computes cross-stain
+neighborhood and territory summaries, and supports joint factor models. Its spatial factor can use
+a dense GP or mesh SPDE prior; the synthetic evidence shows recovery of a common smooth factor,
+not equality of the priors or validation on tissue
+([SPDE details](python-backends.md#spde-spatial-factor)).
 
-## Many patients
+Registration uncertainty can feed serial-section and 3-D workflows. Embedding or class features
+from modalities may instead enter factor models, learned kernels or patient-level predictive
+fusion. These routes answer different questions and should not be treated as interchangeable
+“multimodal scores.”
 
-**`marklab cohort`** (Experimental for two-group Max-T; Research for other designs) compares
-groups of patients. The patient is the unit of evidence: a
-patient with 10,000 cells counts once, the same as a patient with 500. It supports
-paired, blocked and clustered designs, bootstrap intervals, Max-T correction across many
-measurements, and equivalence tests against a margin you set in advance.
+### Slides, sites and patients
 
-**`marklab study`** (Experimental) runs a whole multiplex panel, with several markers
-measured per cell, across slides and patients, from cell tables to a patient-level report.
-It can resume after an interruption, and a thin Python client reads AnnData files. See
-[multiplex studies](multiplex-study.md).
+`study` runs a declared multiplex panel from fields and slides to patient-level endpoints, supports
+resume, and has a thin AnnData client. `cohort` then applies paired, blocked, clustered,
+covariate-adjusted, multivariate, Max-T, bootstrap or margin-based inference. `pathology` study
+routes provide specialized composition, spatial-curve and scan endpoints. A patient with many cells
+still counts as one patient. The [multiplex study](multiplex-study.md) and public [Jackson](validation-jackson.md)
+examples show the supported evidence paths and their scope.
 
-## Pathology maps and studies
+`project` provides durable, identity-checked caching for selected native and Python-backed methods.
+Caching avoids repeating a completed fit; it does not upgrade that fit's scientific maturity.
 
-**`marklab pathology maps`** (Research) measures how marker levels and cell density
-change with distance from annotated structures, maps the mix of cell types across the
-tissue, and finds local hotspots and outliers for a single marker. It uses annotations and
-measurements you supply; it does not draw annotations itself. See
-[pathology maps](pathology-maps.md).
+### Model-specific interpretation retained
 
-**`marklab pathology architecture`** (Research) derives the advancing tumor front from
-declared epithelium polygons and reports glandular, solid and fragmented epithelium,
-fragmentation, lumens, curvature, branching, tumor buds and nuclear shape in distance
-bands from that front, with an ITBCC-style budding hotspot, and attaches spatial-
-transcriptomic spots and registered cells to those regions. Region polygons and classes
-come from you; it does not segment tissue. The Python client converts QuPath annotation
-exports and runs it. See [pathology architecture](pathology-architecture.md).
+`bayes advanced-cluster` fits a [Bayesian Thomas cluster model](bayesian-thomas-cluster.md) with
+latent parents sampled by birth-death MCMC and pooled cluster parameters. Dense public B-cell fits
+mixed slowly, so nonconverged outputs are diagnostic. `bayes anisotropic-gp-3d` requires pairwise
+squared displacements that identify all three axis scales. Its
+`posterior_mean_anisotropy_metric = diag(1 / mean(length_scale_axis)^2)` is a plug-in metric in
+inverse square micrometres, not an average of per-draw inverse-square lengths and not the
+dimensionless anisotropy matrix used by physical-radius K.
 
-**`marklab pathology composition`, `spatial-study` and `scan`** (Research) compare
-cell-type composition and density between patients, fit spatial curves, and scan for
-regions enriched in a cell type. They have been checked on 23 synthetic scenarios but not
-yet calibrated on real studies. Sparse cell types can use a support rule declared before
-analysis, with synthetic size and power evidence. See
-[pathology studies](pathology-studies.md#sparse-cell-types).
+The crossed/nested Gaussian hierarchy's `variance_partition` averages posterior shares of random-
+effect and residual variance over supplied rows, including sum-to-zero centering and standardized
+random slopes. It excludes fixed effects and is neither R-squared nor the sample variance of fitted
+effects. `bayes normal-mean-sbc` tests discrete posterior ranks; its coverage diagnostic uses
+analytic 95% intervals regardless of the requested posterior draw count.
 
-## Bayesian models
+`spatial3d clone-models` fits patient intercepts with the clone A-minus-B contrast and residual
+scale. Contrast uncertainty includes the free nuisance parameters; at the residual-SD floor it is
+conditional on that floor. Unidentifiable or bound-hitting contrasts fail. `patient_feature_means`
+contains observed patient means, not fitted intercepts.
 
-**`marklab bayes`** and **`marklab project`** (Research) fit Bayesian models with
-pinned PyMC and NumPyro environments: patient and slide hierarchies, spatial
-point-process models (log-Gaussian Cox processes), Gaussian processes, spatial regression
-(CAR, SAR, BYM) and checks of how much a conclusion depends on the prior. Every fit reports
-its sampling diagnostics (divergences, R-hat, effective sample size). A fit that does not
-converge is published as non-converged instead of being presented as a result. `project`
-saves finished fits, so re-running a pipeline skips work that is already done.
+## Recommended exploratory slide workflow
 
-`bayes advanced-cluster` fits a [Bayesian Thomas cluster model](bayesian-thomas-cluster.md):
-latent parent cells sampled by birth–death MCMC, cluster size and spread pooled across
-patients, and simulation-based calibration through `bayes advanced-cluster-sbc`.
+This is a decision path, not a single turn-key command. It deliberately starts with inexpensive
+descriptions and QC, then adds models only when a specific biological question requires them. That
+ordering is also used in the official [Squidpy spatial analysis example](https://squidpy.readthedocs.io/en/stable/notebooks/tutorials/tutorial_vizgen.html),
+which moves from QC and spatial visualization to graphs, co-occurrence and autocorrelation; the
+reference supports the sequencing, not a claim of pipeline parity.
 
-[Normal-mean prior sensitivity](normal-mean-prior-sensitivity.md) runs entirely in Rust;
-the other models need the [Python environment](python-backends.md).
+1. **Freeze the observational contract.** Record the specimen and patient identity, physical
+   calibration, coordinate axes, tissue window and holes, upstream segmentation/classification
+   provenance, mark definitions and missing-data rules. Decide whether the intended null is CSR,
+   random labeling, a fitted process, within-block permutation or patient-label permutation.
+2. **Inspect support before statistics.** Plot cell positions, classes, probabilities, annotations
+   and density against the tissue outline. Check duplicates, non-finite rows, class counts, sparse
+   regions, edge proximity, excluded holes and whether coordinates agree with the image. Use WSI
+   inspection or extraction only where its codec/calibration profile applies.
+3. **Build a descriptive baseline.** Report cell counts, area, density, class composition and
+   support by region. If crowding or voids is the question, inspect unmarked K/L or G/F/J over
+   biologically meaningful radii using the appropriate input eligibility and edge support.
+   For marked cells, use `analyze` or directed categorical functions to see clustering,
+   dispersion, cross-type direction and local enrichment. Treat this stage as exploration.
+4. **Ask one focused spatial question at a time.** Use g when the local distance band matters, K/L
+   for cumulative scale, signed profiles for interfaces, Moran/variograms for a continuous field,
+   spectra or structure factor for wavelengths and direction, nematic order for axial alignment,
+   graph methods for a declared network, and topology for persistence across scale. Choose radii,
+   graph construction, bandwidths and edge correction before inspecting group differences.
+5. **Check sensitivity to representation and null.** Compare justified edge corrections, intensity
+   or bandwidth choices, grid resolution, coordinate perturbation and registration uncertainty.
+   Inspect unavailable statuses instead of dropping unsupported radii or sparse classes. A stable
+   descriptive curve under these checks is more useful than a large list of fragile p-values.
+6. **Escalate to a model for a named gap.** Use an LGCP or Gibbs/cluster model for a point-process
+   hypothesis, a GP/CAR/SPDE model for a field, factors or kernels for multimodal structure, and a
+   longitudinal, causal or simulation model only when its assumptions match the design. Run the
+   corresponding convergence, sensitivity, SBC, agreement or posterior-predictive checks; none is
+   a substitute for the others.
+7. **Keep tuning outside the reported test data.** For embeddings, kernel weights, bandwidths,
+   ridge penalties, fusion or other supervised choices, fit every preprocessing and tuning step on
+   training patients and evaluate on outer held-out patients. Reusing the same finite data for
+   selection and evaluation biases the performance estimate; nested evaluation addresses that
+   specific risk ([Cawley and Talbot, 2010](https://jmlr.org/papers/v11/cawley10a.html)).
+8. **Move to population inference only after endpoint definition.** Reduce fields, slides and
+   repeated specimens to prespecified patient-level endpoints, preserve pairing, blocks, clusters
+   and sites, and use Max-T or another declared multiplicity strategy when several endpoints remain.
+   Reserve a public or external cohort for validation when a predictive or biomarker claim is the
+   goal.
+9. **Report boundaries with the result.** State which findings are descriptive, exploratory or
+   inferential; name the unit, null, window, scale and unavailable cases; show uncertainty and model
+   diagnostics. A significant pattern shows incompatibility with its null, not its cause. A null
+   result is not equivalence without a prespecified margin.
 
-`bayes anisotropic-gp-3d` requires pairwise squared displacements that can distinguish
-the three axis length scales. Variation on each axis alone is insufficient; planar
-data can still satisfy this condition. Admission accounts for constructing and
-factoring the joint prediction covariance for every posterior draw.
-
-The existing `posterior_mean_anisotropy_metric` field is a plug-in metric computed
-from the posterior mean lengths: `diag(1 / mean(length_scale_axis)^2)`. It is not an
-average of the per-draw inverse-square lengths, whose posterior moments need not
-be finite under the current half-normal priors. Its units are inverse square
-micrometres, so it cannot be used directly as the dimensionless anisotropy matrix
-for physical-radius K analyses. The legacy key and result shape are retained.
-
-The crossed/nested Gaussian hierarchy's `variance_partition` reports posterior mean
-shares of random-effect and residual variance, averaged over the supplied observation
-rows. The calculation includes the effects of sum-to-zero centering and squared
-standardized exposure for random slopes. It excludes fixed effects and is neither an
-R-squared nor the sample variance of the fitted random-effect values.
-
-`bayes normal-mean-sbc` checks sampled posterior ranks against their discrete-uniform
-distribution. Its coverage diagnostic uses analytic 95% posterior intervals, so the
-coverage target stays 95% even when few posterior draws are requested.
-
-## Embeddings and tissue structure
-
-Marklab reads feature vectors produced by image models (embeddings) for cells, patches,
-regions and slides, checks that they line up with the cell coordinates, and summarizes
-how they vary across the tissue. It also measures tissue interfaces and compartments,
-such as how cells sit along a tumor–stroma boundary and how fragmented a compartment is.
-
-## Research workflows
-
-3-D tissue (`spatial3d`), graphs (`graph`), topology (`topology`), time series
-(`longitudinal`), causal designs (`causal`) and simulation (`simulate`, `neural`) are
-research tools. They are useful for method development and are less tested than the
-workflows above. [Research workflows](research-workflows.md) describes what each family
-measures, its assumptions and what it does not establish.
-
-`spatial3d clone-models` fits patient intercepts jointly with the clone A-minus-B contrast
-and residual scale. Contrast standard errors account for the free nuisance parameters;
-when the residual SD reaches its existing numerical floor, they are conditional on that
-floor. Unidentifiable contrasts and fits at the contrast bound produce an error.
-`patient_feature_means` still contains the observed patient means, not fitted intercepts.
+For an exploratory single-slide analysis, the most defensible default is therefore: verify the
+window and cell table; map density and classes; run one marked, cross-type or unmarked analysis
+tied to the biological question; inspect direction/spectral or interface
+structure only when relevant; and repeat the result under the few estimator/null choices that
+could materially change it. Bayesian, graph, topology and simulation families are powerful second
+steps when the descriptive result identifies the model they need to answer.
 
 ## Execution contracts
 
@@ -285,8 +531,7 @@ floor. Unidentifiable contrasts and fits at the contrast bound produce an error.
 
 ## Before relying on a result
 
-- A significant pattern shows that the labels are not randomly arranged. It does not
-  explain why.
+- A significant result shows incompatibility with its declared null. It does not explain why.
 - A non-significant difference does not show that two groups are the same. Use an
   equivalence test with a margin chosen in advance.
 - When comparing patients, count patients, not cells.

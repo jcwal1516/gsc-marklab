@@ -12,6 +12,7 @@ pub(super) mod agent_competition;
 pub(super) mod growth_front;
 pub(super) mod level_set;
 pub(super) mod mechanistic_tissue;
+pub(super) mod phase_field;
 pub(super) mod reaction_diffusion;
 pub(super) mod spatial_competition;
 pub(super) mod summary_matching;

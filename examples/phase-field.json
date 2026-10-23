@@ -1,0 +1,15 @@
+{
+  "grid_x": 4,
+  "grid_y": 4,
+  "spacing_x_um": 1.0,
+  "spacing_y_um": 1.0,
+  "initial_phase_row_major": [
+    0.2, -0.2, 0.2, -0.2,
+    0.2, -0.2, 0.2, -0.2,
+    0.2, -0.2, 0.2, -0.2,
+    0.2, -0.2, 0.2, -0.2
+  ],
+  "mobility_um2_per_time": 1.0,
+  "bulk_energy_scale": 1.0,
+  "gradient_energy_coefficient_um2": 0.5
+}

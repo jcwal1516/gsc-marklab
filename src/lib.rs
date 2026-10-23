@@ -339,6 +339,12 @@ pub mod structure {
         morisita_dispersion_from_json, MorisitaDispersionResult, Quadrat, QuadratCount,
         MORISITA_DISPERSION_FORMAT,
     };
+    pub use crate::structure_descriptors::nematic::{
+        nematic_orientation_from_json, DefectDetectionConfig, DefectStatus, LocalNematicConfig,
+        LocalNematicOrder, NematicDefectPlaquette, NematicEstimate, NematicEstimateStatus,
+        NematicFieldConfig, NematicFieldSample, NematicLimits, NematicOrientationResult,
+        NematicTensor, NEMATIC_ORIENTATION_FORMAT,
+    };
 }
 
 /// Mark statistics: categorical, continuous, ordinal, probability and soft-class marks,
@@ -439,6 +445,11 @@ pub mod marks {
     pub use crate::structure_descriptors::mutual_information::{
         mutual_information_from_json, MutualInformationResult, NullModel as MutualInformationNull,
         MUTUAL_INFORMATION_FORMAT,
+    };
+    pub use crate::structure_descriptors::partial_information::{
+        partial_information_decomposition_from_json, DiscreteInformationVariable,
+        PartialInformationDecompositionResult, TargetSpecificInformation,
+        PARTIAL_INFORMATION_FORMAT,
     };
     pub use crate::top1_pair_mixing_bounds::{
         top1_pair_mixing_bounds, Top1PairMixingBoundCell, Top1PairMixingBoundsConfig,

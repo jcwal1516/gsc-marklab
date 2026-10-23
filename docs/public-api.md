@@ -258,9 +258,15 @@ scientific domains. Import them directly from the corresponding workspace crate:
 |---|---|
 | `marklab_graph` | Graph-signal energies, restricted permutation tests, and group degree, group closeness and average clustering on physical-radius graphs (`graph_group_centrality_workflow`, `GraphGroupCentralitySpec`, `GraphGroupCentralityResult`; see [group centrality](group-centrality.md)) |
 | `marklab_transport` | Balanced and unbalanced Sinkhorn transport, partial transport, and full, partial or unbalanced (KL-relaxed) fused Gromov–Wasserstein alignment |
-| `marklab_prediction` | Grouped conformal prediction, late fusion, mixtures of experts, and region retrieval |
+| `marklab_prediction` | Grouped conformal prediction, late fusion, mixtures of experts, region retrieval, and [learned multimodal kernel fusion](multimodal-kernel-fusion.md) (`learn_multimodal_kernels`, `KernelFusionSpec`, `KernelFusionResult`) |
 | `marklab_embeddings::analysis` | Spatial embedding curves, kernel and multiscale similarities, cross-modal covariance, factor-model construction, and cell/patch complementarity |
-| `marklab_simulation` | Thomas and Matérn cluster simulation and Thomas minimum-contrast estimation |
+| `marklab_simulation` | Thomas and Matérn cluster simulation, Thomas minimum-contrast estimation, and [Cahn–Hilliard phase-field simulation](phase-field.md) (`simulate_phase_field`, `PhaseFieldSpec`, `PhaseFieldResult`) |
+
+`marklab::structure::{nematic_orientation_from_json, NematicOrientationResult}` provides
+[weighted axial orientation and half-defect screening](nematic-orientation.md).
+`marklab::marks::{partial_information_decomposition_from_json, PartialInformationDecompositionResult}`
+provides [discrete two-source Williams–Beer I_min decomposition](partial-information-decomposition.md).
+These methods use separate version-1 research results; existing core result formats are unchanged.
 
 The scientific types and functions retain their names. This is a Rust import-path change;
 serialized requests, result fields, and scientific calculations retain their existing
