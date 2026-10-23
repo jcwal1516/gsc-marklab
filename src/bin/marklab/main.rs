@@ -14,6 +14,7 @@ mod causal;
 mod causal_model;
 mod cli_error;
 mod co_occurrence;
+mod codecs;
 mod cohort;
 mod command_tree;
 mod exclusive_json_output;

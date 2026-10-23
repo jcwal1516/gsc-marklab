@@ -26,6 +26,7 @@ mod multisite_covariate;
 mod nested_fields;
 mod noninferiority;
 mod numeric;
+mod ols;
 mod paired;
 mod paired_max_t;
 mod repeated;

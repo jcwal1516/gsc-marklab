@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use super::{
-    covariate::fit_ols, multisite_spatial_inference, numeric::stable_mean, CohortInferenceError,
+    multisite_spatial_inference, numeric::stable_mean, ols::OlsContext, CohortInferenceError,
     MultisiteInferenceResult, MultisiteInferenceSpec, SiteEffect, MAXIMUM_PATIENTS,
 };
 
@@ -203,8 +203,9 @@ pub fn multisite_covariate_patient_contrast(
             })
             .collect::<Vec<_>>();
         let outcomes = rows.iter().map(|row| row.endpoint).collect::<Vec<_>>();
-        let fit =
-            fit_ols(&design, &outcomes, Some(full_columns - 1)).map_err(|error| match error {
+        let fit = OlsContext::Covariate
+            .fit(&design, &outcomes, Some(full_columns - 1), 0)
+            .map_err(|error| match error {
                 CohortInferenceError::InvalidInput(message) => {
                     CohortInferenceError::InvalidInput(format!("site {site_id}: {message}"))
                 }

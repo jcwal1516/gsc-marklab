@@ -1,4 +1,8 @@
-use crate::edge_corrected::{estimate_curve, CurveWork};
+use crate::edge_corrected::{
+    estimate_curve,
+    inference::{conditional_csr_envelope, CsrError, CsrResult, CurveEvaluation},
+    CurveWork,
+};
 use crate::result_vocabulary::{
     DuplicatePointPolicy, EdgeCorrection, OverlapMeasureOwner, PairTraversal, SpatialExecutionMode,
 };
@@ -8,25 +12,17 @@ use crate::common::finite::canonical_zero;
 
 use crate::{
     classical::{
-        sample_conditional_csr, window_summary, ClassicalInferenceSummary, ClassicalNullDesign,
-        ClassicalNullModel, ClassicalRandomizationUnit, ClassicalSpatialLimits,
-        SpatialGeometryPlan2D,
+        window_summary, ClassicalNullDesign, ClassicalNullModel, ClassicalRandomizationUnit,
+        ClassicalSpatialLimits, SpatialGeometryPlan2D,
     },
-    common::seeds::{derive_seed, SeedEndpoint},
+    common::seeds::SeedEndpoint,
     mark_pair_plan::erl_workspace_bytes,
-    permutation::envelopes::GlobalEnvelope,
     spatial::{PairCorrelationKernel, PairCorrelationPointStatus, TranslationSpatialError},
     translation_spatial::edge::{preflight_overlap_complexity, TranslationOverlapBudget},
     ObservationWindow2D, Pattern,
 };
 
 use super::types::*;
-
-struct Evaluation {
-    points: Vec<TranslationPairCorrelationPoint>,
-    values: Vec<f64>,
-    eligible: Vec<bool>,
-}
 
 /// Estimate exact polygon translation-corrected Epanechnikov homogeneous g.
 pub fn analyze_translation_pair_correlation(
@@ -113,71 +109,29 @@ pub fn analyze_translation_pair_correlation(
     let observed = evaluate(&pattern.x_um, &pattern.y_um, window, config, &mut budget)?;
     geometry.observed_pair_visits = budget.pair_visits;
     geometry.observed_overlap_evaluations = budget.overlap_evaluations;
-    let mut curve = observed.points;
-    let mut jointly_eligible = observed.eligible;
-    let mut simulated = Vec::new();
-    simulated
-        .try_reserve_exact(config.simulations)
-        .map_err(|_| TranslationSpatialError::AllocationFailed)?;
-    let mut csr_candidate_draws = 0_usize;
-    for simulation in 0..config.simulations {
-        let seed = derive_seed(
-            config.seed,
-            SeedEndpoint::TranslationPairCorrelationCsr,
-            simulation,
-        );
-        let (x, y) = sample_conditional_csr(
-            window,
-            pattern.len(),
-            seed,
-            &mut csr_candidate_draws,
-            config.limits.maximum_csr_draws,
-        )
-        .map_err(|error| TranslationSpatialError::Csr {
-            reason: error.to_string(),
-        })?;
-        SpatialGeometryPlan2D::new(&x, &y, window, classical_limits).map_err(|error| {
-            TranslationSpatialError::Csr {
-                reason: error.to_string(),
-            }
-        })?;
-        let evaluated = evaluate(&x, &y, window, config, &mut budget)?;
-        for (joint, current) in jointly_eligible.iter_mut().zip(&evaluated.eligible) {
-            *joint &= *current;
-        }
-        simulated.push(evaluated.values);
-    }
-    let inference = if jointly_eligible.iter().any(|eligible| *eligible) {
-        let observed_values = curve
-            .iter()
-            .map(|point| point.g.unwrap_or(0.0))
-            .collect::<Vec<_>>();
-        let envelope = GlobalEnvelope::from_curves_with_eligibility(
-            &observed_values,
-            &simulated,
-            config.alpha,
-            &jointly_eligible,
-        )
-        .map_err(|error| TranslationSpatialError::Inference {
-            reason: error.to_string(),
-        })?;
-        for (index, point) in curve.iter_mut().enumerate() {
-            if jointly_eligible[index] {
-                point.inference_eligible = true;
-                point.lower_g = Some(canonical_zero(envelope.lower[index]));
-                point.upper_g = Some(canonical_zero(envelope.upper[index]));
-            }
-        }
-        Some(ClassicalInferenceSummary {
-            p_global: canonical_zero(envelope.p_global),
-            erl_depth: canonical_zero(envelope.erl_depth),
-            critical_depth: canonical_zero(envelope.critical_depth),
-            simulations: envelope.n_permutations,
-            eligible_radius_count: jointly_eligible.iter().filter(|value| **value).count(),
-        })
-    } else {
-        None
-    };
+    let CsrResult {
+        curve,
+        inference,
+        candidate_draws: csr_candidate_draws,
+    } = conditional_csr_envelope(
+        window,
+        &null_design,
+        classical_limits,
+        SeedEndpoint::TranslationPairCorrelationCsr,
+        observed,
+        |x, y| evaluate(x, y, window, config, &mut budget),
+        |point, lower, upper| {
+            point.inference_eligible = true;
+            point.lower_g = Some(lower);
+            point.upper_g = Some(upper);
+        },
+    )
+    .map_err(|error| match error {
+        CsrError::Allocation => TranslationSpatialError::AllocationFailed,
+        CsrError::Simulation(reason) => TranslationSpatialError::Csr { reason },
+        CsrError::Evaluation(error) => error,
+        CsrError::Inference(reason) => TranslationSpatialError::Inference { reason },
+    })?;
     geometry.total_pair_visits = budget.pair_visits;
     geometry.total_overlap_evaluations = budget.overlap_evaluations;
     geometry.total_overlap_candidate_work = budget.overlap_candidate_work;
@@ -205,7 +159,7 @@ fn evaluate(
     window: &ObservationWindow2D,
     config: &TranslationPairCorrelationConfig,
     budget: &mut TranslationOverlapBudget,
-) -> Result<Evaluation, TranslationSpatialError> {
+) -> Result<CurveEvaluation<TranslationPairCorrelationPoint>, TranslationSpatialError> {
     let CurveWork {
         pair_counts: support_pairs,
         evaluations: overlap_evaluations,
@@ -267,7 +221,7 @@ fn evaluate(
             upper_g: None,
         });
     }
-    Ok(Evaluation {
+    Ok(CurveEvaluation {
         points,
         values,
         eligible,

@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, HashSet};
 
 use super::{
-    covariate::{fit_ols_absorbing, inference_alternative, validate_spec, BlockMeans},
+    covariate::{inference_alternative, validate_spec, BlockMeans},
     inference_design::align_patient_blocks,
     numeric::stable_mean,
+    ols::OlsContext,
     CohortInferenceError, CovariatePermutationSpec, InferenceDesign, PatientExchangeabilityBlock,
     PermutationAlternative, MAXIMUM_PATIENTS,
 };
@@ -202,9 +203,9 @@ fn execute(
             design
         })
         .collect::<Vec<_>>();
-    let reduced_fit = fit_ols_absorbing(&reduced, &outcomes, None, absorbed)?;
+    let reduced_fit = OlsContext::Covariate.fit(&reduced, &outcomes, None, absorbed)?;
     let target_index = full[0].len() - 1;
-    let observed = fit_ols_absorbing(&full, &outcomes, Some(target_index), absorbed)?;
+    let observed = OlsContext::Covariate.fit(&full, &outcomes, Some(target_index), absorbed)?;
     let residuals = outcomes
         .iter()
         .zip(&reduced_fit.fitted)
@@ -238,8 +239,9 @@ fn execute(
         for index in 0..rows.len() {
             permuted[index] = reduced_fit.fitted[index] + residuals[indices[index]];
         }
-        let statistic =
-            fit_ols_absorbing(&full, &permuted, Some(target_index), absorbed)?.target_statistic;
+        let statistic = OlsContext::Covariate
+            .fit(&full, &permuted, Some(target_index), absorbed)?
+            .target_statistic;
         lower_tail += usize::from(statistic <= observed.target_statistic);
         upper_tail += usize::from(statistic >= observed.target_statistic);
     }

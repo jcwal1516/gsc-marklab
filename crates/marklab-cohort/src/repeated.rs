@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
-    CohortInferenceError, InferenceDesign, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS,
-    MAXIMUM_PERMUTATIONS,
+    ols::OlsContext, CohortInferenceError, InferenceDesign,
+    MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS, MAXIMUM_PERMUTATIONS,
 };
 
 const REPEATED_FREEDMAN_LANE_NAMESPACE: u64 = 0x7265_7065_6174_666c;
@@ -65,8 +65,8 @@ pub fn repeated_measures_freedman_lane(
     let reduced = design_matrix(&rows, subject_count, false);
     let full = design_matrix(&rows, subject_count, true);
     let outcomes = rows.iter().map(|row| row.outcome).collect::<Vec<_>>();
-    let reduced_fit = fit_ols(&reduced, &outcomes, false)?;
-    let observed = fit_ols(&full, &outcomes, true)?;
+    let reduced_fit = OlsContext::Repeated.fit(&reduced, &outcomes, None, 0)?;
+    let observed = OlsContext::Repeated.fit(&full, &outcomes, Some(subject_count), 0)?;
     let residuals = outcomes
         .iter()
         .zip(&reduced_fit.fitted)
@@ -90,7 +90,9 @@ pub fn repeated_measures_freedman_lane(
             permuted_outcomes[index] =
                 reduced_fit.fitted[index] + f64::from(signs[row.subject_index]) * residuals[index];
         }
-        let statistic = fit_ols(&full, &permuted_outcomes, true)?.target_statistic;
+        let statistic = OlsContext::Repeated
+            .fit(&full, &permuted_outcomes, Some(subject_count), 0)?
+            .target_statistic;
         upper_tail += usize::from(statistic.abs() >= observed.target_statistic.abs());
     }
     let p_value = (upper_tail as f64 + 1.0) / (spec.permutations + 1) as f64;
@@ -189,91 +191,6 @@ fn design_matrix(rows: &[Row], subject_count: usize, target: bool) -> Vec<Vec<f6
             values
         })
         .collect()
-}
-
-struct OlsFit {
-    fitted: Vec<f64>,
-    target_coefficient: f64,
-    target_standard_error: f64,
-    target_statistic: f64,
-    residual_degrees_of_freedom: usize,
-}
-
-fn fit_ols(
-    design: &[Vec<f64>],
-    outcome: &[f64],
-    require_target: bool,
-) -> Result<OlsFit, CohortInferenceError> {
-    let row_count = design.len();
-    let column_count = design[0].len();
-    if row_count <= column_count {
-        return Err(CohortInferenceError::InvalidInput(
-            "repeated full model has no residual degrees of freedom".into(),
-        ));
-    }
-    let mut cross = vec![vec![0.0; column_count]; column_count];
-    let mut rhs = vec![0.0; column_count];
-    for (row, value) in design.iter().zip(outcome) {
-        for left in 0..column_count {
-            rhs[left] += row[left] * value;
-            for right in 0..column_count {
-                cross[left][right] += row[left] * row[right];
-            }
-        }
-    }
-    let coefficients = solve(&cross, &rhs)?;
-    let fitted = design
-        .iter()
-        .map(|row| {
-            row.iter()
-                .zip(&coefficients)
-                .map(|(x, beta)| x * beta)
-                .sum()
-        })
-        .collect::<Vec<f64>>();
-    let residual_degrees_of_freedom = row_count - column_count;
-    if !require_target {
-        return Ok(OlsFit {
-            fitted,
-            target_coefficient: 0.0,
-            target_standard_error: 0.0,
-            target_statistic: 0.0,
-            residual_degrees_of_freedom,
-        });
-    }
-    let rss = outcome
-        .iter()
-        .zip(&fitted)
-        .map(|(actual, predicted)| (actual - predicted).powi(2))
-        .sum::<f64>();
-    let variance = rss / residual_degrees_of_freedom as f64;
-    let target_index = column_count - 1;
-    let mut unit = vec![0.0; column_count];
-    unit[target_index] = 1.0;
-    let inverse_column = solve(&cross, &unit)?;
-    let standard_error = (variance * inverse_column[target_index]).sqrt();
-    let coefficient = coefficients[target_index];
-    let statistic = coefficient / standard_error;
-    if !coefficient.is_finite()
-        || !standard_error.is_finite()
-        || standard_error <= 0.0
-        || !statistic.is_finite()
-    {
-        return Err(CohortInferenceError::NumericalFailure(
-            "repeated target statistic is undefined or non-finite".into(),
-        ));
-    }
-    Ok(OlsFit {
-        fitted,
-        target_coefficient: coefficient,
-        target_standard_error: standard_error,
-        target_statistic: statistic,
-        residual_degrees_of_freedom,
-    })
-}
-
-fn solve(matrix: &[Vec<f64>], rhs: &[f64]) -> Result<Vec<f64>, CohortInferenceError> {
-    crate::numeric::solve_design(matrix, rhs, "repeated")
 }
 
 #[cfg(test)]

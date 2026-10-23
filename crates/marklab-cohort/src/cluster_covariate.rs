@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashSet};
 
 use super::{
-    covariate::{fit_ols, inference_alternative, validate_spec},
+    covariate::{inference_alternative, validate_spec},
     numeric::stable_mean,
+    ols::OlsContext,
     CohortInferenceError, CovariatePermutationSpec, InferenceDesign, PermutationAlternative,
     MAXIMUM_PATIENTS,
 };
@@ -140,9 +141,9 @@ pub fn cluster_covariate_matrix_freedman_lane(
             design
         })
         .collect::<Vec<_>>();
-    let reduced_fit = fit_ols(&reduced, &outcomes, None)?;
+    let reduced_fit = OlsContext::Covariate.fit(&reduced, &outcomes, None, 0)?;
     let target_index = full[0].len() - 1;
-    let observed = fit_ols(&full, &outcomes, Some(target_index))?;
+    let observed = OlsContext::Covariate.fit(&full, &outcomes, Some(target_index), 0)?;
     let residuals = outcomes
         .iter()
         .zip(&reduced_fit.fitted)
@@ -167,7 +168,9 @@ pub fn cluster_covariate_matrix_freedman_lane(
         for index in 0..clusters.len() {
             permuted[index] = reduced_fit.fitted[index] + residuals[indices[index]];
         }
-        let statistic = fit_ols(&full, &permuted, Some(target_index))?.target_statistic;
+        let statistic = OlsContext::Covariate
+            .fit(&full, &permuted, Some(target_index), 0)?
+            .target_statistic;
         lower_tail += usize::from(statistic <= observed.target_statistic);
         upper_tail += usize::from(statistic >= observed.target_statistic);
     }

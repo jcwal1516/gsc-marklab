@@ -4,6 +4,7 @@
 //! callers retain their result types, seed domains, and storage estimates.
 
 pub(crate) mod document;
+pub(crate) mod inference;
 
 use std::collections::BTreeMap;
 

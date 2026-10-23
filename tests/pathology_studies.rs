@@ -295,15 +295,21 @@ fn spatial_selection_cross_fitting_compartments_and_unavailable_patients() {
             "positive":{"type":"MultiPolygon","coordinates":[[[[500,0],[1000,0],[1000,1000],[500,1000],[500,0]]]]}})
     }).collect::<Vec<_>>();
     input["design"]["compartments"] = json!(partitions);
-    let compartment = serde_json::to_value(
-        marklab::pathology::analyze_pathology_spatial_study(&serde_json::to_vec(&input).unwrap())
+    for statistic in ["l_minus_r", "g_minus_one"] {
+        input["design"]["statistic"] = json!(statistic);
+        let compartment = serde_json::to_value(
+            marklab::pathology::analyze_pathology_spatial_study(
+                &serde_json::to_vec(&input).unwrap(),
+            )
             .unwrap(),
-    )
-    .unwrap();
-    assert!(compartment["slides"][0]["null_model"]
-        .as_str()
-        .unwrap()
-        .contains("compartment"));
+        )
+        .unwrap();
+        assert!(compartment["slides"][0]["null_model"]
+            .as_str()
+            .unwrap()
+            .contains("compartment"));
+        assert!(compartment["slides"][0]["charged_work"].as_u64().unwrap() > 0);
+    }
     let mut sparse = spatial_recipe();
     sparse["study"]["slides"][0]["cells"]
         .as_array_mut()

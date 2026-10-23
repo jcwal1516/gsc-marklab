@@ -1,3 +1,7 @@
+mod native_summary;
+
+use native_summary::NativeSummary;
+
 use super::common::*;
 use crate::{
     compartments::{BinaryCompartmentPartition2D, CompartmentPartitionLimits},
@@ -16,7 +20,7 @@ use marklab_cohort::{
     FunctionalTestStatistic,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -210,10 +214,6 @@ impl From<InhomogeneousCategoricalCrossPairCorrelationError> for Failure {
         }
     }
 }
-fn serialized(value: impl Serialize) -> std::result::Result<Value, Failure> {
-    serde_json::to_value(value).map_err(|e| Failure::Fatal(e.to_string()))
-}
-
 /// Analyze a prespecified curve per slide and compare complete area-weighted patient curves.
 pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialStudyResult> {
     let (recipe, windows, mut budget) =
@@ -308,20 +308,12 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
             &mut capture,
         ) {
             Ok(result) => {
-                let field = match d.statistic {
-                    Statistic::LMinusR => "l",
-                    Statistic::GMinusOne => "g",
-                    Statistic::CrossGMinusOne => "cross_g",
-                };
-                let curve = result["curve"]
-                    .as_array()
-                    .ok_or_else(|| invalid("missing native curve"))?;
+                let curve = &result.curve;
                 output.values = curve
                     .iter()
                     .zip(&d.radii_um)
                     .map(|(p, r)| {
-                        p[field]
-                            .as_f64()
+                        p.value
                             .map(|v| {
                                 finite(
                                     v - if d.statistic == Statistic::LMinusR {
@@ -334,38 +326,12 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
                             .transpose()
                     })
                     .collect::<Result<Vec<_>>>()?;
-                output.eligible = curve
-                    .iter()
-                    .map(|p| p["inference_eligible"].as_bool().unwrap_or(false))
-                    .collect();
-                output.null_model = result["inference"]["null_model"]
-                    .as_str()
-                    .map(str::to_owned);
-                output.intensity = if d.statistic == Statistic::CrossGMinusOne {
-                    json!({"source":result["source_intensity"],"target":result["target_intensity"]})
-                } else {
-                    result["intensity"].clone()
-                };
-                output.support = result["curve"].clone();
-                output.charged_work = [
-                    "intensity_evaluations",
-                    "total_pair_visits",
-                    "compartment_queries",
-                ]
-                .iter()
-                .map(|k| result[*k].as_u64().unwrap_or(0) as usize)
-                .sum::<usize>()
-                    + result["inference"]["null_draws"].as_u64().unwrap_or(0) as usize;
+                output.eligible = curve.iter().map(|point| point.eligible).collect();
+                output.null_model = Some(result.inference.null_model.as_str().to_owned());
+                output.charged_work = result.charged_work;
                 budget.work(output.charged_work)?;
-                budget.retain(
-                    result["estimated_storage_bytes"]
-                        .as_u64()
-                        .ok_or_else(|| invalid("missing native memory estimate"))?
-                        as usize,
-                )?;
-                output.support_redraws = result["inference"]["support_redraws"]
-                    .as_u64()
-                    .map(|count| count as usize);
+                budget.retain(result.estimated_storage_bytes)?;
+                output.support_redraws = result.inference.support_redraws;
                 let support_failure = if let Some(SupportRule::ExpectedPairCount {
                     minimum_expected_pairs,
                     ..
@@ -399,11 +365,13 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
                         "complete declared radius axis is unsupported; no bins removed".into(),
                     );
                 } else {
-                    output.p_global = result["inference"]["p_global"].as_f64();
+                    output.p_global = result.inference.p_global;
                     output.slide_family_p = output
                         .p_global
                         .map(|p| (p * recipe.study.slides.len() as f64).min(1.0));
                 }
+                output.intensity = result.intensity;
+                output.support = result.support;
                 budget.retain(
                     (capture.simulated.len() + 1)
                         .saturating_mul(d.radii_um.len())
@@ -414,7 +382,7 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
                     patient_id: output.patient_id.clone(),
                     seed: slide_seed,
                     null_model: output.null_model.clone(),
-                    native_p_global: result["inference"]["p_global"].as_f64(),
+                    native_p_global: result.inference.p_global,
                     simulated: capture
                         .simulated
                         .iter()
@@ -522,35 +490,30 @@ pub fn analyze_pathology_spatial_study(bytes: &[u8]) -> Result<PathologySpatialS
 
 /// Expected pair count per declared radius under [`SupportRule::ExpectedPairCount`].
 fn expected_pairs(
-    result: &Value,
+    result: &NativeSummary,
     d: &SpatialDesign,
     slide: &Slide,
     pattern: &Pattern,
     window: &ObservationWindow2D,
 ) -> Result<Vec<f64>> {
-    let (centers_field, partners) = match d.statistic {
-        Statistic::LMinusR | Statistic::GMinusOne => ("eligible_centers", pattern.len() - 1),
+    let partners = match d.statistic {
+        Statistic::LMinusR | Statistic::GMinusOne => pattern.len() - 1,
         Statistic::CrossGMinusOne => {
             let target = d.target.as_ref().expect("validated cross-g target");
-            let targets = slide
+            slide
                 .cells
                 .iter()
                 .filter(|c| &c.phenotype == target)
-                .count();
-            ("eligible_source_centers", targets)
+                .count()
         }
     };
-    let curve = result["curve"]
-        .as_array()
-        .ok_or_else(|| invalid("missing native curve"))?;
+    let curve = &result.curve;
     let h = d.pair_bandwidth_um;
     curve
         .iter()
         .zip(&d.radii_um)
         .map(|(point, radius)| {
-            let centers = point[centers_field]
-                .as_u64()
-                .ok_or_else(|| invalid("missing native eligible-center count"))?;
+            let centers = point.eligible_centers;
             let region = if d.statistic == Statistic::LMinusR {
                 std::f64::consts::PI * radius * radius
             } else {
@@ -731,7 +694,7 @@ fn evaluate(
     measurement_status: &str,
     partition: Option<&BinaryCompartmentPartition2D>,
     capture: &mut native::NullCurveCapture,
-) -> std::result::Result<Value, Failure> {
+) -> std::result::Result<NativeSummary, Failure> {
     let share = work / 3;
     if share == 0 || memory == 0 {
         return Err(Failure::Fatal("spatial resource budget exhausted".into()));
@@ -753,7 +716,7 @@ fn evaluate(
             )?,
         )?;
         return match d.statistic {
-            Statistic::LMinusR => serialized(
+            Statistic::LMinusR => NativeSummary::try_from(
                 native::analyze_piecewise_compartment_spatial_pattern_capturing(
                     pattern,
                     partition,
@@ -761,7 +724,7 @@ fn evaluate(
                     Some(capture),
                 )?,
             ),
-            Statistic::GMinusOne => serialized(
+            Statistic::GMinusOne => NativeSummary::try_from(
                 native::analyze_piecewise_compartment_pair_correlation_capturing(
                     pattern,
                     partition,
@@ -826,7 +789,7 @@ fn evaluate(
     };
     match d.statistic {
         Statistic::LMinusR => {
-            serialized(native::analyze_inhomogeneous_spatial_pattern_with_policy(
+            NativeSummary::try_from(native::analyze_inhomogeneous_spatial_pattern_with_policy(
                 pattern,
                 window,
                 &config,
@@ -835,7 +798,7 @@ fn evaluate(
             )?)
         }
         Statistic::GMinusOne => {
-            serialized(native::analyze_inhomogeneous_pair_correlation_with_policy(
+            NativeSummary::try_from(native::analyze_inhomogeneous_pair_correlation_with_policy(
                 pattern,
                 window,
                 &InhomogeneousPairCorrelationConfig::new(config, d.pair_bandwidth_um)?,
@@ -864,7 +827,7 @@ fn evaluate(
                 source,
                 target,
             )?;
-            serialized(native::analyze_category_rows(
+            NativeSummary::try_from(native::analyze_category_rows(
                 pattern,
                 window,
                 &cfg,

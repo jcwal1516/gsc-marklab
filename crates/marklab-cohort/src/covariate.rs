@@ -5,6 +5,7 @@ use super::{
         align_patient_blocks, validate_permutation_count, validate_two_group_labels,
     },
     numeric::stable_mean,
+    ols::OlsContext,
     CohortInferenceError, InferenceAlternative, InferenceDesign, PatientExchangeabilityBlock,
     PermutationAlternative, MAXIMUM_PATIENTS, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS,
 };
@@ -191,8 +192,8 @@ fn execute_covariate_freedman_lane(
         ),
     };
     let target_index = full[0].len() - 1;
-    let reduced_fit = fit_ols_absorbing(&reduced, &outcomes, None, absorbed)?;
-    let observed = fit_ols_absorbing(&full, &outcomes, Some(target_index), absorbed)?;
+    let reduced_fit = OlsContext::Covariate.fit(&reduced, &outcomes, None, absorbed)?;
+    let observed = OlsContext::Covariate.fit(&full, &outcomes, Some(target_index), absorbed)?;
     let residuals = outcomes
         .iter()
         .zip(&reduced_fit.fitted)
@@ -226,7 +227,8 @@ fn execute_covariate_freedman_lane(
         for index in 0..rows.len() {
             permuted_outcomes[index] = reduced_fit.fitted[index] + residuals[indices[index]];
         }
-        let statistic = fit_ols_absorbing(&full, &permuted_outcomes, Some(target_index), absorbed)?
+        let statistic = OlsContext::Covariate
+            .fit(&full, &permuted_outcomes, Some(target_index), absorbed)?
             .target_statistic;
         lower_tail += usize::from(statistic <= observed.target_statistic);
         upper_tail += usize::from(statistic >= observed.target_statistic);
@@ -335,97 +337,6 @@ fn canonicalize(
     Ok(rows)
 }
 
-pub(crate) struct OlsFit {
-    pub(crate) fitted: Vec<f64>,
-    pub(crate) target_coefficient: f64,
-    pub(crate) target_standard_error: f64,
-    pub(crate) target_statistic: f64,
-    pub(crate) residual_degrees_of_freedom: usize,
-}
-
-pub(crate) fn fit_ols(
-    design: &[Vec<f64>],
-    outcome: &[f64],
-    target_index: Option<usize>,
-) -> Result<OlsFit, CohortInferenceError> {
-    fit_ols_absorbing(design, outcome, target_index, 0)
-}
-
-/// OLS on columns from which `absorbed` fixed effects were already removed (block-demeaned data), so the
-/// residual degrees of freedom also count those effects.
-pub(crate) fn fit_ols_absorbing(
-    design: &[Vec<f64>],
-    outcome: &[f64],
-    target_index: Option<usize>,
-    absorbed: usize,
-) -> Result<OlsFit, CohortInferenceError> {
-    let row_count = design.len();
-    let column_count = design[0].len();
-    if row_count <= column_count + absorbed {
-        return Err(CohortInferenceError::InvalidInput(
-            "covariate model has no residual degrees of freedom".into(),
-        ));
-    }
-    let mut cross = vec![vec![0.0; column_count]; column_count];
-    let mut rhs = vec![0.0; column_count];
-    for (row, value) in design.iter().zip(outcome) {
-        for left in 0..column_count {
-            rhs[left] += row[left] * value;
-            for right in 0..column_count {
-                cross[left][right] += row[left] * row[right];
-            }
-        }
-    }
-    let coefficients = solve(&cross, &rhs)?;
-    let fitted = design
-        .iter()
-        .map(|row| {
-            row.iter()
-                .zip(&coefficients)
-                .map(|(x, beta)| x * beta)
-                .sum()
-        })
-        .collect::<Vec<f64>>();
-    let residual_degrees_of_freedom = row_count - column_count - absorbed;
-    let Some(target_index) = target_index else {
-        return Ok(OlsFit {
-            fitted,
-            target_coefficient: 0.0,
-            target_standard_error: 0.0,
-            target_statistic: 0.0,
-            residual_degrees_of_freedom,
-        });
-    };
-    let rss = outcome
-        .iter()
-        .zip(&fitted)
-        .map(|(actual, predicted)| (actual - predicted).powi(2))
-        .sum::<f64>();
-    let variance = rss / residual_degrees_of_freedom as f64;
-    let mut unit = vec![0.0; column_count];
-    unit[target_index] = 1.0;
-    let inverse_column = solve(&cross, &unit)?;
-    let standard_error = (variance * inverse_column[target_index]).sqrt();
-    let coefficient = coefficients[target_index];
-    let statistic = coefficient / standard_error;
-    if !coefficient.is_finite()
-        || !standard_error.is_finite()
-        || standard_error <= 0.0
-        || !statistic.is_finite()
-    {
-        return Err(CohortInferenceError::NumericalFailure(
-            "covariate-adjusted target statistic is undefined or non-finite".into(),
-        ));
-    }
-    Ok(OlsFit {
-        fitted,
-        target_coefficient: coefficient,
-        target_standard_error: standard_error,
-        target_statistic: statistic,
-        residual_degrees_of_freedom,
-    })
-}
-
 /// Block fixed effects for a blocked residual permutation.
 ///
 /// Residuals permuted within blocks keep each block's mean, so the permutation p-value tests the within-block
@@ -496,10 +407,6 @@ impl BlockMeans {
         }
         Ok(within)
     }
-}
-
-fn solve(matrix: &[Vec<f64>], rhs: &[f64]) -> Result<Vec<f64>, CohortInferenceError> {
-    crate::numeric::solve_design(matrix, rhs, "covariate")
 }
 
 pub(crate) fn inference_alternative(alternative: PermutationAlternative) -> InferenceAlternative {
