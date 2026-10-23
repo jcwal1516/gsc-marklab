@@ -20,7 +20,7 @@ from numpyro.infer import NUTS
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-import marklab_pymc_student_t_hierarchy_worker as pymc_contract
+from marklab_worker_support import student_t_hierarchy as source_contract
 from marklab_worker_support.numpyro_nuts import (
     nuts_diagnostics,
     result_header,
@@ -236,7 +236,7 @@ def main() -> None:
     lock_sha, worker_sha = worker_digests(__file__)
     raw = read_request(2 * MIB)
     _, config, source_sha = validate_source_request(
-        json.loads(raw), REQUEST_FORMAT, lock_sha, worker_sha, pymc_contract
+        json.loads(raw), REQUEST_FORMAT, lock_sha, worker_sha, source_contract
     )
     result = fit(config, sha256_hex(raw), source_sha, lock_sha, worker_sha)
     write_result(result)

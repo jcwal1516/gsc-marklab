@@ -7,6 +7,138 @@ use marklab_bayes::{
 use serde_json::{json, Value};
 
 #[test]
+fn conditional_mark_sbc_requires_the_exact_enumeration_oracle() {
+    use marklab_bayes::protocol::{
+        conditional_multitype_mark_sbc as single,
+        replicated_conditional_multitype_mark_sbc as replicated,
+    };
+    use marklab_bayes::BackendContract;
+    use marklab_core::backend::versions::{JAX_VERSION, NUMPYRO_VERSION, PYTHON_VERSION};
+
+    let backend = BackendContract {
+        name: "numpyro",
+        version: NUMPYRO_VERSION,
+        python_version: PYTHON_VERSION,
+        environment_lock_sha256: "lock".into(),
+        worker_sha256: "worker".into(),
+    };
+    let sampling = NutsSamplingSpec {
+        chains: 2,
+        tune_per_chain: 500,
+        draws_per_chain: 1000,
+        target_accept: 0.95,
+        seed: 17,
+    };
+    let types = vec!["A".to_owned(), "B".to_owned()];
+    let single_calibration = single::Calibration {
+        replicates: 1,
+        rank_bins: 2,
+        interval_probability: 0.9,
+        minimum_rank_uniformity_p_value: 0.001,
+        minimum_coverage: 0.0,
+        maximum_coverage: 1.0,
+    };
+    let replicated_calibration = replicated::Calibration {
+        replicates: 1,
+        rank_bins: 2,
+        interval_probability: 0.9,
+        minimum_rank_uniformity_p_value: 0.001,
+        minimum_coverage: 0.0,
+        maximum_coverage: 1.0,
+    };
+    for is_replicated in [false, true] {
+        let (format, names, states_field, normalizer_field) = if is_replicated {
+            (
+                "marklab.numpyro_replicated_conditional_multitype_mark_sbc_result",
+                vec![
+                    "baseline_affinity:A|B",
+                    "group_affinity_shift:A|B",
+                    "patient_intercept_sd",
+                    "patient_potential_sd",
+                    "pattern_intercept_sd",
+                    "pattern_potential_sd",
+                ],
+                "states_per_pattern",
+                "zero_parameter_log_normalizer_per_pattern",
+            )
+        } else {
+            (
+                "marklab.numpyro_conditional_multitype_mark_sbc_result",
+                vec![
+                    "intercept:B",
+                    "potential:A|B",
+                    "potential:B|B",
+                    "affinity:A|B",
+                ],
+                "state_count",
+                "zero_parameter_log_normalizer",
+            )
+        };
+        // A failed replicate is still required to report the exact generation oracle.
+        let baseline = json!({
+            "format": format, "version": 1, "backend": backend, "jax_version": JAX_VERSION,
+            "input_sha256": "input", "request_sha256": "request", "source_request_sha256": "source",
+            "fit_state": "nonconverged", "replicates": [],
+            "failures": [{"replicate": 0, "reason": "diagnostics_failed"}],
+            "enumeration_oracle": {states_field: 8, normalizer_field: 3.0 * 2.0_f64.ln()},
+            "diagnostics": names.iter().map(|name| json!({
+                "parameter": name, "rank_histogram": [0, 0], "rank_uniformity_p_value": 0.0,
+                "coverage_90": 0.0, "mean_normalized_rank": 0.0,
+            })).collect::<Vec<_>>(),
+        });
+        let validate = |value: Value| {
+            if is_replicated {
+                replicated::validate_result(
+                    &serde_json::from_value(value).unwrap(),
+                    replicated::ValidationContext {
+                        backend: &backend,
+                        request_sha256: "request",
+                        source_request_sha256: "source",
+                        input_sha256: "input",
+                        types: &types,
+                        points_per_pattern: 3,
+                        pattern_count: 2,
+                        sampling: &sampling,
+                        calibration: &replicated_calibration,
+                    },
+                )
+            } else {
+                single::validate_result(
+                    &serde_json::from_value(value).unwrap(),
+                    single::ValidationContext {
+                        backend: &backend,
+                        request_sha256: "request",
+                        source_request_sha256: "source",
+                        type_ids: &types,
+                        point_count: 3,
+                        sampling: &sampling,
+                        calibration: &single_calibration,
+                    },
+                )
+            }
+        };
+        validate(baseline.clone()).unwrap();
+        for (field, value) in [(states_field, json!(7)), (normalizer_field, json!(0.0))] {
+            let mut invalid = baseline.clone();
+            invalid["enumeration_oracle"][field] = value;
+            assert!(
+                validate(invalid).is_err(),
+                "{format}: accepted incorrect {field}"
+            );
+        }
+        let mut invalid = baseline.clone();
+        invalid["failures"][0]["replicate"] = json!(1);
+        assert!(validate(invalid).is_err());
+        let mut invalid = baseline.clone();
+        invalid["diagnostics"][0]["rank_histogram"] = json!([1, 0]);
+        assert!(validate(invalid).is_err());
+        let mut invalid = baseline;
+        invalid["fit_state"] = json!("complete");
+        assert!(validate(invalid).is_err());
+    }
+}
+
+#[test]
 fn sbc_results_reject_nonconverged_rows_and_require_failure_disposition() {
     let sampling = NutsSamplingSpec {
         chains: 2,

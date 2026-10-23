@@ -19,7 +19,7 @@ import numpyro.distributions as dist
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-import marklab_pymc_beta_binomial_group_regression_worker as pymc_contract
+from marklab_worker_support import beta_binomial_group as source_contract
 from marklab_worker_support.count_summaries import group_report
 from marklab_worker_support.numpyro_nuts import (
     fit_with_predictive,
@@ -132,7 +132,7 @@ def main() -> None:
     lock_sha, worker_sha = worker_digests(__file__)
     raw = read_request(2 * MIB)
     _, config, source_sha = validate_source_request(
-        json.loads(raw), REQUEST_FORMAT, lock_sha, worker_sha, pymc_contract
+        json.loads(raw), REQUEST_FORMAT, lock_sha, worker_sha, source_contract
     )
     result = fit(config, sha256_hex(raw), source_sha, lock_sha, worker_sha)
     write_result(result, max_bytes=2 * MIB)

@@ -21,7 +21,7 @@ from numpyro.infer import NUTS
 sys.path.append(str(Path(__file__).resolve().parent))
 
 import marklab_numpyro_dirichlet_multinomial_group_worker as agreement
-import marklab_pymc_dirichlet_multinomial_group_worker as pymc_contract
+from marklab_worker_support import dirichlet_multinomial_group as source_contract
 from marklab_worker_support import numpyro_sbc
 from marklab_worker_support.count_summaries import class_probabilities
 from marklab_worker_support.posterior import softmax
@@ -150,7 +150,7 @@ def main() -> None:
         REQUEST_FORMAT,
         lock_sha,
         worker_sha,
-        pymc_contract,
+        source_contract,
         simulated_resource="maximum_simulated_cells",
         simulated_per_replicate=total_cells,
     )

@@ -2,9 +2,9 @@
 
 Every NumPyro worker runs its chains sequentially and records the ``diverging``, ``num_steps``,
 and ``energy`` extra fields, from which ``nuts_diagnostics`` derives the same worst-case summaries
-that the PyMC workers report. Agreement workers re-fit a model whose request contract is owned
-by a PyMC worker; ``validate_source_request`` checks the wrapping request and delegates the
-embedded source request to that worker's ``validate``.
+that the PyMC workers report. Agreement workers re-fit a model whose source request contract is
+shared with a PyMC worker; ``validate_source_request`` checks the wrapper and delegates the
+embedded request to that backend-neutral contract.
 
 Import only after enabling JAX 64-bit mode; the workers do so before importing NumPyro.
 """
@@ -12,6 +12,7 @@ Import only after enabling JAX 64-bit mode; the workers do so before importing N
 from __future__ import annotations
 
 from collections.abc import Callable, Collection, Sequence
+from pathlib import Path
 from types import ModuleType
 from typing import Any
 
@@ -106,12 +107,12 @@ def validate_source_request(
     request_format: str,
     lock_sha: str,
     worker_sha: str,
-    pymc_contract: ModuleType,
+    source_contract: ModuleType,
     extra_keys: Collection[str] = (),
 ) -> tuple[dict[str, Any], dict[str, Any], str]:
     """Validate a NumPyro request that wraps a PyMC source request.
 
-    The source request is validated by ``pymc_contract.validate`` with the PyMC worker file's
+    The source request is validated by the backend-neutral contract with the PyMC worker file's
     own digest. Returns the request, the parsed configuration, and the source request digest.
     """
     request = obj(request, SOURCE_KEYS | set(extra_keys), "request")
@@ -127,8 +128,11 @@ def validate_source_request(
     )
     exact(request["jax_version"], versions.JAX, "request.jax_version")
     source_sha = sha256_digest(request["source_request_sha256"], "request.source_request_sha256")
-    config = pymc_contract.validate(
-        request["source_request"], lock_sha, file_sha256(pymc_contract.__file__)
+    source_worker = (
+        Path(source_contract.__file__).resolve().parents[1] / source_contract.SOURCE_WORKER
+    )
+    config = source_contract.validate_request(
+        request["source_request"], lock_sha, file_sha256(source_worker)
     )
     return request, config, source_sha
 

@@ -21,7 +21,7 @@ from numpyro.infer import MCMC, NUTS
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-import marklab_pymc_inhomogeneous_poisson_worker as pymc_contract
+from marklab_worker_support import inhomogeneous_poisson as source_contract
 from marklab_worker_support import versions
 from marklab_worker_support.diagnostics import (
     divergence_count,
@@ -80,7 +80,9 @@ def validate(
     )
     exact(request["jax_version"], versions.JAX, "request.jax_version")
     sha256_digest(request["source_request_sha256"], "request.source_request_sha256")
-    config = pymc_contract.validate(request["source_request"], lock_digest, pymc_worker_digest)
+    config = source_contract.validate_request(
+        request["source_request"], lock_digest, pymc_worker_digest
+    )
     return request, config
 
 
@@ -243,7 +245,7 @@ def fit(
 def main() -> None:
     require_versions(numpyro=numpyro.__version__, jax=jax.__version__)
     lock_digest, worker_digest = worker_digests(__file__)
-    pymc_worker_digest = file_sha256(pymc_contract.__file__)
+    pymc_worker_digest = file_sha256(Path(__file__).with_name(source_contract.SOURCE_WORKER))
     raw = read_request(16 * MIB)
     request, config = validate(json.loads(raw), lock_digest, worker_digest, pymc_worker_digest)
     result = fit(

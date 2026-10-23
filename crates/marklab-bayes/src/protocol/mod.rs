@@ -11,6 +11,7 @@ pub mod arbitrary_window_lgcp_fit;
 pub mod arbitrary_window_lgcp_quadrature_sensitivity;
 pub mod arbitrary_window_lgcp_sbc;
 pub mod arbitrary_window_lgcp_sensitivity;
+mod conditional_mark_sbc_checks;
 pub mod conditional_multitype_mark;
 pub mod conditional_multitype_mark_agreement;
 pub mod conditional_multitype_mark_sbc;

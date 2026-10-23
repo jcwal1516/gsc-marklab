@@ -15,7 +15,9 @@ import numpyro
 import numpyro.distributions as dist
 from numpyro.infer import Predictive
 
-from .protocol import derive_seed
+from .numpyro_nuts import sample_nuts
+from .nuts_contract import convergence_passes
+from .protocol import backend_identity, derive_seed
 
 FIXED_KERNEL_SEED_DOMAIN = "marklab-numpyro-replicated-multitype-lgcp-v1"
 """Seed domain of the fixed-kernel NumPyro worker; it also seeds every prior count check."""
@@ -117,11 +119,75 @@ def prior_is_finite(model: Callable[[], None], draws: int, seed: int) -> bool:
     return bool(np.isfinite(counts).all() and np.all(counts >= 0))
 
 
-def posterior_draws(sampler: Any) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray]]:
-    """Return float64 posterior samples by chain and with chains and draws flattened."""
-    samples = {
-        name: np.asarray(value, dtype=np.float64)
-        for name, value in sampler.get_samples(group_by_chain=True).items()
-    }
+def sample_posterior(
+    model: Callable[[], None], config: dict[str, Any], seed: int
+) -> tuple[dict[str, np.ndarray], dict[str, np.ndarray], dict[str, Any]]:
+    """Run the shared diagonal-mass NUTS policy and return grouped, flat, and extra draws."""
+    samples, extra = sample_nuts(model, config, config["numpyro_maximum_tree_depth"], seed)
     flat = {name: value.reshape((-1, *value.shape[2:])) for name, value in samples.items()}
-    return samples, flat
+    return samples, flat, extra
+
+
+def fit_disposition(
+    config: dict[str, Any],
+    diagnostics: dict[str, Any],
+    constraints: bool,
+    values: tuple[np.ndarray, ...],
+) -> tuple[bool, bool]:
+    """Return posterior finiteness and the common convergence/constraint disposition."""
+    finite = bool(all(np.isfinite(value).all() for value in values))
+    complete = bool(finite and constraints and convergence_passes(config["policy"], diagnostics))
+    return finite, complete
+
+
+def result_header(
+    result_format: str,
+    config: dict[str, Any],
+    request_sha: str,
+    source_sha: str,
+    lock_sha: str,
+    worker_sha: str,
+    complete: bool,
+    *,
+    report_maximum_tree_depth: bool,
+) -> dict[str, Any]:
+    """Common identity, disposition, and sampling fields for multitype LGCP results."""
+    result = {
+        "format": result_format,
+        "version": 1,
+        "backend": backend_identity("numpyro", numpyro.__version__, lock_sha, worker_sha),
+        "jax_version": jax.__version__,
+        "input_sha256": config["input_sha"],
+        "request_sha256": request_sha,
+        "source_request_sha256": source_sha,
+    }
+    if report_maximum_tree_depth:
+        result["maximum_tree_depth"] = config["numpyro_maximum_tree_depth"]
+    result.update(
+        {
+            "fit_state": "complete" if complete else "nonconverged",
+            "sampling": {
+                "chains": config["chains"],
+                "tune_per_chain": config["tune"],
+                "draws_per_chain": config["draws"],
+                "completed_draws": config["chains"] * config["draws"],
+            },
+        }
+    )
+    return result
+
+
+def diagnostic_report(
+    prior_finite: bool,
+    posterior_finite: bool,
+    diagnostics: dict[str, Any],
+    constraints: bool,
+) -> dict[str, Any]:
+    """Common finite, convergence, and identifiability diagnostic fields."""
+    return {
+        "prior_predictive_finite": prior_finite,
+        "posterior_finite": posterior_finite,
+        **diagnostics,
+        "constraints_valid": constraints,
+        "identifiability_checks_passed": constraints,
+    }

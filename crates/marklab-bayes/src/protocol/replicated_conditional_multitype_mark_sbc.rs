@@ -1,5 +1,6 @@
 //! Typed messages and scientific checks for replicated conditional multitype mark sbc.
 
+use super::conditional_mark_sbc_checks as checks;
 use crate::backend_versions::JAX_VERSION;
 use crate::BackendContract;
 use crate::BayesError;
@@ -10,7 +11,6 @@ use marklab_core::backend::ClaimStatus;
 use marklab_core::vocabulary::StatisticalUnit;
 use serde::Deserialize;
 use serde::Serialize;
-use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Calibration {
@@ -170,53 +170,61 @@ pub fn validate_result(
     } = context;
     let names = parameter_names(types);
     let completed_draws = u64::from(sampling.chains) * u64::from(sampling.draws_per_chain);
-    let dispositions = result
-        .replicates
-        .iter()
-        .map(|row| row.replicate)
-        .chain(result.failures.iter().map(|row| row.replicate))
-        .collect::<BTreeSet<_>>();
-    let disposition_valid = result.replicates.len() + result.failures.len()
-        == calibration.replicates as usize
-        && dispositions == (0..calibration.replicates).collect::<BTreeSet<_>>()
-        && result.failures.iter().all(|row| !row.reason.is_empty());
+    let dispositions_valid = checks::dispositions_valid(
+        result.replicates.iter().map(|row| row.replicate),
+        result
+            .failures
+            .iter()
+            .map(|row| (row.replicate, row.reason.as_str())),
+        calibration.replicates,
+    );
     let rows_valid = result.replicates.iter().all(|row| {
         row.simulated_pattern_type_counts.len() == pattern_count
             && row.simulated_pattern_type_counts.iter().all(|counts| {
                 counts.len() == types.len()
                     && counts.iter().sum::<u64>() == points_per_pattern as u64
             })
-            && row.parameters.len() == names.len()
-            && row.parameters.iter().zip(&names).all(|(parameter, name)| {
-                parameter.parameter == *name
-                    && parameter.truth.is_finite()
-                    && parameter.rank <= completed_draws
-            })
+            && checks::parameters_valid(
+                row.parameters.iter().map(|parameter| {
+                    (
+                        parameter.parameter.as_str(),
+                        parameter.truth,
+                        parameter.rank,
+                    )
+                }),
+                &names,
+                completed_draws,
+            )
             && [row.r_hat, row.ess_bulk, row.ess_tail, row.minimum_ebfmi]
                 .into_iter()
                 .all(f64::is_finite)
     });
-    let diagnostics_valid = result.diagnostics.len() == names.len()
-        && result.diagnostics.iter().zip(&names).all(|(row, name)| {
-            row.parameter == *name
-                && row.rank_histogram.len() == calibration.rank_bins as usize
-                && row.rank_histogram.iter().sum::<u64>() == result.replicates.len() as u64
-                && [
+    let diagnostics_valid = checks::diagnostics_valid(
+        result.diagnostics.iter().map(|row| {
+            (
+                row.parameter.as_str(),
+                row.rank_histogram.as_slice(),
+                [
                     row.rank_uniformity_p_value,
                     row.coverage_90,
                     row.mean_normalized_rank,
-                ]
-                .into_iter()
-                .all(|value| value.is_finite() && (0.0..=1.0).contains(&value))
-        });
+                ],
+            )
+        }),
+        &names,
+        calibration.rank_bins,
+        result.replicates.len(),
+    );
     let passes = result.failures.is_empty()
-        && result.diagnostics.iter().all(|row| {
-            row.rank_uniformity_p_value >= calibration.minimum_rank_uniformity_p_value
-                && (calibration.minimum_coverage..=calibration.maximum_coverage)
-                    .contains(&row.coverage_90)
-        });
-    let expected_states = (types.len() as u64).pow(points_per_pattern as u32);
-    let expected_zero_log_normalizer = points_per_pattern as f64 * (types.len() as f64).ln();
+        && checks::calibration_passes(
+            result
+                .diagnostics
+                .iter()
+                .map(|row| (row.rank_uniformity_p_value, row.coverage_90)),
+            calibration.minimum_rank_uniformity_p_value,
+            calibration.minimum_coverage,
+            calibration.maximum_coverage,
+        );
     if result.format != "marklab.numpyro_replicated_conditional_multitype_mark_sbc_result"
         || result.version != 1
         || !result.backend.matches(backend)
@@ -224,14 +232,15 @@ pub fn validate_result(
         || result.request_sha256 != request_sha
         || result.source_request_sha256 != source_sha
         || result.input_sha256 != input_sha
-        || result.enumeration_oracle.states_per_pattern != expected_states
-        || (result
-            .enumeration_oracle
-            .zero_parameter_log_normalizer_per_pattern
-            - expected_zero_log_normalizer)
-            .abs()
-            > 1e-12
-        || !disposition_valid
+        || !checks::enumeration_valid(
+            result.enumeration_oracle.states_per_pattern,
+            result
+                .enumeration_oracle
+                .zero_parameter_log_normalizer_per_pattern,
+            types.len(),
+            points_per_pattern,
+        )
+        || !dispositions_valid
         || !rows_valid
         || !diagnostics_valid
         || (result.fit_state == FitState::Complete) != passes

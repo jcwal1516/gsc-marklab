@@ -15,8 +15,8 @@ import numpyro
 sys.path.append(str(Path(__file__).resolve().parent))
 
 import marklab_numpyro_gridded_lgcp_sbc_worker as source_sbc
-import marklab_pymc_arbitrary_window_lgcp_worker as pymc_adapter
-import marklab_pymc_gridded_lgcp_worker as pymc_source
+from marklab_worker_support import arbitrary_window_lgcp as adapter_contract
+from marklab_worker_support import gridded_lgcp as source_contract
 from marklab_worker_support import versions
 from marklab_worker_support.protocol import (
     MIB,
@@ -78,11 +78,11 @@ def main() -> None:
     require_versions(numpyro=numpyro.__version__, jax=jax.__version__)
     lock_digest, worker_digest = worker_digests(__file__)
     source_sbc_digest = file_sha256(source_sbc.__file__)
-    pymc_adapter_digest = file_sha256(pymc_adapter.__file__)
-    pymc_source_digest = file_sha256(pymc_source.__file__)
+    pymc_adapter_digest = file_sha256(Path(__file__).with_name(adapter_contract.SOURCE_WORKER))
+    pymc_source_digest = file_sha256(Path(__file__).with_name(source_contract.SOURCE_WORKER))
     raw = read_request(16 * MIB)
     request = validate(json.loads(raw), lock_digest, worker_digest, source_sbc_digest)
-    source_request, physical_config, nodes, _, _ = pymc_adapter.validate(
+    source_request, physical_config, nodes, _, _ = adapter_contract.validate_request(
         request["source_request"],
         lock_digest,
         pymc_adapter_digest,

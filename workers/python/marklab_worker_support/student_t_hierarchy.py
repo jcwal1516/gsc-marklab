@@ -15,6 +15,8 @@ from .nuts_contract import UNBOUNDED_COUNT, nuts_policy, nuts_sampling
 from .posterior import summary
 from .protocol import ContractError, exact, integer, number, obj, validate_backend
 
+SOURCE_WORKER = "marklab_pymc_student_t_hierarchy_worker.py"
+
 MODEL_KEYS = {
     "format",
     "version",

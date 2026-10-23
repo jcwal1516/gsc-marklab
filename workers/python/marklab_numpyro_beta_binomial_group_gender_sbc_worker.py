@@ -20,7 +20,7 @@ from numpyro.infer import NUTS
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-import marklab_pymc_beta_binomial_group_gender_regression_worker as pymc_contract
+from marklab_worker_support import beta_binomial_group_gender as source_contract
 from marklab_numpyro_beta_binomial_group_gender_worker import model
 from marklab_worker_support import numpyro_sbc
 from marklab_worker_support.count_summaries import group_gender_probabilities
@@ -149,7 +149,7 @@ def main() -> None:
     lock_sha, worker_sha = worker_digests(__file__)
     raw = read_request(2 * MIB)
     config = numpyro_sbc.validate_request(
-        json.loads(raw), REQUEST_FORMAT, lock_sha, worker_sha, pymc_contract
+        json.loads(raw), REQUEST_FORMAT, lock_sha, worker_sha, source_contract
     )
     kernel = numpyro_sbc.nuts_kernel(model, config)
     completed, failures = numpyro_sbc.run_replicates(

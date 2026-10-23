@@ -52,7 +52,7 @@ def validate_request(
     request_format: str,
     lock_sha: str,
     worker_sha: str,
-    pymc_contract: ModuleType,
+    source_contract: ModuleType,
     *,
     simulated_resource: str = "maximum_simulated_trials",
     simulated_limit: int = 200_000_000,
@@ -68,7 +68,7 @@ def validate_request(
         request_format,
         lock_sha,
         worker_sha,
-        pymc_contract,
+        source_contract,
         extra_keys={"calibration", "resources"},
     )
     calibration = obj(request["calibration"], CALIBRATION_KEYS, "calibration")

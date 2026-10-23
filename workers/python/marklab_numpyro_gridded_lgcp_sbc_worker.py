@@ -20,7 +20,7 @@ from numpyro.infer import MCMC, NUTS
 sys.path.append(str(Path(__file__).resolve().parent))
 
 import marklab_numpyro_gridded_lgcp_worker as lgcp
-import marklab_pymc_gridded_lgcp_worker as pymc_contract
+from marklab_worker_support import gridded_lgcp as source_contract
 from marklab_worker_support import versions
 from marklab_worker_support.diagnostics import (
     divergence_count,
@@ -83,8 +83,10 @@ def validate(request: Any, lock_digest: str, worker_digest: str) -> dict[str, An
     )
     exact(request["jax_version"], versions.JAX, "request.jax_version")
     sha256_digest(request["source_request_sha256"], "request.source_request_sha256")
-    pymc_worker_digest = file_sha256(pymc_contract.__file__)
-    config = pymc_contract.validate(request["source_request"], lock_digest, pymc_worker_digest)
+    pymc_worker_digest = file_sha256(Path(__file__).with_name(source_contract.SOURCE_WORKER))
+    config = source_contract.validate_request(
+        request["source_request"], lock_digest, pymc_worker_digest
+    )
     calibration = obj(
         request["calibration"],
         {

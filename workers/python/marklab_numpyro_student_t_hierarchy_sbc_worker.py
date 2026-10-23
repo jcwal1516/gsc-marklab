@@ -20,7 +20,7 @@ from numpyro.infer import NUTS
 sys.path.append(str(Path(__file__).resolve().parent))
 
 import marklab_numpyro_student_t_hierarchy_worker as agreement
-import marklab_pymc_student_t_hierarchy_worker as pymc_contract
+from marklab_worker_support import student_t_hierarchy as source_contract
 from marklab_worker_support import numpyro_sbc
 from marklab_worker_support.protocol import (
     MIB,
@@ -110,7 +110,7 @@ def main() -> None:
         REQUEST_FORMAT,
         lock_sha,
         worker_sha,
-        pymc_contract,
+        source_contract,
         simulated_resource="maximum_simulated_observations",
         simulated_limit=10_000_000,
         simulated_per_replicate=observation_count,

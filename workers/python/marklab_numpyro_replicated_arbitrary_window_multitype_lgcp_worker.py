@@ -15,24 +15,23 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
-import numpy as np
 import numpyro
-from numpyro.infer import MCMC, NUTS
 
 from marklab_worker_support import multitype_lgcp as lgcp
 from marklab_worker_support import versions
 from marklab_worker_support.multitype_lgcp_numpyro import (
     FIXED_KERNEL_SEED_DOMAIN,
+    diagnostic_report,
+    fit_disposition,
     hierarchical_model,
-    posterior_draws,
     prior_is_finite,
+    result_header,
+    sample_posterior,
 )
 from marklab_worker_support.numpyro_nuts import nuts_diagnostics
-from marklab_worker_support.nuts_contract import convergence_passes
 from marklab_worker_support.protocol import (
     MIB,
     ContractError,
-    backend_identity,
     derive_seed,
     exact,
     file_sha256,
@@ -136,19 +135,9 @@ def fit(
     if not prior_finite:
         raise ContractError("prior predictive counts are non-finite or outside the Poisson range")
     maximum_tree_depth = config["numpyro_maximum_tree_depth"]
-    sampler = MCMC(
-        NUTS(model, target_accept_prob=config["target_accept"], max_tree_depth=maximum_tree_depth),
-        num_warmup=config["tune"],
-        num_samples=config["draws"],
-        num_chains=config["chains"],
-        chain_method="sequential",
-        progress_bar=False,
+    samples, flat, extra = sample_posterior(
+        model, config, seed_for(config["seed"], "nuts")
     )
-    sampler.run(
-        jax.random.PRNGKey(seed_for(config["seed"], "nuts")),
-        extra_fields=("diverging", "num_steps", "energy"),
-    )
-    samples, flat = posterior_draws(sampler)
     patient_effect, pattern_effect = lgcp.hierarchy_effect_draws(
         config, flat["patient_sd"], flat["patient_raw"], flat["pattern_sd"], flat["pattern_raw"]
     )
@@ -165,33 +154,25 @@ def fit(
     diagnostics = nuts_diagnostics(
         samples,
         MONITORED,
-        sampler.get_extra_fields(group_by_chain=True),
+        extra,
         maximum_tree_depth,
         mcse=True,
     )
-    finite = bool(
-        all(
-            np.isfinite(value).all() for value in (patient_effect, pattern_effect, latent, expected)
-        )
-    )
     constraints = bool(lgcp.centering_constraints_hold(config, pattern_effect, latent))
-    complete = bool(finite and constraints and convergence_passes(config["policy"], diagnostics))
+    finite, complete = fit_disposition(
+        config, diagnostics, constraints, (patient_effect, pattern_effect, latent, expected)
+    )
     return {
-        "format": RESULT_FORMAT,
-        "version": 1,
-        "backend": backend_identity("numpyro", numpyro.__version__, lock_sha, worker_sha),
-        "jax_version": jax.__version__,
-        "input_sha256": config["input_sha"],
-        "request_sha256": request_sha,
-        "source_request_sha256": source_sha,
-        "maximum_tree_depth": maximum_tree_depth,
-        "fit_state": "complete" if complete else "nonconverged",
-        "sampling": {
-            "chains": config["chains"],
-            "tune_per_chain": config["tune"],
-            "draws_per_chain": config["draws"],
-            "completed_draws": config["chains"] * config["draws"],
-        },
+        **result_header(
+            RESULT_FORMAT,
+            config,
+            request_sha,
+            source_sha,
+            lock_sha,
+            worker_sha,
+            complete,
+            report_maximum_tree_depth=True,
+        ),
         "type_posteriors": lgcp.type_rows(config, flat),
         "group_effect_differences": lgcp.group_effect_differences(config, flat["group_effect"]),
         "patient_type_effects": lgcp.owner_type_effects(
@@ -201,13 +182,7 @@ def fit(
             config["pattern_ids"], config["types"], pattern_effect, config["chains"]
         ),
         "node_type_posteriors": lgcp.node_type_rows(config, latent, expected),
-        "diagnostics": {
-            "prior_predictive_finite": prior_finite,
-            "posterior_finite": finite,
-            **diagnostics,
-            "constraints_valid": constraints,
-            "identifiability_checks_passed": constraints,
-        },
+        "diagnostics": diagnostic_report(prior_finite, finite, diagnostics, constraints),
     }
 
 

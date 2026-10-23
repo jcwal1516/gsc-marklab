@@ -21,7 +21,7 @@ from numpyro.infer import NUTS
 sys.path.append(str(Path(__file__).resolve().parent))
 
 import marklab_numpyro_beta_binomial_group_gender_slide_hierarchy_worker as agreement
-import marklab_pymc_beta_binomial_group_gender_slide_hierarchy_worker as pymc_contract
+from marklab_worker_support import beta_binomial_slide_hierarchy as source_contract
 from marklab_worker_support import numpyro_sbc
 from marklab_worker_support.count_summaries import group_gender_probabilities
 from marklab_worker_support.posterior import sigmoid
@@ -167,7 +167,7 @@ def main() -> None:
     worker_sha = worker_identity(__file__)
     raw = read_request(2 * MIB)
     config = numpyro_sbc.validate_request(
-        json.loads(raw), REQUEST_FORMAT, lock_sha, worker_sha, pymc_contract
+        json.loads(raw), REQUEST_FORMAT, lock_sha, worker_sha, source_contract
     )
     kernel = numpyro_sbc.nuts_kernel(agreement.model, config)
     completed, failures = numpyro_sbc.run_replicates(

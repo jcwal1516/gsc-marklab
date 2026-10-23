@@ -89,7 +89,7 @@ class MultitypeLgcpPriorTest(unittest.TestCase):
                     with (
                         patch.object(
                             worker,
-                            "MCMC",
+                            "sample_posterior",
                             side_effect=AssertionError("invalid prior reached NUTS"),
                         ),
                         self.assertRaisesRegex(ValueError, "prior predictive"),
