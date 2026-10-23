@@ -1,0 +1,1109 @@
+{
+  "name": "MarkLab capability map",
+  "as_of": "2026-10-22",
+  "scope": "Implemented public workflows, method families, data contracts and command routes in this checkout. Methods are grouped rather than enumerating every Rust type or option. Uses are representative combinations, not an exhaustive list of possible scientific questions.",
+  "reading_guide": {
+    "capabilities": "What each family does, consumes, produces and currently connects to.",
+    "interactions": "Implemented end-to-end flows versus combinations requiring explicit user orchestration.",
+    "applications": "Possible questions and the capabilities to combine; not validated biological or clinical claims.",
+    "command_index": "Complete source-declared leaf command names by prefix; use marklab <prefix> <command> --help for arguments. Root commands omit the prefix. Built-in help and private worker entrypoints are excluded.",
+    "sources": "Repository-relative paths; evidence statements summarize existing documentation, not scientific checks rerun for this inventory."
+  },
+  "interfaces": {
+    "rust": "marklab root exports plus spatial, structure, marks, autocorrelation, compartments, embeddings, workflow, pathology and backend modules; companion crates expose additional scientific APIs.",
+    "cli": "marklab with the cli Cargo feature; defaults also enable parallel, csv and parquet.",
+    "python_client": "Thin subprocess client for multiplex studies and pathology architecture; explicit cell-table, AnnData and selected upstream adapters. Not a Python binding for every Rust API.",
+    "python_workers": "Selected model, registration, topology and prediction commands use the repository's locked Python 3.12 runtime.",
+    "optional_features": {
+      "wsi": "Slide metadata and bounded RGBA region reading via wsi-rs.",
+      "parquet": "Cell-table Parquet and strict embedding Arrow IPC/Parquet profiles.",
+      "csv": "Cell tables and normalized CSV adapters.",
+      "parallel": "Rayon-backed analysis parallelism.",
+      "allocator-mimalloc": "Optional allocator.",
+      "dhat-heap": "Heap profiling instrumentation."
+    },
+    "sources": ["Cargo.toml", "src/lib.rs", "clients/python/marklab_client.py"]
+  },
+  "shared_contracts": {
+    "identity": "Explicit patient/site/specimen/block/core/slide/section/region/cell/patch/timepoint IDs, hierarchy and replication roles; coordinates and measurements stay bound to their objects.",
+    "coordinates": "Declared physical units, coordinate frames, axis/image conventions and transforms; no implicit pixel-to-micrometre conversion or registration.",
+    "observations": "Binary, probability, categorical, ordinal, continuous, assay and vector marks; missingness and measured/imported-prediction/morphology-prediction/derived-summary status remain explicit.",
+    "geometry": "Observation-window polygons/multipolygons can preserve holes and disconnected pieces; each method has its own geometry and edge-correction restrictions.",
+    "inference": "Null model, exchangeability unit, strata, support, seed and multiplicity family are part of the scientific design. Random labeling, fixed-count spatial simulations and model-based posterior prediction answer different questions.",
+    "availability": "Unavailable/disabled/failed/nonconverged values have explicit status or errors; missing results are not scientific zeros.",
+    "reproducibility": "Fixed inputs, settings, seed, implementation and numerical environment support replay; universal cross-platform bitwise identity is not claimed.",
+    "resources": "Method-specific input, memory, work, graph, geometry, simulation and worker-time budgets; admission estimates are not measured performance guarantees.",
+    "publication": "Analysis/study directories publish transactionally. Utilities have their own file contracts. Durable projects reuse compatible completed results and invalidate dependent work when inputs change.",
+    "results": "The current root result.json contract is 0.5; its reader accepts the current version. Specialized methods have separate versioned documents. This inventory changes no result format.",
+    "sources": [
+      "crates/marklab-data/src/lib.rs", "src/scalar_mark", "src/output/document.rs", "src/output/result_types/common.rs",
+      "docs/formats.md", "docs/public-api.md"
+    ]
+  },
+  "capabilities": {
+    "input_adapters": {
+      "does": [
+        "CSV/Parquet marked-cell tables", "Explicitly mapped multiplex cell tables",
+        "Bounded materialized AnnData/H5AD including sparse round trips", "GeoJSON windows",
+        "Steinbock intensity/regionprops joins", "MCMICRO MCQuant tables", "QuPath PUMA-compatible classified nucleus polygons",
+        "QuPath architecture annotation layers", "Generic float32 row-major NPY vectors",
+        "Optional normalized CellViT CSV/NPY and bundle profiles"
+      ],
+      "input": "Upstream cells, annotations or vectors plus IDs, calibration, window, patient grouping and producer declarations.",
+      "output": "Validated patterns, study slides, architecture recipes or embedding artifacts.",
+      "used_by": "analyze/classical/batch, multimodal, study, pathology architecture and embedding workflows; adapters are specific contracts, not universal native-format readers.",
+      "uses": [
+        "Analyze outputs from a chosen segmentation/embedding model",
+        "Normalize multiplex platforms into a common patient-level study", "Preserve observed versus predicted measurements"
+      ],
+      "limits": "AnnData backed/lazy arrays are unsupported. QuPath nucleus and architecture profiles differ. Generic embeddings do not require CellViT's dimension/calibration. Explicit mapping is required for unsupported native exports.",
+      "sources": [
+        "docs/formats.md", "clients/python/marklab_client.py", "clients/python/upstream_formats.py",
+        "crates/marklab-embeddings/src/source"
+      ]
+    },
+    "whole_slide_access": {
+      "does": ["Slide/scene/series/level metadata", "Plane selection", "Bounded region requests", "RGBA pixel extraction"],
+      "input": "Supported WSI file and explicit scene/level/plane/region.",
+      "output": "Metadata JSON or decoded region pixels/image.",
+      "used_by": "SlideReader; inspect-slide/extract-region with wsi enabled.",
+      "uses": ["Inspect slide structure", "Extract regions for external image processing or visual review"],
+      "limits": "No WSI writer, cell segmentation, viewer-state import or general OME-XML semantic/calibration adapter. Public pixel agreement is scoped to the tested Aperio region.",
+      "sources": ["src/wsi.rs", "src/cli/slide.rs", "docs/formats.md"]
+    },
+    "marked_section": {
+      "does": [
+        "Permutation-whitened mark spectrum and low-frequency excess", "Correlation-length/scale summaries",
+        "Mark-pair covariance by distance", "Directional anisotropy", "Tapered FFT periodogram and scale-energy curves",
+        "Multiscale residual maps and connected territories", "Pooled/component-aware analysis",
+        "Spatial-stratum null sensitivity", "QC and optional beta-posterior diagnostics"
+      ],
+      "input": "Cell coordinates, binary/probabilistic marks, tissue mask and TOML configuration; declared scalar API additionally binds identity/status/provenance.",
+      "output": "Marked-pattern JSON with primary endpoint, curves/envelopes, territories, QC and availability; configurable Parquet curves, GeoJSON territories, figures and run manifest.",
+      "used_by": "AnalysisEngine -> analyze/batch -> OutputWriter; marked workflow nodes and pre/post DAG reuse the same engine. Internal spectral helpers are not separate supported public modules.",
+      "uses": [
+        "Detect clustered, dispersed or directional labeling", "Estimate characteristic organization scales",
+        "Locate local enrichment", "Check whether spatial strata explain a label pattern"
+      ],
+      "limits": "Conditions on observed cell geometry and declared exchangeability; a significant label pattern does not establish clonality or cause. Each curve envelope covers its own eligible scale family, not every marker/run.",
+      "sources": [
+        "src/api.rs", "src/api/assembly.rs", "src/api/spectrum_stage.rs", "src/periodogram", "src/multiscale_residual",
+        "examples/config.toml"
+      ]
+    },
+    "prepost_and_batch": {
+      "does": [
+        "Manifest-driven single-section batches", "Marked pre/post endpoint and curve comparisons",
+        "Multimodal pre/post and territory-profile comparisons", "Declared-mark prevalence comparison",
+        "Prespecified curve margins"
+      ],
+      "input": "Manifest rows or compatible completed pre/post analyses, with matching scientific identities and settings.",
+      "output": "Per-analysis outputs or change/comparison summaries with availability and margin assessments.",
+      "used_by": "batch, prepost, multimodal batch/prepost; Rust comparison functions; project marked-prepost and marked pre/post DAG.",
+      "uses": [
+        "Screen multiple sections consistently", "Describe differences across treatment/timepoint sections",
+        "Build patient-level change endpoints"
+      ],
+      "limits": "Sections contain different cells; this is not cell tracking or evidence of a treatment effect. Population inference requires a patient-level design.",
+      "sources": ["src/cli/batch.rs", "src/prepost", "src/marked_prepost_dag.rs", "src/comparison"]
+    },
+    "point_patterns_2d": {
+      "does": [
+        "Homogeneous K/L with border, translation or isotropic correction",
+        "Homogeneous g with standard, translation or isotropic correction", "Inhomogeneous K/L and g",
+        "Prespecified Gaussian intensity bandwidth selection", "Piecewise-compartment intensity K/L and g",
+        "Directed homogeneous categorical cross-K/L",
+        "Directed cross-g with standard/translation/isotropic/inhomogeneous variants", "Nearest-neighbor G, empty-space F and J",
+        "Arbitrary-window Poisson likelihood", "ERL simultaneous global envelopes"
+      ],
+      "input": "2-D points, exact observed window, radii/bins, edge policy and optional types/intensities/compartments; declared simulation or labeling null.",
+      "output": "Radius-indexed curves, pair/support counts, intensity diagnostics and optional envelopes/p-values.",
+      "used_by": "marklab::spatial; classical/nearest-space; project spatial routes; pathology spatial-study. Global envelopes use marklab-numerics.",
+      "uses": [
+        "All-cell clustering/regularity", "Type-to-type attraction/avoidance", "Density-adjusted organization",
+        "Nearest-neighbor and void spacing"
+      ],
+      "limits": "CSR relocates cells; random labeling fixes them. Inhomogeneous cross-K is not implemented. Edge/normalization conventions matter; single-type inhomogeneous g lacks independent reference agreement. Public agreement applies to documented observed estimators, not every inferential configuration.",
+      "sources": [
+        "src/lib.rs", "src/inhomogeneous_spatial", "docs/classical-spatial-workflow.md", "docs/reference-point-patterns.md",
+        "docs/categorical-pairs.md"
+      ]
+    },
+    "categorical_marks": {
+      "does": [
+        "Radius-dependent categorical co-occurrence",
+        "Categorical enrichment with exact fixed-count null moments and Monte Carlo inference", "Hard-class neighborhood mixing",
+        "Winner-class support-weighted mixing", "Directed categorical mark connection",
+        "Ordinal composition/CDF/median interval/entropy", "Soft-class composition/entropy/effective class count",
+        "Soft neighborhood composition at one or multiple radii", "Soft pair mixing",
+        "Conservative top-1 probability pair-mass bounds"
+      ],
+      "input": "Aligned typed marks, cell IDs/coordinates/frame, levels or complete probability simplex, radius and declared null/support semantics.",
+      "output": "Co-occurrence/mixing matrices, compositions/diversity, weighted pair curves, bounds or permutation inference.",
+      "used_by": "marklab::marks and exported workflow nodes; numerics categorical-co-occurrence/enrichment and project categorical-pair expose selected methods. Most soft/ordinal methods are library building blocks; soft neighborhoods feed pathology maps.",
+      "uses": [
+        "Cell-type adjacency", "Analyze uncertain classifications without thresholding", "Compare neighborhood diversity",
+        "Retain uncertainty when only top-1 probabilities are available"
+      ],
+      "limits": "Complete-simplex analyses require complete probabilities; top-1 bounds do not invent them. Co-occurrence is descriptive; enrichment count/moment agreement does not validate every Monte Carlo/null design. No learned niche clustering.",
+      "sources": [
+        "src/lib.rs", "src/soft_multiscale_neighborhood.rs", "src/top1_pair_mixing_bounds.rs",
+        "docs/categorical-cooccurrence.md", "docs/categorical-enrichment.md"
+      ]
+    },
+    "continuous_and_probability_marks": {
+      "does": [
+        "Normalized continuous mark correlation", "Continuous product-weighted K and unweighted baseline",
+        "Probability-weighted positive-positive connection", "Declared binary/probability/continuous routing",
+        "KSG mutual information with permutation, block or variogram-matching spatial null"
+      ],
+      "input": "Finite aligned scalar/probability marks and spatial design; mutual information takes two measurements and its null settings.",
+      "output": "Weighted curves, dependence summaries, envelopes/p-values or MI/null effect summaries.",
+      "used_by": "marklab::marks and method-specific AnalysisNode types; numerics mutual-information. Probability marks also feed the marked-section spectrum.",
+      "uses": [
+        "Intensity-dependent spatial association", "Probabilistic phenotype organization",
+        "Nonlinear dependence between two cell measurements"
+      ],
+      "limits": "Probabilities, continuous values and hard labels have distinct contracts. Spatial MI can reflect shared regional context; reference/calibration evidence is scoped and includes a documented tie-breaking mismatch.",
+      "sources": [
+        "src/lib.rs", "src/continuous_mark_correlation", "src/mark_weighted_k", "src/probability_pair",
+        "src/structure_descriptors/mutual_information.rs"
+      ]
+    },
+    "autocorrelation_and_variograms": {
+      "does": [
+        "Global Moran I and Geary C", "Assay-level summaries",
+        "Local multivariate Moran with locationwise and global Max-T inference",
+        "Scalar empirical semivariogram and ERL envelope", "Binary, including-isolates and row-standardized weight policies"
+      ],
+      "input": "Scalar marks or complete multivariate rows, fixed points/window, radius or lag bins, weights, optional strata and permutations.",
+      "output": "Global/local association, null expectations, p-values, corrected local tests or lag/pair/semivariance curves.",
+      "used_by": "marklab::autocorrelation; study and pathology maps; numerics local-multivariate-moran; project local-multivariate-moran/scalar-variogram.",
+      "uses": [
+        "Marker smoothness", "Local multivariate outliers", "Spatial correlation length",
+        "Slide summaries for patient inference"
+      ],
+      "limits": "Local whole-row unconditional shuffling and population variance differ from default conditional LISA. Prespecify scaling/radius/strata. Public cohort evidence is scoped to binary symmetric weights including isolates.",
+      "sources": [
+        "src/spatial_autocorrelation", "src/local_multivariate_moran.rs", "src/scalar_variogram.rs", "docs/public-api.md",
+        "docs/variograms.md"
+      ]
+    },
+    "compartments": {
+      "does": [
+        "Oriented binary polygon partition", "Signed cell-to-interface distances", "Radius-based compartment mixing",
+        "Exact shared-interface/outer-boundary contact fractions", "Component/hole/area/perimeter/entropy fragmentation",
+        "Region-specific intensity for K/L and g"
+      ],
+      "input": "Window and nonoverlapping compartment polygons in one frame; aligned histologic labels and radius where cells are used.",
+      "output": "Interface profiles, mixing/contact fractions, fragmentation and compartment-conditioned spatial summaries.",
+      "used_by": "marklab::compartments and workflow nodes; project piecewise-compartment methods and pathology spatial-study share partition geometry. Pathology maps separately profiles supplied annotations using common window geometry.",
+      "uses": [
+        "Tumor-stroma interfaces", "Immune mixing/exclusion", "Contact versus exposed boundary",
+        "Fragmented versus contiguous tissue regions"
+      ],
+      "limits": "Regions/classes are supplied upstream. Fragmentation alone cannot report cell mixing. Synthetic geometry and scoped SPIAT mixing agreement do not establish cohort performance.",
+      "sources": ["src/geom/window/compartment.rs", "src/compartment_interface", "src/compartment_fragmentation.rs", "src/lib.rs"]
+    },
+    "structure_descriptors": {
+      "does": [
+        "Morisita dispersion from complete quadrats",
+        "Ordinary kriging with declared exponential/spherical/Gaussian variogram and block-held-out checks",
+        "2-D bond-orientational order", "Box-counting dimension and gliding-box lacunarity",
+        "Landy-Szalay pair excess from a declared random catalog",
+        "Mapper graph with one-dimensional lens, overlapping cover and single-link clusters",
+        "Unmarked rectangular-window structure factor, H and alpha"
+      ],
+      "input": "Points, scalar fields, vectors or binary masks with declared window/pixel size, scale grid, lens, variogram or random catalog as applicable.",
+      "output": "Dispersion, field predictions/variance, orientation order, scaling/gap summaries, excess-pair curve, Mapper graph or structure-factor descriptors.",
+      "used_by": "marklab::structure and numerics descriptor commands; scalar variograms can inform a user-declared kriging model, but there is no automatic variogram fitting.",
+      "uses": [
+        "Packing orientation", "Gap and density heterogeneity", "Marker interpolation", "Phenotype-space connectivity",
+        "Large-scale density fluctuation screening"
+      ],
+      "limits": "Kriging assumes constant mean/stationary isotropy. Mapper has a 1-D lens and no stability inference. H/alpha lack uncertainty and require a fully observed rectangle. Descriptive scaling is not proof of fractality/hyperuniformity. Mark spectra and unmarked structure factors are distinct.",
+      "sources": ["src/structure_descriptors", "src/bin/marklab/numerics.rs", "docs/structure-descriptors.md"]
+    },
+    "multimodal_registration_and_neighborhoods": {
+      "does": [
+        "Rigid/affine landmark alignment", "H&E/IHC cell matching and fused-cell records",
+        "Registration residuals and landmark-hull extrapolation", "Radius/kNN neighborhood graph",
+        "Label enrichment and null-model sensitivity", "Cross-interaction curves", "MMR-abnormal territories and profiles",
+        "Optional graph-smoothing diagnostics"
+      ],
+      "input": "H&E classes, IHC measurements, calibrated sections/windows and corresponding landmarks.",
+      "output": "Registration/fusion diagnostics, graph-neighborhood summaries, interaction curves and territory outputs.",
+      "used_by": "MultimodalEngine -> multimodal analyze/batch -> multimodal prepost. Factor-model commands below are separate workflows, not automatic stages of analyze.",
+      "uses": [
+        "Relate morphology to protein staining", "Describe tumor/immune/stromal adjacency",
+        "Compare neighborhood organization across sections"
+      ],
+      "limits": "Registration and matching uncertainty can affect every downstream statistic. Neighborhood adjacency does not prove signaling or biological cell identity.",
+      "sources": ["src/multimodal/engine.rs", "src/multimodal/fusion.rs", "src/neighborhood", "src/registration"]
+    },
+    "multiplex_study": {
+      "does": [
+        "Declared multichannel slide ingestion", "Per-marker Moran I and Geary C", "Marker-specific missing-data handling",
+        "Equal patient weighting after slide means", "Two-group patient Max-T", "Durable partial execution and resume"
+      ],
+      "input": "Study recipe with numeric/binary/categorical channels, slides, windows, patient/group IDs, radius/weight policy and inference design.",
+      "output": "Cached slide/patient results plus result.json, report.md and manifest.",
+      "used_by": "study run/describe; Python run_study; Rust analyze/execute/publish_multiplex_study.",
+      "uses": ["Compare spatial protein organization between patient groups", "Run reproducible CODEX/IMC panel analyses"],
+      "limits": "Categorical channels are retained but not treated as numeric autocorrelation marks. Missing marker values alter the analyzed graph. Unavailable required slide results suppress that marker's patient test. Experimental scope is the documented binary-symmetric-including-isolates design.",
+      "sources": ["src/multiplex_study", "docs/multiplex-study.md", "examples/multiplex-study"]
+    },
+    "pathology_maps": {
+      "does": [
+        "Annotation-distance marker/density profiles", "Multiscale cell-type neighborhood composition",
+        "Single-marker local Moran hotspot/outlier maps"
+      ],
+      "input": "Calibrated cell markers/phenotypes, observation windows, supplied annotations and declared radii/distance bands.",
+      "output": "JSON/report plus per-slide SVG and per-cell GeoJSON map layers.",
+      "used_by": "pathology maps; Rust analyze_pathology_maps/publish_pathology_maps compose clipped annotation-offset geometry, soft-neighborhood composition and local Moran.",
+      "uses": ["Tumor-border or vessel-distance gradients", "Immune neighborhood composition", "Local Ki67 or other marker hotspots"],
+      "limits": "Annotations and measurements are supplied upstream. Local maps are within-slide summaries, not independent patient observations.",
+      "sources": ["src/pathology_maps", "docs/pathology-maps.md"]
+    },
+    "pathology_composition": {
+      "does": [
+        "Patient cell-type fractions and area-normalized density", "Geometric balances and amalgamated log ratios",
+        "Clipped-grid density heterogeneity", "Grid-size/origin sensitivity (MAUP)",
+        "Joint patient Max-T and within-group bootstrap intervals"
+      ],
+      "input": "Typed cells, patient/group/slide IDs, windows, declared log-ratio groups and grid designs.",
+      "output": "Patient and contrast tables, grid GeoJSON, MAUP SVG, JSON and report.",
+      "used_by": "pathology composition pools counts/areas across each patient's slides before group inference.",
+      "uses": [
+        "Compare immune/tumor abundance", "Separate relative composition from absolute density",
+        "Check whether regional heterogeneity depends on sampling-grid choices"
+      ],
+      "limits": "No automatic pseudocounts for zeros. Unavailable endpoints are excluded from the family without silently dropping patients. Marginal bootstrap intervals are not simultaneous intervals.",
+      "sources": ["src/pathology_study/composition.rs", "docs/pathology-studies.md"]
+    },
+    "pathology_spatial_study": {
+      "does": [
+        "Intensity-adjusted L-r, g-1 and directed cross-g-1", "Gaussian plug-in or refitted simulation nulls",
+        "Optional prespecified bandwidth selection/cross-fitting", "Binary-compartment conditional nulls",
+        "Declared sparse-type support rule", "Within-slide ERL envelopes",
+        "Area-weighted patient curves and functional group tests", "Null-curve export"
+      ],
+      "input": "Typed cells/windows, patient/group declarations, common radii, intensity/edge/null/support settings and optional compartment geometry.",
+      "output": "Slide/patient curves, null-curves.json, curve plots, JSON and report; separate within-slide, across-slide and patient-group inference.",
+      "used_by": "pathology spatial-study composes spatial intensity, pair statistics, simulation envelopes and cohort curve inference.",
+      "uses": [
+        "Compare patient groups' clustering after accounting for density", "Measure immune-to-tumor cross-type organization",
+        "Assess spatial-model sensitivity"
+      ],
+      "limits": "Spatial simulations condition on counts; theoretical Poisson reference curves are not the finite-count null. No dropping or interpolating unsupported radii/patients. Fixed-bandwidth rectangular observed L-r has Experimental evidence; other configurations remain Research.",
+      "sources": ["src/pathology_study/spatial.rs", "src/inhomogeneous_spatial/study_fit.rs", "docs/pathology-studies.md"]
+    },
+    "pathology_scan": {
+      "does": [
+        "Cell-centered circular search across declared radii", "Stratified Bernoulli enrichment likelihood ratio",
+        "Repeat-the-search label-permutation test", "Across-slide Bonferroni correction"
+      ],
+      "input": "Target phenotype, eligible cells, strata, windows and prespecified scan radii.",
+      "output": "Best circle per slide, enrichment/test results, strata tables, SVG/GeoJSON, JSON and report.",
+      "used_by": "pathology scan searches and re-searches within each slide; it does not perform a patient-group hotspot comparison.",
+      "uses": ["Detect unusually concentrated immune or abnormal-cell regions", "Prioritize regions for independent review"],
+      "limits": "Only the best qualifying circle is tested; secondary clusters are not. A scan circle is not a lesion boundary, and may span disconnected tissue.",
+      "sources": ["src/pathology_study/scan.rs", "docs/pathology-studies.md"]
+    },
+    "pathology_architecture": {
+      "does": [
+        "Tumor-bulk closing/filling/clipping from declared epithelium/lumen/mucin",
+        "Invasive-front derivation with exclusions and declared-front distance agreement",
+        "Signed front-distance bands and exact region overlap areas", "Component class/area/perimeter/holes/fragmentation",
+        "Lumen containment and contour curvature", "Raster skeleton branching and length",
+        "ITBCC-style budding candidates, front-constrained hotspot and Bd grade",
+        "Nuclear circularity/solidity/aspect ratio/front alignment",
+        "Cell attachment and spatial-transcriptomic spot coverage fractions"
+      ],
+      "input": "Calibrated tissue/epithelium/architecture-region polygons, provenance, optional lumen/mucin/front layers, epithelial cell labels/nuclear measurements and registered circular spots.",
+      "output": "Component/band/cell/spot tables, front/bulk GeoJSON and complete JSON result.",
+      "used_by": "pathology architecture; Rust analyze/publish; Python QuPath annotation conversion and run_pathology_architecture. Spot IDs provide an explicit join to external expression/protein tables.",
+      "uses": [
+        "Quantify glandular/solid/fragmented architecture along an invasive front",
+        "Compare morphology and registered cell states", "Describe mixed tissue coverage of capture spots",
+        "Support reviewed tumor-budding measurement"
+      ],
+      "limits": "No epithelial segmentation or class prediction. Region overlap uses geometric areas; whole-component class uses its interior point. Budding depends on supplied components/nuclei and lacks pathologist validation. Nuclear alignment is a shape descriptor, not a force measurement.",
+      "sources": ["src/pathology_architecture.rs", "docs/pathology-architecture.md", "clients/python/upstream_formats.py"]
+    },
+    "embedding_artifacts_and_scales": {
+      "does": [
+        "Cell/patch/region/slide vector tables", "Identity and row-link validation",
+        "Declared model/tensor/normalization provenance", "Patch footprints and overlap graphs",
+        "Cell-to-patch assignment/context", "Patch-to-region links", "Overlap/dependency-aware summaries",
+        "Region/slide aggregation and aggregation-path discrepancy", "Strict verified Arrow IPC/Parquet storage"
+      ],
+      "input": "Externally generated finite vectors, exact object links, coordinates/footprints, source declarations and optional overlap weights.",
+      "output": "Bound and verified multiscale embedding artifacts, linkage/QC and dispersion summaries.",
+      "used_by": "marklab::embeddings and marklab-embeddings; verified artifact graphs feed cell/patch/region analysis rather than relying on row position alone.",
+      "uses": [
+        "Connect morphology features across cell, patch and slide scales",
+        "Avoid counting overlapping patches as independent support",
+        "Preserve exact identity during vector import and aggregation"
+      ],
+      "limits": "No encoder inference/training. Internal columnar profiles intentionally reject arbitrary Arrow/Parquet schemas. Aggregation requires explicit support and producer declarations.",
+      "sources": [
+        "crates/marklab-embeddings/src/lib.rs", "crates/marklab-embeddings/src/multiscale", "docs/public-api.md",
+        "docs/formats.md"
+      ]
+    },
+    "embedding_spatial_analysis": {
+      "does": [
+        "Vector and projected semivariograms", "Embedding-feature and cross-modal covariance by distance",
+        "Embedding kernels and kernel mark correlation", "Permutation envelopes for spatial dependence",
+        "Multiscale embedding kernels", "Binary-group nucleus-area contrast",
+        "Cell embedding versus binary/probability/nucleus-area summaries", "Contained-patch nucleus-area contrasts",
+        "Cell/patch/region overlap dispersion", "Leakage-aware analogous-region retrieval"
+      ],
+      "input": "Identity-aligned cell/patch vectors, coordinates, distance bins or kernels, mark/morphology values and declared support/splits.",
+      "output": "Spatial curves, covariance matrices, kernel artifacts, contrasts, dispersion metrics or ranked analogous regions.",
+      "used_by": "marklab::embeddings and marklab-embeddings::analysis; bayes embedding commands expose descriptive computations as well as models; selected project routes add caching.",
+      "uses": [
+        "Measure morphology-feature similarity across distance", "Compare morphology with measured protein patterns",
+        "Retrieve comparable tissue regions", "Assess which spatial scales carry feature dependence"
+      ],
+      "limits": "A bayes command prefix does not imply Bayesian inference. Unweighted observed vector semivariograms have scoped Experimental agreement; other extensions remain Research. Vector dimensions/features and preprocessing must be comparable.",
+      "sources": [
+        "crates/marklab-embeddings/src/analysis/mod.rs", "src/lib.rs", "docs/variograms.md",
+        "crates/marklab-prediction/src/retrieval.rs"
+      ]
+    },
+    "multimodal_factor_and_complementarity_models": {
+      "does": [
+        "Probabilistic CCA and Bayesian PCCA", "MOFA and matrix factors", "Hierarchical and spatial matrix factors",
+        "Tensor factors", "Spatial latent factors with dense GP or SPDE prior", "Multiresolution factors",
+        "Dropout-robust factors and joint pathology models",
+        "Patient-level nested ridge comparisons of baseline/cell/patch/neighborhood/measured features"
+      ],
+      "input": "Declared aligned modality matrices/tensors, hierarchy/spatial support, missingness and patient training/held-out design.",
+      "output": "Factors/loadings, shared variation, model diagnostics or held-out complementarity comparisons.",
+      "used_by": "multimodal model commands; multimodal compare-models and bayes test-cell-patch-complementarity; durable project counterpart for complementarity.",
+      "uses": [
+        "Explore shared morphology/protein variation", "Test whether cells and patches add distinct predictive information",
+        "Compare feature scales under patient-held-out evaluation"
+      ],
+      "limits": "Separate from multimodal analyze; no automatic factor fitting in the basic registration workflow. Factors are not validated cell states, learned niches or causal mechanisms.",
+      "sources": [
+        "src/bin/marklab/multimodal_model.rs", "crates/marklab-embeddings/src/analysis/complementarity.rs",
+        "docs/python-backends.md"
+      ]
+    },
+    "graph_analysis": {
+      "does": [
+        "Laplacian spectral basis and frequency-band energies", "Exact/Chebyshev heat diffusion and distances",
+        "Spectral/diffusion wavelets", "First/second-order scattering and perturbation sensitivity",
+        "Stratified spectrum-null summaries", "Sparse physical-radius basis/heat/Fourier/wavelet/scattering workflows",
+        "Group degree/closeness/average clustering", "Dirichlet energy, permutation smoothness and local embedding roughness",
+        "Heterogeneous-edge message passing", "Hypergraph aggregation", "Typed triangle motifs",
+        "Hodge gradient/curl/harmonic edge-signal decomposition", "Signals on declared cellular complexes"
+      ],
+      "input": "Declared weighted graphs/signals or physical points/radius; optional edge types, hyperedges, triangles/incidence, strata and perturbations.",
+      "output": "Operators, spectra, energies, diffused signals, multiscale features, stability, motifs, group centrality or signal decompositions.",
+      "used_by": "marklab-graph; graph commands; bayes graph-signal/embedding commands; selected sparse/signal/motif project routes. graph validate exercises mathematical oracles.",
+      "uses": [
+        "Multiscale tissue fingerprints", "Cell-feature smoothness", "Graph position of cell classes",
+        "Typed local arrangements", "Flow/circulation on declared relations"
+      ],
+      "limits": "Graph construction is part of the hypothesis. No individual betweenness or learned niche/community model. Observed group scores have Experimental evidence; other graph features remain Research and lack calibrated tissue-cohort interpretation.",
+      "sources": [
+        "crates/marklab-graph/src/lib.rs", "src/bin/marklab/graph.rs", "docs/group-centrality.md", "docs/research-workflows.md"
+      ]
+    },
+    "topology": {
+      "does": [
+        "Alpha-complex persistence", "Witness persistence with farthest-point landmarks", "Landmark and bottleneck stability",
+        "Patient-group persistence-diagram comparisons", "Topology stability under declared perturbations",
+        "Distance-threshold connectivity transitions", "Binary-mask area/perimeter/Euler and morphology curves"
+      ],
+      "input": "Physical points or persistence diagrams with patient labels; masks/pixel size/connectivity; declared filtrations, landmarks and perturbations.",
+      "output": "Simplices and birth/death pairs, diagram summaries/comparisons, stability distances, mask morphology or connectivity transitions.",
+      "used_by": "marklab-topology types/native connectivity; topology CLI orchestrates GUDHI persistence and scikit-image morphology workers; witness workflows have project routes.",
+      "uses": [
+        "Connected clusters and loops across scales", "Segmentation/landmark sensitivity",
+        "Patient-level comparison of declared topological features"
+      ],
+      "limits": "GUDHI is the persistence implementation, not an independent validation oracle. Features are not automatically anatomical structures or biomarkers; pixel conventions affect raster topology.",
+      "sources": ["crates/marklab-topology/src/lib.rs", "src/bin/marklab/topology.rs", "docs/research-workflows.md"]
+    },
+    "nonrigid_registration": {
+      "does": [
+        "Image displacement registration", "Stationary velocity fields", "Diffeomorphic landmark registration",
+        "Probabilistic SVF", "Landmark uncertainty propagation", "Multi-specimen atlas construction"
+      ],
+      "input": "Images or corresponding landmarks with explicit frames/spacing, deformation settings and uncertainty model.",
+      "output": "Transforms/deformations, alignment and uncertainty diagnostics or registered atlas.",
+      "used_by": "registration commands use Python workers; separate spatial3d workflows explicitly propagate registration uncertainty into serial/longitudinal K analyses.",
+      "uses": ["Align sections/stains", "Construct specimen atlases", "Assess how registration affects spatial conclusions"],
+      "limits": "Correspondence is assumed or modeled. Deformation alone cannot distinguish biological change from cutting/mounting artifacts.",
+      "sources": ["src/bin/marklab/registration.rs", "docs/research-workflows.md"]
+    },
+    "spatial_3d": {
+      "does": [
+        "Cuboid and exact voxel-window K/L3", "None/border/translation edge correction", "Dimensionless SPD anisotropy metric",
+        "Intensity-reweighted K and directed cross-K/cross-g", "Radius/kNN-union graphs with binary/Gaussian weights",
+        "Nominal/possible/guaranteed neighbors under location uncertainty", "Serial-section stack reconstruction",
+        "Registered serial voxel K", "Registered longitudinal voxel-K change with deformation/control draws",
+        "Exact 3-D alpha complexes", "Deformation versus declared biological change", "Uncertain clone-location models"
+      ],
+      "input": "Calibrated 3-D points, cuboid/voxel window and spacing, types/intensities/uncertainty; advanced workflows add section registration, transforms, draws or clone records.",
+      "output": "K/cross curves, voxel geometry, spatial graph, registered-volume/change diagnostics, alpha topology or clone-location contrasts.",
+      "used_by": "marklab-spatial3d; flat spatial3d CLI routes; project caches four principal K workflows. Registered analyses run the same voxel K engine after declared coordinate mapping.",
+      "uses": [
+        "Volumetric clustering and type interactions", "Serial-section reconstruction",
+        "Registration-aware longitudinal organization", "3-D connectivity and clone phylogeography"
+      ],
+      "limits": "No independent 3-D K comparison or validated serial-section patient cohort. Window must represent actual observation. Registration draws/controls are explicit inputs; no same-cell tracking or causal change claim. Bayesian GP inverse-square anisotropy output cannot directly serve as dimensionless K anisotropy.",
+      "sources": [
+        "crates/marklab-spatial3d/src/lib.rs", "src/bin/marklab/spatial3d.rs", "src/bin/marklab/spatial3d_model.rs",
+        "src/bin/marklab/spatial3d_registered", "docs/research-workflows.md"
+      ]
+    },
+    "cohort_inference": {
+      "does": [
+        "Patient-label and within-patient paired permutations", "Paired/ordinary single-step or step-down Max-T",
+        "Blocked, covariate-matrix and cluster permutations", "Repeated-measure Freedman-Lane", "Hierarchical Max-T gatekeeping",
+        "Functional L2 permutation and simultaneous equivalence", "Kernel MMD and energy-distance tests",
+        "TOST equivalence and directional noninferiority", "Patient/specimen hierarchical bootstrap",
+        "Multisite fixed/REML random-effects synthesis and covariate contrasts", "Spatial fingerprints and region compatibility",
+        "Patient-nested field reduction and Max-T calibration"
+      ],
+      "input": "Declared patient endpoints or curves plus groups, pairs, blocks, clusters, sites, covariates, hierarchy and prespecified margins where applicable.",
+      "output": "Effects, p-values/adjusted families, uncertainty intervals, heterogeneity/sensitivity, distances and patient summaries.",
+      "used_by": "marklab-cohort; cohort CLI; selected project routes; integrated study/pathology workflows. Other spatial/model endpoints require explicit patient-level aggregation and compatible tables.",
+      "uses": [
+        "Patient-group or paired contrasts", "Adjust for nuisance covariates/sites", "Test practical equivalence",
+        "Compare multivariate or functional tissue signatures"
+      ],
+      "limits": "Cells are not cohort replicates. Exchangeability and covariate/block designs must match sampling. Two-group Max-T has scoped Experimental evidence; other designs remain Research. Nonsignificance is not equivalence.",
+      "sources": [
+        "crates/marklab-cohort/src/lib.rs", "src/bin/marklab/cohort.rs",
+        "docs/validation-jackson.md"
+      ]
+    },
+    "bayesian_hierarchies": {
+      "does": [
+        "Conjugate normal mean and Gaussian patient hierarchy", "Robust Student-t hierarchy",
+        "Negative-binomial count hierarchy", "Beta-binomial hierarchy/group/gender/patient-slide effects",
+        "Dirichlet-multinomial group composition", "Hurdle presence/positive-abundance model",
+        "Ordinal/group-site/nonproportional ordinal models and whole-site holdout",
+        "Gaussian crossed/nested effects and variance partition", "Meta-analysis"
+      ],
+      "input": "Counts, continuous/ordered outcomes and grouping/covariate data with declared priors and fitting controls.",
+      "output": "Posterior effects/uncertainty, model diagnostics and model-specific predictive/sensitivity results.",
+      "used_by": "marklab-bayes models; bayes commands invoke model-specific workers; selected fits have project counterparts. Agreement/SBC/sensitivity exist only for the named command variants.",
+      "uses": [
+        "Patient/slide heterogeneity", "Overdispersed composition contrasts", "Robust measurements",
+        "Ordered outcomes across sites", "Pool study effects"
+      ],
+      "limits": "Research evidence is model-specific. Nonconverged fits remain diagnostic. Variance partition is a mean share of random-effect/residual variance, not R-squared or fixed-effect variance.",
+      "sources": [
+        "crates/marklab-bayes/src/lib.rs", "src/bin/marklab/bayes/cli_schema.rs", "docs/python-backends.md",
+        "docs/capabilities.md"
+      ]
+    },
+    "bayesian_spatial_fields": {
+      "does": [
+        "GP regression, multi-output and anisotropic 3-D GP", "Variational GP, predictive-process and NNGP approximations",
+        "CAR/sparse CAR/GMRF", "SAR likelihood/fit", "BYM/BYM2", "Spatially varying coefficients", "Distance-to-resource models",
+        "Rectangular SPDE intensity/spatial factors", "Adaptive polygon-window and nonstationary anisotropic SPDE"
+      ],
+      "input": "Spatial outcomes/covariates, coordinates or adjacency, optional mesh, priors and resource constraints.",
+      "output": "Field/effect predictions, density/likelihood values or fitted posterior/optimization summaries according to the command.",
+      "used_by": "bayes field/SPDE commands; selected project routes; dense GP/SPDE priors also support multimodal spatial factors.",
+      "uses": [
+        "Smooth correlated tissue measurements", "Model regional adjacency", "Spatially varying effects", "Resource gradients",
+        "Large-field approximations"
+      ],
+      "limits": "Some density/build commands evaluate or construct models without fitting. Anisotropic GP needs identifiable axis scales; its inverse-square plug-in metric has physical units. Approximation/mesh assumptions and convergence remain explicit.",
+      "sources": [
+        "src/bin/marklab/bayes/cli_schema.rs", "src/bin/marklab/bayes_advanced.rs", "crates/marklab-bayes/src",
+        "docs/python-backends.md"
+      ]
+    },
+    "bayesian_point_processes": {
+      "does": [
+        "Covariate-dependent Poisson likelihood/fit and Berman-Turner refinement", "Gridded and polygon-window LGCP",
+        "Replicated LGCP with fixed/inferred kernels", "Replicated multitype and correlated multitype LGCP",
+        "Conditional multitype marks at fixed locations", "Joint replicated location-scalar/embedding models",
+        "Thomas and Matern cluster simulation", "Thomas K-curve minimum contrast",
+        "Bayesian latent-parent Thomas birth-death MCMC", "Strauss statistics/simulation/pseudolikelihood",
+        "Geyer saturation and multitype Papangelou intensities", "Posterior predictive point patterns and spatial checks"
+      ],
+      "input": "Locations/types/marks, observation windows, covariates/quadrature, replication and priors or declared process parameters.",
+      "output": "Likelihood/model specification, posterior intensity/mark/cluster summaries, generated patterns or predictive diagnostics.",
+      "used_by": "bayes point-process/build/fit commands; selected project routes cache polygon/replicated models; posterior checks compare generated and observed spatial summaries.",
+      "uses": [
+        "Separate abundance/intensity from conditional mark organization", "Pool replicated tissue fields",
+        "Model multitype spatial variation", "Compare cluster/interaction hypotheses"
+      ],
+      "limits": "Build commands do not imply a completed fit. Gibbs statistics/pseudolikelihood are not a general exact continuous-space Gibbs posterior. Dense Thomas fits can mix slowly; a real-data location-embedding fit did not converge. Research scope remains model-specific.",
+      "sources": [
+        "src/bin/marklab/bayes/cli_schema.rs", "crates/marklab-bayes/src", "crates/marklab-simulation/src/lib.rs",
+        "docs/bayesian-thomas-cluster.md"
+      ]
+    },
+    "inference_and_model_checks": {
+      "does": [
+        "Fixed-step normal HMC and SMC", "Poisson log-rate Laplace approximation",
+        "Poisson-lognormal precision-grid INLA-style integration", "PSIS-LOO and candidate-model ranking",
+        "Normal-mean native prior sensitivity", "Model-specific PyMC/NumPyro agreement", "Simulation-based calibration",
+        "Prior calibration and prior/model/quadrature sensitivity", "Posterior predictive checks"
+      ],
+      "input": "Declared observations/models or posterior log likelihoods; priors, simulation scenarios, quadrature and diagnostic criteria.",
+      "output": "Approximate/posterior summaries, LOO scores/Pareto diagnostics, calibration ranks/coverage, agreement/sensitivity or predictive discrepancies.",
+      "used_by": "bayes named inference and check commands wrap specific models; validation tools are not generic proof of every model's accuracy.",
+      "uses": [
+        "Compare candidate models", "Check fitting/calibration failures", "Assess sensitivity to assumptions",
+        "Evaluate predictive model fit"
+      ],
+      "limits": "Sampling convergence, backend agreement, SBC and public-cohort validity are different evidence. An implemented check is not a claim it passed on the user's data.",
+      "sources": [
+        "src/bin/marklab/bayes/cli_schema.rs", "src/bin/marklab/bayes_advanced.rs", "docs/normal-mean-prior-sensitivity.md",
+        "docs/python-backends.md"
+      ]
+    },
+    "optimal_transport": {
+      "does": [
+        "Balanced entropic Sinkhorn", "Dustbin soft assignment", "KL-relaxed unbalanced Sinkhorn", "Declared-mass partial OT",
+        "Full, partial and unbalanced fused Gromov-Wasserstein"
+      ],
+      "input": "Source/target masses and feature/cross-costs; FGW adds within-set geometry and declared feature/structure scales.",
+      "output": "Couplings/assignments, matched/unmatched mass, objective/convergence and multistart diagnostics.",
+      "used_by": "marklab-transport; bayes transport commands; project fused-gromov-wasserstein. Basic Sinkhorn is native; FGW uses POT and partial OT uses SciPy.",
+      "uses": [
+        "Exploratory cross-section alignment", "Match feature and geometric structure",
+        "Allow partial overlap or changing total mass"
+      ],
+      "limits": "Coupling is not cell identity. FGW is nonconvex and uses multiple starts; unbalanced zero-mass collapse errors. No calibrated biological correspondence test.",
+      "sources": ["crates/marklab-transport/src/lib.rs", "src/bin/marklab/bayes/transport.rs", "docs/research-workflows.md"]
+    },
+    "prediction": {
+      "does": [
+        "Platt calibration and calibration diagnostics", "Shrinkage distance-based OOD scoring",
+        "Uncertainty/OOD threshold abstention", "Grouped conformal binary prediction sets", "Regularized late fusion",
+        "Held-out predictive stacking", "Context-gated mixture of experts", "Missing-modality and ablation analysis"
+      ],
+      "input": "Patient-level scores/features/labels with explicit training/calibration/test splits; out-of-fold base predictions for fusion.",
+      "output": "Calibrated probabilities/sets/coverage, OOD and abstention decisions, fusion/gating weights and held-out performance diagnostics.",
+      "used_by": "marklab-prediction; bayes prediction commands consume declared upstream model outputs. Region retrieval is a separate embedding workflow.",
+      "uses": [
+        "Evaluate multimodal prediction", "Detect unsupported representations", "Inspect missing-modality robustness",
+        "Report uncertainty on held-out patients"
+      ],
+      "limits": "Coverage/calibration depend on split/exchangeability assumptions. Base predictions must satisfy the declared out-of-fold contract. No demonstrated clinical safety or general real-cohort predictive validity.",
+      "sources": [
+        "crates/marklab-prediction/src/lib.rs", "src/bin/marklab/bayes/prediction_safety.rs",
+        "src/bin/marklab/bayes/cli_schema.rs"
+      ]
+    },
+    "simulation": {
+      "does": [
+        "Seeded fixed-fraction random labeling", "1-D Fisher-KPP growth front", "1-D Lotka-Volterra spatial competition",
+        "Exact stochastic two-species agent competition", "Periodic 2-D reaction-diffusion", "2-D level-set interface evolution",
+        "Vessel-source transport in a static flow field", "Coupled vascular/agent/field tissue simulation",
+        "Observed/generated summary matching"
+      ],
+      "input": "Windows/grids, initial states, equations/parameters, boundary/numerical settings, seeds and budgets.",
+      "output": "Synthetic cells, trajectories/states, solver diagnostics or weighted summary losses.",
+      "used_by": "marklab-simulation and simulate CLI; the Fisher-KPP solver is directly consumed by growth-front SBI. Point-process simulators are also exposed under bayes.",
+      "uses": [
+        "Synthetic controls", "Explore growth/competition/transport hypotheses", "Compare model-generated spatial summaries",
+        "Assess design sensitivity"
+      ],
+      "limits": "Equations and parameters are hypotheses; summary matching does not identify or validate a mechanism in real tissue.",
+      "sources": ["crates/marklab-simulation/src/lib.rs", "src/cli/simulate.rs", "docs/research-workflows.md"]
+    },
+    "simulation_based_inference": {
+      "does": [
+        "Rejection ABC for growth rate", "Sequential Monte Carlo ABC", "Gaussian synthetic likelihood", "Growth-front SBC",
+        "Simulation-support/OOD checks", "Posterior-predictive growth-front laboratory"
+      ],
+      "input": "Observed summaries, Fisher-KPP initial state/design, prior/tolerance and simulation/particle budgets.",
+      "output": "Accepted/weighted posterior draws, support decisions, calibration or predictive checks.",
+      "used_by": "marklab-sbi -> marklab-simulation Fisher-KPP; bayes growth-front inference commands; project smc-abc-growth-front caches the SMC route.",
+      "uses": [
+        "Infer simulator parameters", "Check whether observations lie within simulator support",
+        "Assess recovery and posterior fit on synthetic controls"
+      ],
+      "limits": "Current workflows are specific simulator/summary contracts. Similar summaries may come from different parameters or mechanisms.",
+      "sources": ["crates/marklab-sbi/src/lib.rs", "src/bin/marklab/bayes/cli_schema.rs"]
+    },
+    "neural_models": {
+      "does": [
+        "Neural point-process intensity and categorical marks", "Declared flow/diffusion point-set generators",
+        "Neural posterior/ratio simulation-based inference", "Generated/reference and repeated-generation validation"
+      ],
+      "input": "Point patterns/windows, patient splits/context or declared simulations/priors with architecture/training/resource settings.",
+      "output": "Intensity/mark predictions, generated patterns, posterior summaries or generative diagnostics.",
+      "used_by": "neural CLI orchestrates locked JAX/torch/sbi or model-specific workers.",
+      "uses": ["Explore learned point-process models", "Generate synthetic spatial patterns", "Experiment with neural SBI"],
+      "limits": "This family does not train image encoders. Synthetic checks do not establish tissue posterior coverage or real-cohort performance.",
+      "sources": ["src/bin/marklab/neural.rs", "docs/research-workflows.md", "workers/python/pyproject.toml"]
+    },
+    "causal_designs": {
+      "does": [
+        "Randomized effects under spatial interference", "Neighborhood exposure mapping", "Gaussian expected information gain",
+        "Unmeasured-confounder bias sensitivity", "Manski bounded-outcome ATE bounds", "Rosenbaum matched-pair sign sensitivity",
+        "Cluster-cross-fitted observational estimation", "Randomized direct/spillover/mediation analysis",
+        "Budgeted active acquisition/replication design"
+      ],
+      "input": "Treatment/outcomes, units/clusters, covariates, interference graph and explicit identification/design assumptions.",
+      "output": "Effects/exposures, sensitivity curves/bounds, information gain or selected acquisitions/power diagnostics.",
+      "used_by": "marklab-causal and causal CLI; selected project randomized-interference/gaussian-eig routes; advanced designs use Python workers.",
+      "uses": [
+        "Plan spatial perturbations", "Estimate spillover under randomization", "Bound conclusions under hidden confounding",
+        "Prioritize acquisitions under a budget"
+      ],
+      "limits": "Requires the stated randomization/exposure/observational identification assumptions. Tissue association alone does not satisfy them.",
+      "sources": ["crates/marklab-causal/src/lib.rs", "src/bin/marklab/causal.rs", "src/bin/marklab/causal_model.rs"]
+    },
+    "longitudinal": {
+      "does": [
+        "Linear-Gaussian Kalman filtering/RTS smoothing", "Scalar nonlinear filtering",
+        "Particle filtering and trajectory smoothing", "Permutation association of phylogenetic and spatial distances"
+      ],
+      "input": "Repeated observations with transition/noise model, nonlinear/particle settings or clone/tree and spatial distances.",
+      "output": "Predicted/filtered/smoothed states and uncertainty, likelihood diagnostics or distance-association inference.",
+      "used_by": "marklab-longitudinal; longitudinal CLI; project longitudinal-kalman-smooth. Registered 3-D timepoint change is a separate spatial3d flow.",
+      "uses": ["Latent trajectory estimation", "Repeated-section summary modeling", "Clone spatial/phylogenetic association"],
+      "limits": "Conditional on the declared dynamical/noise model; no real repeated-patient clinical validation or same-cell tracking.",
+      "sources": ["crates/marklab-longitudinal/src/lib.rs", "src/bin/marklab/longitudinal.rs", "docs/research-workflows.md"]
+    },
+    "numerical_foundation": {
+      "does": [
+        "Compensated finite summation", "Stable log-sum-exp/log-mean-exp", "Normalized weighted means and two-pass covariance",
+        "Cholesky/triangular and dense linear solves", "Matern-3/2 kernel", "Sigmoid/clipped logit",
+        "Tied-curve ERL global envelopes"
+      ],
+      "input": "Finite vectors/matrices/weights or aligned observed/null curves with explicit size/work limits.",
+      "output": "Stable numerical summaries/solutions or explicit singular/unavailable failures; global-envelope depths/bounds/p-values.",
+      "used_by": "marklab-numerics underlies spatial sums, covariance, graph/kernel/kriging computations and ERL inference; numerics stable-primitives exposes selected operations.",
+      "uses": ["Custom Rust analyses using the same numerical policies", "Method checks against known small problems"],
+      "limits": "Primitives are not separate scientific models; numerical stability is not evidence of biological validity.",
+      "sources": ["crates/marklab-numerics/src/lib.rs", "crates/marklab-numerics/src/envelope.rs"]
+    },
+    "durable_execution_and_policy": {
+      "does": [
+        "Typed workflow DAG and local scheduler", "Artifact catalogs and verified storage", "Transactional publication/recovery",
+        "Compatible result caching and dependent invalidation", "Resumable marked and multiplex workflows",
+        "Explicit execution-mode/maturity/validation-ladder decisions", "Synthetic smoke and profiling-plan utilities"
+      ],
+      "input": "Declared nodes, dependencies, input artifacts, algorithm/runtime identity, seeds and resource limits; policy decisions consume declared evidence flags.",
+      "output": "Stored artifacts, node/run/cache/recovery status, completed reports or policy decisions.",
+      "used_by": "project's explicit command subset, study run and public workflow nodes; backend doctor checks the installed worker runtime.",
+      "uses": ["Resume long analyses", "Reuse unchanged intermediate results", "Compose auditable local scientific workflows"],
+      "limits": "No universal automatic pipeline connecting all commands. Cached execution and declared policy flags do not promote scientific validity. The scheduler is local, not a distributed service.",
+      "sources": [
+        "crates/marklab-workflow/src/lib.rs", "crates/marklab-project/src/lib.rs", "crates/marklab-policy/src/lib.rs",
+        "src/bin/marklab/project/cli_schema.rs"
+      ]
+    },
+    "python_backend_runtime": {
+      "does": [
+        "Pinned Python 3.12 model workers", "PyMC/NumPyro fits and backend agreement",
+        "GUDHI, scikit-image, POT, SimpleITK, MOFA, CCA and neural workers",
+        "Isolated process environment and bounded execution", "Locked-version doctor checks",
+        "Compatible saved-result reuse without new backend execution"
+      ],
+      "input": "Worker assets, locked environment, serialized requests and explicit runtime/cache configuration.",
+      "output": "Identity-checked worker results, version/runtime diagnostics or explicit failure.",
+      "used_by": "Model-specific CLI orchestration and durable project nodes. MARKLAB_RUNTIME_ROOT, MARKLAB_PYTHON, MARKLAB_BACKEND_CACHE and MARKLAB_BACKEND_PATH configure execution; MARKLAB_DISABLE_EXTERNAL_BACKEND_EXECUTION blocks new launches.",
+      "uses": [
+        "Run selected external scientific implementations reproducibly", "Detect runtime/package mismatches",
+        "Reuse verified completed fits"
+      ],
+      "limits": "Doctor checks installation/versions, not numerical accuracy, model suitability or GPU support. Linux is the CI reference; all families retain their own evidence and platform limits.",
+      "sources": ["src/python_backend.rs", "workers/python/pyproject.toml", "docs/python-backends.md"]
+    }
+  },
+  "interactions": [
+    {
+      "flow": "Upstream segmentation/classification -> calibrated cells + observed window -> marked analysis -> batch/prepost",
+      "wiring": "implemented",
+      "note": "Upstream image modeling is external; batch shares configuration, and prepost compares completed compatible analyses."
+    },
+    {
+      "flow": "H&E + IHC + landmarks -> registration -> fused cells -> graph -> enrichment/cross-curves/territories",
+      "wiring": "implemented",
+      "note": "The basic multimodal pipeline; registration quality affects downstream interpretation."
+    },
+    {
+      "flow": "Multiplex cells -> per-marker slide autocorrelation -> patient means -> Max-T report",
+      "wiring": "implemented",
+      "note": "study runs and caches the complete chain; each patient counts once."
+    },
+    {
+      "flow": "Typed patient slides -> composition/grid sensitivity or intensity-adjusted curves -> patient-group inference",
+      "wiring": "implemented",
+      "note": "pathology composition and spatial-study use different pooling and null designs."
+    },
+    {
+      "flow": "Annotated structures + cells -> interface distances/neighborhood composition/local Moran -> maps",
+      "wiring": "implemented",
+      "note": "pathology maps produces physical-coordinate SVG/GeoJSON layers."
+    },
+    {
+      "flow": "Epithelium + declared regions -> bulk/front/bands -> architecture/nuclei/buds/spot coverage",
+      "wiring": "implemented",
+      "note": "pathology architecture; spot-expression joins occur downstream using explicit spot IDs."
+    },
+    {
+      "flow": "Cell/patch vectors + exact links -> multiscale support -> spatial features or held-out complementarity",
+      "wiring": "explicit composition",
+      "note": "Artifacts and individual methods exist; callers choose compatible feature definitions and patient splits."
+    },
+    {
+      "flow": "Section/graph/topology/embedding features -> patient endpoints -> cohort/Bayesian/prediction models",
+      "wiring": "explicit composition",
+      "note": "Requires declared endpoint construction and aggregation; arbitrary output JSON is not an automatic next-command input."
+    },
+    {
+      "flow": "Growth-front simulator -> ABC/synthetic likelihood -> posterior-predictive and support checks",
+      "wiring": "implemented",
+      "note": "The SBI growth-front routes directly call the native simulator."
+    },
+    {
+      "flow": "Registered serial/longitudinal sections -> coordinate uncertainty -> voxel-window 3-D K/change",
+      "wiring": "implemented",
+      "note": "Dedicated spatial3d routes propagate the declared registration uncertainty."
+    },
+    {
+      "flow": "Scientific command -> admitted node -> local artifact store -> compatible cache reuse",
+      "wiring": "implemented subset",
+      "note": "Only listed project routes and public workflow nodes have this execution path."
+    }
+  ],
+  "applications": [
+    {
+      "question": "Is MMR-loss or another binary stain spatially organized?",
+      "combine": ["marked_section", "prepost_and_batch"],
+      "scope": "Observed-label organization; not molecular diagnosis or clonality."
+    },
+    {
+      "question": "Are immune and tumor cells mixed, excluded or concentrated near the border?",
+      "combine": ["categorical_marks", "compartments", "pathology_maps", "pathology_spatial_study"],
+      "scope": "Choose annotation, edge and null conventions before inference."
+    },
+    {
+      "question": "Does organization differ between patient groups after accounting for abundance?",
+      "combine": ["pathology_composition", "pathology_spatial_study", "cohort_inference"],
+      "scope": "Keep composition/density and spatial-interaction hypotheses distinct."
+    },
+    {
+      "question": "Which proteins have different spatial patterns across patients?",
+      "combine": ["input_adapters", "multiplex_study"],
+      "scope": "Explicit observed channels, graph weights and independent patients."
+    },
+    {
+      "question": "How does architecture vary across an invasive front?",
+      "combine": ["pathology_architecture", "cohort_inference"],
+      "scope": "Architecture computation is integrated; patient endpoint construction/group testing requires explicit orchestration."
+    },
+    {
+      "question": "How do morphology and molecular measurements relate across space and scale?",
+      "combine": ["embedding_artifacts_and_scales", "embedding_spatial_analysis", "multimodal_factor_and_complementarity_models"],
+      "scope": "Matched identities or declared registration and patient-held-out evaluation."
+    },
+    {
+      "question": "How do capture spots mix architecture classes?",
+      "combine": ["pathology_architecture", "input_adapters"],
+      "scope": "Join coverage fractions to external expression by spot ID; expression normalization and deconvolution are external."
+    },
+    {
+      "question": "Which regions should be reviewed or compared with analogous tissue?",
+      "combine": ["pathology_scan", "embedding_spatial_analysis", "whole_slide_access"],
+      "scope": "Exploratory prioritization, not automated diagnosis."
+    },
+    {
+      "question": "Do patterns persist across sections, time or three dimensions?",
+      "combine": ["prepost_and_batch", "nonrigid_registration", "spatial_3d", "longitudinal"],
+      "scope": "Distinct sections/timepoints need explicit coordinate and sampling models."
+    },
+    {
+      "question": "Could a hypothesized mechanism generate the observed organization?",
+      "combine": ["simulation", "simulation_based_inference", "bayesian_point_processes", "topology", "graph_analysis"],
+      "scope": "Model checking and hypothesis generation; similar summaries do not identify a mechanism."
+    },
+    {
+      "question": "Do multiple modalities improve patient predictions?",
+      "combine": ["multimodal_factor_and_complementarity_models", "prediction"],
+      "scope": "Patient-held-out calibration/fusion/OOD/abstention, without a clinical-performance claim."
+    },
+    {
+      "question": "How should a perturbation or acquisition study be designed?",
+      "combine": ["causal_designs", "simulation", "cohort_inference"],
+      "scope": "Requires declared intervention, interference and identification assumptions."
+    },
+    {
+      "question": "Can these methods describe other marked point patterns?",
+      "combine": ["point_patterns_2d", "categorical_marks", "graph_analysis", "topology"],
+      "scope": "Possible after explicit mapping to supported geometry/marks/units; non-pathology validation is not claimed."
+    }
+  ],
+  "evidence": {
+    "default": "Research: implemented with method-specific synthetic/analytic checks and documented assumptions; no blanket tissue-cohort validation.",
+    "experimental_examples": [
+      "Scoped observed classical/cross-type spatial curves",
+      "Observed categorical co-occurrence and enrichment counts/exact moments",
+      "Specified global Moran/Geary and multiplex study configurations", "Observed group-centrality scores",
+      "Two-group patient Max-T", "Unweighted observed vector semivariogram", "Tested Aperio pixel reading"
+    ],
+    "core": "No workflow currently meets every documented Core criterion.",
+    "real_data_examples": {
+      "Jackson_IMC": "100 patients; composition/Max-T evidence, not spatial-arrangement validation.",
+      "other": "Published retinal point patterns, PUMA QuPath nuclei, MCMICRO tonsil and STHELAR CellViT vectors provide method/adapter-specific evidence."
+    },
+    "known_gaps": [
+      "Fitted-null and irregular-window calibration is configuration-specific",
+      "Local Moran's unconditional null differs from default conditional LISA",
+      "Bayesian Thomas dense-aggregate fits can mix slowly", "Real-data joint location-embedding pilot did not converge",
+      "No clinical diagnosis, outcome or mechanism validity follows from software tests",
+      "Windows binaries lack end-to-end testing; Python CI reference is Linux"
+    ],
+    "sources": [
+      "docs/capabilities.md", "docs/validation-methodology.md", "docs/validation-jackson.md",
+      "docs/research-workflows.md"
+    ]
+  },
+  "boundaries": {
+    "external_upstream": [
+      "Cell/tissue segmentation and classification", "Image encoder inference/training",
+      "Physical calibration and biological identity declarations", "Expression preprocessing and ligand-receptor databases"
+    ],
+    "not_implemented_as_native_pipelines": [
+      "CellCharter/UTAG/BANKSY niche discovery", "MISTy learned view decomposition", "spicyR estimator",
+      "scimap/Giotto native pipelines", "ABMIL/CLAM/TransMIL architectures",
+      "General SpatialData/OME-Zarr transform ingestion", "Generic QuPath/TIAToolbox viewer projects", "WSI writing",
+      "Inhomogeneous cross-type K", "Individual betweenness centrality", "Ecological abundance-association/niche models",
+      "Multidimensional Mapper lenses and 3-D Steinhardt order"
+    ],
+    "planned_adapter": "Native HoVer-Net JSON; not currently a supported import path.",
+    "not_established": [
+      "Diagnosis, molecular MMR status or treatment response", "Clonal identity from spatial similarity",
+      "Cell identity from transport matching", "Causality from spatial association",
+      "Mechanism identification from simulation fit", "Clinical safety from calibrated probabilities or abstention"
+    ]
+  },
+  "command_index": {
+    "root": {
+      "commands": [
+        "analyze", "batch", "classical", "extract-region", "inspect-slide", "nearest-space", "prepost", "profile-plan", "smoke"
+      ],
+      "sources": ["src/cli/schema.rs"],
+      "feature_requirements": {
+        "inspect-slide": "wsi",
+        "extract-region": "wsi"
+      }
+    },
+    "simulate": {
+      "commands": [
+        "agent-competition", "evolve-interface", "growth-front", "mechanistic-tissue", "random-labeling", "reaction-diffusion",
+        "spatial-competition", "summary-matching", "vascular-transport"
+      ],
+      "sources": ["src/cli/schema.rs"]
+    },
+    "project": {
+      "commands": [
+        "adaptive-window-spde", "arbitrary-window-ipp-likelihood", "arbitrary-window-ipp-spatial-ppc", "arbitrary-window-lgcp",
+        "beta-binomial-group-gender-regression", "beta-binomial-group-gender-slide-hierarchy", "beta-binomial-group-regression",
+        "beta-binomial-hierarchy", "categorical-cross-pair-correlation", "categorical-pair", "causal-randomized-interference",
+        "classical", "cohort-cluster-covariate-permutation", "cohort-energy", "cohort-equivalence",
+        "cohort-hierarchical-bootstrap", "cohort-hierarchical-max-t", "cohort-max-t", "cohort-mmd",
+        "cohort-multisite-covariate-contrast", "cohort-noninferiority", "conditional-multitype-mark",
+        "correlated-replicated-arbitrary-window-multitype-lgcp", "dirichlet-multinomial-group",
+        "embedding-cross-covariance-by-distance", "embedding-spatial-dependence-envelope", "fit-arbitrary-window-ipp",
+        "fused-gromov-wasserstein", "gaussian-bandwidth-selected-spatial", "gaussian-crossed-nested-hierarchy", "gaussian-eig",
+        "graph-dirichlet-energy", "graph-motif-triangle-summary", "graph-smoothness-permutation-test", "gridded-lgcp",
+        "hierarchical-normal", "hurdle-beta-binomial-group", "inhomogeneous-categorical-cross-pair-correlation",
+        "inhomogeneous-pair-correlation", "inhomogeneous-spatial", "isotropic-categorical-cross-pair-correlation",
+        "isotropic-pair-correlation", "isotropic-spatial", "joint-replicated-location-embedding",
+        "joint-replicated-location-mark", "kernel-mark-correlation", "local-embedding-roughness", "local-multivariate-moran",
+        "longitudinal-kalman-smooth", "marked-prepost", "max-t-calibration", "multiscale-embedding-kernel", "nearest-space",
+        "negative-binomial-hierarchy", "nonproportional-ordinal-group-site", "nonstationary-adaptive-window-spde", "normal-mean",
+        "ordinal-group", "ordinal-group-site-hierarchy", "ordinal-site-heldout-comparison", "patient-nested-fields",
+        "piecewise-compartment-pair-correlation", "piecewise-compartment-spatial", "projected-embedding-variograms",
+        "region-retrieval", "replicated-arbitrary-window-lgcp", "replicated-arbitrary-window-lgcp-inferred-kernel",
+        "replicated-arbitrary-window-multitype-lgcp", "replicated-arbitrary-window-multitype-lgcp-inferred-kernel",
+        "replicated-arbitrary-window-multitype-lgcp-inferred-kernel-sbc", "replicated-conditional-multitype-mark",
+        "scalar-variogram", "smc-abc-growth-front", "sparse-car-fit", "sparse-radius-basis", "sparse-radius-diffusion-wavelet",
+        "sparse-radius-fourier-energy", "sparse-radius-heat", "sparse-radius-heat-stability", "sparse-radius-scattering",
+        "spatial-varying-coefficient", "spatial3d-k-function", "spatial3d-registered-longitudinal-voxel-k-change",
+        "spatial3d-registered-serial-voxel-k", "spatial3d-voxel-k-function", "student-t-hierarchy",
+        "test-cell-patch-complementarity", "translation-categorical-cross-pair-correlation", "translation-pair-correlation",
+        "translation-spatial", "vector-semivariogram", "witness-persistence", "witness-persistence-bottleneck-stability",
+        "witness-persistence-stability"
+      ],
+      "sources": ["src/cli/schema.rs", "src/bin/marklab/project/cli_schema.rs"],
+      "note": "Only these explicit project routes are available; other public AnalysisNode types may be composed in Rust."
+    },
+    "multimodal": {
+      "commands": [
+        "analyze", "batch", "bayesian-pcca", "compare-models", "dropout-robust", "hierarchical-factor", "joint-pathology",
+        "matrix-factor", "mofa", "multiresolution-factor", "pcca", "prepost", "spatial-latent-factor", "spatial-matrix-factor",
+        "tensor-factor", "validate"
+      ],
+      "sources": ["src/cli/schema.rs", "src/bin/marklab/multimodal_model.rs"]
+    },
+    "bayes": {
+      "commands": [
+        "adaptive-window-spde", "advanced-cluster", "advanced-cluster-sbc", "anisotropic-gp-3d", "apply-abstention",
+        "arbitrary-window-ipp-agreement", "arbitrary-window-ipp-likelihood", "arbitrary-window-ipp-quadrature-sensitivity",
+        "arbitrary-window-ipp-sbc", "arbitrary-window-ipp-sensitivity", "arbitrary-window-ipp-spatial-ppc",
+        "arbitrary-window-lgcp-agreement", "arbitrary-window-lgcp-quadrature-sensitivity", "arbitrary-window-lgcp-sbc",
+        "arbitrary-window-lgcp-sensitivity", "berman-turner-refinement", "beta-binomial-group-gender-regression",
+        "beta-binomial-group-gender-regression-agreement", "beta-binomial-group-gender-regression-sbc",
+        "beta-binomial-group-gender-regression-sensitivity", "beta-binomial-group-gender-slide-hierarchy",
+        "beta-binomial-group-gender-slide-hierarchy-agreement", "beta-binomial-group-gender-slide-hierarchy-sbc",
+        "beta-binomial-group-gender-slide-hierarchy-sensitivity", "beta-binomial-group-regression",
+        "beta-binomial-group-regression-agreement", "beta-binomial-group-regression-sbc",
+        "beta-binomial-group-regression-sensitivity", "beta-binomial-hierarchy", "beta-binomial-hierarchy-agreement",
+        "beta-binomial-hierarchy-sbc", "beta-binomial-hierarchy-sensitivity", "build-gridded-lgcp",
+        "build-joint-continuous-mark-model", "build-joint-location-embedding-factor-model", "build-joint-location-mark-model",
+        "build-replicated-hierarchical-lgcp", "bym-fit", "bym2-fit", "calibrate-predictions", "car-density", "compare-models",
+        "conditional-multitype-mark-agreement", "conditional-multitype-mark-sbc", "conditional-multitype-mark-sensitivity",
+        "cross-modal-covariance-by-distance", "dirichlet-multinomial-group", "dirichlet-multinomial-group-agreement",
+        "dirichlet-multinomial-group-sbc", "dirichlet-multinomial-group-sensitivity", "distance-to-resource",
+        "embedding-cross-covariance-by-distance", "embedding-spatial-dependence-envelope", "entropic-soft-assignment",
+        "fit-arbitrary-window-ipp", "fit-arbitrary-window-lgcp", "fit-conditional-multitype-mark",
+        "fit-correlated-replicated-arbitrary-window-multitype-lgcp", "fit-gridded-lgcp", "fit-inhomogeneous-poisson",
+        "fit-joint-replicated-location-embedding", "fit-joint-replicated-location-mark", "fit-replicated-arbitrary-window-lgcp",
+        "fit-replicated-arbitrary-window-lgcp-inferred-kernel", "fit-replicated-arbitrary-window-multitype-lgcp",
+        "fit-replicated-arbitrary-window-multitype-lgcp-inferred-kernel", "fit-replicated-conditional-multitype-mark",
+        "fit-strauss-pseudolikelihood", "fit-thomas-minimum-contrast", "fused-gromov-wasserstein",
+        "gaussian-crossed-nested-hierarchy", "geyer-saturation-statistic", "gmrf-density", "gp-regression",
+        "graph-dirichlet-energy", "graph-smoothness-permutation-test", "gridded-lgcp-agreement", "gridded-lgcp-sbc",
+        "gridded-lgcp-sensitivity", "gridded-lgcp-spatial-ppc", "grouped-conformal", "growth-front-posterior-predictive-lab",
+        "growth-front-rejection-abc-sbc", "hierarchical-normal", "hierarchical-normal-agreement",
+        "hierarchical-normal-prior-sensitivity", "hierarchical-normal-sbc", "hmc-normal", "hurdle-beta-binomial-group",
+        "inhomogeneous-poisson-likelihood", "kernel-mark-correlation", "late-fusion", "local-embedding-roughness",
+        "meta-analysis", "mixture-of-experts-fusion", "multi-output-gp", "multiscale-embedding-kernel", "multitype-papangelou",
+        "negative-binomial-hierarchy", "nngp-density", "nonproportional-ordinal-group-site",
+        "nonstationary-adaptive-window-spde", "normal-mean", "normal-mean-prior-sensitivity", "normal-mean-sbc",
+        "normal-mean-smc", "ood-score", "ordinal-group", "ordinal-group-site-hierarchy", "ordinal-site-heldout-comparison",
+        "partial-fused-gromov-wasserstein", "partial-ot", "point-process-posterior-predictive-diagnostics",
+        "poisson-log-rate-laplace", "poisson-lognormal-inla", "predictive-process", "predictive-stacking",
+        "projected-embedding-variograms", "psis-loo", "rejection-abc-growth-front", "replicated-arbitrary-window-lgcp-agreement",
+        "replicated-arbitrary-window-lgcp-inferred-kernel-agreement", "replicated-arbitrary-window-lgcp-inferred-kernel-sbc",
+        "replicated-arbitrary-window-lgcp-sbc", "replicated-arbitrary-window-lgcp-sensitivity",
+        "replicated-arbitrary-window-multitype-lgcp-agreement",
+        "replicated-arbitrary-window-multitype-lgcp-inferred-kernel-agreement",
+        "replicated-arbitrary-window-multitype-lgcp-inferred-kernel-prior-calibration",
+        "replicated-arbitrary-window-multitype-lgcp-inferred-kernel-sbc",
+        "replicated-arbitrary-window-multitype-lgcp-prior-calibration", "replicated-arbitrary-window-multitype-lgcp-sensitivity",
+        "replicated-conditional-multitype-mark-agreement", "replicated-conditional-multitype-mark-sbc",
+        "replicated-conditional-multitype-mark-sensitivity", "retrieve-analogous-regions", "sar-fit", "sar-likelihood",
+        "simulate-gridded-lgcp-posterior-predictive", "simulate-matern-cluster-process", "simulate-strauss-birth-death",
+        "simulate-thomas-process", "simulation-ood", "sinkhorn-ot", "smc-abc-growth-front", "sparse-car-fit",
+        "spatial-varying-coefficient", "spde-suite", "strauss-statistics", "student-t-hierarchy",
+        "student-t-hierarchy-agreement", "student-t-hierarchy-sbc", "student-t-hierarchy-sensitivity",
+        "synthetic-likelihood-growth-front", "test-cell-patch-complementarity", "unbalanced-fused-gromov-wasserstein",
+        "unbalanced-sinkhorn", "validate-weights", "variational-gp", "vector-semivariogram"
+      ],
+      "sources": ["src/bin/marklab/bayes/cli_schema.rs", "src/bin/marklab/bayes_advanced.rs"],
+      "note": "All listed commands are flat under bayes; names such as vector-semivariogram also include descriptive non-Bayesian computations."
+    },
+    "causal": {
+      "commands": [
+        "active-design", "bias-sensitivity", "exposure-mapping", "gaussian-eig", "manski-bounds", "observational",
+        "perturbation", "randomized-interference", "rosenbaum-sign-sensitivity", "validate-active"
+      ],
+      "sources": ["src/bin/marklab/causal.rs", "src/bin/marklab/causal_model.rs"]
+    },
+    "spatial3d": {
+      "commands": [
+        "alpha-complex", "clone-models", "cross-k", "deformation-biology", "inhomogeneous-k", "k-function",
+        "registered-longitudinal-voxel-k-change", "registered-serial-voxel-k", "serial-stack", "spatial-graph",
+        "validate-advanced", "voxel-k-function"
+      ],
+      "sources": ["src/bin/marklab/spatial3d.rs", "src/bin/marklab/spatial3d_model.rs"]
+    },
+    "backend": {
+      "commands": ["doctor"],
+      "sources": ["src/bin/marklab/backend.rs"]
+    },
+    "cohort": {
+      "commands": [
+        "bootstrap-equivalence", "cluster-covariate-permutation", "cluster-permutation", "covariate-matrix-permutation",
+        "covariate-permutation", "energy", "equivalence", "fingerprint-distance", "functional-equivalence",
+        "functional-permutation", "hierarchical-bootstrap", "hierarchical-max-t", "max-t", "max-t-calibration", "mmd",
+        "multisite-covariate-contrast", "multisite-inference", "multisite-patient-contrast", "noninferiority", "paired-max-t",
+        "paired-permutation", "patient-nested-fields", "permutation", "region-compatibility", "repeated-freedman-lane"
+      ],
+      "sources": ["src/bin/marklab/cohort.rs"]
+    },
+    "graph": {
+      "commands": [
+        "cellular-complex", "chebyshev-heat", "diffusion-wavelet", "group-centrality", "heat", "heterogeneous-message", "hodge",
+        "hypergraph", "motif-triangle", "motif-triangle-summary", "scattering", "sparse-radius-basis",
+        "sparse-radius-diffusion-wavelet", "sparse-radius-fourier-energy", "sparse-radius-heat", "sparse-radius-heat-stability",
+        "sparse-radius-scattering", "spectral", "spectrum-null", "validate", "wavelet"
+      ],
+      "sources": ["src/bin/marklab/graph.rs"]
+    },
+    "longitudinal": {
+      "commands": ["kalman-smooth", "nonlinear-filter", "particle-smooth", "phylogenetic-spatial-association"],
+      "sources": ["src/bin/marklab/longitudinal.rs"]
+    },
+    "neural": {
+      "commands": ["point-process", "point-set-generators", "sbi", "validate-generative"],
+      "sources": ["src/bin/marklab/neural.rs"]
+    },
+    "numerics": {
+      "commands": [
+        "bond-orientational-order", "categorical-co-occurrence", "categorical-enrichment", "hyperuniformity",
+        "lacunarity-fractal-dimension", "landy-szalay", "local-multivariate-moran", "mapper-graph", "morisita-dispersion",
+        "mutual-information", "ordinary-kriging", "stable-primitives"
+      ],
+      "sources": ["src/bin/marklab/numerics.rs"]
+    },
+    "pathology": {
+      "commands": ["architecture", "composition", "maps", "scan", "spatial-study"],
+      "sources": ["src/bin/marklab/pathology.rs"]
+    },
+    "policy": {
+      "commands": ["determine-maturity", "select-mode", "validation-ladder"],
+      "sources": ["src/bin/marklab/policy.rs"]
+    },
+    "registration": {
+      "commands": ["atlas", "landmark-uncertainty", "lddmm-landmarks", "nonrigid", "probabilistic-svf", "svf"],
+      "sources": ["src/bin/marklab/registration.rs"]
+    },
+    "study": {
+      "commands": ["describe", "run"],
+      "sources": ["src/bin/marklab/study.rs"]
+    },
+    "topology": {
+      "commands": [
+        "alpha-persistence", "compare-persistence", "connectivity", "raster-morphology", "stability", "validate",
+        "witness-persistence", "witness-persistence-bottleneck-stability", "witness-persistence-stability"
+      ],
+      "sources": ["src/bin/marklab/topology.rs"]
+    }
+  },
+  "crate_map": {
+    "marklab": "Primary marked, spatial, pathology, multimodal, IO and CLI workflows.",
+    "marklab-core": "Shared identities, scientific/backend/status vocabularies.",
+    "marklab-data": "Cohort hierarchy, coordinate frames/transforms, replication and measurement contracts.",
+    "marklab-embeddings": "Bound vector artifacts, multiscale links and embedding analyses.",
+    "marklab-cohort": "Patient-level tests, pooling, multiplicity, margins and bootstrap.",
+    "marklab-bayes": "Model specifications, workers, posterior and validation contracts.",
+    "marklab-transport": "Optimal transport and FGW contracts/computation.",
+    "marklab-prediction": "Retrieval, calibration/fusion, conformal and prediction safeguards.",
+    "marklab-simulation": "Point-process and mechanistic simulators.",
+    "marklab-sbi": "Simulator-based inference and checks.",
+    "marklab-longitudinal": "State-space and phylogenetic/spatial analyses.",
+    "marklab-spatial3d": "Volumetric spatial geometry/statistics and advanced worker protocols.",
+    "marklab-causal": "Interference, design and sensitivity methods.",
+    "marklab-numerics": "Stable reductions, kernels, matrix solvers and envelopes.",
+    "marklab-graph": "Graph operators/signals/features and validation.",
+    "marklab-topology": "Persistence/morphology contracts and connectivity.",
+    "marklab-project": "Artifact storage, publication, identity, recovery and durable runs.",
+    "marklab-workflow": "Typed DAGs, local scheduling and caching execution.",
+    "marklab-policy": "Declared maturity, execution-mode and validation-ladder decisions."
+  }
+}
