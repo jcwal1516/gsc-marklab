@@ -324,6 +324,10 @@ fn invalid_layers_and_designs_are_rejected() {
             "geometry work limit",
             Box::new(|r| r["limits"] = json!({"maximum_geometry_work": 10})),
         ),
+        (
+            "memory budget above the host ceiling",
+            Box::new(|r| r["limits"] = json!({"memory_budget_bytes": 1_u64 << 50})),
+        ),
     ];
     for (name, mutate) in cases {
         let mut input = recipe();
@@ -336,6 +340,16 @@ fn invalid_layers_and_designs_are_rejected() {
             "{name} was accepted"
         );
     }
+}
+
+#[test]
+fn recipes_above_the_former_64_mib_cap_are_admitted() {
+    // Every host admits at least 512 MiB, and the padded estimate stays inside the 2 GiB default budget.
+    let input = recipe();
+    let mut padded = serde_json::to_vec(&input).unwrap();
+    padded.resize(64 * 1024 * 1024 + 1, b' ');
+    let result = marklab::pathology::analyze_pathology_architecture(&padded).unwrap();
+    assert_eq!(serde_json::to_value(result).unwrap(), analyze(&input));
 }
 
 #[test]

@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Any
 
 MAXIMUM_RECIPE_BYTES = 16 * 1024 * 1024
-MAXIMUM_ARCHITECTURE_RECIPE_BYTES = 64 * 1024 * 1024
 
 
 class MarklabError(RuntimeError):
@@ -207,13 +206,12 @@ def run_pathology_architecture(
     The recipe declares polygons produced upstream (for example with
     ``upstream_formats.qupath_architecture_slide``); nothing is segmented here. The output
     directory must be new or empty. Tables and GeoJSON overlays are written beside
-    ``result.json``. Exceptions retain native diagnostics.
+    ``result.json``. Exceptions retain native diagnostics. The recipe size and memory budget
+    ceilings scale with the host's physical memory, so the native command enforces them.
     """
     encoded = json.dumps(recipe, allow_nan=False, sort_keys=True, separators=(",", ":")).encode(
         "utf-8"
     )
-    if len(encoded) > MAXIMUM_ARCHITECTURE_RECIPE_BYTES:
-        raise ValueError("architecture recipe exceeds the admitted 64 MiB profile")
     if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be finite and positive")
     with tempfile.TemporaryDirectory(prefix="marklab-client-") as temporary:

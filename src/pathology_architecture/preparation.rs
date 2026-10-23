@@ -13,11 +13,11 @@ use crate::{
 
 use super::{
     geometry::{bounded, charge_overlay, parse_multilinestring, polygon_vertices, RingIndex},
+    host_memory::{admitted_resources, ESTIMATE_BYTES_PER_INPUT_BYTE},
     input::{Recipe, Slide},
     invalid, UNCLASSIFIED,
 };
 
-pub(super) const MAXIMUM_INPUT_BYTES: usize = 64 * 1024 * 1024;
 const MAXIMUM_CLASSES: usize = 16;
 const MAXIMUM_REGIONS: usize = 4096;
 const CONTAINMENT_TOLERANCE: f64 = 1e-9;
@@ -44,12 +44,23 @@ pub(super) struct SlideGeometry {
 }
 
 pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
-    if bytes.len() > MAXIMUM_INPUT_BYTES {
-        return Err(invalid("recipe exceeds 64 MiB"));
+    let admitted = admitted_resources();
+    if bytes.len() as u64 > admitted.recipe_bytes {
+        return Err(invalid(format!(
+            "recipe has {} bytes; this host admits at most {} (1/{ESTIMATE_BYTES_PER_INPUT_BYTE} of its memory budget ceiling)",
+            bytes.len(),
+            admitted.recipe_bytes
+        )));
     }
     let mut recipe: Recipe = serde_json::from_slice(bytes)?;
     validate_recipe(&recipe)?;
     let limits = recipe.limits;
+    if limits.memory_budget_bytes as u64 > admitted.memory_budget_ceiling {
+        return Err(invalid(format!(
+            "memory_budget_bytes {} exceeds this host's ceiling {} (three quarters of physical memory, at least 8 GiB)",
+            limits.memory_budget_bytes, admitted.memory_budget_ceiling
+        )));
+    }
     let mut remaining = limits.maximum_geometry_work;
     let total_cells = recipe
         .slides
@@ -79,7 +90,7 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
     }
     let estimate = bytes
         .len()
-        .checked_mul(16)
+        .checked_mul(ESTIMATE_BYTES_PER_INPUT_BYTE as usize)
         .and_then(|value| value.checked_add(limits.maximum_geometry_vertices.checked_mul(256)?))
         .and_then(|value| value.checked_add(total_cells.checked_mul(512)?))
         .and_then(|value| value.checked_add(total_spots.checked_mul(1024)?))
@@ -119,7 +130,12 @@ pub(super) fn prepare(bytes: &[u8]) -> Result<Prepared> {
                 slide.slide_id
             )));
         }
-        slides.push(prepare_slide(slide, &recipe, &mut remaining)?);
+        slides.push(prepare_slide(
+            slide,
+            &recipe,
+            admitted.recipe_bytes as usize,
+            &mut remaining,
+        )?);
     }
     Ok(Prepared {
         recipe,
@@ -221,14 +237,18 @@ fn validate_recipe(recipe: &Recipe) -> Result<()> {
         || l.maximum_raster_pixels == 0
         || l.maximum_raster_pixels as u64 > 4_000_000_000
         || l.memory_budget_bytes == 0
-        || l.memory_budget_bytes as u64 > 8_u64 * 1024 * 1024 * 1024
     {
         return Err(invalid("resource limits exceed admitted bounds"));
     }
     Ok(())
 }
 
-fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Result<SlideGeometry> {
+fn prepare_slide(
+    slide: &Slide,
+    recipe: &Recipe,
+    maximum_layer_bytes: usize,
+    remaining: &mut usize,
+) -> Result<SlideGeometry> {
     let limits = recipe.limits;
     let frame = CoordinateFrameId::new(&slide.coordinate_frame_id)
         .map_err(|error| invalid(error.to_string()))?;
@@ -242,7 +262,7 @@ fn prepare_slide(slide: &Slide, recipe: &Recipe, remaining: &mut usize) -> Resul
     let registry = CoordinateRegistry::new(vec![declared], vec![], vec![], vec![])
         .map_err(|error| invalid(error.to_string()))?;
     let window_limits = ObservationWindowLimits::new(
-        MAXIMUM_INPUT_BYTES,
+        maximum_layer_bytes,
         limits.maximum_components,
         limits.maximum_components.saturating_mul(16),
         limits.maximum_geometry_vertices,

@@ -229,11 +229,15 @@ geographic coordinates. Apply the inverse calibration to overlay them on slide p
 
 ## Limits
 
-A recipe can be at most 64 MiB with up to 64 slides. The optional `limits` section sets the
-maximum vertices per layer or derived geometry (default 2 million, at most 20 million),
+Recipe size and memory scale with the machine. The memory budget may be at most three
+quarters of physical memory, and never less than 8 GiB (read from `/proc/meminfo` on Linux
+and `sysctl hw.memsize` on macOS; 8 GiB elsewhere or if that fails). A recipe can be at most
+1/16 of that ceiling, matching the memory estimate's 16 bytes per recipe byte: 3 GiB on a
+64 GiB machine and never less than 512 MiB, with up to 64 slides. The optional `limits`
+section sets the maximum vertices per layer or derived geometry (default 2 million, at most 20 million),
 polygon components per layer (default 200,000), total geometry work (default 2 billion
 units, at most 200 billion), total cells (default 1 million, at most 5 million), total
 spots (default 200,000, at most 2 million), total
 branching raster pixels (default 100 million, at most 4 billion) and estimated memory
-(default 2 GiB, at most 8 GiB). Hitting a
+(default 2 GiB, at most the machine ceiling above). Hitting a
 limit stops the run before anything is written.

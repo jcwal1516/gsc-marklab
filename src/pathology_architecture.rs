@@ -5,6 +5,7 @@ mod budding;
 mod components;
 mod front;
 mod geometry;
+mod host_memory;
 mod input;
 mod nuclei;
 mod preparation;
@@ -29,7 +30,8 @@ const UNCLASSIFIED: &str = "unclassified";
 ///
 /// Closes declared tumor tissue into a bulk, derives its advancing front, and reports
 /// tissue-clipped distance-band areas by architecture class with per-component
-/// fragmentation, lumen and contour-curvature summaries. Descriptive only; no filesystem I/O.
+/// fragmentation, lumen and contour-curvature summaries. Descriptive only; no filesystem I/O
+/// beyond reading the host's physical memory size, which sets the admitted resource ceilings.
 pub fn analyze_pathology_architecture(recipe_json: &[u8]) -> Result<PathologyArchitectureResult> {
     let prepared = preparation::prepare(recipe_json)?;
     let mut remaining = prepared.remaining_work;
