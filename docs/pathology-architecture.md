@@ -147,6 +147,10 @@ last band, which includes both. Band areas come from round offsets of the front 
 the bulk or to the host tissue. Arcs are polygonal; the result reports
 `maximum_buffer_chord_error_um`, the largest radial gap between a true arc and its polygon
 (`max(|distance|)*(1-cos(0.05))` over band edges, closing radius and edge tolerance).
+A band's area is the difference of two clipped offsets, and the overlay snaps coordinates to a
+grid set by each offset's extent, so an empty band (for example beyond the farthest tissue) can
+come out a little below zero. It is reported as zero when the shortfall is within the rounding
+bound (twice each result's boundary length times its grid step); a larger shortfall is an error.
 
 Each band reports tissue area, epithelial area and, for each class, the epithelial area
 inside that class's regions. Whole components are assigned to the band of their interior

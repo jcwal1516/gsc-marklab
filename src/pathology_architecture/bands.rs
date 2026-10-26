@@ -5,7 +5,9 @@ use crate::Result;
 
 use super::{
     front::Front,
-    geometry::{bounded, buffered, charge_overlay, line_vertices, polygon_vertices},
+    geometry::{
+        bounded, buffered, charge_overlay, line_vertices, overlay_area_error, polygon_vertices,
+    },
     input::Recipe,
     invalid, nuclei,
     preparation::SlideGeometry,
@@ -41,9 +43,12 @@ pub(super) fn analyze(
     )?;
     let outside = bounded(slide.window.difference(&front.bulk), maximum, "host tissue")?;
     let mut cumulative = Vec::with_capacity(edges.len());
+    // Per cumulative area, the bound on what the overlays' coordinate rounding can change it by.
+    let mut rounding = Vec::with_capacity(edges.len());
     for edge in edges {
         if *edge == 0.0 {
             cumulative.push(vec![0.0; class_order.len() + 1]);
+            rounding.push(vec![0.0; class_order.len() + 1]);
             continue;
         }
         let side = if *edge < 0.0 { &front.bulk } else { &outside };
@@ -61,26 +66,35 @@ pub(super) fn analyze(
             "front band clipping",
         )?;
         let region = bounded(side.intersection(&offset), maximum, "front band")?;
+        let region_error = overlay_area_error(side, &offset, &region);
         let mut areas = Vec::with_capacity(class_order.len() + 1);
+        let mut errors = Vec::with_capacity(class_order.len() + 1);
         areas.push(region.unsigned_area());
+        errors.push(region_error);
         for class in &slide.class_epithelium {
             charge_overlay(
                 remaining,
                 polygon_vertices(class) + polygon_vertices(&region),
                 "class band clipping",
             )?;
-            areas.push(class.intersection(&region).unsigned_area());
+            let clipped = class.intersection(&region);
+            areas.push(clipped.unsigned_area());
+            // The class area also moves with the region's own rounding.
+            errors.push(region_error + overlay_area_error(class, &region, &clipped));
         }
         cumulative.push(areas);
+        rounding.push(errors);
     }
     let tolerance = 1e-10 * slide.window_area_um2;
     let mut bands = Vec::with_capacity(edges.len() - 1);
     for (index, pair) in edges.windows(2).enumerate() {
         let (lower, upper) = (&cumulative[index], &cumulative[index + 1]);
+        let errors = rounding[index].iter().zip(&rounding[index + 1]);
         let areas = lower
             .iter()
             .zip(upper)
-            .map(|(inner, outer)| {
+            .zip(errors)
+            .map(|((inner, outer), (inner_error, outer_error))| {
                 let area = if pair[1] <= 0.0 {
                     inner - outer
                 } else if pair[0] >= 0.0 {
@@ -88,7 +102,9 @@ pub(super) fn analyze(
                 } else {
                     inner + outer
                 };
-                if !area.is_finite() || area < -tolerance {
+                // An empty band can come out slightly negative from rounding; beyond the
+                // rounding bound the offsets are inconsistent.
+                if !area.is_finite() || area < -(tolerance + inner_error + outer_error) {
                     return Err(invalid("front offset areas are not monotone"));
                 }
                 Ok(area.max(0.0))

@@ -148,6 +148,38 @@ fn front_excludes_tissue_edges_and_declared_exclusions() {
 }
 
 #[test]
+fn empty_bands_tolerate_overlay_rounding_of_wide_front_offsets() {
+    // The whole bulk and host tissue lie within 2,000 um of the front, so both bands beyond
+    // 2,000 um are empty. Each is the difference of two clipped offsets, and the overlay snaps
+    // coordinates to a grid set by each offset's extent: the 20,000 um offset clipped the bulk
+    // slightly smaller than the 2,000 um one, and the slide was rejected as non-monotone.
+    let fixture: Value = serde_json::from_str(include_str!(
+        "fixtures/pathology_architecture/empty_outer_band_blob.json"
+    ))
+    .unwrap();
+    let mut input = recipe();
+    input["design"]["closing_radius_um"] = json!(100.0);
+    input["design"]["minimum_bulk_area_um2"] = json!(500_000.0);
+    input["design"]["tissue_edge_tolerance_um"] = json!(100.0);
+    input["design"]["band_edges_um"] = json!([-20_000.0, -2_000.0, 0.0, 2_000.0, 20_000.0]);
+    let slide = &mut input["slides"][0];
+    slide["window"] = fixture["window"].clone();
+    slide["epithelium"] = fixture["epithelium"].clone();
+    slide["lumens"] = Value::Null;
+    slide["architecture_regions"] = json!([]);
+    slide["declared_front"] = Value::Null;
+    slide["cells"] = json!([]);
+    slide["spots"] = json!([]);
+    let result = &analyze(&input)["slides"][0];
+    let bulk = number(&result["front"]["bulk_area_um2"]);
+    let bands = result["bands"].as_array().unwrap();
+    assert_eq!(bands.len(), 4);
+    close(&bands[0]["tissue_area_um2"], 0.0, 1.0);
+    close(&bands[1]["tissue_area_um2"], bulk, 1.0);
+    close(&bands[3]["tissue_area_um2"], 0.0, 1.0);
+}
+
+#[test]
 fn declared_front_agreement_is_symmetric_and_sampled() {
     let front = &analyze(&recipe())["slides"][0]["front"];
     let agreement = &front["declared_agreement"];

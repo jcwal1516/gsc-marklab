@@ -1,6 +1,6 @@
 use geo::{
     algorithm::buffer::{BufferStyle, LineCap, LineJoin},
-    Buffer, Coord, LineString, MultiLineString, MultiPolygon,
+    BoundingRect, Buffer, Coord, LineString, MultiLineString, MultiPolygon,
 };
 use rstar::{PointDistance, RTree, RTreeObject, AABB};
 
@@ -200,6 +200,35 @@ pub(super) fn buffered(
         maximum_vertices,
         description,
     )
+}
+
+/// Bound on the area change one boolean operation makes by rounding. geo overlays through
+/// i_overlay, whose float adapter snaps every coordinate to a grid of step `2^(log2(h) - 29)`
+/// (exponent truncated), `h` the larger half side of the operands' joint bounding box. Moving each
+/// point of the result's boundary by at most a step changes its area by at most the boundary
+/// length times the step; the exponent is rounded up and the bound doubled as a margin.
+pub(super) fn overlay_area_error(
+    subject: &MultiPolygon<f64>,
+    clip: &MultiPolygon<f64>,
+    result: &MultiPolygon<f64>,
+) -> f64 {
+    let (Some(first), Some(second)) = (subject.bounding_rect(), clip.bounding_rect()) else {
+        return 0.0;
+    };
+    let width = first.max().x.max(second.max().x) - first.min().x.min(second.min().x);
+    let height = first.max().y.max(second.max().y) - first.min().y.min(second.min().y);
+    let half = 0.5 * width.max(height);
+    if !(half > 0.0 && half.is_finite()) {
+        return 0.0;
+    }
+    let step = (half.log2().ceil() - 29.0).exp2();
+    let boundary: f64 = result
+        .0
+        .iter()
+        .flat_map(|polygon| std::iter::once(polygon.exterior()).chain(polygon.interiors()))
+        .map(line_length)
+        .sum();
+    2.0 * boundary * step
 }
 
 pub(super) fn line_length(line: &LineString<f64>) -> f64 {
