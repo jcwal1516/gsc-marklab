@@ -1,7 +1,10 @@
 use geo::{unary_union, Area, BooleanOps, MultiLineString, MultiPolygon, Polygon};
 use marklab_numerics::summation::neumaier_sum;
 
-use crate::{common::stats::percentile_nearest_rank_sorted, Result};
+use crate::{
+    common::stats::percentile_nearest_rank_sorted, geom::window::buffer_chord_error_bound_um,
+    Result,
+};
 
 use super::{
     geometry::{
@@ -80,6 +83,38 @@ impl Front {
     }
 }
 
+/// Fill the holes of a dilation that its polygonal arcs alone can open. Chords sit at most
+/// `chord_error_um` inside the round arcs, so such a hole lies within that band and vanishes
+/// when shrunk by half the chord error; a real hole, farther than the radius from all tumor
+/// tissue, does not. Left in, the erosion would grow each into a disc of the closing radius.
+fn fill_chord_holes(
+    dilated: MultiPolygon<f64>,
+    chord_error_um: f64,
+    maximum: usize,
+    remaining: &mut usize,
+) -> Result<MultiPolygon<f64>> {
+    let mut polygons = Vec::with_capacity(dilated.0.len());
+    for polygon in dilated.0 {
+        let (exterior, holes) = polygon.into_inner();
+        let mut kept = Vec::with_capacity(holes.len());
+        for hole in holes {
+            let shrunk = buffered(
+                &Polygon::new(hole.clone(), vec![]),
+                -0.5 * chord_error_um,
+                hole.0.len(),
+                maximum,
+                remaining,
+                "tumor dilation hole check",
+            )?;
+            if !shrunk.0.is_empty() {
+                kept.push(hole);
+            }
+        }
+        polygons.push(Polygon::new(exterior, kept));
+    }
+    Ok(MultiPolygon::new(polygons))
+}
+
 /// Close tumor tissue at the declared radius, fill holes, clip to tissue and keep
 /// bulk components of at least the declared area. The front is the bulk boundary
 /// farther than the edge tolerance from the tissue edge and outside declared exclusions.
@@ -119,6 +154,12 @@ pub(super) fn derive(
         maximum,
         remaining,
         "tumor dilation",
+    )?;
+    let dilated = fill_chord_holes(
+        dilated,
+        buffer_chord_error_bound_um(radius),
+        maximum,
+        remaining,
     )?;
     let closed = buffered(
         &dilated,

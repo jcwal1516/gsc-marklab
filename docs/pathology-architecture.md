@@ -127,9 +127,12 @@ canonical order, so input order does not change results.
 The tumor bulk is the union of epithelium, lumens and mucin, closed (dilated then eroded)
 by `closing_radius_um`, with holes filled, clipped to the window and kept only for pieces
 of at least `minimum_bulk_area_um2`. Filling holes keeps enclosed intratumoral stroma on
-the tumor side. The front is the bulk boundary farther than `tissue_edge_tolerance_um`
-from the tissue edge and outside `front_exclusions`. A slide with no qualifying bulk or no
-remaining front reports why and has no bands.
+the tumor side. Before the erosion, holes in the dilation that vanish when shrunk by half
+the dilation's chord error (`closing_radius_um*(1-cos(0.05))`) are filled: polygonal arcs
+can open such holes where the round dilation has none, and eroding one would cut a disc
+of the closing radius out of the bulk. The front is the bulk boundary farther than
+`tissue_edge_tolerance_um` from the tissue edge and outside `front_exclusions`. A slide
+with no qualifying bulk or no remaining front reports why and has no bands.
 
 When a slide has a declared front, the result samples both fronts every
 `contour_sample_spacing_um` and reports the mean, 95th-percentile and maximum distance in
