@@ -11,7 +11,10 @@ use super::{
 
 const COVARIATE_MATRIX_NAMESPACE: u64 = 0x636f_765f_6d61_7478;
 const MAXIMUM_NUISANCE_COVARIATES: usize = 32;
-const MAXIMUM_COVARIATE_MATRIX_WORK: usize = 100_000_000;
+// CPU only: permutations are generated and fitted one at a time, so memory stays O(patients x columns).
+// 1e10 admits hundreds of thousands of permutations for typical cohort designs, the
+// resolution that permutation p-values near 1e-5 need.
+const MAXIMUM_COVARIATE_MATRIX_WORK: usize = 10_000_000_000;
 
 /// One independent patient with an exact ordered nuisance-covariate vector.
 #[derive(Clone, Debug)]
