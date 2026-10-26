@@ -1,4 +1,7 @@
-use geo::{unary_union, Area, BooleanOps, MultiLineString, MultiPolygon, Polygon};
+use geo::{
+    unary_union, Area, BooleanOps, BoundingRect, Centroid, Contains, Coord, MultiLineString,
+    MultiPolygon, Polygon,
+};
 use marklab_numerics::summation::neumaier_sum;
 
 use crate::{
@@ -83,23 +86,28 @@ impl Front {
     }
 }
 
-/// Fill the holes of a dilation that its polygonal arcs alone can open. Chords sit at most
-/// `chord_error_um` inside the round arcs, so such a hole lies within that band and vanishes
-/// when shrunk by half the chord error; a real hole, farther than the radius from all tumor
-/// tissue, does not. Left in, the erosion would grow each into a disc of the closing radius.
+/// Fill the holes of a dilation that its polygonal arcs alone open. Chords sit at most
+/// `chord_error_um` inside the round arcs, so such a hole is thin: it vanishes when shrunk by
+/// half the chord error. A thin hole can also be real, where the round dilation leaves a gap
+/// narrower than the chord error, so a thin hole is filled only when the round dilation covers
+/// it ([`covered`]). Left in, the erosion grows each hole into a disc of the closing radius.
 fn fill_chord_holes(
     dilated: MultiPolygon<f64>,
+    tumor: &MultiPolygon<f64>,
+    radius_um: f64,
     chord_error_um: f64,
     maximum: usize,
     remaining: &mut usize,
 ) -> Result<MultiPolygon<f64>> {
+    let mut tissue: Option<RingIndex> = None;
     let mut polygons = Vec::with_capacity(dilated.0.len());
     for polygon in dilated.0 {
         let (exterior, holes) = polygon.into_inner();
         let mut kept = Vec::with_capacity(holes.len());
         for hole in holes {
+            let region = Polygon::new(hole.clone(), vec![]);
             let shrunk = buffered(
-                &Polygon::new(hole.clone(), vec![]),
+                &region,
                 -0.5 * chord_error_um,
                 hole.0.len(),
                 maximum,
@@ -108,11 +116,47 @@ fn fill_chord_holes(
             )?;
             if !shrunk.0.is_empty() {
                 kept.push(hole);
+                continue;
+            }
+            if tissue.is_none() {
+                charge_overlay(remaining, polygon_vertices(tumor), "tumor tissue index")?;
+                tissue = Some(RingIndex::from_polygons(tumor, |_| 0));
+            }
+            if !covered(&region, tissue.as_ref().expect("built above"), radius_um) {
+                kept.push(hole);
             }
         }
         polygons.push(Polygon::new(exterior, kept));
     }
     Ok(MultiPolygon::new(polygons))
+}
+
+/// Whether the round dilation covers a thin dilation hole: its centroid and every point of a
+/// 9 x 9 grid over its bounding box that falls inside it lie within `radius_um` of the tumor
+/// tissue. The hole lies outside the tissue, so a point's distance to the tissue is its
+/// distance to the nearest tissue boundary segment.
+fn covered(hole: &Polygon<f64>, tissue: &RingIndex, radius_um: f64) -> bool {
+    let Some(bounds) = hole.bounding_rect() else {
+        return true;
+    };
+    let mut points = hole
+        .centroid()
+        .map(|centroid| vec![[centroid.x(), centroid.y()]])
+        .unwrap_or_default();
+    for i in 0..9 {
+        for j in 0..9 {
+            let x = bounds.min().x + bounds.width() * (i as f64 + 0.5) / 9.0;
+            let y = bounds.min().y + bounds.height() * (j as f64 + 0.5) / 9.0;
+            if hole.contains(&Coord { x, y }) {
+                points.push([x, y]);
+            }
+        }
+    }
+    points.iter().all(|point| {
+        tissue
+            .nearest(*point)
+            .is_none_or(|(distance, _)| distance <= radius_um)
+    })
 }
 
 /// Close tumor tissue at the declared radius, fill holes, clip to tissue and keep
@@ -157,6 +201,8 @@ pub(super) fn derive(
     )?;
     let dilated = fill_chord_holes(
         dilated,
+        &tumor,
+        radius,
         buffer_chord_error_bound_um(radius),
         maximum,
         remaining,
