@@ -8,7 +8,9 @@ use super::{
 pub fn vector_semivariogram(
     mut spec: VectorSemivariogramSpec,
 ) -> Result<VectorSemivariogramResult, EmbeddingSpatialError> {
-    let dimension = validate_points_and_features(&mut spec.points, &spec.feature_names)?;
+    // The result stores a u32 count; pair work is capped by maximum_pair_visits.
+    let dimension =
+        validate_points_and_features(&mut spec.points, &spec.feature_names, u32::MAX as usize)?;
     validate_bins(&mut spec.bins)?;
 
     let point_count = spec.points.len() as u64;

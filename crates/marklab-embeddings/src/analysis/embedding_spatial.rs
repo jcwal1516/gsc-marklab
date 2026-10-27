@@ -226,8 +226,10 @@ impl From<FiniteNeumaierError> for EmbeddingSpatialError {
 fn validate_points_and_features(
     points: &mut [EmbeddingSpatialPoint],
     feature_names: &[String],
+    maximum_points: usize,
 ) -> Result<usize, EmbeddingSpatialError> {
-    if !(2..=10_000).contains(&points.len()) || !(2..=4_096).contains(&feature_names.len()) {
+    if !(2..=maximum_points).contains(&points.len()) || !(2..=4_096).contains(&feature_names.len())
+    {
         return Err(EmbeddingSpatialError::Invalid(
             "object count or embedding dimension is outside the supported bounds".into(),
         ));
@@ -518,5 +520,32 @@ mod tests {
         assert_eq!(result.curve[0].pair_count, 0);
         assert_eq!(result.curve[0].semivariance, None);
         assert_eq!(result.curve[0].weight_sum, 0.0);
+    }
+
+    #[test]
+    fn whole_slide_vectors_are_bounded_by_declared_pair_work() {
+        let error = vector_semivariogram(VectorSemivariogramSpec {
+            points: (0..10_001)
+                .map(|i| EmbeddingSpatialPoint {
+                    object_id: format!("p{i}"),
+                    x_um: i as f64,
+                    y_um: 0.0,
+                    embedding: vec![0.0, 1.0],
+                })
+                .collect(),
+            feature_names: vec!["embedding_0".into(), "embedding_1".into()],
+            bins: vec![EmbeddingDistanceBin {
+                bin_id: "all".into(),
+                lower_um: 0.0,
+                upper_um: 1.0,
+                upper_inclusive: true,
+            }],
+            weights: None,
+            maximum_pair_visits: 1,
+        })
+        .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("50005000 unordered pair visits exceed maximum_pair_visits 1"));
     }
 }

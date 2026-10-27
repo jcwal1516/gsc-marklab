@@ -9,7 +9,7 @@ use super::{
 pub fn embedding_cross_covariance_by_distance(
     mut spec: EmbeddingCrossCovarianceSpec,
 ) -> Result<EmbeddingCrossCovarianceResult, EmbeddingSpatialError> {
-    let dimension = validate_points_and_features(&mut spec.points, &spec.feature_names)?;
+    let dimension = validate_points_and_features(&mut spec.points, &spec.feature_names, 10_000)?;
     validate_bins(&mut spec.bins)?;
     let point_count = spec.points.len() as u64;
     let pair_visits = point_count

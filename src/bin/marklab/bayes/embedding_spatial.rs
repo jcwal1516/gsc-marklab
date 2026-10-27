@@ -17,6 +17,11 @@ use super::cli_schema::VectorSemivariogramArgs;
 use super::worker_identity;
 use super::{run_worker, MAXIMUM_INPUT_BYTES};
 
+// A whole-slide float32 matrix can exceed the small CSV-input ceiling. Keep its
+// encoded bytes and the combined encoded/f64 spatial representation bounded.
+const MAXIMUM_VECTOR_INPUT_BYTES: u64 = 128 * 1024 * 1024;
+const MAXIMUM_VECTOR_RETAINED_BYTES: usize = 256 * 1024 * 1024;
+
 pub(super) fn run_vector_semivariogram(args: VectorSemivariogramArgs) -> Result<(), CliError> {
     let VectorSemivariogramArgs {
         input,
@@ -30,7 +35,11 @@ pub(super) fn run_vector_semivariogram(args: VectorSemivariogramArgs) -> Result<
     let bin_bytes = read(&bins)?;
     let weight_bytes = weights.as_deref().map(read).transpose()?;
     let (points, feature_names, vectors_sha256) = if let Some(path) = vectors {
-        let vectors_bytes = read(&path)?;
+        let vectors_bytes = crate::input_file::read_regular_file(
+            &path,
+            MAXIMUM_VECTOR_INPUT_BYTES,
+            "embedding NPY input must be a regular file within the 128 MiB limit",
+        )?;
         let (points, feature_names, digest) = read_points_with_npy(&input_bytes, &vectors_bytes)?;
         (points, feature_names, Some(digest))
     } else {
@@ -307,15 +316,14 @@ fn read_points_with_npy(
     input: &[u8],
     vectors: &[u8],
 ) -> Result<(Vec<EmbeddingSpatialPoint>, Vec<String>, String), CliError> {
-    let maximum_retained = MAXIMUM_INPUT_BYTES as usize * 4;
     let matrix = EmbeddingNpyMatrix::from_bytes(
         vectors,
         SourceBundleBudgets::new(
-            MAXIMUM_INPUT_BYTES,
+            MAXIMUM_VECTOR_INPUT_BYTES,
             0,
             0,
-            maximum_retained,
-            MAXIMUM_INPUT_BYTES,
+            MAXIMUM_VECTOR_RETAINED_BYTES,
+            MAXIMUM_VECTOR_INPUT_BYTES,
         ),
     )
     .map_err(|error| CliError::Input(error.to_string()))?;
@@ -338,9 +346,9 @@ fn read_points_with_npy(
                 .and_then(|text| bytes.checked_add(text))
         })
         .and_then(|bytes| bytes.checked_add(vectors.len()));
-    if required.is_none_or(|required| required > maximum_retained) {
+    if required.is_none_or(|required| required > MAXIMUM_VECTOR_RETAINED_BYTES) {
         return Err(CliError::Input(
-            "NPY spatial input exceeds the 64 MiB retained-data limit".into(),
+            "NPY spatial input exceeds the 256 MiB retained-data limit".into(),
         ));
     }
     let mut reader = csv::ReaderBuilder::new()
@@ -368,14 +376,17 @@ fn read_points_with_npy(
                 CliError::Input("NPY spatial coordinates must be numeric micrometres".into())
             })
         };
-        let embedding = (0..matrix.dimension())
-            .map(|column| {
+        let mut embedding = Vec::new();
+        embedding
+            .try_reserve_exact(dimension)
+            .map_err(|_| CliError::Input("unable to allocate NPY spatial vector".into()))?;
+        for column in 0..matrix.dimension() {
+            embedding.push(f64::from(
                 matrix
                     .value(row as u64, column)
-                    .map(f64::from)
-                    .map_err(|error| CliError::Input(error.to_string()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+                    .map_err(|error| CliError::Input(error.to_string()))?,
+            ));
+        }
         points.push(EmbeddingSpatialPoint {
             object_id: record[0].to_owned(),
             x_um: coordinate(1)?,

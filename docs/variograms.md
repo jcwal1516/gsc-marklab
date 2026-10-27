@@ -37,10 +37,16 @@ marklab bayes vector-semivariogram \
 `distance_bins.csv` has `bin_id,lower_um,upper_um` columns. Feature names for NPY are
 `embedding_0` through `embedding_(d-1)` in matrix column order. Coordinates must already
 be in micrometres; there is no CellViT calibration, model-name, checkpoint or morphology
-requirement on this descriptive analysis route. The matrix must have at least two
-components for this statistic. NPY v1/v2 files are accepted, with at most 65,536
-components, a 16 MiB limit per input file and a 64 MiB retained-data preflight for the
-combined spatial input. Nonfinite vectors and mismatched row counts are errors.
+requirement on this descriptive analysis route. The statistic accepts 2–4,096
+components; the underlying NPY v1/v2 reader supports widths up to 65,536.
+There is a 128 MiB limit for the separate NPY file. CSV inputs retain their
+16 MiB limit. A 256 MiB retained-data preflight accounts for the encoded NPY,
+decoded float64 vectors, spatial rows and feature names before allocating the
+decoded spatial input. Nonfinite vectors and mismatched row counts are errors.
+The semivariogram is no longer restricted to 10,000 objects. Its result count must
+fit in a `u32`, and the calculation still visits every unordered pair, bounded by
+the declared `--maximum-pair-visits`. Accepting a larger matrix does not remove
+that work limit.
 
 The separate-NPY route writes `marklab.vector_semivariogram` version 2, binding the
 coordinate CSV in `input_sha256` and the NPY in `vectors_sha256`. The digest is reused
