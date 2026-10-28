@@ -147,6 +147,27 @@ current, which integrates over m/z; when both used the same root form, intensiti
 
 These spectra test numerical agreement with MALDIquant. They are not a cohort of isolates.
 
+The RKI MALDI-TOF database v4.2 (Zenodo 14562231; 11,055 linear-mode acquisitions from
+flexControl 2.4 to 3.4) was checked with
+[`rki_checks.py`](../tests/fixtures/maldi/rki_checks.py) and
+[`rki_readbrukerflex.R`](../tests/fixtures/maldi/rki_readbrukerflex.R), with criteria declared in
+each script before it was run:
+
+| Check | Result |
+|---|---|
+| Acquisitions read | 11,055 of 11,055 |
+| m/z at 72,983 flexAnalysis peaks in 1,415 spectra, interpolated at each peak's `ind` | median 0.00015 ppm, 99th percentile 0.0006 ppm (pass; criterion median ≤ 1 ppm) |
+| 500 acquisitions sampled with a fixed seed, against readBrukerFlexData 1.9.3 | intensities identical in all 500; m/z within 4.5e-11 relative |
+| *E. coli* ribosomal-protein masses in 62 spectra, against average [M+H]+ from UniProt K-12 sequences ([table](../tests/fixtures/maldi/ecoli_k12_ribosomal_masses.tsv)) | fail as declared: 12 of the 13 proteins found in at least half the spectra have median errors from −169 to +147 ppm; S20 (`rpsT`) is −1,508 ppm |
+
+flexAnalysis's `ind` is 0-based: read as 1-based, the median difference is 60 ppm. The largest
+peak difference, 133 ppm, is one *Brucella* spectrum whose `acqu` was recalibrated after
+acquisition; its peak list matches neither the stored nor the original constants, and Marklab
+equals readBrukerFlexData on it. The 4.5e-11 m/z difference is readBrukerFlexData's cancellation
+(see above), which a high-precision evaluation of the worst acquisition's root confirmed. S20 is
+−1,508 ppm in every strain, K-12 included, so its predicted form is wrong rather than the
+calibration; the ribosomal check does not count as a pass.
+
 ## Not yet supported
 
 - More than one spectrum per run, replicate averaging, peak detection and alignment.
