@@ -15,6 +15,11 @@ engine works with any label. Single-section results describe one tissue section.
 cells between sections, detect gain or loss of expression, or determine treatment response
 or molecular MMR status.
 
+The microbiology workflow (`marklab microbio`) is not spatial. It reads MALDI-TOF mass spectra
+of bacterial isolates and preprocesses them into calibrated spectra and m/z bins, as defined in
+[MALDI-TOF preprocessing](docs/maldi-preprocessing.md). It does not identify species or
+predict antimicrobial susceptibility.
+
 ## Rust API
 
 The result-document API includes:

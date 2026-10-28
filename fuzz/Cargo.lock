@@ -1339,6 +1339,7 @@ dependencies = [
  "marklab-embeddings",
  "marklab-graph",
  "marklab-longitudinal",
+ "marklab-microbio",
  "marklab-numerics",
  "marklab-policy",
  "marklab-prediction",
@@ -1449,6 +1450,7 @@ dependencies = [
  "libfuzzer-sys",
  "marklab",
  "marklab-embeddings",
+ "marklab-microbio",
  "tempfile",
 ]
 
@@ -1475,6 +1477,14 @@ dependencies = [
  "rand 0.8.6",
  "rand_chacha",
  "rand_distr",
+ "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-microbio"
+version = "0.1.0"
+dependencies = [
  "serde",
  "thiserror 2.0.18",
 ]

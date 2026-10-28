@@ -34,6 +34,9 @@ pub(crate) fn run(command: Commands) -> Result<()> {
                 simulate::summary_matching::run(input, out)
             }
         },
+        Commands::Microbio { command } => match command {
+            MicrobioCommands::Preprocess(args) => microbio::run_preprocess(args),
+        },
 
         Commands::Smoke {
             suite,

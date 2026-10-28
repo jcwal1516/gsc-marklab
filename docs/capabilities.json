@@ -1116,6 +1116,28 @@
         "src/bin/marklab/bayes/cli_schema.rs"
       ]
     },
+    "maldi_spectra": {
+      "does": [
+        "Read Bruker flex fid/acqu acquisitions and convert time of flight to m/z",
+        "Ordered square-root, Savitzky-Golay, SNIP baseline, total-ion-current and trim steps",
+        "Fixed-edge m/z binning with in-order summation"
+      ],
+      "input": "One Bruker flex spectrum directory (fid with acqu or acqus) and a JSON list of preprocessing steps with optional bins.",
+      "output": "Acquisition facts, the preprocessed m/z spectrum and optional binned intensities.",
+      "used_by": "marklab microbio preprocess.",
+      "uses": [
+        "Prepare MALDI-TOF spectra of bacterial isolates for species and susceptibility models",
+        "Reproduce MALDIquant preprocessing outside R"
+      ],
+      "limits": "HPC, LIFT, PSD and V1.0 CTOF2 calibrations are rejected. One acquisition per run; no peak detection, alignment, replicate averaging or text-spectrum input. Not yet compared with DRIAMS published preprocessed spectra; not spatial.",
+      "sources": [
+        "crates/marklab-microbio/src/bruker.rs",
+        "crates/marklab-microbio/src/preprocess.rs",
+        "src/cli/microbio.rs",
+        "docs/maldi-preprocessing.md",
+        "tests/fixtures/maldi/compare_maldiquant.R"
+      ]
+    },
     "simulation": {
       "does": [
         "Seeded fixed-fraction random labeling",

@@ -26,6 +26,7 @@ mod inhomogeneous_project;
 mod inhomogeneous_spatial;
 mod isotropic_pair_correlation;
 mod isotropic_spatial;
+mod microbio;
 mod multimodal;
 mod nearest_space;
 mod piecewise_compartment_pair_correlation;

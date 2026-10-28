@@ -72,6 +72,7 @@ environment.
 | How do markers and cell types change with distance from annotated structures, and where are local hotspots? | `marklab pathology` |
 | What do Bayesian spatial and hierarchical models say? (via pinned PyMC/NumPyro environments) | `marklab bayes`, `marklab project` |
 | What is in this whole-slide image, and can I cut out a region? (`--features wsi`) | `marklab inspect-slide`, `marklab extract-region` |
+| How do I turn a raw Bruker MALDI-TOF acquisition of a bacterial isolate into a calibrated, binned spectrum? | `marklab microbio preprocess` |
 
 There are also research workflows for 3-D tissue, graphs, topology, time series, causal
 designs and simulation. `marklab --help` lists every command, and

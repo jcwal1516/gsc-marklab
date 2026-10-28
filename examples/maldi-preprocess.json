@@ -1,0 +1,10 @@
+{
+  "steps": [
+    {"step": "sqrt"},
+    {"step": "savitzky_golay", "half_window": 10, "polynomial_order": 3},
+    {"step": "snip_baseline", "iterations": 20, "decreasing": true},
+    {"step": "total_ion_current"},
+    {"step": "trim", "min_mz": 2000, "max_mz": 20000}
+  ],
+  "binning": {"min_mz": 2000, "max_mz": 20000, "bins": 6000}
+}

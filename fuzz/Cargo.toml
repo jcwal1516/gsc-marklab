@@ -12,6 +12,7 @@ libfuzzer-sys = "0.4"
 tempfile = "3"
 marklab = { path = "..", default-features = false, features = ["csv", "wsi"] }
 marklab-embeddings = { path = "../crates/marklab-embeddings", default-features = false, features = ["csv", "parquet"] }
+marklab-microbio = { path = "../crates/marklab-microbio" }
 
 [[bin]]
 name = "multiplex_study"
@@ -65,6 +66,13 @@ bench = false
 [[bin]]
 name = "embedding_inputs"
 path = "fuzz_targets/embedding_inputs.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bruker_flex"
+path = "fuzz_targets/bruker_flex.rs"
 test = false
 doc = false
 bench = false

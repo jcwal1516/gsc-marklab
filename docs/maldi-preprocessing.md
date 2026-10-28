@@ -1,0 +1,131 @@
+# MALDI-TOF spectrum preprocessing
+
+`marklab microbio preprocess` reads one Bruker flex-series MALDI-TOF acquisition of a bacterial
+isolate, converts time of flight to m/z, applies declared preprocessing steps in order, and can sum
+the result into fixed m/z bins. It is the first stage of the microbiology workflow. It does not
+identify species, detect peaks or predict antimicrobial susceptibility, and none of Marklab's
+spatial nulls apply to spectra.
+
+```sh
+marklab microbio preprocess \
+  --bruker run/0_A1/1/1SLin \
+  --config examples/maldi-preprocess.json \
+  --out out/0_A1.json
+```
+
+## Bruker flex input
+
+`--bruker` names the spectrum directory holding `fid` and `acqu`. As in readBrukerFlexData,
+`acqus` is used when `acqu` is absent.
+
+| `acqu` parameter | Requirement |
+|---|---|
+| `BYTORDA` | `0` (little-endian `fid`) or `1` (big-endian) |
+| `TD` | Number of time points, 1 to 4,194,304; `fid` must hold exactly `4 TD` bytes of signed 32-bit counts |
+| `DELAY`, `DW` | Finite; `DW > 0` |
+| `ML1`, `ML2`, `ML3` | Finite calibration constants; `ML1 > 0` |
+| `NoSHOTS` | At least 1 |
+| `AQOP_m` | Optional: `0` linear, `1` reflector |
+
+Times of flight are `tof_i = DELAY + i DW`. Each m/z value `m` solves the flex-series calibration
+`tof = ML2 + sqrt(1e12 / ML1) sqrt(m) + ML3 m` (Titulaer et al., *BMC Bioinformatics* 2006), the
+same conversion readBrukerFlexData uses. Negative raw counts are set to zero, as readBrukerFlexData
+does by default, and their number is reported. The resulting m/z values must be positive and
+strictly increasing.
+
+The reader rejects, rather than approximates:
+
+- Bruker high-precision calibration (`HPClUse = yes` with positive `HPClBLo`, `HPClBHi`, `HPClOrd`);
+- LIFT acquisitions (non-zero `Lift1` and `Lift2`, or non-zero `TLift`) and spectrum types other
+  than TOF (`SPType` other than 0);
+- `V1.0CTOF2CalibrationConstants` in `NTBCal`;
+- a missing, repeated or non-finite parameter among those read, and a `fid` whose length differs
+  from `4 TD`.
+
+readBrukerFlexData only warns about HPC and LIFT; for LIFT it returns times of flight in place of
+masses. `acqu` lines may end in LF, CRLF or CR, and a decimal comma is read as a point. `acqu` may
+be at most 1 MiB.
+
+## Configuration
+
+The JSON configuration lists `steps` in the order they run and may declare `binning`. Unknown
+steps and fields are rejected.
+
+```json
+{
+  "steps": [
+    {"step": "sqrt"},
+    {"step": "savitzky_golay", "half_window": 10, "polynomial_order": 3},
+    {"step": "snip_baseline", "iterations": 20, "decreasing": true},
+    {"step": "total_ion_current"},
+    {"step": "trim", "min_mz": 2000, "max_mz": 20000}
+  ],
+  "binning": {"min_mz": 2000, "max_mz": 20000, "bins": 6000}
+}
+```
+
+| Step | Definition | MALDIquant equivalent |
+|---|---|---|
+| `sqrt` | `I ← √I` | `transformIntensity(method = "sqrt")` |
+| `savitzky_golay` | Least-squares polynomial of degree `polynomial_order` over `2 half_window + 1` points. Interior points use the centred window; the first and last `half_window` points use the first or last full window evaluated at their own position. Negative results are set to zero. Requires `1 ≤ half_window ≤ 500`, `polynomial_order ≤ 10` and `polynomial_order < 2 half_window + 1 ≤ n`. | `smoothIntensity(method = "SavitzkyGolay", halfWindowSize = h)`; MALDIquant's order defaults to 3 |
+| `snip_baseline` | For each clipping half-window `w`, from `iterations` down to 1 when `decreasing`, otherwise from 1 up: `b_j ← min(b_j, (b_{j−w} + b_{j+w}) / 2)` for `w ≤ j < n − w`, every point computed from the previous pass. Then `I ← I − b`. Requires `1 ≤ iterations ≤ 1000`. | `removeBaseline(method = "SNIP", iterations, decreasing)` |
+| `total_ion_current` | `I ← I / A` with `A = Σ (I_j + I_{j+1}) / 2 · (m_{j+1} − m_j)`. Fails unless `A` is finite and positive. | `calibrateIntensity(method = "TIC")`, which instead warns and leaves intensities unchanged when `A = 0` |
+| `trim` | Keep points with `min_mz ≤ m ≤ max_mz`. Fails when none remain. | `trim(range = c(min_mz, max_mz))` |
+
+Order matters. Total ion current before `trim` divides by the area of the whole spectrum; after
+`trim`, by the area inside the range.
+
+Bins have edges `e_i = min_mz + i (max_mz − min_mz) / bins`, with the last edge exactly
+`max_mz`. Bin `i` covers `[e_i, e_{i+1})` and the last bin also includes `max_mz`. Intensities are
+summed in m/z order, and points outside `[min_mz, max_mz]` are counted in `points_outside`. This is
+`numpy.histogram` over `numpy.linspace` edges, as used by maldi-learn's `BinningVectorizer`, which
+produced the DRIAMS `binned_6000` files (2,000–20,000 Da, 6,000 bins of 3 Da). Unlike maldi-learn,
+Marklab keeps a point exactly at `min_mz` and never moves the edges; maldi-learn recomputes edges
+for a spectrum that extends beyond 2,000–20,000 Da. At most 1,000,000 bins are allowed.
+
+The example configuration is a starting point built from MALDIquant's smoothing defaults and the
+DRIAMS bin layout. DRIAMS's own step order and SNIP settings have not yet been confirmed against
+its published preprocessed spectra.
+
+## Output
+
+The result JSON contains:
+
+- `source`: `format` (`bruker_flex`), `time_points`, `byte_order`, `laser_shots`, `tof_mode` and
+  `negative_intensities_clipped`;
+- `steps`: the steps as run;
+- `spectrum`: the preprocessed `mz` and `intensity` arrays;
+- `binned`: `min_mz`, `max_mz`, `bins`, `points_outside` and `intensity`, or `null` without
+  `binning`.
+
+The output file must not already exist.
+
+## Evidence
+
+Unit tests cover known calibrations (the linear case exactly and the quadratic case by inverting
+the calibration equation), the classic five-point quadratic Savitzky–Golay filter, exact
+preservation of cubics, SNIP's previous-pass update, the trapezoidal total ion current, the
+inclusive trim, bin edges, and each rejection above. A CLI test runs a synthetic acquisition end to
+end. The fuzz target `bruker_flex` exercises the parser.
+
+[`tests/fixtures/maldi/compare_maldiquant.R`](../tests/fixtures/maldi/compare_maldiquant.R)
+compares the command with readBrukerFlexData 1.9.3 and MALDIquant 1.22.3 (R 4.5.2) on the two
+linear example acquisitions shipped with readBrukerFlexData (22,431 points each), after every step
+and with both SNIP directions. The tolerances were fixed before the first run.
+
+| Comparison | Largest difference |
+|---|---|
+| m/z and raw intensities | identical |
+| Intensities after each step | 3.4e-14 of the spectrum maximum (tolerance 1e-9) |
+| 6,000-bin vectors | 6.0e-16 of the largest bin (tolerance 1e-9) |
+| High-precision-calibration example | rejected as required |
+
+These spectra test numerical agreement with MALDIquant. They are not a cohort of isolates.
+
+## Not yet supported
+
+- More than one acquisition per run, replicate averaging, peak detection and alignment.
+- Text spectra such as DRIAMS `raw` files, mzML or mzXML.
+- Comparison with DRIAMS's published `preprocessed` and `binned_6000` files. DRIAMS (CC0, Dryad
+  doi:10.5061/dryad.bzkh1899q) requires a signed-in download.
+- Bruker HPC, LIFT and PSD acquisitions.

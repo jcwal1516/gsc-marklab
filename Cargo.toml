@@ -18,6 +18,7 @@ members = [
     "crates/marklab-graph",
     "crates/marklab-topology",
     "crates/marklab-workflow",
+    "crates/marklab-microbio",
 ]
 exclude = ["fuzz"]
 resolver = "2"
@@ -40,6 +41,7 @@ marklab-data = { version = "0.1.0", path = "crates/marklab-data" }
 marklab-embeddings = { version = "0.1.0", path = "crates/marklab-embeddings", default-features = false }
 marklab-graph = { version = "0.1.0", path = "crates/marklab-graph" }
 marklab-longitudinal = { version = "0.1.0", path = "crates/marklab-longitudinal" }
+marklab-microbio = { version = "0.1.0", path = "crates/marklab-microbio" }
 marklab-numerics = { version = "0.1.0", path = "crates/marklab-numerics" }
 marklab-policy = { version = "0.1.0", path = "crates/marklab-policy" }
 marklab-project = { version = "0.1.0", path = "crates/marklab-project" }
@@ -119,6 +121,7 @@ marklab-prediction.workspace = true
 marklab-simulation.workspace = true
 marklab-sbi.workspace = true
 marklab-longitudinal.workspace = true
+marklab-microbio.workspace = true
 marklab-spatial3d.workspace = true
 marklab-causal.workspace = true
 marklab-numerics.workspace = true

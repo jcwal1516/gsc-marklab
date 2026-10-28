@@ -1750,6 +1750,7 @@ dependencies = [
  "marklab-embeddings",
  "marklab-graph",
  "marklab-longitudinal",
+ "marklab-microbio",
  "marklab-numerics",
  "marklab-policy",
  "marklab-prediction",
@@ -1885,6 +1886,15 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rand_distr",
  "serde",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-microbio"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 

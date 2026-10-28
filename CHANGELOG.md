@@ -151,6 +151,15 @@
 
 ### Public-data validation and interoperability
 
+- Add `marklab microbio preprocess` and the `marklab-microbio` crate: read one Bruker flex
+  MALDI-TOF acquisition (`fid` with `acqu` or `acqus`), convert time of flight to m/z, apply
+  declared steps in order (square root, Savitzky–Golay, SNIP baseline, total ion current, trim)
+  and optionally sum fixed-edge m/z bins. High-precision calibration, LIFT, PSD and V1.0 CTOF2
+  calibrations are rejected rather than approximated. On readBrukerFlexData 1.9.3's two example
+  spectra, m/z and raw intensities match readBrukerFlexData exactly, every step matches
+  MALDIquant 1.22.3 within 3.4e-14 of the spectrum maximum, the 6,000-bin vectors agree within
+  6.0e-16, and the HPC example is rejected.
+
 - Compare `numerics categorical-enrichment` with imcRtools 1.16.0 `testInteractions`
   (classic) and SPIAT 1.12.1 `mixing_score_summary` on three public CODEX spots. Graphs and
   per-cell neighbor statistics agree (≤3.6e-15), permutation p-values agree within 0.0158,

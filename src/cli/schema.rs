@@ -67,6 +67,11 @@ pub enum Commands {
         #[command(subcommand)]
         command: SimulateCommands,
     },
+    /// Read and preprocess MALDI-TOF mass spectra of bacterial isolates.
+    Microbio {
+        #[command(subcommand)]
+        command: MicrobioCommands,
+    },
     /// Run the synthetic or multimodal smoke checks.
     Smoke {
         /// Synthetic validation suite to execute.
@@ -79,6 +84,12 @@ pub enum Commands {
         #[arg(long)]
         out: PathBuf,
     },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MicrobioCommands {
+    /// Convert one Bruker flex acquisition to m/z, apply ordered preprocessing steps and bin it.
+    Preprocess(microbio::PreprocessArgs),
 }
 
 #[derive(Debug, Subcommand)]
