@@ -30,6 +30,7 @@ mod policy;
 mod project;
 mod projected_variogram_kernel;
 mod registration;
+mod space;
 mod spatial3d;
 mod spatial3d_model;
 mod spatial3d_registered;

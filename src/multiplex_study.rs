@@ -1,6 +1,6 @@
 //! Concrete multiplex panel → slide summaries → independent-patient inference application.
 
-mod model;
+pub(crate) mod model;
 mod nodes;
 mod preparation;
 mod publication;

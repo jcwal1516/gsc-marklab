@@ -1,0 +1,90 @@
+//! SPACE: Spatial Patterning Analysis of Cellular Ensembles, on cell tables.
+//!
+//! A native port of the R package SPACE (Schrom et al., PNAS 2025,
+//! doi 10.1073/pnas.2412146122; github.com/eschrom/SPACE at commit
+//! `94f0a0f9311e2ee2b406ebc45c84a4e93f2f38f8`, Apache-2.0). A census samples discs of
+//! fixed radius around seed cells and records, per disc, the percentage of each object
+//! class, mean scalar values on linked classes and mean independent scalars. cisMI ranks
+//! every ensemble of up to `depth` variables by co-information relative to censuses whose
+//! cells were shuffled between discs. See `docs/space.md` for the method, parameters and
+//! the documented deviations from the R code.
+
+mod binning;
+mod census;
+mod cis;
+mod information;
+mod input;
+mod normal;
+
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+pub use census::{
+    space_census, SpaceCensusNeighborhood, SpaceCensusRadius, SpaceCensusResult,
+    SpaceCensusSpecimen, SPACE_CENSUS_FORMAT,
+};
+pub use cis::{
+    space_cis, SpaceCisEnsemble, SpaceCisParameters, SpaceCisRadius, SpaceCisResult,
+    SpaceCisSpecimen, SpaceNullStatus, SPACE_CIS_FORMAT,
+};
+pub use input::{
+    load_space_input, space_input_from_json, SpaceCensusDesign, SpaceInput, SpaceLimits,
+    SPACE_REQUEST_FORMAT,
+};
+
+/// Version of every SPACE request and result format.
+pub const SPACE_FORMAT_VERSION: u32 = 1;
+
+/// The R SPACE revision whose algorithms these commands port.
+pub const SPACE_REFERENCE_COMMIT: &str = "94f0a0f9311e2ee2b406ebc45c84a4e93f2f38f8";
+
+/// What a census variable measures in each disc.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpaceVariableKind {
+    /// Percentage of the disc's classified cells (in one categorical channel) of one class.
+    Object,
+    /// Mean of a scalar channel over the disc's cells of one class; zero when none are present.
+    LinkedScalar,
+    /// Mean of a scalar channel over every cell in the disc.
+    IndependentScalar,
+}
+
+/// One named census variable.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpaceVariable {
+    pub name: String,
+    pub kind: SpaceVariableKind,
+    /// The categorical channel for objects and linked scalars.
+    pub channel: Option<String>,
+    pub class: Option<String>,
+    /// The scalar channel for linked and independent scalars.
+    pub scalar: Option<String>,
+}
+
+/// Rejected SPACE input, resource request or file.
+#[derive(Debug, Error, PartialEq)]
+pub enum SpaceError {
+    #[error("invalid SPACE input: {0}")]
+    Invalid(String),
+    #[error("SPACE resource limit exceeded: {0}")]
+    Resource(String),
+    #[error("SPACE input file failed: {0}")]
+    Io(String),
+}
+
+fn invalid(message: impl Into<String>) -> SpaceError {
+    SpaceError::Invalid(message.into())
+}
+
+fn resource(message: impl Into<String>) -> SpaceError {
+    SpaceError::Resource(message.into())
+}
+
+fn label(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value.trim() == value
+        && !value.chars().any(char::is_control)
+}

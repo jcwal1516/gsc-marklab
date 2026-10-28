@@ -1,6 +1,6 @@
 {
   "name": "MarkLab capability map",
-  "as_of": "2026-10-23",
+  "as_of": "2026-10-28",
   "scope": "Complete major capability and mathematical-family inventory for this checkout, with concrete inputs, outputs, command routes, interactions and research uses. Individual Rust helpers and every estimator option are not enumerated. The research examples are possible study designs, not validated clinical claims.",
   "reading_guide": {
     "slide_to_research": "Start here: what a slide can become and which steps require upstream tools or explicit joins.",
@@ -1353,6 +1353,26 @@
         "workers/python/pyproject.toml",
         "docs/python-backends.md"
       ]
+    },
+    "space_ensembles": {
+      "does": [
+        "SPACE census of radius discs around seed cells: object-class percentages, class-linked scalar means and independent scalar means",
+        "cisMI: rank every ensemble of up to depth variables (default 3) by co-information against shuffled-member randomized censuses"
+      ],
+      "input": "A marklab.space_request naming inline specimens, a multiplex study recipe or a CellViT H&E classification CSV, the object channels and scalars, and radii, disc counts and seeds.",
+      "output": "Disc census tables; per specimen and radius, every ensemble's observed and randomized co-information, CisMI, Z, SPACE's normal P with BH adjustment, a Monte Carlo P and each variable's binning range.",
+      "used_by": "marklab::space and the marklab space describe/census/cis commands.",
+      "uses": [
+        "Find three-way and higher cell-type and marker co-patterning that pairwise statistics miss",
+        "Use CellViT classifications or multiplex panels directly as SPACE objects and scalars"
+      ],
+      "limits": "Port of R SPACE's table workflow (commit 94f0a0f); transMI, pattern learning and mapping, diversity and image census are not yet implemented. The randomized census tests departure from a well-mixed tissue, not direct interaction; discs overlap; rare variables have unstable bin grids.",
+      "sources": [
+        "src/space/mod.rs",
+        "src/bin/marklab/space.rs",
+        "docs/space.md",
+        "tests/fixtures/space/compare_space.R"
+      ]
     }
   },
   "mathematical_methods": {
@@ -1813,6 +1833,22 @@
       ],
       "sources": [
         "crates/marklab-numerics/src/lib.rs"
+      ]
+    },
+    "ensemble_co_information": {
+      "equations": [
+        "b = min(floor(((ss + 1) / 10)^(1 / depth)), max_bins) equally spaced bins per variable over its observed and randomized range",
+        "Co-information of an ensemble S is the sum over nonempty subsets T of (-1)^(|T| - 1) H(T), with plug-in joint entropy H in bits",
+        "CisMI = observed co-information minus the mean over randomized censuses; Z = CisMI / null standard deviation"
+      ],
+      "role": "SPACE's binned, multi-way information measure on disc compositions. It is distinct from the KSG mutual information and two-source partial information decomposition in structure descriptors.",
+      "capabilities": [
+        "space_ensembles"
+      ],
+      "sources": [
+        "src/space/information.rs",
+        "src/space/cis.rs",
+        "docs/space.md"
       ]
     }
   },
@@ -2660,6 +2696,16 @@
       ],
       "sources": [
         "src/bin/marklab/topology.rs"
+      ]
+    },
+    "space": {
+      "commands": [
+        "describe",
+        "census",
+        "cis"
+      ],
+      "sources": [
+        "src/bin/marklab/space.rs"
       ]
     }
   },

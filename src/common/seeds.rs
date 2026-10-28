@@ -32,6 +32,8 @@ pub(crate) enum SeedEndpoint {
     PathologyBernoulliScan = 0x7061_7468_7363_616e,
     MutualInformationBlockPermutation = 0x6d75_7475_5f62_6c6b,
     MutualInformationVariogramSurrogate = 0x6d75_7475_5f76_676d,
+    SpaceCensus = 0x7370_6163_5f63_656e,
+    SpaceCisNull = 0x7370_6163_5f63_6973,
 }
 
 /// Derive a stable seed from a base seed, endpoint namespace, and run index.

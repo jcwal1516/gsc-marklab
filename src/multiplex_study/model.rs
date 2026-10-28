@@ -12,7 +12,7 @@ pub(super) enum Availability {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Recipe {
+pub(crate) struct Recipe {
     pub format: String,
     pub version: u32,
     pub study_id: String,
@@ -25,7 +25,7 @@ pub(super) struct Recipe {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Channel {
+pub(crate) struct Channel {
     pub id: String,
     pub label: String,
     pub kind: ChannelKind,
@@ -38,7 +38,7 @@ pub(super) struct Channel {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub(super) enum ChannelKind {
+pub(crate) enum ChannelKind {
     Continuous,
     Binary,
     Categorical,
@@ -46,7 +46,7 @@ pub(super) enum ChannelKind {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Design {
+pub(crate) struct Design {
     pub selected_channels: Vec<String>,
     pub radius_um: f64,
     pub weight_policy: String,
@@ -62,7 +62,7 @@ pub(super) struct Design {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct Slide {
+pub(crate) struct Slide {
     pub slide_id: String,
     pub patient_id: String,
     pub group: String,
@@ -75,7 +75,7 @@ pub(super) struct Slide {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub(super) struct Limits {
+pub(crate) struct Limits {
     pub maximum_rows_per_slide: usize,
     pub maximum_total_rows: usize,
     pub maximum_directed_edges: usize,

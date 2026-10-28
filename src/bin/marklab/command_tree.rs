@@ -2,8 +2,8 @@ use clap::{Parser, Subcommand};
 
 use super::{
     backend, bayes, bayes_advanced, causal, causal_model, cohort, graph, longitudinal,
-    multimodal_model, neural, numerics, pathology, policy, project, registration, spatial3d,
-    spatial3d_model, study, topology,
+    multimodal_model, neural, numerics, pathology, policy, project, registration, space,
+    spatial3d, spatial3d_model, study, topology,
 };
 
 /// Every command: the library's own commands plus the families implemented here.
@@ -86,6 +86,11 @@ enum BinaryCommand {
     Registration {
         #[command(subcommand)]
         command: registration::RegistrationCommand,
+    },
+    /// SPACE: rank multi-way co-patterning of cell types and scalars (cisMI).
+    Space {
+        #[command(subcommand)]
+        command: space::SpaceCommand,
     },
     /// Three-dimensional K functions and serial-section analyses.
     Spatial3d {
@@ -172,6 +177,7 @@ fn execute(command: BinaryCommand) -> marklab::Result<()> {
             ProjectCommand::Durable(command) => project::execute(command),
         },
         BinaryCommand::Registration { command } => registration::execute(command),
+        BinaryCommand::Space { command } => space::run(command),
         BinaryCommand::Spatial3d { command } => match command {
             Spatial3dCommand::Statistics(command) => spatial3d::execute(command),
             Spatial3dCommand::Model(command) => spatial3d_model::execute(command),

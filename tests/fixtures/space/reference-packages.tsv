@@ -1,0 +1,13 @@
+package	version
+R	4.5.2
+FNN	1.1.4.1
+plyr	1.8.9
+dplyr	1.2.1
+tidyr	1.3.2
+stringr	1.5.2
+purrr	1.1.0
+abind	1.4-8
+memuse	4.2-3
+foreach	1.5.2
+doParallel	1.0.17
+jsonlite	2.0.0

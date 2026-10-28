@@ -107,6 +107,7 @@ mod soft_neighborhood_composition;
 mod soft_neighborhood_composition_workflow;
 mod soft_pair_mixing;
 mod soft_pair_mixing_workflow;
+pub mod space;
 mod spatial_autocorrelation;
 mod spatial_autocorrelation_workflow;
 mod spectra;
