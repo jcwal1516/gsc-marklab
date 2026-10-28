@@ -8,6 +8,7 @@ use marklab::space::{
 use marklab::MarklabError;
 
 /// One row per disc; variables absent from a specimen are zero (R `standardize_censuses`).
+/// Three-dimensional requests add `z_um`, empty for planar specimens.
 pub(super) fn census_table(result: &SpaceCensusResult) -> marklab::Result<Vec<u8>> {
     let names = result
         .variables
@@ -20,15 +21,18 @@ pub(super) fn census_table(result: &SpaceCensusResult) -> marklab::Result<Vec<u8
                 .any(|specimen| specimen.variables.iter().any(|known| known == name))
         })
         .collect::<Vec<_>>();
+    let depth = result.specimens.iter().any(|specimen| {
+        specimen
+            .radii
+            .iter()
+            .any(|radius| radius.discs.iter().any(|disc| disc.z_um.is_some()))
+    });
     let mut writer = csv::Writer::from_writer(Vec::new());
-    let mut header = vec![
-        "specimen_id",
-        "radius_um",
-        "seed_cell_id",
-        "x_um",
-        "y_um",
-        "member_count",
-    ];
+    let mut header = vec!["specimen_id", "radius_um", "seed_cell_id", "x_um", "y_um"];
+    if depth {
+        header.push("z_um");
+    }
+    header.push("member_count");
     header.extend(&names);
     writer.write_record(&header)?;
     for specimen in &result.specimens {
@@ -44,8 +48,11 @@ pub(super) fn census_table(result: &SpaceCensusResult) -> marklab::Result<Vec<u8
                     disc.seed_cell_id.clone(),
                     number(disc.x_um),
                     number(disc.y_um),
-                    disc.member_count.to_string(),
                 ];
+                if depth {
+                    record.push(disc.z_um.map(number).unwrap_or_default());
+                }
+                record.push(disc.member_count.to_string());
                 record.extend(
                     columns.iter().map(|column| {
                         column.map_or_else(|| "0".into(), |c| number(disc.values[c]))

@@ -16,6 +16,7 @@ mod dist;
 mod distribution;
 mod diversity;
 mod ensembles;
+mod index;
 mod information;
 mod input;
 mod map;

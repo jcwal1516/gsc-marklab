@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use super::index::CellIndex;
 use super::{
     invalid, label, resource, SpaceError, SpaceVariable, SpaceVariableKind, SPACE_FORMAT_VERSION,
 };
-use crate::geom::spatial_index::SpatialIndex2D;
 #[cfg(feature = "cli")]
 use crate::multimodal::load_cellvit_he_cell_table_csv;
 use crate::multiplex_study::model::{Channel, ChannelKind, Recipe};
@@ -98,6 +98,9 @@ struct InlineSpecimen {
     window: serde_json::Value,
     cell_ids: Vec<String>,
     coordinates_um: Vec<[f64; 2]>,
+    /// Depth of each cell for a three-dimensional table; discs become spheres.
+    #[serde(default)]
+    z_um: Option<Vec<f64>>,
     observations: BTreeMap<String, Vec<Option<f64>>>,
 }
 
@@ -237,13 +240,15 @@ pub(crate) struct Specimen {
     pub cell_ids: Vec<String>,
     pub x_um: Vec<f64>,
     pub y_um: Vec<f64>,
+    /// Depths of a three-dimensional table.
+    pub z_um: Option<Vec<f64>>,
     /// Per object channel, the class of every cell or [`NO_CLASS`].
     pub classes: Vec<Vec<u32>>,
     /// Per object channel, the number of cells of each class.
     pub class_counts: Vec<Vec<usize>>,
     /// Per scalar channel, the value of every cell.
     pub scalars: Vec<Vec<f64>>,
-    pub index: SpatialIndex2D,
+    pub index: CellIndex,
     /// Cell indices of explicit disc centres, one list per radius.
     pub explicit_seeds: Option<Vec<Vec<usize>>>,
 }
@@ -267,6 +272,7 @@ struct RawSpecimen {
     window_geojson: String,
     cell_ids: Vec<String>,
     coordinates_um: Vec<[f64; 2]>,
+    z_um: Option<Vec<f64>>,
     observations: BTreeMap<String, Vec<Option<f64>>>,
 }
 
@@ -476,6 +482,7 @@ fn load_source(
                         window_geojson,
                         cell_ids: specimen.cell_ids,
                         coordinates_um: specimen.coordinates_um,
+                        z_um: specimen.z_um,
                         observations: specimen.observations,
                     })
                 })
@@ -505,6 +512,7 @@ fn load_source(
                         window_geojson,
                         cell_ids: slide.cell_ids,
                         coordinates_um: slide.coordinates_um,
+                        z_um: None,
                         observations: slide.observations,
                     })
                 })
@@ -614,6 +622,7 @@ fn cellvit_source(
                 window_geojson,
                 cell_ids,
                 coordinates_um,
+                z_um: None,
                 observations: BTreeMap::from([
                     (CELLVIT_CLASS_CHANNEL.to_owned(), class_values),
                     (CELLVIT_PROBABILITY_CHANNEL.to_owned(), probabilities),
@@ -915,6 +924,14 @@ fn prepare_specimen(
         y_um.push(y);
     }
     drop(window);
+    // The window bounds x and y; depths need only be finite.
+    if let Some(z_um) = &raw.z_um {
+        if z_um.len() != rows || z_um.iter().any(|z| !z.is_finite()) {
+            return Err(invalid(format!(
+                "specimen {id} needs one finite z_um per cell"
+            )));
+        }
+    }
     for key in raw.observations.keys() {
         if !channels.contains_key(key) {
             return Err(invalid(format!(
@@ -984,14 +1001,15 @@ fn prepare_specimen(
             .collect::<Result<Vec<_>, _>>()?;
         scalars.push(values);
     }
-    let index = SpatialIndex2D::new(&x_um, &y_um)
-        .map_err(|error| invalid(format!("specimen {id} spatial index: {error}")))?;
+    let index = CellIndex::new(&x_um, &y_um, raw.z_um.as_deref())
+        .map_err(|error| invalid(format!("specimen {id}: {error}")))?;
     Ok(Specimen {
         id,
         groups: raw.groups,
         cell_ids: raw.cell_ids,
         x_um,
         y_um,
+        z_um: raw.z_um,
         classes,
         class_counts,
         scalars,

@@ -22,9 +22,10 @@ This release implements:
   enrichment against a reference;
 - **maps**: each cell's region of a pattern's path;
 - **diversity**: the composition of each specimen and of its parts;
-- **suggested sample sizes** for a desired coverage.
+- **suggested sample sizes** for a desired coverage;
+- three-dimensional cell tables.
 
-Image inputs and 3-D tables are planned.
+Image inputs are planned.
 
 ```sh
 marklab space describe
@@ -62,7 +63,10 @@ Cells come directly from inputs Marklab already reads. You do not need a SPACE-s
   `specimens`. Each specimen has `specimen_id`, optional `groups` (factor → level),
   `coordinate_frame_id`, a GeoJSON MultiPolygon `window`, `cell_ids`, `coordinates_um` and
   `observations` (channel → one value per cell). A categorical value is an index into the
-  channel's `levels`, and `null` means unclassified. Scalars are numbers.
+  channel's `levels`, and `null` means unclassified. Scalars are numbers. An optional `z_um`,
+  one depth per cell, makes the specimen a three-dimensional table: discs become spheres, as R
+  `census_table` measures X, Y and Z, and census discs report their centre's `z_um`. The
+  window bounds x and y; depths need only be finite.
 - **`multiplex_study_recipe`**: `path` to a [multiplex study recipe](multiplex-study.md).
   Every slide becomes a specimen and its group becomes the factor `group`. The recipe's Moran
   design is ignored.
@@ -517,7 +521,8 @@ counting visits every disc once and stops at the request's work limit.
     rounds differently from per-window means;
   - the partition of the path into regions and the catch-all.
 - **Integration tests (`tests/space.rs`):**
-  - hand-computed census values, including the inclusive radius and unclassified cells;
+  - hand-computed census values, including the inclusive radius and unclassified cells, and
+    spheres instead of discs in a three-dimensional table;
   - a striped pattern detected against random labels;
   - R's `all`/`alo`/`not` rules and the explicit errors;
   - the CellViT CSV source giving the same census as the same cells declared inline, and

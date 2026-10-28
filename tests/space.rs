@@ -818,6 +818,42 @@ fn pattern_groups_and_map_regions() {
     ));
 }
 
+#[test]
+fn three_dimensional_tables_census_spheres() {
+    // Cells A at (0,0,0), B at (0,0,1.5), A at (1,0,0) and B at (0,1,0.5). Within 1 um of the
+    // first in space lie only itself and the A at distance 1; in the plane, all four.
+    let specimen = |depths: Option<Value>| {
+        let mut specimen = json!({"specimen_id": "stack", "coordinate_frame_id": "stack-um",
+            "window": square(3.0), "cell_ids": ["c0", "c1", "c2", "c3"],
+            "coordinates_um": [[0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [0.0, 1.0]],
+            "observations": {"cell_type": [0.0, 1.0, 0.0, 1.0], "ki67": [1.0, 1.0, 1.0, 1.0]}});
+        if let Some(depths) = depths {
+            specimen["z_um"] = depths;
+        }
+        specimen
+    };
+    let census = |depths: Option<Value>| {
+        let request = inline_request(
+            json!([specimen(depths)]),
+            json!({"census": {"radii_um": [1.0], "seed": 1,
+                "seed_cell_ids": {"stack": [["c0"]]}}}),
+        );
+        space_input_from_json(&request).and_then(|input| space_census(&input))
+    };
+    let volume = census(Some(json!([0.0, 1.5, 0.0, 0.5]))).unwrap();
+    let disc = &volume.specimens[0].radii[0].discs[0];
+    assert_eq!((disc.z_um, disc.member_count), (Some(0.0), 2));
+    assert_eq!(disc.values, [100.0, 0.0]);
+    let planar = census(None).unwrap();
+    let disc = &planar.specimens[0].radii[0].discs[0];
+    assert_eq!((disc.z_um, disc.member_count), (None, 4));
+    assert_eq!(disc.values, [50.0, 50.0]);
+    assert!(matches!(
+        census(Some(json!([0.0, 1.5]))),
+        Err(SpaceError::Invalid(message)) if message.contains("one finite z_um per cell")
+    ));
+}
+
 /// Six cells 10 um apart: classes A, A, B, B, B and none; scalars s1 and s2; zones x, y, z
 /// as given. The request has no sample_size, which diversity and suggest do not need.
 fn row_input(zones: Value) -> marklab::space::SpaceInput {

@@ -174,7 +174,7 @@ fn disc_cells(
                     let query = specimen
                         .index
                         .visit_within_radius(centre, radius_um, |neighbor| {
-                            members.0 += u64::from(counted[neighbor.index]);
+                            members.0 += u64::from(counted[neighbor]);
                             members.1 += 1;
                         });
                     *slot = query.is_ok().then_some(members);

@@ -208,8 +208,7 @@ pub(crate) fn draw_discs(
         push(seed as u32);
         specimen
             .index
-            .visit_within_radius(seed, radius_um, |neighbor| push(neighbor.index as u32))
-            .map_err(|error| invalid(format!("disc query failed: {error}")))?;
+            .visit_within_radius(seed, radius_um, |neighbor| push(neighbor as u32))?;
         if exceeded {
             return Err(resource(format!(
                 "specimen {} has more than the {maximum_members} disc members at {radius_um} um that the disc-member and retained-memory limits allow",
@@ -488,6 +487,9 @@ pub struct SpaceCensusNeighborhood {
     pub seed_cell_id: String,
     pub x_um: f64,
     pub y_um: f64,
+    /// The centre's depth in a three-dimensional table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub z_um: Option<f64>,
     pub member_count: usize,
     pub values: Vec<f64>,
 }
@@ -533,6 +535,7 @@ pub fn space_census(input: &SpaceInput) -> Result<SpaceCensusResult, SpaceError>
                     seed_cell_id: specimen.cell_ids[discs.seeds[disc]].clone(),
                     x_um: specimen.x_um[discs.seeds[disc]],
                     y_um: specimen.y_um[discs.seeds[disc]],
+                    z_um: specimen.z_um.as_ref().map(|z_um| z_um[discs.seeds[disc]]),
                     member_count: discs.offsets[disc + 1] - discs.offsets[disc],
                     values: (0..specs.len())
                         .map(|variable| values[variable * count + disc])

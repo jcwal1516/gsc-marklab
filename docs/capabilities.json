@@ -1391,7 +1391,7 @@
         "Find ensembles whose patterning separates clinical or experimental groups of specimens",
         "Use CellViT classifications or multiplex panels directly as SPACE objects and scalars"
       ],
-      "limits": "Port of R SPACE's table workflow (commit 94f0a0f); image census and 3-D tables are not yet implemented. The randomized census tests departure from a well-mixed tissue, not direct interaction; discs overlap; rare variables have unstable bin grids; a pattern's path is an ordering of discs, and its map depends on the seed. transMI compares each specimen's distribution on its own range, and its null shuffles only the pairwise divergences, so few specimens give a coarse null.",
+      "limits": "Port of R SPACE's table workflow (commit 94f0a0f), including three-dimensional tables; image census is not yet implemented. The randomized census tests departure from a well-mixed tissue, not direct interaction; discs overlap; rare variables have unstable bin grids; a pattern's path is an ordering of discs, and its map depends on the seed. transMI compares each specimen's distribution on its own range, and its null shuffles only the pairwise divergences, so few specimens give a coarse null.",
       "sources": [
         "src/space/mod.rs",
         "src/bin/marklab/space.rs",
