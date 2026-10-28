@@ -25,13 +25,17 @@ fn write_acquisition(dir: &Path, extra_fields: &str, counts: &[i32]) {
 }
 
 fn run(acquisition: &Path, config: &Path, out: &Path) -> assert_cmd::assert::Assert {
+    run_input("--bruker", acquisition, config, out)
+}
+
+fn run_input(flag: &str, input: &Path, config: &Path, out: &Path) -> assert_cmd::assert::Assert {
     Command::cargo_bin("marklab")
         .expect("binary")
         .args([
             "microbio",
             "preprocess",
-            "--bruker",
-            acquisition.to_str().unwrap(),
+            flag,
+            input.to_str().unwrap(),
             "--config",
             config.to_str().unwrap(),
             "--out",
@@ -122,4 +126,45 @@ fn rejects_unsupported_calibrations_without_overwriting_outputs() {
     fs::write(&existing, "keep").unwrap();
     run(&plain, &config, &existing).failure();
     assert_eq!(fs::read_to_string(&existing).unwrap(), "keep");
+}
+
+#[test]
+fn preprocesses_a_text_spectrum_and_requires_exactly_one_input() {
+    let dir = tempfile::tempdir().unwrap();
+    let spectrum = dir.path().join("spectrum.txt");
+    fs::write(
+        &spectrum,
+        "# exported\n\"mass\" \"intensity\"\n2000.5 4\n2001.0 9\n",
+    )
+    .unwrap();
+    let config = dir.path().join("config.json");
+    fs::write(&config, r#"{"steps": [{"step": "sqrt"}]}"#).unwrap();
+    let out = dir.path().join("text.json");
+    run_input("--text", &spectrum, &config, &out).success();
+    let result: Value = serde_json::from_slice(&fs::read(&out).unwrap()).unwrap();
+    assert_eq!(result["source"], json!({"format": "text", "points": 2}));
+    assert_eq!(
+        result["spectrum"],
+        json!({"mz": [2000.5, 2001.0], "intensity": [2.0, 3.0]})
+    );
+
+    let both = dir.path().join("both.json");
+    Command::cargo_bin("marklab")
+        .expect("binary")
+        .args([
+            "microbio",
+            "preprocess",
+            "--text",
+            spectrum.to_str().unwrap(),
+        ])
+        .args(["--bruker", dir.path().to_str().unwrap()])
+        .args([
+            "--config",
+            config.to_str().unwrap(),
+            "--out",
+            both.to_str().unwrap(),
+        ])
+        .assert()
+        .failure();
+    assert!(!both.exists());
 }

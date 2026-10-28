@@ -1,15 +1,11 @@
 //! Reader for Bruker Daltonics flex-series (XMASS) acquisitions: a binary `fid` file of
 //! 32-bit intensities and its `acqu` (or `acqus`) JCAMP-DX parameter file.
 
-use std::{
-    fs,
-    io::Read,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
 use serde::Serialize;
 
-use crate::{MassSpectrum, MicrobioError};
+use crate::{read::read_capped, MassSpectrum, MicrobioError};
 
 /// Largest accepted number of time points (`TD`), so a `fid` file is at most 16 MiB.
 pub const MAXIMUM_BRUKER_TIME_POINTS: usize = 4 * 1024 * 1024;
@@ -265,40 +261,6 @@ impl AcquFields {
             ))
         })
     }
-}
-
-fn read_capped(path: &Path, maximum_bytes: u64) -> Result<Vec<u8>, MicrobioError> {
-    let io_error = |source| MicrobioError::Io {
-        path: PathBuf::from(path),
-        source,
-    };
-    let not_regular = || MicrobioError::Bruker(format!("{} is not a regular file", path.display()));
-    // Checked before opening as well, because opening a FIFO without a writer blocks.
-    if !fs::metadata(path).map_err(io_error)?.is_file() {
-        return Err(not_regular());
-    }
-    let file = fs::File::open(path).map_err(io_error)?;
-    let metadata = file.metadata().map_err(io_error)?;
-    if !metadata.is_file() {
-        return Err(not_regular());
-    }
-    if metadata.len() > maximum_bytes {
-        return Err(MicrobioError::Bruker(format!(
-            "{} exceeds {maximum_bytes} bytes",
-            path.display()
-        )));
-    }
-    let mut bytes = Vec::with_capacity(metadata.len() as usize);
-    file.take(maximum_bytes + 1)
-        .read_to_end(&mut bytes)
-        .map_err(io_error)?;
-    if bytes.len() as u64 > maximum_bytes {
-        return Err(MicrobioError::Bruker(format!(
-            "{} grew beyond {maximum_bytes} bytes while it was read",
-            path.display()
-        )));
-    }
-    Ok(bytes)
 }
 
 #[cfg(test)]

@@ -1118,18 +1118,18 @@
     },
     "maldi_spectra": {
       "does": [
-        "Read Bruker flex fid/acqu acquisitions and convert time of flight to m/z",
+        "Read Bruker flex fid/acqu acquisitions (time of flight to m/z) or two-column text spectra",
         "Ordered square-root, Savitzky-Golay, SNIP baseline, total-ion-current and trim steps",
         "Fixed-edge m/z binning with in-order summation"
       ],
-      "input": "One Bruker flex spectrum directory (fid with acqu or acqus) and a JSON list of preprocessing steps with optional bins.",
+      "input": "One Bruker flex spectrum directory (fid with acqu or acqus) or one two-column text spectrum, and a JSON list of preprocessing steps with optional bins.",
       "output": "Acquisition facts, the preprocessed m/z spectrum and optional binned intensities.",
       "used_by": "marklab microbio preprocess.",
       "uses": [
         "Prepare MALDI-TOF spectra of bacterial isolates for species and susceptibility models",
         "Reproduce MALDIquant preprocessing outside R"
       ],
-      "limits": "HPC, LIFT, PSD and V1.0 CTOF2 calibrations are rejected. One acquisition per run; no peak detection, alignment, replicate averaging or text-spectrum input. Not yet compared with DRIAMS published preprocessed spectra; not spatial.",
+      "limits": "HPC, LIFT, PSD and V1.0 CTOF2 calibrations are rejected. One spectrum per run; no peak detection, alignment, replicate averaging, mzML or mzXML. Not spatial.",
       "sources": [
         "crates/marklab-microbio/src/bruker.rs",
         "crates/marklab-microbio/src/preprocess.rs",

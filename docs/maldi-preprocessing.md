@@ -1,17 +1,24 @@
 # MALDI-TOF spectrum preprocessing
 
-`marklab microbio preprocess` reads one Bruker flex-series MALDI-TOF acquisition of a bacterial
-isolate, converts time of flight to m/z, applies declared preprocessing steps in order, and can sum
-the result into fixed m/z bins. It is the first stage of the microbiology workflow. It does not
-identify species, detect peaks or predict antimicrobial susceptibility, and none of Marklab's
-spatial nulls apply to spectra.
+`marklab microbio preprocess` reads one MALDI-TOF spectrum of a bacterial isolate, either a Bruker
+flex-series acquisition (converting time of flight to m/z) or a two-column text spectrum, applies
+declared preprocessing steps in order, and can sum the result into fixed m/z bins. It is the first
+stage of the microbiology workflow. It does not identify species, detect peaks or predict
+antimicrobial susceptibility, and none of Marklab's spatial nulls apply to spectra.
 
 ```sh
 marklab microbio preprocess \
   --bruker run/0_A1/1/1SLin \
   --config examples/maldi-preprocess.json \
   --out out/0_A1.json
+
+marklab microbio preprocess \
+  --text raw/<code>.txt \
+  --config examples/maldi-preprocess.json \
+  --out out/<code>.json
 ```
+
+Exactly one of `--bruker` and `--text` is required.
 
 ## Bruker flex input
 
@@ -46,6 +53,14 @@ The reader rejects, rather than approximates:
 readBrukerFlexData only warns about HPC and LIFT; for LIFT it returns times of flight in place of
 masses. `acqu` lines may end in LF, CRLF or CR, and a decimal comma is read as a point. `acqu` may
 be at most 1 MiB.
+
+## Text input
+
+`--text` names a spectrum already in m/z, such as a DRIAMS `raw` or `preprocessed` file. Lines
+starting with `#` and blank lines are ignored, and the first remaining line may be a header of two
+non-numeric fields. Every other line holds m/z and a non-negative intensity separated by
+whitespace, with m/z strictly increasing; any other line is rejected with its line number. The file
+may be at most 128 MiB and hold at most 4,194,304 points.
 
 ## Configuration
 
@@ -87,16 +102,16 @@ Unlike maldi-learn, Marklab keeps a point exactly at `min_mz` and never moves th
 maldi-learn recomputes edges for a spectrum that extends beyond 2,000–20,000 Da. At most 1,000,000
 bins are allowed, and a non-finite bin width or bin sum is rejected.
 
-The example configuration is a starting point built from MALDIquant's smoothing defaults and the
-DRIAMS bin layout. DRIAMS's own step order and SNIP settings have not yet been confirmed against
-its published preprocessed spectra.
+The example configuration uses MALDIquant's smoothing defaults, 20 SNIP iterations, total ion
+current before trimming, and the DRIAMS bin layout.
 
 ## Output
 
 The result JSON contains:
 
-- `source`: `format` (`bruker_flex`), `time_points`, `byte_order`, `laser_shots`, `tof_mode` and
-  `negative_intensities_clipped`;
+- `source`: for Bruker input, `format` (`bruker_flex`), `time_points`, `byte_order`,
+  `laser_shots`, `tof_mode` and `negative_intensities_clipped`; for text input, `format` (`text`)
+  and `points`;
 - `steps`: the steps as run;
 - `spectrum`: the preprocessed `mz` and `intensity` arrays;
 - `binned`: `min_mz`, `max_mz`, `bins`, `points_outside` and `intensity`, or `null` without
@@ -134,8 +149,6 @@ These spectra test numerical agreement with MALDIquant. They are not a cohort of
 
 ## Not yet supported
 
-- More than one acquisition per run, replicate averaging, peak detection and alignment.
-- Text spectra such as DRIAMS `raw` files, mzML or mzXML.
-- Comparison with DRIAMS's published `preprocessed` and `binned_6000` files. DRIAMS (CC0, Dryad
-  doi:10.5061/dryad.bzkh1899q) requires a signed-in download.
+- More than one spectrum per run, replicate averaging, peak detection and alignment.
+- mzML and mzXML.
 - Bruker HPC, LIFT and PSD acquisitions.

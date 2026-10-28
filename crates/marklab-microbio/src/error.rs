@@ -16,6 +16,9 @@ pub enum MicrobioError {
     /// A Bruker flex acquisition is malformed or uses an unsupported calibration or mode.
     #[error("Bruker flex acquisition: {0}")]
     Bruker(String),
+    /// A text spectrum is malformed.
+    #[error("text spectrum: {0}")]
+    Text(String),
     /// Spectrum values violate the m/z or intensity contract.
     #[error("invalid spectrum: {0}")]
     Spectrum(String),
