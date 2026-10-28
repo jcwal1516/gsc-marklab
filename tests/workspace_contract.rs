@@ -75,6 +75,7 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
             "crates/marklab-graph",
             "crates/marklab-topology",
             "crates/marklab-workflow",
+            "crates/marklab-microbio",
         ],
         "the root remains implicit and only packages with immediate callers are listed"
     );
@@ -165,12 +166,12 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
     let default_members = metadata["workspace_default_members"]
         .as_array()
         .expect("metadata workspace_default_members");
-    assert_eq!(workspace_members.len(), 19);
+    assert_eq!(workspace_members.len(), 20);
     assert_eq!(default_members.len(), 1);
 
     let root_manifest = fs::canonicalize("Cargo.toml").expect("canonical root manifest");
     let packages = metadata["packages"].as_array().expect("metadata packages");
-    assert_eq!(packages.len(), 19);
+    assert_eq!(packages.len(), 20);
     let package = packages
         .iter()
         .find(|package| package["name"] == "marklab")
@@ -254,6 +255,7 @@ fn workspace_dependencies_descend_layers_and_core_packages_have_no_cli_feature()
         ("marklab-project", 2_u8),
         ("marklab-embeddings", 3_u8),
         ("marklab-workflow", 3_u8),
+        ("marklab-microbio", 0_u8),
         ("marklab", 4_u8),
     ]);
 
