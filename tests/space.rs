@@ -2,8 +2,10 @@ use std::path::Path;
 use std::process::Command;
 
 use marklab::space::{
-    load_space_input, space_census, space_cis, space_input_from_json, space_trans,
-    SpaceCisParameters, SpaceError, SpaceNullStatus, SpaceTransParameters,
+    load_space_input, space_census, space_cis, space_dist, space_input_from_json,
+    space_mi_result_from_json, space_rank, space_trans, SpaceCisParameters, SpaceDistCensus,
+    SpaceDistParameters, SpaceDistValues, SpaceError, SpaceMiResult, SpaceNullStatus,
+    SpaceRankParameters, SpaceRankView, SpaceTransParameters,
 };
 use serde_json::{json, Value};
 
@@ -373,6 +375,252 @@ fn trans_ranks_ensembles_that_separate_groups() {
     ));
 }
 
+#[test]
+fn dist_reports_census_values_and_their_smoothed_joint_distribution() {
+    let input = cis_input(json!([grid_specimen("stripes", 40, 8)]), 200);
+    let parameters = |variables: &[&str], bins, randomized| SpaceDistParameters {
+        variables: variables.iter().map(|name| (*name).to_owned()).collect(),
+        radius_um: 3.0,
+        specimen: None,
+        bins,
+        randomized,
+    };
+    // Without bins, each disc's values are the census's.
+    let census = space_census(&input).unwrap();
+    let discs = &census.specimens[0].radii[0].discs;
+    let observed = space_dist(&input, &parameters(&["cell_type.A", "ki67"], None, false)).unwrap();
+    assert_eq!(observed.census, SpaceDistCensus::Observed);
+    let SpaceDistValues::Discs { discs: values } = &observed.values else {
+        panic!("expected disc values");
+    };
+    let names = &census.specimens[0].variables;
+    let column = |name: &str| names.iter().position(|known| known == name).unwrap();
+    assert_eq!(values.len(), 200);
+    for (disc, row) in discs.iter().zip(values) {
+        assert_eq!(
+            row,
+            &[
+                disc.values[column("cell_type.A")],
+                disc.values[column("ki67")]
+            ]
+        );
+    }
+
+    // Two classes of one channel on four bins: 16 cells, those summing above 100% removed,
+    // the rest a probability distribution that keeps unobserved cells positive.
+    let joint = space_dist(
+        &input,
+        &parameters(&["cell_type.A", "cell_type.B"], Some(4), false),
+    )
+    .unwrap();
+    let SpaceDistValues::Distribution { axes, cells } = &joint.values else {
+        panic!("expected a distribution");
+    };
+    assert!(axes
+        .iter()
+        .all(|axis| axis.rounded && axis.values.len() == 4));
+    assert_eq!(cells.len(), 16);
+    for cell in cells {
+        let impossible = cell.values.iter().sum::<f64>() > 100.0;
+        assert_eq!(cell.frequency.is_none(), impossible, "{cell:?}");
+        assert!(cell.frequency.is_none_or(|frequency| frequency > 0.0));
+    }
+    let total = cells.iter().filter_map(|cell| cell.frequency).sum::<f64>();
+    assert!((total - 1.0).abs() < 1e-12);
+    // Pure stripe interiors dominate: 0% A with 100% B, and 100% A with 0% B.
+    let frequency = |a: f64, b: f64| {
+        cells
+            .iter()
+            .find(|cell| cell.values == [a, b])
+            .and_then(|cell| cell.frequency)
+            .unwrap()
+    };
+    assert!(frequency(0.0, 100.0) + frequency(100.0, 0.0) > 0.5);
+
+    // With more bins than distinct values, those values are used unrounded.
+    let distinct = space_dist(&input, &parameters(&["cell_type.A"], Some(255), false)).unwrap();
+    let SpaceDistValues::Distribution { axes, cells } = &distinct.values else {
+        panic!("expected a distribution");
+    };
+    assert!(!axes[0].rounded);
+    let mut expected = values.iter().map(|row| row[0]).collect::<Vec<_>>();
+    expected.sort_by(f64::total_cmp);
+    expected.dedup();
+    assert_eq!(axes[0].values, expected);
+    assert_eq!(cells.len(), expected.len());
+
+    // One randomized census: the same discs, members shuffled, so stripes no longer give
+    // pure discs; the same seed gives the same census.
+    let randomized = space_dist(&input, &parameters(&["cell_type.A"], None, true)).unwrap();
+    assert_eq!(randomized.census, SpaceDistCensus::Randomized);
+    assert_eq!(randomized.disc_count, 200);
+    assert!(randomized.variables[0].maximum < 100.0);
+    assert_eq!(
+        randomized,
+        space_dist(&input, &parameters(&["cell_type.A"], None, true)).unwrap()
+    );
+
+    let error = |parameters: SpaceDistParameters| space_dist(&input, &parameters).unwrap_err();
+    assert!(matches!(
+        error(parameters(&["cell_type.A", "cell_type.B", "ki67"], None, false)),
+        SpaceError::Invalid(message) if message.contains("one or two variables")
+    ));
+    assert!(matches!(
+        error(parameters(&["cell_type.A"], Some(1), false)),
+        SpaceError::Invalid(message) if message.contains("between 2 and 255")
+    ));
+    assert!(matches!(
+        error(parameters(&["cell_type.C"], None, false)),
+        SpaceError::Invalid(message) if message.contains("no cells of variable cell_type.C")
+    ));
+}
+
+#[test]
+fn rank_filters_and_orders_as_r_plot_mi_rank() {
+    let input = cis_input(
+        json!([
+            grid_specimen("stripes", 40, 8),
+            grid_specimen("random", 40, 0)
+        ]),
+        200,
+    );
+    let cis = space_cis(
+        &input,
+        &SpaceCisParameters {
+            depth: 2,
+            bootstraps: 60,
+            ..SpaceCisParameters::default()
+        },
+    )
+    .unwrap();
+    // The result is read back from its JSON, as the CLI does.
+    let source = space_mi_result_from_json(&serde_json::to_vec(&cis).unwrap()).unwrap();
+    assert_eq!(source, SpaceMiResult::Cis(cis.clone()));
+    let rank = |parameters: SpaceRankParameters| space_rank(&source, &parameters);
+    let base = SpaceRankParameters {
+        radius_um: Some(3.0),
+        specimen: Some("stripes".into()),
+        ..SpaceRankParameters::default()
+    };
+    let result = rank(base.clone()).unwrap();
+    let SpaceRankView::Ensembles {
+        ensembles,
+        variables,
+        mi_threshold,
+        ..
+    } = &result.view
+    else {
+        panic!("expected a ranking");
+    };
+    // Kept: BH P <= 0.05 and |cisMI| >= 0.1 (R's cisMI default), by decreasing |Z|.
+    let all = &cis.specimens[1].radii[0].ensembles;
+    let expected = all
+        .iter()
+        .filter(|ensemble| ensemble.p_adjust_bh <= 0.05 && ensemble.cis_mi.abs() >= 0.1)
+        .count();
+    assert_eq!((*mi_threshold, ensembles.len()), (0.1, expected));
+    assert!(expected > 0);
+    let magnitudes = ensembles
+        .iter()
+        .map(|ensemble| ensemble.z_score.unwrap().abs())
+        .collect::<Vec<_>>();
+    assert!(magnitudes.windows(2).all(|pair| pair[0] >= pair[1]));
+    // Each variable's score: its ensembles' summed |Z| over the number kept.
+    for variable in variables {
+        let sum = ensembles
+            .iter()
+            .filter(|ensemble| ensemble.variables.contains(&variable.name))
+            .map(|ensemble| ensemble.z_score.unwrap().abs())
+            .sum::<f64>();
+        assert!((variable.score - sum / ensembles.len() as f64).abs() < 1e-12);
+        assert_eq!(variable.unbounded_ensembles, 0);
+    }
+    assert!(variables
+        .windows(2)
+        .all(|pair| pair[0].score >= pair[1].score));
+
+    let kept = |parameters: SpaceRankParameters| match rank(parameters).unwrap().view {
+        SpaceRankView::Ensembles { ensembles, .. } => ensembles,
+        SpaceRankView::Radii { .. } => panic!("expected a ranking"),
+    };
+    assert!(kept(SpaceRankParameters {
+        not: vec!["ki67".into()],
+        ..base.clone()
+    })
+    .iter()
+    .all(|ensemble| !ensemble.variables.contains(&"ki67".to_owned())));
+    assert!(kept(SpaceRankParameters {
+        all: vec!["cell_type.A".into()],
+        depths: vec![2],
+        p_threshold: 1.0,
+        mi_threshold: Some(0.0),
+        ..base.clone()
+    })
+    .iter()
+    .all(|ensemble| ensemble.variables.len() == 2
+        && ensemble.variables.contains(&"cell_type.A".to_owned())));
+    // R refuses more required variables than the smallest ranked depth.
+    assert!(matches!(
+        rank(SpaceRankParameters {
+            all: vec!["cell_type.A".into()],
+            alo: vec!["ki67".into()],
+            ..base.clone()
+        }),
+        Err(SpaceError::Invalid(message)) if message.contains("smallest ensemble depth")
+    ));
+
+    // One ensemble across radii (R plot_MI_radius).
+    let followed = rank(SpaceRankParameters {
+        radius_um: None,
+        ensemble: vec!["ki67".into(), "cell_type.A".into()],
+        ..base.clone()
+    })
+    .unwrap();
+    let SpaceRankView::Radii { radii, .. } = &followed.view else {
+        panic!("expected radii");
+    };
+    let stored = all
+        .iter()
+        .find(|ensemble| ensemble.variables == ["cell_type.A", "ki67"])
+        .unwrap();
+    assert_eq!(radii.len(), 1);
+    assert_eq!(
+        (radii[0].mi, radii[0].z_score),
+        (stored.cis_mi, stored.z_score)
+    );
+
+    // A transMI result ranks one factor; transMI keeps values at or above 0 by default.
+    let trans = space_trans(
+        &cis_input(trans_specimens(), 120),
+        &SpaceTransParameters {
+            depth: 2,
+            bootstraps: 50,
+            ..SpaceTransParameters::default()
+        },
+    )
+    .unwrap();
+    let trans = SpaceMiResult::Trans(trans);
+    let parameters = SpaceRankParameters {
+        radius_um: Some(3.0),
+        factor: Some("pattern".into()),
+        p_threshold: 1.0,
+        ..SpaceRankParameters::default()
+    };
+    let SpaceRankView::Ensembles { ensembles, .. } = space_rank(&trans, &parameters).unwrap().view
+    else {
+        panic!("expected a ranking");
+    };
+    assert!(ensembles.iter().all(|ensemble| ensemble.mi >= 0.0));
+    assert!(matches!(
+        space_rank(&trans, &SpaceRankParameters { factor: None, ..parameters }),
+        Err(SpaceError::Invalid(message)) if message.contains("name the grouping factor")
+    ));
+    assert!(matches!(
+        space_mi_result_from_json(br#"{"format": "marklab.space_census", "version": 1}"#),
+        Err(SpaceError::Invalid(message)) if message.contains("not a cisMI or transMI result")
+    ));
+}
+
 #[cfg(feature = "parallel")]
 #[test]
 fn results_do_not_depend_on_thread_count() {
@@ -550,6 +798,62 @@ fn cli_publishes_json_and_tables_once() {
     let second = run();
     assert!(!second.status.success());
     assert!(String::from_utf8_lossy(&second.stderr).contains("already exists"));
+
+    // The cisMI result ranked, and one distribution, each with its tables.
+    let path = |name: &str| directory.path().join(name);
+    let marklab = |arguments: &[&str]| {
+        let output = Command::new(env!("CARGO_BIN_EXE_marklab"))
+            .args(arguments)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    let text = |name: &str| path(name).to_str().unwrap().to_owned();
+    marklab(&[
+        "space",
+        "rank",
+        "--result",
+        &text("cis.json"),
+        "--radius",
+        "3",
+        "--p-threshold",
+        "1",
+        "--out",
+        &text("rank.json"),
+        "--table",
+        &text("rank.csv"),
+        "--variable-table",
+        &text("rank-variables.csv"),
+    ]);
+    let ranked: Value = serde_json::from_slice(&std::fs::read(path("rank.json")).unwrap()).unwrap();
+    assert_eq!(ranked["view"]["kind"], "ensembles");
+    let csv = std::fs::read_to_string(path("rank.csv")).unwrap();
+    assert!(csv.starts_with("rank,depth,v1,v2,mi,z_score,"));
+    let csv = std::fs::read_to_string(path("rank-variables.csv")).unwrap();
+    assert!(csv.starts_with("rank,variable,score,unbounded_ensembles,ensembles\n"));
+    marklab(&[
+        "space",
+        "dist",
+        "--request",
+        &text("request.json"),
+        "--variables",
+        "cell_type.A,cell_type.B",
+        "--radius",
+        "3",
+        "--bins",
+        "4",
+        "--out",
+        &text("dist.json"),
+        "--table",
+        &text("dist.csv"),
+    ]);
+    let csv = std::fs::read_to_string(path("dist.csv")).unwrap();
+    assert!(csv.starts_with("cell_type.A,cell_type.B,frequency\n"));
+    assert_eq!(csv.lines().count(), 1 + 16);
 
     let request = directory.path().join("trans-request.json");
     std::fs::write(

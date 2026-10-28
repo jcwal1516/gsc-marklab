@@ -6,12 +6,17 @@ use std::{
 
 use clap::Subcommand;
 use marklab::space::{
-    load_space_input, space_census, space_cis, space_trans, SpaceCensusResult, SpaceCisParameters,
-    SpaceCisResult, SpaceError, SpaceNullStatus, SpaceTransParameters, SpaceTransResult,
+    load_space_input, load_space_mi_result, space_census, space_cis, space_dist, space_rank,
+    space_trans, SpaceCisParameters, SpaceDistParameters, SpaceError, SpaceRankParameters,
+    SpaceTransParameters,
 };
 use marklab::MarklabError;
 
 use super::exclusive_json_output::{publish_pretty_json, ExclusiveJsonOutputError};
+
+mod tables;
+
+use tables::{census_table, cis_table, dist_table, rank_table, rank_variable_table, trans_table};
 
 #[derive(Subcommand)]
 pub(crate) enum SpaceCommand {
@@ -105,6 +110,83 @@ pub(crate) enum SpaceCommand {
         #[arg(long, value_delimiter = ',')]
         factor: Vec<String>,
     },
+    /// The values or smoothed joint distribution of one or two variables in one specimen
+    /// (R plot_dist, without the plot).
+    Dist {
+        /// marklab.space_request version 1; file sources resolve relative to it.
+        #[arg(long)]
+        request: PathBuf,
+        /// New JSON result file.
+        #[arg(long)]
+        out: PathBuf,
+        /// Optional new CSV with one row per disc, or per grid cell when rounding.
+        #[arg(long)]
+        table: Option<PathBuf>,
+        /// One or two census variables.
+        #[arg(long, value_delimiter = ',', required = true)]
+        variables: Vec<String>,
+        /// Census radius in micrometres.
+        #[arg(long)]
+        radius: f64,
+        /// Specimen to describe (required when the request has several).
+        #[arg(long)]
+        specimen: Option<String>,
+        /// Rounding bins per variable; without it each disc's values are reported.
+        #[arg(long)]
+        bins: Option<usize>,
+        /// Describe one randomized census instead of the observed one.
+        #[arg(long)]
+        randomized: bool,
+    },
+    /// Rank a cisMI or transMI result's ensembles and variables at one radius, or follow one
+    /// ensemble across radii (R plot_MI_rank and plot_MI_radius, without the plots).
+    Rank {
+        /// A marklab.space_cis_result or marklab.space_trans_result file.
+        #[arg(long)]
+        result: PathBuf,
+        /// New JSON result file.
+        #[arg(long)]
+        out: PathBuf,
+        /// Optional new CSV of the ranked ensembles, or of the ensemble at each radius.
+        #[arg(long)]
+        table: Option<PathBuf>,
+        /// Optional new CSV of the ranked variables.
+        #[arg(long)]
+        variable_table: Option<PathBuf>,
+        /// Radius whose ensembles are ranked, in micrometres.
+        #[arg(long)]
+        radius: Option<f64>,
+        /// Specimen of a cisMI result (required when it has several).
+        #[arg(long)]
+        specimen: Option<String>,
+        /// Grouping factor of a transMI result (required when it tests several).
+        #[arg(long)]
+        factor: Option<String>,
+        /// Ensemble sizes to rank (default: all).
+        #[arg(long, value_delimiter = ',')]
+        depth: Vec<usize>,
+        /// Largest P value kept.
+        #[arg(long, default_value_t = 0.05)]
+        p_threshold: f64,
+        /// Smallest |cisMI| or transMI kept (default 0.1 for cisMI and 0 for transMI).
+        #[arg(long)]
+        mi_threshold: Option<f64>,
+        /// Filter on Benjamini-Hochberg P values; false uses the normal-approximation P.
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+        p_adjust: bool,
+        /// Variables every kept ensemble must contain.
+        #[arg(long, value_delimiter = ',')]
+        all: Vec<String>,
+        /// Variables of which every kept ensemble must contain at least one.
+        #[arg(long, value_delimiter = ',')]
+        alo: Vec<String>,
+        /// Variables no kept ensemble may contain.
+        #[arg(long, value_delimiter = ',')]
+        not: Vec<String>,
+        /// Follow this ensemble across every radius instead of ranking one radius.
+        #[arg(long, value_delimiter = ',')]
+        ensemble: Vec<String>,
+    },
 }
 
 pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
@@ -118,7 +200,7 @@ pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
             out,
             table,
         } => {
-            require_new(&out, table.as_deref())?;
+            require_new(&out, &[table.as_deref()])?;
             let input = load_space_input(&request).map_err(space_error)?;
             let result = space_census(&input).map_err(space_error)?;
             publish(&out, &result)?;
@@ -140,7 +222,7 @@ pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
             radii,
             specimen,
         } => {
-            require_new(&out, table.as_deref())?;
+            require_new(&out, &[table.as_deref()])?;
             let input = load_space_input(&request).map_err(space_error)?;
             let parameters = SpaceCisParameters {
                 depth,
@@ -173,7 +255,7 @@ pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
             specimen,
             factor,
         } => {
-            require_new(&out, table.as_deref())?;
+            require_new(&out, &[table.as_deref()])?;
             let input = load_space_input(&request).map_err(space_error)?;
             let parameters = SpaceTransParameters {
                 depth,
@@ -190,6 +272,79 @@ pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
             publish(&out, &result)?;
             if let Some(table) = table {
                 write_new(&table, &trans_table(&result)?)?;
+            }
+            Ok(())
+        }
+        SpaceCommand::Dist {
+            request,
+            out,
+            table,
+            variables,
+            radius,
+            specimen,
+            bins,
+            randomized,
+        } => {
+            require_new(&out, &[table.as_deref()])?;
+            let input = load_space_input(&request).map_err(space_error)?;
+            let parameters = SpaceDistParameters {
+                variables,
+                radius_um: radius,
+                specimen,
+                bins,
+                randomized,
+            };
+            let result = space_dist(&input, &parameters).map_err(space_error)?;
+            publish(&out, &result)?;
+            if let Some(table) = table {
+                write_new(&table, &dist_table(&result)?)?;
+            }
+            Ok(())
+        }
+        SpaceCommand::Rank {
+            result,
+            out,
+            table,
+            variable_table,
+            radius,
+            specimen,
+            factor,
+            depth,
+            p_threshold,
+            mi_threshold,
+            p_adjust,
+            all,
+            alo,
+            not,
+            ensemble,
+        } => {
+            require_new(&out, &[table.as_deref(), variable_table.as_deref()])?;
+            if variable_table.is_some() && !ensemble.is_empty() {
+                return Err(MarklabError::Config(
+                    "--variable-table applies to a ranking of one radius, not --ensemble".into(),
+                ));
+            }
+            let source = load_space_mi_result(&result).map_err(space_error)?;
+            let parameters = SpaceRankParameters {
+                radius_um: radius,
+                specimen,
+                factor,
+                depths: depth,
+                p_threshold,
+                mi_threshold,
+                p_adjust,
+                all,
+                alo,
+                not,
+                ensemble,
+            };
+            let ranked = space_rank(&source, &parameters).map_err(space_error)?;
+            publish(&out, &ranked)?;
+            if let Some(table) = table {
+                write_new(&table, &rank_table(&ranked)?)?;
+            }
+            if let Some(variable_table) = variable_table {
+                write_new(&variable_table, &rank_variable_table(&ranked)?)?;
             }
             Ok(())
         }
@@ -226,6 +381,15 @@ fn describe() -> serde_json::Value {
                 "defaults": {"depth": 3, "bootstraps": 100, "max_bins": 100},
                 "statistic": "directed weighted modularity of each grouping factor on the specimen similarity network built from symmetric KL divergences",
                 "p_values": ["SPACE normal approximation 1-Phi(Z)", "Benjamini-Hochberg per radius and factor", "Monte Carlo from the same shuffled divergences"]
+            },
+            "dist": {
+                "r_function": "plot_dist (data only)",
+                "output": "each disc's values of one or two variables, or with bins their smoothed joint distribution over every grid cell"
+            },
+            "rank": {
+                "r_functions": ["plot_MI_rank (data only)", "plot_MI_radius (data only)"],
+                "defaults": {"p_threshold": 0.05, "mi_threshold": {"cis": 0.1, "trans": 0.0}, "p_adjust": true},
+                "output": "kept ensembles by decreasing |Z| and variables by aggregate |Z|, or one ensemble at every radius"
             }
         },
         "deviations_from_r": "docs/space.md#differences-from-r-space",
@@ -234,8 +398,8 @@ fn describe() -> serde_json::Value {
     })
 }
 
-fn require_new(out: &Path, table: Option<&Path>) -> marklab::Result<()> {
-    for path in std::iter::once(out).chain(table) {
+fn require_new(out: &Path, tables: &[Option<&Path>]) -> marklab::Result<()> {
+    for path in std::iter::once(out).chain(tables.iter().flatten().copied()) {
         if fs::symlink_metadata(path).is_ok() {
             return Err(MarklabError::Config(format!(
                 "output already exists: {}",
@@ -285,178 +449,4 @@ fn space_error(error: SpaceError) -> MarklabError {
         SpaceError::Resource(message) => MarklabError::Compute(message),
         SpaceError::Invalid(message) | SpaceError::Io(message) => MarklabError::Config(message),
     }
-}
-
-/// One row per disc; variables absent from a specimen are zero (R `standardize_censuses`).
-fn census_table(result: &SpaceCensusResult) -> marklab::Result<Vec<u8>> {
-    let names = result
-        .variables
-        .iter()
-        .map(|variable| variable.name.as_str())
-        .filter(|name| {
-            result
-                .specimens
-                .iter()
-                .any(|specimen| specimen.variables.iter().any(|known| known == name))
-        })
-        .collect::<Vec<_>>();
-    let mut writer = csv::Writer::from_writer(Vec::new());
-    let mut header = vec![
-        "specimen_id",
-        "radius_um",
-        "seed_cell_id",
-        "x_um",
-        "y_um",
-        "member_count",
-    ];
-    header.extend(&names);
-    writer.write_record(&header)?;
-    for specimen in &result.specimens {
-        let columns = names
-            .iter()
-            .map(|name| specimen.variables.iter().position(|known| known == name))
-            .collect::<Vec<_>>();
-        for radius in &specimen.radii {
-            for disc in &radius.discs {
-                let mut record = vec![
-                    specimen.specimen_id.clone(),
-                    number(radius.radius_um),
-                    disc.seed_cell_id.clone(),
-                    number(disc.x_um),
-                    number(disc.y_um),
-                    disc.member_count.to_string(),
-                ];
-                record.extend(
-                    columns.iter().map(|column| {
-                        column.map_or_else(|| "0".into(), |c| number(disc.values[c]))
-                    }),
-                );
-                writer.write_record(&record)?;
-            }
-        }
-    }
-    writer
-        .into_inner()
-        .map_err(|error| MarklabError::Compute(format!("CSV buffer: {error}")))
-}
-
-fn cis_table(result: &SpaceCisResult) -> marklab::Result<Vec<u8>> {
-    let depth = result.parameters.depth;
-    let mut writer = csv::Writer::from_writer(Vec::new());
-    let mut header = vec!["specimen_id".to_owned(), "radius_um".into(), "depth".into()];
-    header.extend((1..=depth).map(|position| format!("v{position}")));
-    header.extend(
-        [
-            "observed_mi",
-            "null_mean_mi",
-            "null_sd_mi",
-            "cis_mi",
-            "z_score",
-            "status",
-            "p_value_normal",
-            "p_adjust_bh",
-            "p_value_monte_carlo",
-        ]
-        .map(String::from),
-    );
-    writer.write_record(&header)?;
-    for specimen in &result.specimens {
-        for radius in &specimen.radii {
-            for ensemble in &radius.ensembles {
-                let mut record = vec![
-                    specimen.specimen_id.clone(),
-                    number(radius.radius_um),
-                    ensemble.variables.len().to_string(),
-                ];
-                record.extend((0..depth).map(|position| {
-                    ensemble
-                        .variables
-                        .get(position)
-                        .cloned()
-                        .unwrap_or_default()
-                }));
-                record.extend([
-                    number(ensemble.observed_mi),
-                    number(ensemble.null_mean_mi),
-                    number(ensemble.null_sd_mi),
-                    number(ensemble.cis_mi),
-                    ensemble.z_score.map(number).unwrap_or_default(),
-                    status(ensemble.status),
-                    number(ensemble.p_value_normal),
-                    number(ensemble.p_adjust_bh),
-                    number(ensemble.p_value_monte_carlo),
-                ]);
-                writer.write_record(&record)?;
-            }
-        }
-    }
-    writer
-        .into_inner()
-        .map_err(|error| MarklabError::Compute(format!("CSV buffer: {error}")))
-}
-
-fn trans_table(result: &SpaceTransResult) -> marklab::Result<Vec<u8>> {
-    let depth = result.parameters.depth;
-    let mut writer = csv::Writer::from_writer(Vec::new());
-    let mut header = vec!["radius_um".to_owned(), "depth".into()];
-    header.extend((1..=depth).map(|position| format!("v{position}")));
-    header.extend(
-        [
-            "factor",
-            "trans_mi",
-            "null_mean",
-            "null_sd",
-            "z_score",
-            "status",
-            "p_value_normal",
-            "p_adjust_bh",
-            "p_value_monte_carlo",
-        ]
-        .map(String::from),
-    );
-    writer.write_record(&header)?;
-    for radius in &result.radii {
-        for ensemble in &radius.ensembles {
-            for statistic in &ensemble.factors {
-                let mut record = vec![
-                    number(radius.radius_um),
-                    ensemble.variables.len().to_string(),
-                ];
-                record.extend((0..depth).map(|position| {
-                    ensemble
-                        .variables
-                        .get(position)
-                        .cloned()
-                        .unwrap_or_default()
-                }));
-                record.extend([
-                    statistic.factor.clone(),
-                    number(statistic.trans_mi),
-                    number(statistic.null_mean),
-                    number(statistic.null_sd),
-                    number(statistic.z_score),
-                    status(statistic.status),
-                    number(statistic.p_value_normal),
-                    number(statistic.p_adjust_bh),
-                    number(statistic.p_value_monte_carlo),
-                ]);
-                writer.write_record(&record)?;
-            }
-        }
-    }
-    writer
-        .into_inner()
-        .map_err(|error| MarklabError::Compute(format!("CSV buffer: {error}")))
-}
-
-fn status(status: SpaceNullStatus) -> String {
-    match status {
-        SpaceNullStatus::Available => "available".into(),
-        SpaceNullStatus::DegenerateNull => "degenerate_null".into(),
-    }
-}
-
-/// Shortest round-trip decimal, as in the JSON result.
-fn number(value: f64) -> String {
-    format!("{value:?}")
 }

@@ -13,9 +13,13 @@ The algorithms follow the R package by Edward Schrom
 re-implementation for cell tables. It is not affiliated with or endorsed by the SPACE authors.
 The [differences from R SPACE](#differences-from-r-space) are listed below.
 
-This release implements the census, **cisMI** (patterning within one specimen) and **transMI**
-(patterning that separates groups of specimens). Pattern learning and mapping, diversity and
-image inputs are planned.
+This release implements:
+- the census;
+- **cisMI**, patterning within one specimen;
+- **transMI**, patterning that separates groups of specimens;
+- the data behind SPACE's distribution and ranking plots.
+
+Pattern learning and mapping, diversity and image inputs are planned.
 
 ```sh
 marklab space describe
@@ -24,6 +28,10 @@ marklab space cis --request request.json --out cis.json --table cis.csv \
   --depth 3 --bootstraps 100
 marklab space trans --request request.json --out trans.json --table trans.csv \
   --depth 3 --bootstraps 100
+marklab space dist --request request.json --variables cell_type.T,cell_type.B --radius 30 \
+  --bins 10 --out dist.json --table dist.csv
+marklab space rank --result cis.json --radius 30 --out rank.json --table rank.csv \
+  --variable-table rank-variables.csv
 ```
 
 Each output file must not already exist.
@@ -193,6 +201,61 @@ Parameters mirror R `measure_transMI`, with the same defaults as cisMI:
 | `--specimen` | all | Specimens to compare (at least two). |
 | `--factor` | all | Grouping factors to test. |
 
+## Distributions
+
+`space dist` returns the data of R `plot_dist` without the plot: how one or two variables
+co-occur across one specimen's discs at one radius.
+
+- Without `--bins`, it reports each disc's values.
+- With `--bins b`, it reports every combination of the variables' values and its smoothed
+  probability, the first variable varying fastest. A variable with more than `b` distinct values
+  is rounded onto `b` equally spaced points between its minimum and maximum in this census; one
+  with fewer keeps its distinct values. Smoothing and the removal of impossible compositions
+  follow transMI.
+- With `--randomized`, it describes one randomized census, drawn as cisMI draws its nulls,
+  instead of the observed one (R's `patch_list` argument).
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `--variables` | required | One or two census variables (R `ensemble`). |
+| `--radius` | required | Census radius in µm. |
+| `--specimen` | the only one | Specimen to describe. |
+| `--bins` | none | Rounding bins per variable, 2 to 255 (R `bin_num`). |
+| `--randomized` | off | Describe a randomized census. |
+
+The JSON also gives each variable's minimum and maximum, the axis plotted when R zooms.
+
+## Rankings
+
+`space rank` reads a cisMI or transMI result and returns the data of R `plot_MI_rank` and
+`plot_MI_radius` without the plots.
+
+At one radius (`--radius`), it keeps the ensembles that pass every filter and orders them by
+decreasing |Z|, keeping ties in their original order:
+- P at most `--p-threshold`;
+- |cisMI|, or transMI itself, at least `--mi-threshold`;
+- the `--depth`, `--all`, `--alo` and `--not` filters, which here apply at every ensemble size.
+
+It then scores each variable in the kept ensembles: the sum of their |Z| over the ensembles
+containing it, divided by the number kept. With `--ensemble`, it instead reports that ensemble's
+statistics at every radius of the result.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `--result` | required | A `marklab.space_cis_result` or `marklab.space_trans_result` file. |
+| `--radius` | none | Radius whose ensembles are ranked. |
+| `--specimen` | the only one | Specimen of a cisMI result. |
+| `--factor` | the only one | Grouping factor of a transMI result (R `group`). |
+| `--depth` | all | Ensemble sizes to rank. |
+| `--p-threshold` | 0.05 | Largest P kept (R `p_thr`). |
+| `--mi-threshold` | 0.1 for cisMI, 0 for transMI | Smallest statistic kept (R `mi_thr`). |
+| `--p-adjust` | true | Filter on the BH P; `false` uses the normal-approximation P (R `p_adj`). |
+| `--all`, `--alo`, `--not` | none | Variables required, at least one required, or excluded. |
+| `--ensemble` | none | Follow this ensemble across radii instead (R `plot_MI_radius`). |
+
+`--table` writes the ranked ensembles, or the ensemble at each radius. `--variable-table`
+writes the ranked variables.
+
 ## Interpreting the results
 
 - The randomized censuses keep each disc's size and each layer's overall composition. They
@@ -254,6 +317,20 @@ Parameters mirror R `measure_transMI`, with the same defaults as cisMI:
 - **transMI null draws.** R draws a fresh shuffle for each factor; Marklab scores every factor
   on the same shuffles of an ensemble's divergences. Each factor's null distribution is
   unchanged.
+- **Plot data, not plots.** `dist` and `rank` return the data of `plot_dist`, `plot_MI_rank`
+  and `plot_MI_radius`. Colours, point sizes and the zoom option are not ported. R replaces a P
+  value of 0 in a ranking by a quadratic extrapolation from Z for display; Marklab reports the P
+  value as computed.
+- **Distribution axes.** When a variable has no more distinct values than bins, R lays an
+  equally spaced grid between its minimum and maximum and matches values to it exactly, so
+  values off that grid drop out. Marklab uses the distinct values themselves. R also mislabels
+  the two axes when the variables are given in the opposite order to its census columns;
+  Marklab keeps the order given.
+- **Unbounded Z in rankings.** Where a cisMI null was degenerate and the observed value differs,
+  R's Z is infinite: the ensemble ranks first and every variable in it gets an infinite score.
+  Marklab ranks those ensembles first too, reports no Z, and gives each variable the count of
+  such ensembles (`unbounded_ensembles`) beside its finite score. Variables with any such
+  ensemble rank first.
 - **Variables come from the specimen.** Variables are the declared classes present in the
   specimen. R's columns are the classes present in the sampled discs, and a class present in
   one radius's discs but absent from another's becomes `NA` there. Unknown names in `all`,
@@ -281,6 +358,10 @@ Parameters mirror R `measure_transMI`, with the same defaults as cisMI:
   - Chao–Jost smoothing, compositional removal and constant variables computed by hand from
     R's `smooth_dist`, and modularity against an `igraph::modularity` value;
   - identical cisMI and transMI results at one and four threads;
+  - distributions: disc values equal to the census, probabilities summing to 1 with impossible
+    compositions removed, distinct-value axes, reproducible randomized censuses, and errors;
+  - rankings: R's filters, |Z| order and variable scores recomputed from a cisMI result read
+    back from JSON, the across-radii view, and a transMI result;
   - CLI outputs that refuse to overwrite.
 - **R oracle:** `tests/fixtures/space/compare_space.R` compares the census and cisMI with R
   SPACE, sourced from the pinned commit. The data is SPACE's own tutorial cell table
@@ -320,6 +401,21 @@ Parameters mirror R `measure_transMI`, with the same defaults as cisMI:
     0.9979 between two R runs. The mean absolute Z difference is 0.046 for both pairs.
   - **Speed:** Marklab's transMI took 0.06 s; R `measure_transMI` took 634 s and 580 s with 11
     workers.
+
+- **R oracle for the plot data:** `tests/fixtures/space/compare_space_views.R` runs R's
+  `plot_dist`, `plot_MI_rank` and `plot_MI_radius` on the tutorial census at radii 10 and 20 µm
+  (1,000 discs at R's centres). R's ranking functions receive Marklab's cisMI (depth 2, 200
+  bootstraps) and transMI results (3 × 2 tiles, 300 discs each, depth 2, 100 bootstraps) as
+  their input tables. All criteria were fixed before the comparison. The first run stopped
+  inside R's plotting code (ggplot2 4.0.3), before any ranking was compared, so the script now
+  skips drawing. It passed on 2026-10-28:
+  - **Distributions:** at 4, 10 and 25 bins, for one object and for the two most frequent
+    objects, every value and probability equals R's (maximum error 0), with the same cells
+    removed. Unrounded disc values equal R's census.
+  - **Rankings:** with R's defaults, `depth = 2`, a `not` filter and an `all` filter, the
+    kept cisMI ensembles (8, 6, 4 and 19), their order and the variable scores match R; so does
+    the ensemble followed across both radii. For transMI, no ensemble passes R's defaults on
+    either side, and with `p_thr = 1` the same 210 ensembles are kept in the same order.
 
   The R and SPACE data stay outside the repository; each script's header gives the download
   and run commands.

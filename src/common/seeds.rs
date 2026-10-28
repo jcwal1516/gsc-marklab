@@ -35,6 +35,7 @@ pub(crate) enum SeedEndpoint {
     SpaceCensus = 0x7370_6163_5f63_656e,
     SpaceCisNull = 0x7370_6163_5f63_6973,
     SpaceTransNull = 0x7370_6163_5f74_726e,
+    SpaceDistNull = 0x7370_6163_5f64_7374,
 }
 
 /// Derive a stable seed from a base seed, endpoint namespace, and run index.

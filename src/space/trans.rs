@@ -10,6 +10,7 @@ use super::census::{
     check_retained, disc_count, draw_discs, draw_seeds, present_variables, CensusCost, CensusPlan,
 };
 use super::cis::SpaceNullStatus;
+use super::distribution::chao_jost;
 use super::ensembles::{selected_radii, selected_specimens, EnsembleOptions, Ensembles};
 use super::input::VariableSpec;
 use super::{
@@ -698,23 +699,9 @@ fn smoothed_distribution(
         }
         histogram[code] += 1;
     }
-    // R counts singletons and doubletons over the observed combinations (`plyr::count`);
-    // `num_doub` sums the doubletons' frequencies.
-    let singletons = histogram.iter().filter(|count| **count == 1).count() as f64;
-    let doubleton_frequency = 2.0 * histogram.iter().filter(|count| **count == 2).count() as f64;
-    let observations = discs as f64 + 1.0;
-    let singletons = if singletons == 0.0 { 0.5 } else { singletons };
-    let mut missing = singletons / observations;
-    let f1 = (observations - 1.0) * singletons;
-    let f2 = doubleton_frequency * 2.0;
-    if f1 != 0.0 || f2 != 0.0 {
-        missing *= f1 / (f1 + f2);
-    }
 
     // A constant variable spans `bins` identical grid values, so its single observed value
     // fills every cell along that axis (R's join matches each copy).
-    let mut kept = 0.0;
-    let mut zeros = 0_usize;
     let mut indices = vec![0; ensemble.len()];
     for (cell, slot) in output.iter_mut().enumerate() {
         let mut remainder = cell;
@@ -739,25 +726,10 @@ fn smoothed_distribution(
         *slot = if impossible {
             f64::NAN
         } else {
-            let frequency = histogram[source] as f64;
-            kept += frequency;
-            zeros += usize::from(frequency == 0.0);
-            frequency
+            histogram[source] as f64
         };
     }
-    if zeros == 0 {
-        for slot in output.iter_mut() {
-            *slot /= kept;
-        }
-        return;
-    }
-    for slot in output.iter_mut() {
-        *slot = if *slot == 0.0 {
-            missing / zeros as f64
-        } else {
-            (*slot / kept) * (1.0 - missing)
-        };
-    }
+    chao_jost(output, histogram, discs);
 }
 
 /// Mean of the two Kullback–Leibler divergences in bits over cells both distributions keep

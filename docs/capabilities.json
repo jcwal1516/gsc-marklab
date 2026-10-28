@@ -1378,11 +1378,12 @@
       "does": [
         "SPACE census of radius discs around seed cells: object-class percentages, class-linked scalar means and independent scalar means",
         "cisMI: rank every ensemble of up to depth variables (default 3) by co-information against shuffled-member randomized censuses",
-        "transMI: rank every ensemble by the modularity of each grouping factor on a specimen similarity network built from symmetric KL divergences of smoothed joint distributions, against shuffled divergences"
+        "transMI: rank every ensemble by the modularity of each grouping factor on a specimen similarity network built from symmetric KL divergences of smoothed joint distributions, against shuffled divergences",
+        "Plot data: one or two variables' disc values or smoothed joint distribution, and a cisMI or transMI result's kept ensembles, variable scores or one ensemble across radii"
       ],
       "input": "A marklab.space_request naming inline specimens, a multiplex study recipe or one CellViT H&E classification CSV per specimen, the object channels and scalars, grouping factors, and radii, disc counts and seeds.",
-      "output": "Disc census tables; per specimen and radius, every ensemble's observed and randomized co-information, CisMI, Z, SPACE's normal P with BH adjustment, a Monte Carlo P and each variable's binning range; per radius, ensemble and grouping factor, transMI, its shuffled-null mean and SD, Z, SPACE's one-sided normal P with BH adjustment and a Monte Carlo P.",
-      "used_by": "marklab::space and the marklab space describe/census/cis/trans commands.",
+      "output": "Disc census tables; per specimen and radius, every ensemble's observed and randomized co-information, CisMI, Z, SPACE's normal P with BH adjustment, a Monte Carlo P and each variable's binning range; per radius, ensemble and grouping factor, transMI, its shuffled-null mean and SD, Z, SPACE's one-sided normal P with BH adjustment and a Monte Carlo P. Distribution views and rankings of those results.",
+      "used_by": "marklab::space and the marklab space describe/census/cis/trans/dist/rank commands.",
       "uses": [
         "Find three-way and higher cell-type and marker co-patterning that pairwise statistics miss",
         "Find ensembles whose patterning separates clinical or experimental groups of specimens",
@@ -1394,7 +1395,8 @@
         "src/bin/marklab/space.rs",
         "docs/space.md",
         "tests/fixtures/space/compare_space.R",
-        "tests/fixtures/space/compare_space_trans.R"
+        "tests/fixtures/space/compare_space_trans.R",
+        "tests/fixtures/space/compare_space_views.R"
       ]
     }
   },
@@ -2728,7 +2730,9 @@
         "describe",
         "census",
         "cis",
-        "trans"
+        "trans",
+        "dist",
+        "rank"
       ],
       "sources": [
         "src/bin/marklab/space.rs"

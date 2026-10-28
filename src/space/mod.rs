@@ -12,10 +12,13 @@
 mod binning;
 mod census;
 mod cis;
+mod dist;
+mod distribution;
 mod ensembles;
 mod information;
 mod input;
 mod normal;
+mod rank;
 mod trans;
 
 use serde::{Deserialize, Serialize};
@@ -29,9 +32,18 @@ pub use cis::{
     space_cis, SpaceCisEnsemble, SpaceCisParameters, SpaceCisRadius, SpaceCisResult,
     SpaceCisSpecimen, SpaceNullStatus, SPACE_CIS_FORMAT,
 };
+pub use dist::{
+    space_dist, SpaceDistAxis, SpaceDistCell, SpaceDistCensus, SpaceDistParameters,
+    SpaceDistResult, SpaceDistValues, SpaceDistVariable, SPACE_DIST_FORMAT,
+};
 pub use input::{
     load_space_input, space_input_from_json, SpaceCensusDesign, SpaceInput, SpaceLimits,
     SPACE_REQUEST_FORMAT,
+};
+pub use rank::{
+    load_space_mi_result, space_mi_result_from_json, space_rank, SpaceMiResult,
+    SpaceRadiusStatistic, SpaceRankParameters, SpaceRankResult, SpaceRankView, SpaceRankedEnsemble,
+    SpaceRankedVariable, SPACE_RANK_FORMAT,
 };
 pub use trans::{
     space_trans, SpaceTransEnsemble, SpaceTransFactor, SpaceTransParameters, SpaceTransRadius,

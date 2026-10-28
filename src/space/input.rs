@@ -644,7 +644,7 @@ fn check_regular_file(path: &Path, maximum: u64, what: &str) -> Result<(), Space
     Ok(())
 }
 
-fn read_bounded(path: &Path, maximum: u64, what: &str) -> Result<Vec<u8>, SpaceError> {
+pub(super) fn read_bounded(path: &Path, maximum: u64, what: &str) -> Result<Vec<u8>, SpaceError> {
     check_regular_file(path, maximum, what)?;
     let mut bytes = Vec::new();
     fs::File::open(path)
