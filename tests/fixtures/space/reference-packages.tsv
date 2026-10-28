@@ -14,3 +14,5 @@ jsonlite	2.0.0
 igraph	2.3.0
 ggplot2	4.0.3
 cowplot	1.2.0
+kohonen	3.0.13
+zoo	1.9-1

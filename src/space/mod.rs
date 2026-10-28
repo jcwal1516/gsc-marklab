@@ -17,8 +17,11 @@ mod distribution;
 mod ensembles;
 mod information;
 mod input;
+mod map;
 mod normal;
+mod pattern;
 mod rank;
+mod som;
 mod trans;
 
 use serde::{Deserialize, Serialize};
@@ -39,6 +42,14 @@ pub use dist::{
 pub use input::{
     load_space_input, space_input_from_json, SpaceCensusDesign, SpaceInput, SpaceLimits,
     SPACE_REQUEST_FORMAT,
+};
+pub use map::{
+    load_space_pattern_result, space_map, SpaceMapParameters, SpaceMapRegion, SpaceMapResult,
+    SpaceMapSpecimen, SPACE_MAP_FORMAT,
+};
+pub use pattern::{
+    space_pattern, SpaceNormalization, SpacePatternCurve, SpacePatternParameters,
+    SpacePatternReference, SpacePatternResult, SPACE_PATTERN_FORMAT,
 };
 pub use rank::{
     load_space_mi_result, space_mi_result_from_json, space_rank, SpaceMiResult,

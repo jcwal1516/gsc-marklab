@@ -4,11 +4,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::Subcommand;
+use clap::{Subcommand, ValueEnum};
 use marklab::space::{
-    load_space_input, load_space_mi_result, space_census, space_cis, space_dist, space_rank,
-    space_trans, SpaceCisParameters, SpaceDistParameters, SpaceError, SpaceRankParameters,
-    SpaceTransParameters,
+    load_space_input, load_space_mi_result, load_space_pattern_result, space_census, space_cis,
+    space_dist, space_map, space_pattern, space_rank, space_trans, SpaceCisParameters,
+    SpaceDistParameters, SpaceError, SpaceMapParameters, SpaceNormalization,
+    SpacePatternParameters, SpaceRankParameters, SpaceTransParameters,
 };
 use marklab::MarklabError;
 
@@ -16,7 +17,31 @@ use super::exclusive_json_output::{publish_pretty_json, ExclusiveJsonOutputError
 
 mod tables;
 
-use tables::{census_table, cis_table, dist_table, rank_table, rank_variable_table, trans_table};
+use tables::{
+    census_table, cis_table, dist_table, map_table, pattern_table, rank_table, rank_variable_table,
+    trans_table,
+};
+
+/// How pattern curves are rescaled for display.
+#[derive(Clone, Copy, ValueEnum)]
+pub(crate) enum Normalization {
+    /// Not rescaled.
+    None,
+    /// Each variable by its own largest upper bound (R "ind").
+    Individual,
+    /// Every variable of the kind by their largest upper bound (R "all").
+    Collective,
+}
+
+impl Normalization {
+    fn space(self) -> Option<SpaceNormalization> {
+        match self {
+            Self::None => None,
+            Self::Individual => Some(SpaceNormalization::Individual),
+            Self::Collective => Some(SpaceNormalization::Collective),
+        }
+    }
+}
 
 #[derive(Subcommand)]
 pub(crate) enum SpaceCommand {
@@ -187,6 +212,82 @@ pub(crate) enum SpaceCommand {
         #[arg(long, value_delimiter = ',')]
         ensemble: Vec<String>,
     },
+    /// Learn how an ensemble's variables covary along a self-organizing map through its discs
+    /// (R learn_pattern, without the plot).
+    Pattern {
+        /// marklab.space_request version 1; file sources resolve relative to it.
+        #[arg(long)]
+        request: PathBuf,
+        /// New JSON result file.
+        #[arg(long)]
+        out: PathBuf,
+        /// Optional new CSV with one row per variable and path position.
+        #[arg(long)]
+        table: Option<PathBuf>,
+        /// The ensemble's variables.
+        #[arg(long, value_delimiter = ',', required = true)]
+        variables: Vec<String>,
+        /// Census radius in micrometres.
+        #[arg(long)]
+        radius: f64,
+        /// Specimens whose discs are used (default: all).
+        #[arg(long, value_delimiter = ',')]
+        specimen: Vec<String>,
+        /// Grouping factor holding the focal and reference levels (default: inferred).
+        #[arg(long)]
+        factor: Option<String>,
+        /// Levels whose specimens' discs draw the path.
+        #[arg(long, value_delimiter = ',')]
+        focal: Vec<String>,
+        /// Levels whose specimens' discs are the reference.
+        #[arg(long, value_delimiter = ',')]
+        reference: Vec<String>,
+        /// Compare one specimen with one randomized census of itself.
+        #[arg(long)]
+        randomized_reference: bool,
+        /// Coverage of the rolling band around each curve.
+        #[arg(long, default_value_t = 0.95)]
+        conf_int: f64,
+        /// Rescaling of object curves.
+        #[arg(long, value_enum, default_value_t = Normalization::None)]
+        obj_norm: Normalization,
+        /// Rescaling of scalar curves.
+        #[arg(long, value_enum, default_value_t = Normalization::Collective)]
+        scl_norm: Normalization,
+        /// Passes over the data while training the map.
+        #[arg(long, default_value_t = 50)]
+        som_reps: usize,
+        /// Train a ring rather than a chain.
+        #[arg(long)]
+        toroidal: bool,
+        /// Discs smoothed together along the path.
+        #[arg(long, default_value_t = 100)]
+        smooth_window: usize,
+        /// Subsample the focal discs, and the reference discs, to 10,000 each.
+        #[arg(long)]
+        sub_sample: bool,
+    },
+    /// Assign cells to regions of a learned pattern's path (R map_pattern, for cell tables).
+    Map {
+        /// A marklab.space_pattern_result file.
+        #[arg(long)]
+        pattern: PathBuf,
+        /// marklab.space_request version 1 whose specimens are mapped.
+        #[arg(long)]
+        request: PathBuf,
+        /// New JSON result file.
+        #[arg(long)]
+        out: PathBuf,
+        /// Optional new CSV with one row per cell.
+        #[arg(long)]
+        table: Option<PathBuf>,
+        /// Regions as increasing lower:upper path ranges, for example 0:30,70:100.
+        #[arg(long, value_delimiter = ',', required = true)]
+        regions: Vec<String>,
+        /// Specimens to map (default: all).
+        #[arg(long, value_delimiter = ',')]
+        specimen: Vec<String>,
+    },
 }
 
 pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
@@ -348,7 +449,87 @@ pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
             }
             Ok(())
         }
+        SpaceCommand::Pattern {
+            request,
+            out,
+            table,
+            variables,
+            radius,
+            specimen,
+            factor,
+            focal,
+            reference,
+            randomized_reference,
+            conf_int,
+            obj_norm,
+            scl_norm,
+            som_reps,
+            toroidal,
+            smooth_window,
+            sub_sample,
+        } => {
+            require_new(&out, &[table.as_deref()])?;
+            let input = load_space_input(&request).map_err(space_error)?;
+            let parameters = SpacePatternParameters {
+                variables,
+                radius_um: radius,
+                specimens: specimen,
+                factor,
+                focal,
+                reference,
+                randomized_reference,
+                conf_int,
+                obj_norm: obj_norm.space(),
+                scl_norm: scl_norm.space(),
+                som_reps,
+                toroidal,
+                smooth_window,
+                sub_sample,
+            };
+            let result = space_pattern(&input, &parameters).map_err(space_error)?;
+            publish(&out, &result)?;
+            if let Some(table) = table {
+                write_new(&table, &pattern_table(&result)?)?;
+            }
+            Ok(())
+        }
+        SpaceCommand::Map {
+            pattern,
+            request,
+            out,
+            table,
+            regions,
+            specimen,
+        } => {
+            require_new(&out, &[table.as_deref()])?;
+            let regions = regions
+                .iter()
+                .map(|range| parse_range(range))
+                .collect::<marklab::Result<Vec<_>>>()?;
+            let pattern = load_space_pattern_result(&pattern).map_err(space_error)?;
+            let input = load_space_input(&request).map_err(space_error)?;
+            let parameters = SpaceMapParameters {
+                regions,
+                specimens: specimen,
+            };
+            let result = space_map(&input, &pattern, &parameters).map_err(space_error)?;
+            publish(&out, &result)?;
+            if let Some(table) = table {
+                write_new(&table, &map_table(&result)?)?;
+            }
+            Ok(())
+        }
     }
+}
+
+/// A `lower:upper` path range.
+fn parse_range(range: &str) -> marklab::Result<[f64; 2]> {
+    let invalid = || MarklabError::Config(format!("region {range} must be lower:upper"));
+    let (lower, upper) = range.split_once(':').ok_or_else(invalid)?;
+    Ok([
+        lower.trim().parse().map_err(|_| invalid())?,
+        upper.trim().parse().map_err(|_| invalid())?,
+    ])
 }
 
 fn describe() -> serde_json::Value {
@@ -390,6 +571,16 @@ fn describe() -> serde_json::Value {
                 "r_functions": ["plot_MI_rank (data only)", "plot_MI_radius (data only)"],
                 "defaults": {"p_threshold": 0.05, "mi_threshold": {"cis": 0.1, "trans": 0.0}, "p_adjust": true},
                 "output": "kept ensembles by decreasing |Z| and variables by aggregate |Z|, or one ensemble at every radius"
+            },
+            "pattern": {
+                "r_function": "learn_pattern (data only)",
+                "defaults": {"conf_int": 0.95, "obj_norm": "none", "scl_norm": "collective", "som_reps": 50, "toroidal": false, "smooth_window": 100, "sub_sample": false},
+                "map": "kohonen-style online 1-D self-organizing map with up to 1,000 nodes, re-implemented from kohonen 3.0.13's measured behaviour",
+                "output": "rolling mean and band of each variable along the path, and enrichment against a randomized or group reference"
+            },
+            "map": {
+                "r_function": "map_pattern, for cell tables",
+                "output": "each cell's region of the pattern's path, from distance-weighted votes of the discs containing it"
             }
         },
         "deviations_from_r": "docs/space.md#differences-from-r-space",

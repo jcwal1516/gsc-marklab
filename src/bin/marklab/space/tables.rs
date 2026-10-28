@@ -1,8 +1,8 @@
 //! CSV tables written beside SPACE JSON results.
 
 use marklab::space::{
-    SpaceCensusResult, SpaceCisResult, SpaceDistResult, SpaceDistValues, SpaceNullStatus,
-    SpaceRankResult, SpaceRankView, SpaceTransResult,
+    SpaceCensusResult, SpaceCisResult, SpaceDistResult, SpaceDistValues, SpaceMapResult,
+    SpaceNullStatus, SpacePatternResult, SpaceRankResult, SpaceRankView, SpaceTransResult,
 };
 use marklab::MarklabError;
 
@@ -292,4 +292,52 @@ fn finish(writer: csv::Writer<Vec<u8>>) -> marklab::Result<Vec<u8>> {
     writer
         .into_inner()
         .map_err(|error| MarklabError::Compute(format!("CSV buffer: {error}")))
+}
+
+/// One row per variable and path position, as R `learn_pattern` returns them.
+pub(super) fn pattern_table(result: &SpacePatternResult) -> marklab::Result<Vec<u8>> {
+    let mut writer = csv::Writer::from_writer(Vec::new());
+    writer.write_record([
+        "position",
+        "variable",
+        "mean",
+        "lower",
+        "upper",
+        "enrichment",
+        "mean_normalized",
+        "lower_normalized",
+        "upper_normalized",
+    ])?;
+    for curve in &result.curves {
+        for (place, position) in result.positions.iter().enumerate() {
+            writer.write_record([
+                number(*position),
+                curve.variable.clone(),
+                number(curve.mean[place]),
+                number(curve.lower[place]),
+                number(curve.upper[place]),
+                number(result.enrichment[place]),
+                number(curve.mean_normalized[place]),
+                number(curve.lower_normalized[place]),
+                number(curve.upper_normalized[place]),
+            ])?;
+        }
+    }
+    finish(writer)
+}
+
+/// One row per cell with its region, empty where no disc outvoted the background.
+pub(super) fn map_table(result: &SpaceMapResult) -> marklab::Result<Vec<u8>> {
+    let mut writer = csv::Writer::from_writer(Vec::new());
+    writer.write_record(["specimen_id", "cell_id", "region"])?;
+    for specimen in &result.specimens {
+        for (cell, region) in specimen.cell_ids.iter().zip(&specimen.regions) {
+            writer.write_record([
+                specimen.specimen_id.clone(),
+                cell.clone(),
+                region.map(|region| region.to_string()).unwrap_or_default(),
+            ])?;
+        }
+    }
+    finish(writer)
 }

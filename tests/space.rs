@@ -2,9 +2,10 @@ use std::path::Path;
 use std::process::Command;
 
 use marklab::space::{
-    load_space_input, space_census, space_cis, space_dist, space_input_from_json,
-    space_mi_result_from_json, space_rank, space_trans, SpaceCisParameters, SpaceDistCensus,
-    SpaceDistParameters, SpaceDistValues, SpaceError, SpaceMiResult, SpaceNullStatus,
+    load_space_input, space_census, space_cis, space_dist, space_input_from_json, space_map,
+    space_mi_result_from_json, space_pattern, space_rank, space_trans, SpaceCisParameters,
+    SpaceDistCensus, SpaceDistParameters, SpaceDistValues, SpaceError, SpaceMapParameters,
+    SpaceMiResult, SpaceNullStatus, SpacePatternParameters, SpacePatternReference,
     SpaceRankParameters, SpaceRankView, SpaceTransParameters,
 };
 use serde_json::{json, Value};
@@ -621,6 +622,201 @@ fn rank_filters_and_orders_as_r_plot_mi_rank() {
     ));
 }
 
+fn pattern_parameters(variables: &[&str]) -> SpacePatternParameters {
+    SpacePatternParameters {
+        variables: variables.iter().map(|name| (*name).to_owned()).collect(),
+        radius_um: 3.0,
+        som_reps: 20,
+        smooth_window: 20,
+        ..SpacePatternParameters::default()
+    }
+}
+
+#[test]
+fn pattern_follows_the_covariation_path_and_its_enrichment() {
+    let input = cis_input(json!([grid_specimen("stripes", 40, 8)]), 200);
+    let parameters = pattern_parameters(&["cell_type.A", "ki67"]);
+    let result = space_pattern(&input, &parameters).unwrap();
+    assert_eq!(result, space_pattern(&input, &parameters).unwrap());
+    // At most 1,000 nodes, one per disc here; positions run from 0 to 100.
+    assert_eq!((result.focal_disc_count, result.nodes.len()), (200, 200));
+    assert_eq!((result.positions[0], result.positions[199]), (0.0, 100.0));
+    assert_eq!(result.reference, SpacePatternReference::None);
+    assert!(result.enrichment.iter().all(|value| *value == 1.0));
+    // Ki67 is 10 on A cells and 1 on B cells, so discs lie on one line from pure B (nearest
+    // the origin, where the path starts) to pure A.
+    let [class_a, ki67] = [&result.curves[0], &result.curves[1]];
+    let quarter =
+        |values: &[f64], start: usize| values[start..start + 50].iter().sum::<f64>() / 50.0;
+    assert!(
+        class_a.mean[0] < 10.0 && class_a.mean[199] > 90.0,
+        "{:?}",
+        class_a.mean
+    );
+    assert!(quarter(&class_a.mean, 0) < quarter(&class_a.mean, 150));
+    assert!(quarter(&ki67.mean, 0) < quarter(&ki67.mean, 150));
+    for curve in [class_a, ki67] {
+        for place in 0..200 {
+            assert!(curve.lower[place] <= curve.mean[place]);
+            assert!(curve.mean[place] <= curve.upper[place]);
+        }
+    }
+    // Objects are not rescaled by default; scalars are, so Ki67's largest bound becomes 100.
+    assert_eq!(class_a.normalization_scale, None);
+    assert_eq!(class_a.mean_normalized, class_a.mean);
+    let largest = ki67.upper.iter().copied().fold(f64::MIN, f64::max);
+    assert_eq!(ki67.normalization_scale, Some(largest));
+    let normalized = ki67
+        .upper_normalized
+        .iter()
+        .copied()
+        .fold(f64::MIN, f64::max);
+    assert!((normalized - 100.0).abs() < 1e-12);
+
+    // A randomized census crowds discs near 50% A, so the pure ends of the path are enriched
+    // over its middle.
+    let randomized = space_pattern(
+        &input,
+        &SpacePatternParameters {
+            randomized_reference: true,
+            ..parameters.clone()
+        },
+    )
+    .unwrap();
+    assert_eq!(randomized.reference, SpacePatternReference::Randomized);
+    assert_eq!(randomized.reference_disc_count, 200);
+    let enrichment = &randomized.enrichment;
+    assert!(enrichment[0] > enrichment[100] && enrichment[199] > enrichment[100]);
+}
+
+#[test]
+fn pattern_groups_and_map_regions() {
+    let input = cis_input(trans_specimens(), 120);
+    let grouped = space_pattern(
+        &input,
+        &SpacePatternParameters {
+            focal: vec!["striped".into()],
+            reference: vec!["mixed".into()],
+            ..pattern_parameters(&["cell_type.A"])
+        },
+    )
+    .unwrap();
+    // R infers the factor whose levels include both groups.
+    assert_eq!(grouped.factor.as_deref(), Some("pattern"));
+    assert_eq!(grouped.reference, SpacePatternReference::Group);
+    assert_eq!(
+        grouped.focal_specimens,
+        ["striped-1", "striped-2", "striped-3"]
+    );
+    assert_eq!(
+        (grouped.focal_disc_count, grouped.reference_disc_count),
+        (360, 360)
+    );
+    let error =
+        |parameters: SpacePatternParameters| space_pattern(&input, &parameters).unwrap_err();
+    for (parameters, expected) in [
+        (
+            SpacePatternParameters {
+                randomized_reference: true,
+                ..pattern_parameters(&["cell_type.A"])
+            },
+            "one specimen",
+        ),
+        (
+            SpacePatternParameters {
+                focal: vec!["striped".into()],
+                ..pattern_parameters(&["cell_type.A"])
+            },
+            "both focal and reference",
+        ),
+        (
+            SpacePatternParameters {
+                focal: vec!["striped".into()],
+                reference: vec!["unknown".into()],
+                ..pattern_parameters(&["cell_type.A"])
+            },
+            "do not match any grouping factor",
+        ),
+    ] {
+        assert!(matches!(
+            error(parameters),
+            SpaceError::Invalid(message) if message.contains(expected)
+        ));
+    }
+
+    // Enrichment weights assume SPACE's 0 to 100 scale: Ki67 a thousand times larger in the
+    // reference puts its discs farther than that from every focal node.
+    let mut specimens = trans_specimens();
+    for specimen in specimens.as_array_mut().unwrap().iter_mut().skip(3) {
+        let scaled = specimen["observations"]["ki67"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| value.as_f64().unwrap() * 1000.0)
+            .collect::<Vec<_>>();
+        specimen["observations"]["ki67"] = json!(scaled);
+    }
+    assert!(matches!(
+        space_pattern(
+            &cis_input(specimens, 120),
+            &SpacePatternParameters {
+                focal: vec!["striped".into()],
+                reference: vec!["mixed".into()],
+                ..pattern_parameters(&["ki67"])
+            },
+        ),
+        Err(SpaceError::Invalid(message)) if message.contains("0 to 100 scale")
+    ));
+
+    // Map one striped specimen. The path starts on pure-B discs and ends on a plateau of
+    // pure-A discs (from about position 75); discs take the first point of a plateau, so
+    // stripe interiors of B fall in the first region and those of A in the second.
+    let input = cis_input(json!([grid_specimen("stripes", 40, 8)]), 200);
+    let pattern = space_pattern(&input, &pattern_parameters(&["cell_type.A"])).unwrap();
+    let parameters = SpaceMapParameters {
+        regions: vec![[0.0, 20.0], [50.0, 100.0]],
+        specimens: Vec::new(),
+    };
+    let map = space_map(&input, &pattern, &parameters).unwrap();
+    assert_eq!(map, space_map(&input, &pattern, &parameters).unwrap());
+    let ranges = map
+        .regions
+        .iter()
+        .map(|region| (region.region, region.catch_all, region.ranges.clone()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ranges,
+        [
+            (1, false, vec![[0.0, 20.0]]),
+            (2, false, vec![[50.0, 100.0]]),
+            (3, true, vec![[20.0, 50.0]])
+        ]
+    );
+    let specimen = &map.specimens[0];
+    assert_eq!(specimen.regions.len(), 1600);
+    let mut interior = [(0, 0); 2];
+    for (cell, region) in specimen.cell_ids.iter().zip(&specimen.regions) {
+        let x = cell.split(':').nth(1).unwrap().parse::<usize>().unwrap();
+        if !(3..=4).contains(&(x % 8)) || region.is_none() {
+            continue;
+        }
+        let class_a = (x / 8).is_multiple_of(2);
+        let tally = &mut interior[usize::from(class_a)];
+        tally.0 += 1;
+        tally.1 += usize::from(*region == Some(if class_a { 2 } else { 1 }));
+    }
+    for (total, matching) in interior {
+        assert!(total > 50 && matching * 10 >= total * 9, "{interior:?}");
+    }
+    assert!(matches!(
+        space_map(&input, &pattern, &SpaceMapParameters {
+            regions: vec![[10.0, 50.0], [40.0, 60.0]],
+            specimens: Vec::new(),
+        }),
+        Err(SpaceError::Invalid(message)) if message.contains("non-overlapping")
+    ));
+}
+
 #[cfg(feature = "parallel")]
 #[test]
 fn results_do_not_depend_on_thread_count() {
@@ -636,15 +832,27 @@ fn results_do_not_depend_on_thread_count() {
         bootstraps: 20,
         ..SpaceTransParameters::default()
     };
+    let pattern = SpacePatternParameters {
+        som_reps: 5,
+        ..pattern_parameters(&["cell_type.A", "ki67"])
+    };
+    let map = SpaceMapParameters {
+        regions: vec![[0.0, 20.0], [50.0, 100.0]],
+        specimens: Vec::new(),
+    };
     let run = |threads| {
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .build()
             .unwrap()
             .install(|| {
+                let pattern = space_pattern(&input, &pattern).unwrap();
+                let map = space_map(&input, &pattern, &map).unwrap();
                 (
                     space_cis(&input, &cis).unwrap(),
                     space_trans(&input, &trans).unwrap(),
+                    pattern,
+                    map,
                 )
             })
     };
@@ -854,6 +1062,46 @@ fn cli_publishes_json_and_tables_once() {
     let csv = std::fs::read_to_string(path("dist.csv")).unwrap();
     assert!(csv.starts_with("cell_type.A,cell_type.B,frequency\n"));
     assert_eq!(csv.lines().count(), 1 + 16);
+    // A pattern, then its regions mapped back onto the cells.
+    marklab(&[
+        "space",
+        "pattern",
+        "--request",
+        &text("request.json"),
+        "--variables",
+        "cell_type.A",
+        "--radius",
+        "3",
+        "--som-reps",
+        "5",
+        "--smooth-window",
+        "10",
+        "--out",
+        &text("pattern.json"),
+        "--table",
+        &text("pattern.csv"),
+    ]);
+    let csv = std::fs::read_to_string(path("pattern.csv")).unwrap();
+    assert!(csv.starts_with("position,variable,mean,lower,upper,enrichment,"));
+    // One row per disc along the path.
+    assert_eq!(csv.lines().count(), 1 + 100);
+    marklab(&[
+        "space",
+        "map",
+        "--pattern",
+        &text("pattern.json"),
+        "--request",
+        &text("request.json"),
+        "--regions",
+        "0:20,50:100",
+        "--out",
+        &text("map.json"),
+        "--table",
+        &text("map.csv"),
+    ]);
+    let csv = std::fs::read_to_string(path("map.csv")).unwrap();
+    assert!(csv.starts_with("specimen_id,cell_id,region\n"));
+    assert_eq!(csv.lines().count(), 1 + 900);
 
     let request = directory.path().join("trans-request.json");
     std::fs::write(

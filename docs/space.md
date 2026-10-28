@@ -17,9 +17,12 @@ This release implements:
 - the census;
 - **cisMI**, patterning within one specimen;
 - **transMI**, patterning that separates groups of specimens;
-- the data behind SPACE's distribution and ranking plots.
+- the data behind SPACE's distribution and ranking plots;
+- **patterns**: how an ensemble's variables covary along a path through its discs, and their
+  enrichment against a reference;
+- **maps**: each cell's region of a pattern's path.
 
-Pattern learning and mapping, diversity and image inputs are planned.
+Diversity and image inputs are planned.
 
 ```sh
 marklab space describe
@@ -32,6 +35,10 @@ marklab space dist --request request.json --variables cell_type.T,cell_type.B --
   --bins 10 --out dist.json --table dist.csv
 marklab space rank --result cis.json --radius 30 --out rank.json --table rank.csv \
   --variable-table rank-variables.csv
+marklab space pattern --request request.json --variables cell_type.T,cell_type.B --radius 30 \
+  --focal responder --reference non_responder --out pattern.json --table pattern.csv
+marklab space map --pattern pattern.json --request request.json --regions 0:30,70:100 \
+  --out map.json --table map.csv
 ```
 
 Each output file must not already exist.
@@ -256,6 +263,92 @@ statistics at every radius of the result.
 `--table` writes the ranked ensembles, or the ensemble at each radius. `--variable-table`
 writes the ranked variables.
 
+## Patterns
+
+`space pattern` returns the data of R `learn_pattern` without the plot. It draws a
+one-dimensional path through the densest parts of an ensemble's joint distribution, orders the
+discs along it, and reports how each variable changes along the path.
+
+**Which discs.** The focal discs draw the path:
+- by default, the discs of every specimen (or of `--specimen`), pooled;
+- with `--focal` and `--reference`, the discs of specimens at those levels of a grouping factor.
+  The factor is `--factor`, or else the one factor whose levels include all of them, as R infers
+  it;
+- with `--randomized-reference`, one specimen, compared with one randomized census of itself
+  (R's `patch_list` argument), drawn as cisMI draws its nulls.
+
+**The map.** A self-organizing map of `min(discs, 1000)` nodes on a chain, or a ring with
+`--toroidal`, is trained on the focal discs. Marklab re-implements kohonen 3.0.13's online
+algorithm from its documented and measured behaviour; kohonen is GPL, and none of its code is
+used. The nodes start at randomly chosen discs, and each of `--som-reps` passes presents as
+many randomly drawn discs. The learning rate falls linearly from 0.05 to 0.01, and the
+neighbourhood radius falls from kohonen's default (the 2/3 quantile of the distances between
+nodes) to 0. Fixed presentation orders reproduce kohonen's nodes to 1e-12 in the unit tests.
+
+**The path.** It starts at the end of the chain nearer the origin, or for a ring where R starts
+it. Each disc goes to its nearest node, and the discs are ordered by node, keeping their order
+within a node. Along this order, each variable's mean and its `--conf-int` band (type-7
+quantiles) are taken over a rolling window of `2 · round(w/2) + 1` discs, `w` being
+`--smooth-window`. The ends are padded by drawing discs from the first and last nodes. The band's
+edges are smoothed once more and widened where needed to contain the mean. Positions run from
+0 to 100 in equal steps, one per focal disc.
+
+**Enrichment** against a reference: each disc is weighted by how close it lies to its node,
+`(√k − d/100)/√k` for `k` variables at Euclidean distance `d`. The log ratio of the focal and
+reference weighted frequencies at each node is then smoothed along the path like the curves.
+A node without reference discs takes the largest finite ratio. Without a reference, enrichment
+is 1 everywhere, as in R.
+
+**Normalization.** `--obj-norm` (objects) and `--scl-norm` (linked and independent scalars)
+multiply curves by 100 divided by the largest upper band edge: that of each curve
+(`individual`) or of all curves of that kind (`collective`). The rescaled curves are reported
+beside the raw ones with the scale used.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `--variables` | required | The ensemble's variables. |
+| `--radius` | required | Census radius in µm. |
+| `--specimen` | all | Specimens whose discs are used. |
+| `--factor` | inferred | Grouping factor holding the focal and reference levels (R `group`). |
+| `--focal`, `--reference` | none | Levels whose discs draw the path, and the reference. |
+| `--randomized-reference` | off | Compare one specimen with a randomized census of itself. |
+| `--conf-int` | 0.95 | Coverage of the rolling band. |
+| `--obj-norm` | `none` | `none`, `individual` or `collective` (R `obj_norm`: NULL, "ind", "all"). |
+| `--scl-norm` | `collective` | As `--obj-norm`, for scalars (R `scl_norm`). |
+| `--som-reps` | 50 | Training passes over the focal discs. |
+| `--toroidal` | off | Train a ring instead of a chain. |
+| `--smooth-window` | 100 | Discs smoothed together along the path. |
+| `--sub-sample` | off | Subsample the focal discs, and the reference discs, to 10,000 each. |
+
+The JSON gives the trained nodes in path order and, for each variable, the curves at every
+position. `--table` writes one row per position and variable.
+
+## Mapping patterns onto cells
+
+`space map` assigns cells to regions of a learned pattern's path, which R `map_pattern` does
+for image pixels. It reads a pattern result and a request that declares the pattern's
+variables and radius, usually the same request.
+
+- `--regions` lists increasing, non-overlapping `lower:upper` ranges of path position, numbered
+  1, 2, and so on. Any gaps before, between or after them form one more region, numbered last,
+  as in R.
+- Each disc of each mapped specimen goes to the nearest point on the pattern's mean curves
+  (the first on ties), and so to that point's region. It votes for that region in every cell it
+  contains, with weight `1 − (d/max d + 0.0001)`, `max d` being the largest such distance over
+  the mapped discs.
+- Each cell joins the region with the most votes, the first on ties. A cell whose best vote
+  is below R's background vote of 0.000001, such as one that no disc contains, has no region.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `--pattern` | required | A `marklab.space_pattern_result` file. |
+| `--request` | required | Request whose specimens are mapped. |
+| `--regions` | required | Path ranges, for example `0:30,70:100` (R `region_bounds`). |
+| `--specimen` | all | Specimens to map. |
+
+The census follows the request: with the pattern's own request, the discs are the ones the
+pattern was learned from. `--table` writes one row per cell (`specimen_id, cell_id, region`).
+
 ## Interpreting the results
 
 - The randomized censuses keep each disc's size and each layer's overall composition. They
@@ -276,6 +369,9 @@ writes the ranked variables.
   `variable_ranges`, and treat ensembles of variables present in only a few discs as unstable,
   or merge or exclude those classes.
 - cisMI results describe one specimen. They are not patient-level inference.
+- **A pattern's path is an ordering, not a distance.** Positions are ranks of discs along the
+  map, so equal steps along the path need not be equal changes in composition. Different seeds
+  train different maps; the curves agree in shape, not position by position.
 - **transMI compares distributions, not values.** Each specimen is rounded on its own range,
   so transMI responds to the shape of an ensemble's distribution over discs. Two specimens with
   the same shape at different overall levels look alike.
@@ -331,6 +427,17 @@ writes the ranked variables.
   Marklab ranks those ensembles first too, reports no Z, and gives each variable the count of
   such ensembles (`unbounded_ensembles`) beside its finite score. Variables with any such
   ensemble rank first.
+- **Pattern padding from one disc.** R pads the ends of the path with `sample()`, which draws
+  from `1:x` instead of repeating `x` when the first or last node holds a single disc; Marklab
+  repeats the disc's value.
+- **Pattern normalization by zero.** When the largest upper band edge of a normalized kind is
+  0 or below, R divides by it; Marklab leaves those curves unscaled and reports no scale.
+- **Enrichment off SPACE's scale.** The enrichment weights assume every variable lies between 0
+  and 100. When a disc lies farther than that from its node, R's weights turn negative and the
+  log ratio can be undefined; Marklab reports an error.
+- **Maps for cell tables.** R maps patterns onto image pixels; Marklab maps them onto cells,
+  each disc voting for its members. When every disc lies on the curves (`max d` = 0), R divides
+  zero by zero; every disc then votes with weight 0.9999.
 - **Variables come from the specimen.** Variables are the declared classes present in the
   specimen. R's columns are the classes present in the sampled discs, and a class present in
   one radius's discs but absent from another's becomes `NA` there. Unknown names in `all`,
@@ -343,7 +450,12 @@ writes the ranked variables.
   - nearest-point rounding against `FNN::knnx.index`. The tie emulation matched FNN on 285,694
     generated cases, including every grid midpoint;
   - lexicographic ensembles, and entropy and co-information by hand: a copy gives 1 bit, XOR
-    gives −1 bit of three-way co-information.
+    gives −1 bit of three-way co-information;
+  - the map's training against kohonen's nodes for fixed presentation orders on a chain and a
+    ring (1e-12), kohonen's default radii, and R's path orientation;
+  - rolling means and quantiles against `zoo::rollapply`, bit for bit where zoo's running sum
+    rounds differently from per-window means;
+  - the partition of the path into regions and the catch-all.
 - **Integration tests (`tests/space.rs`):**
   - hand-computed census values, including the inclusive radius and unclassified cells;
   - a striped pattern detected against random labels;
@@ -362,6 +474,12 @@ writes the ranked variables.
     compositions removed, distinct-value axes, reproducible randomized censuses, and errors;
   - rankings: R's filters, |Z| order and variable scores recomputed from a cisMI result read
     back from JSON, the across-radii view, and a transMI result;
+  - patterns: a path from pure-B to pure-A discs across stripes with the band containing the
+    mean, normalization, enrichment of the pure ends against a randomized census, group designs
+    with the inferred factor, and errors, including variables off SPACE's scale;
+  - maps: stripe interiors assigned to the expected regions, the catch-all region, and region
+    errors;
+  - identical patterns and maps at one and four threads;
   - CLI outputs that refuse to overwrite.
 - **R oracle:** `tests/fixtures/space/compare_space.R` compares the census and cisMI with R
   SPACE, sourced from the pinned commit. The data is SPACE's own tutorial cell table
@@ -416,6 +534,30 @@ writes the ranked variables.
     kept cisMI ensembles (8, 6, 4 and 19), their order and the variable scores match R; so does
     the ensemble followed across both radii. For transMI, no ensemble passes R's defaults on
     either side, and with `p_thr = 1` the same 210 ensembles are kept in the same order.
+
+- **R oracle for patterns:** `tests/fixtures/space/compare_space_pattern.R` runs R's
+  `learn_pattern` with its defaults on the six tiles of the transMI oracle (radius 10 µm, 1,000
+  discs per tile) for the three most frequent objects. It uses two designs: column "left"
+  against column "right" (2,000 discs each), and all six tiles pooled (6,000 discs). All
+  criteria were fixed before the comparison, and they passed on 2026-10-28:
+  - **After the map:** with kohonen's call replaced by Marklab's trained nodes, R's curves,
+    bands and enrichment equal Marklab's wherever R's padding draws do not enter. The first
+    design matches bit for bit; the pooled design within 1.4e-13, the rounding R's different
+    padding values leave in zoo's running sum. Marklab's starting radius equals kohonen's
+    default (423).
+  - **The map:** over five seeds each, the mean quantization error is 2.374 against kohonen's
+    2.392, and the topographic error 0.45% against 0.86%.
+  - **End to end:** Marklab's curves differ from R's by 3.2 percentage points on average,
+    within the criterion of 1.5 times the 2.3 between consecutive R seeds, plus 0.5. Marklab's
+    own seeds differ by 2.3 consecutively and 3.5 over all pairs.
+  - **Speed:** the Marklab command, census included, took 1.3–1.6 s; R `learn_pattern` took
+    3.0–3.9 s. The second run, under other load, took 2.7–3.8 s and 5.5–6.9 s.
+  - The first run also passed, but matched only within 6.5e-13: Marklab averaged each window
+    afresh, while zoo computes `rollapply(x, w, mean)` as a running sum. Marklab now uses the
+    running sum, and the second run gave the figures above.
+
+  `space map` has no R counterpart for cell tables, so it is checked by the integration tests
+  only.
 
   The R and SPACE data stay outside the repository; each script's header gives the download
   and run commands.
