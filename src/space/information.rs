@@ -128,12 +128,12 @@ mod tests {
     fn combinations_are_lexicographic_and_ranked() {
         let flat = combinations(4, 2);
         assert_eq!(flat, vec![0, 1, 0, 2, 0, 3, 1, 2, 1, 3, 2, 3]);
-        for (rank, subset) in flat.chunks_exact(2).enumerate() {
+        for (rank, subset) in flat.as_chunks::<2>().0.iter().enumerate() {
             assert_eq!(lexicographic_rank(subset, 4), rank);
         }
         let flat = combinations(7, 3);
         assert_eq!(flat.len() / 3, 35);
-        for (rank, subset) in flat.chunks_exact(3).enumerate() {
+        for (rank, subset) in flat.as_chunks::<3>().0.iter().enumerate() {
             assert_eq!(lexicographic_rank(subset, 7), rank);
         }
         assert_eq!(binomial(1024, 3), 178_433_024);
@@ -152,7 +152,7 @@ mod tests {
         // XOR: pairwise independent, three-way co-information -1.
         let c = [0_u8, 1, 1, 0];
         let columns = [&a[..], &b[..], &c[..]];
-        let mut entropy = |subset: &[u16]| -> f64 {
+        let entropy = |subset: &[u16]| -> f64 {
             let selected = subset
                 .iter()
                 .map(|&index| columns[index as usize])

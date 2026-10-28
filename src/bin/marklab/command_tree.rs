@@ -2,8 +2,8 @@ use clap::{Parser, Subcommand};
 
 use super::{
     backend, bayes, bayes_advanced, causal, causal_model, cohort, graph, longitudinal,
-    multimodal_model, neural, numerics, pathology, policy, project, registration, space,
-    spatial3d, spatial3d_model, study, topology,
+    multimodal_model, neural, numerics, pathology, policy, project, registration, space, spatial3d,
+    spatial3d_model, study, topology,
 };
 
 /// Every command: the library's own commands plus the families implemented here.
