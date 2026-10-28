@@ -17,8 +17,10 @@ or molecular MMR status.
 
 The microbiology workflow (`marklab microbio`) is not spatial. It reads MALDI-TOF mass spectra
 of bacterial isolates and preprocesses them into calibrated spectra and m/z bins, as defined in
-[MALDI-TOF preprocessing](docs/maldi-preprocessing.md). It does not identify species or
-predict antimicrobial susceptibility.
+[MALDI-TOF preprocessing](docs/maldi-preprocessing.md). It cross-validates logistic regression
+predicting one antibiotic's resistance category from binned spectra of one species, as defined in
+[predicting susceptibility](docs/maldi-ast-prediction.md). It does not identify species, read MICs,
+apply breakpoints or produce a susceptibility result for a new isolate.
 
 ## Rust API
 

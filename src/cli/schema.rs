@@ -67,7 +67,8 @@ pub enum Commands {
         #[command(subcommand)]
         command: SimulateCommands,
     },
-    /// Read and preprocess MALDI-TOF mass spectra of bacterial isolates.
+    /// Read and preprocess MALDI-TOF mass spectra of bacterial isolates and predict
+    /// susceptibility from them.
     Microbio {
         #[command(subcommand)]
         command: MicrobioCommands,
@@ -90,6 +91,9 @@ pub enum Commands {
 pub enum MicrobioCommands {
     /// Convert one Bruker flex acquisition to m/z, apply ordered preprocessing steps and bin it.
     Preprocess(microbio::PreprocessArgs),
+    /// Cross-validate L2-penalised logistic regression predicting one antibiotic's resistance
+    /// from binned spectra of one species.
+    CrossValidateAst(microbio::CrossValidateAstArgs),
 }
 
 #[derive(Debug, Subcommand)]

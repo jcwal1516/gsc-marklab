@@ -1138,6 +1138,26 @@
         "tests/fixtures/maldi/compare_maldiquant.R"
       ]
     },
+    "maldi_ast_prediction": {
+      "does": [
+        "L2-penalised logistic regression on standardised binned spectra (scikit-learn equivalent)",
+        "Nested, grouped, stratified cross-validation choosing C by inner-fold AUROC",
+        "Per-fold and pooled AUROC and average precision with out-of-fold probabilities"
+      ],
+      "input": "A CSV label table (isolate, species, antibiotic category, optional group), one binned `microbio preprocess` result per isolate, and a JSON configuration of categories and cross-validation.",
+      "output": "Label counts, bin layout, per-fold selected C and metrics, mean and pooled metrics, and each isolate's out-of-fold probability of resistance.",
+      "used_by": "marklab microbio cross-validate-ast; marklab-prediction LogisticProblem and cross_validate_logistic.",
+      "uses": [
+        "Estimate how well MALDI-TOF spectra predict resistance for one species and antibiotic"
+      ],
+      "limits": "One species-antibiotic pair per run; L2 penalty only; categories taken as given (no MIC or breakpoint interpretation); no model for new isolates or calibrated probabilities. Not a clinical susceptibility test.",
+      "sources": [
+        "crates/marklab-prediction/src/logistic.rs",
+        "crates/marklab-prediction/src/logistic_cv.rs",
+        "src/cli/microbio/ast.rs",
+        "docs/maldi-ast-prediction.md"
+      ]
+    },
     "simulation": {
       "does": [
         "Seeded fixed-fraction random labeling",

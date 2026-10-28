@@ -1920,6 +1920,8 @@ version = "0.1.0"
 dependencies = [
  "marklab-core",
  "marklab-numerics",
+ "rand 0.8.6",
+ "rand_chacha 0.3.1",
  "serde",
  "thiserror 2.0.18",
 ]

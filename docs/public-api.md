@@ -273,6 +273,11 @@ preprocess_spectrum, bin_spectrum, PreprocessStep, BinSpec}` read Bruker flex MA
 acquisitions or two-column text spectra and apply ordered spectrum preprocessing and fixed-edge
 binning ([MALDI-TOF preprocessing](maldi-preprocessing.md)).
 
+`marklab_prediction::{LogisticProblem, LogisticModel, ClassWeight, cross_validate_logistic,
+LogisticCvSpec, LogisticCvResult, area_under_roc, average_precision}` fit L2-penalised logistic
+regression on standardised features, run nested grouped cross-validation, and compute AUROC and
+average precision ([predicting susceptibility](maldi-ast-prediction.md#method)).
+
 The scientific types and functions retain their names. This is a Rust import-path change;
 serialized requests, result fields, and scientific calculations retain their existing
 contracts. Shared worker identity, completion state, claim vocabulary, and boundary errors

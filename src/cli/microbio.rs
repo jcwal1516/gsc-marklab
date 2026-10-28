@@ -1,9 +1,11 @@
 //! `marklab microbio`: MALDI-TOF mass spectra of bacterial isolates.
 
+mod ast;
+
 use std::{
     fs::{self, OpenOptions},
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
 };
 
 use marklab_microbio::{
@@ -13,6 +15,9 @@ use marklab_microbio::{
 use serde::{Deserialize, Serialize};
 
 use crate::{MarklabError, Result};
+
+pub use ast::CrossValidateAstArgs;
+pub(super) use ast::run_cross_validate_ast;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -105,19 +110,24 @@ pub(super) fn run_preprocess(args: PreprocessArgs) -> Result<()> {
         spectrum,
         binned,
     };
+    write_new_json(&out, &output)
+}
+
+/// Write pretty JSON to `out`, which must not already exist.
+fn write_new_json(out: &Path, value: &impl Serialize) -> Result<()> {
     if let Some(parent) = out.parent() {
         fs::create_dir_all(parent).map_err(|source| MarklabError::io(parent, source))?;
     }
-    let bytes = serde_json::to_vec_pretty(&output)?;
+    let bytes = serde_json::to_vec_pretty(value)?;
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(&out)
-        .map_err(|source| MarklabError::io(&out, source))?;
+        .open(out)
+        .map_err(|source| MarklabError::io(out, source))?;
     file.write_all(&bytes)
         .and_then(|()| file.write_all(b"\n"))
         .and_then(|()| file.sync_all())
-        .map_err(|source| MarklabError::io(&out, source))
+        .map_err(|source| MarklabError::io(out, source))
 }
 
 fn into_marklab(error: MicrobioError) -> MarklabError {

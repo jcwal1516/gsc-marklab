@@ -13,5 +13,7 @@ bench = false
 [dependencies]
 marklab-core.workspace = true
 marklab-numerics.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
 serde.workspace = true
 thiserror.workspace = true
