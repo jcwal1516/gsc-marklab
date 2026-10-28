@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod calibration;
 mod grouped_conformal;
 mod kernel_fusion;
 mod late_fusion;
@@ -8,6 +9,7 @@ mod logistic_cv;
 mod mixture_of_experts;
 mod retrieval;
 
+pub use calibration::{brier_score, reliability, PlattScaling, ReliabilityBin};
 pub use grouped_conformal::{
     CoverageRow, GroupedConformalModel, GroupedConformalPatient, GroupedConformalPrediction,
     GroupedConformalResources, GroupedConformalSpec, GroupedConformalWorkerRequest,
@@ -28,9 +30,10 @@ pub use logistic::{
     MAXIMUM_LOGISTIC_VALUES,
 };
 pub use logistic_cv::{
-    area_under_roc, average_precision, cross_validate_logistic, LogisticCvFold,
-    LogisticCvPrediction, LogisticCvResult, LogisticCvSpec, MAXIMUM_LOGISTIC_C_VALUES,
-    MAXIMUM_LOGISTIC_FOLDS,
+    area_under_roc, average_precision, fit_and_evaluate_logistic_ensemble, CallCounts,
+    ConformalCall, EnsembleCvFold, EnsembleCvPrediction, EnsemblePrediction, LogisticEnsemble,
+    LogisticEnsembleEvaluation, LogisticEnsembleFit, LogisticEnsembleSpec, ThresholdCounts,
+    MAXIMUM_LOGISTIC_C_VALUES, MAXIMUM_LOGISTIC_FOLDS,
 };
 pub use mixture_of_experts::{
     MixtureCalibrator, MixtureGateModel, MixtureMetrics, MixtureOfExpertsPatient,

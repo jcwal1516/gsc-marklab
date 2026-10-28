@@ -1,0 +1,18 @@
+{
+  "target": {
+    "id_column": "code",
+    "species_column": "species",
+    "species": "Escherichia coli",
+    "antibiotic_column": "Ceftriaxone",
+    "resistant": ["R", "I"],
+    "susceptible": ["S"]
+  },
+  "model": {
+    "c_values": [0.001, 0.01, 0.1, 1, 10, 100, 1000],
+    "class_weight": "balanced",
+    "folds": 5,
+    "inner_folds": 5,
+    "seed": 35,
+    "significance": 0.05
+  }
+}

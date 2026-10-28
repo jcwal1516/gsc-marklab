@@ -1140,20 +1140,24 @@
     },
     "maldi_ast_prediction": {
       "does": [
-        "L2-penalised logistic regression on standardised binned spectra (scikit-learn equivalent)",
-        "Nested, grouped, stratified cross-validation choosing C by inner-fold AUROC",
-        "Per-fold and pooled AUROC and average precision with out-of-fold probabilities"
+        "Parquet feature tables (id, numeric features, modality/unit/provenance metadata) from binned MALDI-TOF spectra or any writer",
+        "Cross-fitted ensembles of L2-penalised logistic regression with Platt calibration and class-conditional conformal calls",
+        "Outer cross-validation of the fitting procedure: AUROC, average precision, Brier score, reliability, very major/major/abstention rates",
+        "Saved models that predict only feature tables made the same way"
       ],
-      "input": "A CSV label table (isolate, species, antibiotic category, optional group), one binned `microbio preprocess` result per isolate, and a JSON configuration of categories and cross-validation.",
-      "output": "Label counts, bin layout, per-fold selected C and metrics, mean and pooled metrics, and each isolate's out-of-fold probability of resistance.",
-      "used_by": "marklab microbio cross-validate-ast; marklab-prediction LogisticProblem and cross_validate_logistic.",
+      "input": "A Parquet feature table (one row per isolate or specimen), a CSV label table (ID, antibiotic category, optional species and group), and a JSON configuration of categories and fitting settings.",
+      "output": "A model file (feature schema, settings, ensemble, calibration) and an evaluation report; predict-ast writes each row's calibrated probability, conformal p-values and call.",
+      "used_by": "marklab microbio feature-table, fit-ast and predict-ast; marklab-prediction LogisticProblem, fit_and_evaluate_logistic_ensemble and PlattScaling.",
       "uses": [
-        "Estimate how well MALDI-TOF spectra predict resistance for one species and antibiotic"
+        "Estimate how well MALDI-TOF spectra or other features predict resistance for one antibiotic",
+        "Predict resistance for new isolates with calibrated probabilities and abstaining calls"
       ],
-      "limits": "One species-antibiotic pair per run; L2 penalty only; categories taken as given (no MIC or breakpoint interpretation); no model for new isolates or calibrated probabilities. Not a clinical susceptibility test.",
+      "limits": "One antibiotic per fit; L2 penalty only; categories taken as given (no MIC or breakpoint interpretation); no specimen-to-isolate linking or modality fusion; grouped random folds only. Not a clinical susceptibility test.",
       "sources": [
         "crates/marklab-prediction/src/logistic.rs",
         "crates/marklab-prediction/src/logistic_cv.rs",
+        "crates/marklab-prediction/src/calibration.rs",
+        "src/cli/microbio/feature_table.rs",
         "src/cli/microbio/ast.rs",
         "docs/maldi-ast-prediction.md"
       ]

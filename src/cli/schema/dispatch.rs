@@ -36,7 +36,9 @@ pub(crate) fn run(command: Commands) -> Result<()> {
         },
         Commands::Microbio { command } => match command {
             MicrobioCommands::Preprocess(args) => microbio::run_preprocess(args),
-            MicrobioCommands::CrossValidateAst(args) => microbio::run_cross_validate_ast(args),
+            MicrobioCommands::FeatureTable(args) => microbio::run_feature_table(args),
+            MicrobioCommands::FitAst(args) => microbio::run_fit_ast(args),
+            MicrobioCommands::PredictAst(args) => microbio::run_predict_ast(args),
         },
 
         Commands::Smoke {

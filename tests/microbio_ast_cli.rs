@@ -1,4 +1,4 @@
-#![cfg(feature = "cli")]
+#![cfg(all(feature = "cli", feature = "parquet"))]
 
 use std::{fs, path::Path};
 
@@ -17,9 +17,13 @@ fn path(path: &Path) -> &str {
     path.to_str().unwrap()
 }
 
-/// Preprocess a text spectrum of 2,000–2,009 Da into five 2-Da bins, with a peak at 2,006 Da
-/// when `peak` is set and isolate-specific noise in the first bin.
-fn write_spectrum(dir: &Path, id: &str, index: usize, peak: bool) {
+fn read_json(path: &Path) -> Value {
+    serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
+}
+
+/// Preprocess a text spectrum of 2,000–2,009 Da into `bins` bins of `spectra`, with a peak at
+/// 2,006 Da when `peak` is set and isolate-specific noise in the first two points.
+fn write_spectrum(dir: &Path, spectra: &str, id: &str, index: usize, peak: bool, bins: usize) {
     let text = dir.join(format!("{id}.txt"));
     let lines: String = (0..10)
         .map(|offset| {
@@ -33,12 +37,10 @@ fn write_spectrum(dir: &Path, id: &str, index: usize, peak: bool) {
         })
         .collect();
     fs::write(&text, lines).unwrap();
-    let config = dir.join("preprocess.json");
-    if !config.exists() {
-        let binning = json!({"steps": [], "binning": {"min_mz": 2000, "max_mz": 2010, "bins": 5}});
-        fs::write(&config, binning.to_string()).unwrap();
-    }
-    let out = dir.join("spectra").join(format!("{id}.json"));
+    let config = dir.join(format!("preprocess-{bins}.json"));
+    let binning = json!({"steps": [], "binning": {"min_mz": 2000, "max_mz": 2010, "bins": bins}});
+    fs::write(&config, binning.to_string()).unwrap();
+    let out = dir.join(spectra).join(format!("{id}.json"));
     marklab(&[
         "microbio",
         "preprocess",
@@ -52,113 +54,187 @@ fn write_spectrum(dir: &Path, id: &str, index: usize, peak: bool) {
     .success();
 }
 
-fn ast_config() -> Value {
+/// Twenty-four labelled E. coli isolates (twelve resistant, one of them `I`) and two unlabelled ones,
+/// collected into `table.parquet`; returns the label table.
+fn write_isolates(dir: &Path) -> String {
+    let mut labels = String::from("species,code,Ceftriaxone\n");
+    for index in 0..24 {
+        let id = format!("ec-{index:02}");
+        let category = match index % 2 {
+            _ if index == 23 => "I",
+            0 => "S",
+            _ => "R",
+        };
+        write_spectrum(dir, "spectra", &id, index, category != "S", 5);
+        labels.push_str(&format!("Escherichia coli,{id},{category}\n"));
+    }
+    write_spectrum(dir, "spectra", "new-resistant", 24, true, 5);
+    write_spectrum(dir, "spectra", "new-susceptible", 25, false, 5);
+    marklab(&[
+        "microbio",
+        "feature-table",
+        "--spectra",
+        path(&dir.join("spectra")),
+        "--out",
+        path(&dir.join("table.parquet")),
+    ])
+    .success();
+    labels
+}
+
+fn fit_config() -> Value {
     json!({
-        "isolate_column": "code",
-        "species_column": "species",
-        "species": "Escherichia coli",
-        "antibiotic_column": "Ceftriaxone",
-        "resistant": ["R", "I"],
-        "susceptible": ["S"],
+        "target": {
+            "id_column": "code",
+            "species_column": "species",
+            "species": "Escherichia coli",
+            "antibiotic_column": "Ceftriaxone",
+            "resistant": ["R", "I"],
+            "susceptible": ["S"]
+        },
         "model": {
             "c_values": [0.1, 1.0, 10.0],
             "class_weight": "balanced",
             "folds": 2,
             "inner_folds": 2,
-            "seed": 3
+            "seed": 3,
+            "significance": 0.2
         }
     })
 }
 
-fn cross_validate(dir: &Path, labels: &str, config: &Value) -> assert_cmd::assert::Assert {
+fn fit(dir: &Path, labels: &str) -> assert_cmd::assert::Assert {
     let table = dir.join("labels.csv");
     fs::write(&table, labels).unwrap();
-    let config_path = dir.join("ast.json");
-    fs::write(&config_path, config.to_string()).unwrap();
+    let config = dir.join("fit.json");
+    fs::write(&config, fit_config().to_string()).unwrap();
     marklab(&[
         "microbio",
-        "cross-validate-ast",
+        "fit-ast",
+        "--features",
+        path(&dir.join("table.parquet")),
         "--labels",
         path(&table),
-        "--spectra",
-        path(&dir.join("spectra")),
         "--config",
-        path(&config_path),
+        path(&config),
+        "--model",
+        path(&dir.join("model.json")),
+        "--report",
+        path(&dir.join("report.json")),
+    ])
+}
+
+fn predict(dir: &Path, table: &str) -> assert_cmd::assert::Assert {
+    marklab(&[
+        "microbio",
+        "predict-ast",
+        "--model",
+        path(&dir.join("model.json")),
+        "--features",
+        path(&dir.join(table)),
         "--out",
-        path(&dir.join("result.json")),
+        path(&dir.join("predictions.json")),
     ])
 }
 
 #[test]
-fn cross_validates_resistance_from_preprocessed_spectra() {
+fn fits_a_calibrated_model_and_predicts_new_isolates_from_preprocessed_spectra() {
     let dir = tempfile::tempdir().unwrap();
-    let mut labels = String::from("species,code,Ceftriaxone\n");
-    for index in 0..16 {
-        let id = format!("ec-{index:02}");
-        let category = match index % 2 {
-            _ if index == 15 => "I",
-            0 => "S",
-            _ => "R",
-        };
-        write_spectrum(dir.path(), &id, index, category != "S");
-        labels.push_str(&format!("Escherichia coli,{id},{category}\n"));
-    }
-    // Other species and missing categories are counted and skipped; no spectra exist for them.
-    labels.push_str("Klebsiella pneumoniae,kp-01,R\nKlebsiella pneumoniae,kp-02,S\n");
-    labels.push_str("Escherichia coli,ec-untested,\n");
+    let mut labels = write_isolates(dir.path());
+    // Other species and missing categories are counted and skipped.
+    labels.push_str("Klebsiella pneumoniae,kp-01,R\nEscherichia coli,ec-untested,\n");
+    fit(dir.path(), &labels).success();
 
-    cross_validate(dir.path(), &labels, &ast_config()).success();
-
-    let result: Value =
-        serde_json::from_slice(&fs::read(dir.path().join("result.json")).unwrap()).unwrap();
+    let report = read_json(&dir.path().join("report.json"));
     assert_eq!(
-        result["labels"],
+        report["labels"],
         json!({
-            "rows": 19,
-            "other_species": 2,
+            "rows": 26,
+            "other_species": 1,
             "missing_category": 1,
-            "isolates": 16,
-            "resistant": 8,
-            "susceptible": 8,
-            "groups": 16
+            "labelled": 24,
+            "resistant": 12,
+            "susceptible": 12,
+            "groups": 24,
+            "unlabelled_feature_rows": 2
         })
     );
-    assert_eq!(
-        result["features"],
-        json!({"min_mz": 2000.0, "max_mz": 2010.0, "bins": 5})
+    assert_eq!(report["features"]["modality"], json!("maldi_tof"));
+    assert_eq!(report["features"]["unit"], json!("isolate"));
+    assert_eq!(report["features"]["columns"].as_array().unwrap().len(), 5);
+    let evaluation = &report["evaluation"];
+    assert_eq!(evaluation["mean_fold_auroc"], json!(1.0));
+    assert_eq!(evaluation["predictions"].as_array().unwrap().len(), 24);
+    assert_eq!(evaluation["conformal"]["significance"], json!(0.2));
+    assert_eq!(report["final_ensemble"]["members"], json!(2));
+
+    predict(dir.path(), "table.parquet").success();
+    let output = read_json(&dir.path().join("predictions.json"));
+    assert_eq!(output["modality"], json!("maldi_tof"));
+    let predictions = output["predictions"].as_array().unwrap();
+    assert_eq!(predictions.len(), 26);
+    let find = |id: &str| predictions.iter().find(|p| p["id"] == json!(id)).unwrap();
+    assert_eq!(find("new-resistant")["call"], json!("resistant"));
+    assert_eq!(find("new-susceptible")["call"], json!("susceptible"));
+    assert!(
+        find("new-resistant")["probability_resistant"]
+            .as_f64()
+            .unwrap()
+            > find("new-susceptible")["probability_resistant"]
+                .as_f64()
+                .unwrap()
     );
-    assert_eq!(result["folds"].as_array().unwrap().len(), 2);
-    assert_eq!(result["mean_fold_auroc"], json!(1.0));
-    let predictions = result["predictions"].as_array().unwrap();
-    assert_eq!(predictions.len(), 16);
-    assert_eq!(predictions[15]["isolate"], json!("ec-15"));
-    assert_eq!(predictions[15]["resistant"], json!(true));
-    assert!(predictions[15]["probability_resistant"].as_f64().unwrap() > 0.5);
 }
 
 #[test]
-fn rejects_unusable_label_tables_and_spectra_without_writing_a_result() {
-    let header = "species,code,Ceftriaxone\n";
-    let cases = [
+fn rejects_unusable_labels_tables_and_spectra_without_writing() {
+    let dir = tempfile::tempdir().unwrap();
+    let labels = write_isolates(dir.path());
+    for (rows, message) in [
         (
-            "Escherichia coli,ec-01,X\n",
+            "Escherichia coli,ec-00,X\n",
             "`Ceftriaxone` value `X` is listed as neither resistant nor susceptible",
         ),
         (
-            "Escherichia coli,../ec-01,R\n",
-            "isolate ID `../ec-01` must be 1 to 128 letters",
+            "Escherichia coli,ec-99,R\n",
+            "1 labelled IDs are not in the feature table, such as `ec-99`",
         ),
-        ("Escherichia coli,ec-02,R\n", "ec-02.json"),
-        ("Escherichia coli,unbinned,R\n", "no binned intensities"),
-    ];
-    for (rows, message) in cases {
-        let dir = tempfile::tempdir().unwrap();
-        let spectra = dir.path().join("spectra");
-        fs::create_dir_all(&spectra).unwrap();
-        fs::write(spectra.join("unbinned.json"), r#"{"binned": null}"#).unwrap();
-        cross_validate(dir.path(), &format!("{header}{rows}"), &ast_config())
+    ] {
+        fit(dir.path(), &format!("{labels}{rows}"))
             .failure()
             .stderr(predicate::str::contains(message));
-        assert!(!dir.path().join("result.json").exists());
+        assert!(!dir.path().join("model.json").exists());
+        assert!(!dir.path().join("report.json").exists());
     }
+
+    fit(dir.path(), &labels).success();
+    // Spectra binned differently from the training table are refused.
+    write_spectrum(dir.path(), "other-bins", "ec-00", 0, false, 10);
+    marklab(&[
+        "microbio",
+        "feature-table",
+        "--spectra",
+        path(&dir.path().join("other-bins")),
+        "--out",
+        path(&dir.path().join("other-bins.parquet")),
+    ])
+    .success();
+    predict(dir.path(), "other-bins.parquet")
+        .failure()
+        .stderr(predicate::str::contains("provenance"));
+    assert!(!dir.path().join("predictions.json").exists());
+
+    let unbinned = dir.path().join("unbinned");
+    fs::create_dir_all(&unbinned).unwrap();
+    fs::write(unbinned.join("x.json"), r#"{"steps": [], "binned": null}"#).unwrap();
+    marklab(&[
+        "microbio",
+        "feature-table",
+        "--spectra",
+        path(&unbinned),
+        "--out",
+        path(&dir.path().join("unbinned.parquet")),
+    ])
+    .failure()
+    .stderr(predicate::str::contains("no binned intensities"));
 }

@@ -67,13 +67,15 @@ struct RowSpace {
     norms: Vec<f64>,
 }
 
-/// A fitted model.
-#[derive(Clone, Debug)]
+/// A fitted model: the training standardisation, the coefficients on standardised features and
+/// the intercept.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct LogisticModel {
     mean: Vec<f64>,
     scale: Vec<f64>,
     coefficients: Vec<f64>,
     intercept: f64,
+    #[serde(skip)]
     newton_iterations: usize,
 }
 
@@ -352,6 +354,11 @@ impl LogisticModel {
     /// Predicted probability of the positive class for one row of raw (unstandardised)
     /// features.
     pub fn probability(&self, row: &[f64]) -> Result<f64, LogisticError> {
+        self.margin(row).map(sigmoid)
+    }
+
+    /// Log-odds of the positive class, `x̃·β + b`, for one row of raw features.
+    pub fn margin(&self, row: &[f64]) -> Result<f64, LogisticError> {
         if row.len() != self.coefficients.len() {
             return Err(LogisticError::Invalid(format!(
                 "a row has {} features; the model was fitted on {}",
@@ -364,15 +371,45 @@ impl LogisticModel {
                 "feature values must be finite".to_owned(),
             ));
         }
-        let margin = self.intercept
+        Ok(self.intercept
             + row
                 .iter()
                 .zip(&self.mean)
                 .zip(&self.scale)
                 .zip(&self.coefficients)
                 .map(|(((x, mean), scale), beta)| (x - mean) / scale * beta)
-                .sum::<f64>();
-        Ok(sigmoid(margin))
+                .sum::<f64>())
+    }
+
+    /// Number of features the model was fitted on.
+    pub fn columns(&self) -> usize {
+        self.coefficients.len()
+    }
+
+    /// Reject a deserialised model whose parts are inconsistent or not finite.
+    pub(crate) fn check(&self) -> Result<(), LogisticError> {
+        let columns = self.coefficients.len();
+        if columns == 0 || self.mean.len() != columns || self.scale.len() != columns {
+            return Err(LogisticError::Invalid(
+                "a model's mean, scale and coefficients must have one value per feature".to_owned(),
+            ));
+        }
+        let finite = self
+            .mean
+            .iter()
+            .chain(&self.coefficients)
+            .all(|value| value.is_finite())
+            && self.intercept.is_finite()
+            && self
+                .scale
+                .iter()
+                .all(|scale| scale.is_finite() && *scale > 0.0);
+        if !finite {
+            return Err(LogisticError::Invalid(
+                "a model's values must be finite and its scales positive".to_owned(),
+            ));
+        }
+        Ok(())
     }
 
     /// Newton iterations the fit took.

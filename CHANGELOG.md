@@ -161,12 +161,15 @@
   the spectrum maximum, the 6,000-bin vectors agree with a per-bin R sum within 2.8e-12, and the
   HPC example is rejected. `--text` reads two-column spectra such as DRIAMS `raw` files.
 
-- Add `marklab microbio cross-validate-ast`: nested, grouped cross-validation of L2-penalised
-  logistic regression predicting one antibiotic's resistance category from binned spectra of one
-  species, with per-fold and pooled AUROC and average precision and each isolate's out-of-fold
-  probability. The model, cross-validation and metrics are public in `marklab-prediction`
-  (`LogisticProblem`, `cross_validate_logistic`, `area_under_roc`, `average_precision`); fitted
-  probabilities match scikit-learn 1.9.0 within 1e-7.
+- Add `marklab microbio feature-table`, `fit-ast` and `predict-ast`. A feature table is a Parquet
+  file with an `id` column, numeric feature columns and `marklab.feature_table` metadata (modality,
+  unit, provenance); `feature-table` writes one from binned MALDI-TOF spectra, and other
+  modalities can write it from Python (checked with pyarrow, pandas and polars). `fit-ast` fits an
+  ensemble of L2-penalised logistic regressions (one per inner fold, scikit-learn-equivalent within
+  1e-7), Platt-calibrates it on held-out margins and calibrates class-conditional cross-conformal
+  calls; outer cross-validation of that whole procedure reports AUROC, average precision, Brier
+  score, reliability and very major, major and abstention rates. `predict-ast` applies the saved
+  model and refuses tables made differently.
 
 - Compare `numerics categorical-enrichment` with imcRtools 1.16.0 `testInteractions`
   (classic) and SPIAT 1.12.1 `mixing_score_summary` on three public CODEX spots. Graphs and

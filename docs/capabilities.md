@@ -367,7 +367,7 @@ where an individual model still lacks a complete public demonstration; a command
 | `spatial3d` | Research | Cuboid/voxel/registration and known 3-D answers; real serial-section patient claims unvalidated. |
 | `simulate` | Research | Solver/conservation/bound/seeded-process tests; no fitted mechanistic tissue validation. |
 | `microbio preprocess` | Experimental for linear-mode Bruker flex reading and the five steps and binning; Research for reflector mode | [Agreement with readBrukerFlexData, MALDIquant and flexAnalysis](maldi-preprocessing.md#evidence) on public example spectra and 11,055 RKI acquisitions. Not checked on a current Biotyper software version. |
-| `microbio cross-validate-ast` | Research | [scikit-learn agreement](maldi-ast-prediction.md#evidence). No patient-grouped, external-site or clinical validation; no model for new isolates. |
+| `microbio feature-table`, `fit-ast`, `predict-ast` | Research | [scikit-learn and high-precision agreement and writer interoperability](maldi-ast-prediction.md#evidence). No patient-grouped, temporal, external-site or clinical validation. |
 | `neural` | Research | Synthetic point-process/generator/SBI checks; no image-model training or real-cohort performance claim. |
 | `causal` | Research | Analytic/synthetic identification and sensitivity controls; observational tissue association is not causation. |
 | `longitudinal` | Research | Analytic/synthetic filter/smoother tests; no repeated-patient clinical validation. |

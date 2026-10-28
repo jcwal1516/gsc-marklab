@@ -73,7 +73,7 @@ environment.
 | What do Bayesian spatial and hierarchical models say? (via pinned PyMC/NumPyro environments) | `marklab bayes`, `marklab project` |
 | What is in this whole-slide image, and can I cut out a region? (`--features wsi`) | `marklab inspect-slide`, `marklab extract-region` |
 | How do I turn a raw Bruker MALDI-TOF acquisition of a bacterial isolate into a calibrated, binned spectrum? | `marklab microbio preprocess` |
-| How well do an isolate's MALDI-TOF spectra predict resistance to an antibiotic? | `marklab microbio cross-validate-ast` |
+| How well do an isolate's MALDI-TOF spectra (or other features) predict resistance to an antibiotic, and what does a model predict for new isolates? | `marklab microbio feature-table`, `fit-ast`, `predict-ast` |
 
 There are also research workflows for 3-D tissue, graphs, topology, time series, causal
 designs and simulation. `marklab --help` lists every command, and

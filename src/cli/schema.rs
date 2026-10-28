@@ -91,9 +91,13 @@ pub enum Commands {
 pub enum MicrobioCommands {
     /// Convert one Bruker flex acquisition to m/z, apply ordered preprocessing steps and bin it.
     Preprocess(microbio::PreprocessArgs),
-    /// Cross-validate L2-penalised logistic regression predicting one antibiotic's resistance
-    /// from binned spectra of one species.
-    CrossValidateAst(microbio::CrossValidateAstArgs),
+    /// Collect binned `preprocess` results into a feature table for `fit-ast` and `predict-ast`.
+    FeatureTable(microbio::FeatureTableArgs),
+    /// Evaluate and fit a calibrated logistic regression ensemble predicting one antibiotic's
+    /// resistance from a feature table.
+    FitAst(microbio::FitAstArgs),
+    /// Predict resistance for every row of a feature table with a model from `fit-ast`.
+    PredictAst(microbio::PredictAstArgs),
 }
 
 #[derive(Debug, Subcommand)]
