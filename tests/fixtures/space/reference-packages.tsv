@@ -11,3 +11,4 @@ memuse	4.2-3
 foreach	1.5.2
 doParallel	1.0.17
 jsonlite	2.0.0
+igraph	2.3.0

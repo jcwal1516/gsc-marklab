@@ -1,18 +1,19 @@
 //! cisMI: non-random co-patterning of every ensemble within one specimen (R `measure_cisMI`).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::binning::{bin_count, minimum_discs_for_two_bins, NearestGrid};
+use super::binning::{bin_count, min_max, minimum_discs_for_two_bins, NearestGrid};
 use super::census::{
     check_retained, disc_count, draw_discs, draw_seeds, present_variables, CensusCost, CensusPlan,
 };
-use super::information::{co_information, combinations, joint_entropy, lexicographic_rank};
+use super::ensembles::{selected_radii, selected_specimens, EnsembleOptions, Ensembles};
+use super::information::{co_information, joint_entropy, lexicographic_rank};
 use super::input::{Specimen, VariableSpec};
 use super::{
-    invalid, resource, SpaceError, SpaceInput, SpaceVariable, SPACE_FORMAT_VERSION,
-    SPACE_REFERENCE_COMMIT,
+    for_each_chunk, invalid, resource, worker_threads, SpaceError, SpaceInput, SpaceVariable,
+    SPACE_FORMAT_VERSION, SPACE_REFERENCE_COMMIT,
 };
 use crate::common::seeds::{derive_seed, SeedEndpoint};
 use crate::inference::multiple_testing::benjamini_hochberg;
@@ -39,6 +40,19 @@ pub struct SpaceCisParameters {
     pub radii_um: Vec<f64>,
     /// Specimens to analyse; empty for all.
     pub specimens: Vec<String>,
+}
+
+impl SpaceCisParameters {
+    fn options(&self) -> EnsembleOptions<'_> {
+        EnsembleOptions {
+            depth: self.depth,
+            bootstraps: self.bootstraps,
+            max_bins: self.max_bins,
+            all: &self.all,
+            alo: &self.alo,
+            not: &self.not,
+        }
+    }
 }
 
 impl Default for SpaceCisParameters {
@@ -133,26 +147,17 @@ pub fn space_cis(
     input: &SpaceInput,
     parameters: &SpaceCisParameters,
 ) -> Result<SpaceCisResult, SpaceError> {
-    validate_parameters(input, parameters)?;
+    parameters.options().validate(input)?;
     let radius_positions = selected_radii(input, &parameters.radii_um)?;
-    let selected = parameters.specimens.iter().collect::<BTreeSet<_>>();
-    for id in &selected {
-        if !input.specimen_ids().any(|known| known == id.as_str()) {
-            return Err(invalid(format!("unknown specimen {id}")));
-        }
-    }
     let mut specimens = Vec::new();
     // Estimated bytes of the ensembles reported so far, which the result keeps.
     let mut retained = 0_usize;
-    for (position, specimen) in input.specimens.iter().enumerate() {
-        if !selected.is_empty() && !selected.contains(&specimen.id) {
-            continue;
-        }
+    for position in selected_specimens(input, &parameters.specimens)? {
         specimens.push(analyze_specimen(
             input,
             parameters,
             position,
-            specimen,
+            &input.specimens[position],
             &radius_positions,
             &mut retained,
         )?);
@@ -169,61 +174,6 @@ pub fn space_cis(
     })
 }
 
-fn validate_parameters(
-    input: &SpaceInput,
-    parameters: &SpaceCisParameters,
-) -> Result<(), SpaceError> {
-    if parameters.depth == 0 {
-        return Err(invalid("depth must be at least 1"));
-    }
-    if parameters.bootstraps < 2 || parameters.bootstraps > input.limits.maximum_bootstraps {
-        return Err(resource(format!(
-            "bootstraps must be between 2 and {}",
-            input.limits.maximum_bootstraps
-        )));
-    }
-    if !(2..=255).contains(&parameters.max_bins) {
-        return Err(invalid("max_bins must be between 2 and 255"));
-    }
-    for name in parameters
-        .all
-        .iter()
-        .chain(&parameters.alo)
-        .chain(&parameters.not)
-    {
-        if input.variable_index(name).is_none() {
-            return Err(invalid(format!("{name} is not a census variable")));
-        }
-    }
-    let required = parameters.all.len() + usize::from(!parameters.alo.is_empty());
-    if required > parameters.depth {
-        return Err(invalid(
-            "the number of required variables exceeds ensemble depth",
-        ));
-    }
-    Ok(())
-}
-
-fn selected_radii(input: &SpaceInput, radii: &[f64]) -> Result<Vec<usize>, SpaceError> {
-    if radii.is_empty() {
-        return Ok((0..input.census.radii_um.len()).collect());
-    }
-    let mut positions = radii
-        .iter()
-        .map(|radius| {
-            input
-                .census
-                .radii_um
-                .iter()
-                .position(|known| known == radius)
-                .ok_or_else(|| invalid(format!("{radius} um is not a census radius")))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    positions.sort_unstable();
-    positions.dedup();
-    Ok(positions)
-}
-
 fn analyze_specimen(
     input: &SpaceInput,
     parameters: &SpaceCisParameters,
@@ -233,22 +183,8 @@ fn analyze_specimen(
     retained: &mut usize,
 ) -> Result<SpaceCisSpecimen, SpaceError> {
     let names = |index: usize| input.variable_descriptions[index].name.as_str();
-    let not = parameters.not.iter().collect::<BTreeSet<_>>();
-    let required = parameters.all.len() + usize::from(!parameters.alo.is_empty());
-    let keep_only = (required == parameters.depth).then(|| {
-        parameters
-            .all
-            .iter()
-            .chain(&parameters.alo)
-            .collect::<BTreeSet<_>>()
-    });
-    let active = present_variables(input, specimen)
-        .into_iter()
-        .filter(|(index, _)| {
-            let name = names(*index).to_owned();
-            !not.contains(&name) && keep_only.as_ref().is_none_or(|keep| keep.contains(&name))
-        })
-        .collect::<Vec<_>>();
+    let options = parameters.options();
+    let active = options.active(input, present_variables(input, specimen));
     let variable_count = active.len();
     if parameters.depth > variable_count {
         return Err(invalid(format!(
@@ -276,9 +212,9 @@ fn analyze_specimen(
             minimum_discs_for_two_bins(parameters.depth)
         )));
     }
-    let ensembles = Ensembles::new(variable_count, parameters, &active_names, input, *retained)?;
+    let ensembles = Ensembles::new(variable_count, &options, &active_names, input, *retained)?;
 
-    let result_bytes = ensembles.result_bytes(&active_names);
+    let result_bytes = ensembles.result_bytes(&active_names, size_of::<SpaceCisEnsemble>());
     let mut radii = Vec::with_capacity(radius_positions.len());
     for &radius_position in radius_positions {
         // Discs are drawn one radius at a time so only one radius's members are held.
@@ -316,109 +252,6 @@ fn analyze_specimen(
         minimum_disc_count,
         radii,
     })
-}
-
-/// Ensembles reported at each size: every combination below `depth`, and at `depth` those
-/// satisfying `all` and `alo` (R applies the constraints only at full depth).
-struct Ensembles {
-    variable_count: usize,
-    depth: usize,
-    /// `by_size[size - 1]`: flattened sorted variable positions.
-    by_size: Vec<Vec<u16>>,
-}
-
-impl Ensembles {
-    fn new(
-        variable_count: usize,
-        parameters: &SpaceCisParameters,
-        names: &[String],
-        input: &SpaceInput,
-        retained: usize,
-    ) -> Result<Self, SpaceError> {
-        let depth = parameters.depth;
-        let position = |name: &String| names.iter().position(|known| known == name);
-        let all = parameters
-            .all
-            .iter()
-            .filter_map(position)
-            .collect::<Vec<_>>();
-        let alo = parameters
-            .alo
-            .iter()
-            .filter_map(position)
-            .collect::<Vec<_>>();
-        // Like R's combn, every combination up to `depth` is enumerated before `all` and
-        // `alo` filter the largest size; the limit bounds that enumeration.
-        let enumerated = (1..=depth).fold(0_u64, |sum, size| {
-            sum.saturating_add(super::information::binomial(variable_count, size))
-        });
-        if enumerated > input.limits.maximum_ensembles as u64 {
-            return Err(resource(format!(
-                "{enumerated} enumerated ensembles exceed the maximum of {}",
-                input.limits.maximum_ensembles
-            )));
-        }
-        // The tables hold every enumerated ensemble, the largest size briefly twice.
-        let table_bytes = enumerated.saturating_mul(2 * depth as u64 * size_of::<u16>() as u64);
-        check_retained(
-            input,
-            retained.saturating_add(usize::try_from(table_bytes).unwrap_or(usize::MAX)),
-        )?;
-        let mut by_size = (1..depth)
-            .map(|size| combinations(variable_count, size))
-            .collect::<Vec<_>>();
-        let mut largest = combinations(variable_count, depth);
-        if parameters.all.len() > all.len() {
-            // A required variable is absent from this specimen: no full-depth ensemble qualifies.
-            largest.clear();
-        }
-        if !parameters.alo.is_empty() && alo.is_empty() {
-            largest.clear();
-        }
-        let largest = largest
-            .chunks_exact(depth)
-            .filter(|ensemble| {
-                all.iter()
-                    .all(|&required| ensemble.contains(&(required as u16)))
-                    && (alo.is_empty() || alo.iter().any(|&one| ensemble.contains(&(one as u16))))
-            })
-            .flatten()
-            .copied()
-            .collect::<Vec<_>>();
-        by_size.push(largest);
-        Ok(Self {
-            variable_count,
-            depth,
-            by_size,
-        })
-    }
-
-    fn count(&self, size: usize) -> usize {
-        self.by_size[size - 1].len() / size
-    }
-
-    fn total(&self) -> usize {
-        (1..=self.depth).map(|size| self.count(size)).sum()
-    }
-
-    fn table_bytes(&self) -> usize {
-        self.by_size.iter().map(Vec::len).sum::<usize>() * size_of::<u16>()
-    }
-
-    fn ensemble(&self, size: usize, index: usize) -> &[u16] {
-        &self.by_size[size - 1][index * size..(index + 1) * size]
-    }
-
-    /// An upper estimate of the bytes one radius's reported ensembles and ranges occupy.
-    fn result_bytes(&self, names: &[String]) -> usize {
-        let longest = names.iter().map(String::len).max().unwrap_or(0);
-        let per_ensemble = size_of::<SpaceCisEnsemble>()
-            + self.depth * (size_of::<String>() + longest)
-            + size_of::<(usize, usize)>();
-        self.total()
-            .saturating_mul(per_ensemble)
-            .saturating_add(names.len().saturating_mul(size_of::<[f64; 2]>()))
-    }
 }
 
 #[expect(
@@ -679,51 +512,5 @@ fn summarize(variables: Vec<String>, values: &[f64]) -> SpaceCisEnsemble {
         p_value_normal,
         p_adjust_bh: p_value_normal,
         p_value_monte_carlo: (1 + extreme) as f64 / (1 + null.len()) as f64,
-    }
-}
-
-fn min_max(values: &[f64]) -> (f64, f64) {
-    values
-        .iter()
-        .fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), value| {
-            (low.min(*value), high.max(*value))
-        })
-}
-
-fn worker_threads() -> usize {
-    #[cfg(feature = "parallel")]
-    {
-        rayon::current_num_threads()
-    }
-    #[cfg(not(feature = "parallel"))]
-    {
-        1
-    }
-}
-
-/// Apply `operation(state, chunk_index, chunk)` to consecutive chunks, in parallel when the
-/// `parallel` feature is enabled. Each chunk's result depends only on its index, so output is
-/// identical at any thread count.
-fn for_each_chunk<T, S>(
-    data: &mut [T],
-    chunk: usize,
-    init: impl Fn() -> S + Sync + Send,
-    operation: impl Fn(&mut S, usize, &mut [T]) + Sync + Send,
-) where
-    T: Send,
-{
-    #[cfg(feature = "parallel")]
-    {
-        use rayon::prelude::*;
-        data.par_chunks_mut(chunk)
-            .enumerate()
-            .for_each_init(init, |state, (index, slice)| operation(state, index, slice));
-    }
-    #[cfg(not(feature = "parallel"))]
-    {
-        let mut state = init();
-        for (index, slice) in data.chunks_mut(chunk).enumerate() {
-            operation(&mut state, index, slice);
-        }
     }
 }

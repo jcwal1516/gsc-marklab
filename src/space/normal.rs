@@ -99,6 +99,11 @@ pub(crate) fn two_sided_p(z: f64) -> f64 {
     erfc(z.abs() / std::f64::consts::SQRT_2)
 }
 
+/// `1 - Phi(z)`, R's `pnorm(z, lower.tail = FALSE)`.
+pub(crate) fn upper_tail(z: f64) -> f64 {
+    0.5 * erfc(z / std::f64::consts::SQRT_2)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,5 +137,28 @@ mod tests {
             assert_eq!(two_sided_p(-z), observed);
         }
         assert_eq!(two_sided_p(0.0), 1.0);
+    }
+
+    #[test]
+    fn upper_tail_matches_r_pnorm_upper() {
+        // R 4.5.2: sprintf("%.17g", pnorm(z, lower.tail = FALSE)).
+        let cases = [
+            (-3.0, 0.9986501019683699),
+            (-0.5, 0.69146246127401301),
+            (0.0, 0.5),
+            (0.5, 0.30853753872598694),
+            (1.0, 0.15865525393145705),
+            (2.5, 0.0062096653257761349),
+            (5.0, 2.8665157187919391e-07),
+            (10.0, 7.6198530241605269e-24),
+            (30.0, 4.9067139271481872e-198),
+        ];
+        for (z, expected) in cases {
+            let observed = upper_tail(z);
+            assert!(
+                (observed - expected).abs() <= 1e-12 * expected,
+                "z = {z}: {observed:e} versus {expected:e}"
+            );
+        }
     }
 }

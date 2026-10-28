@@ -14,6 +14,15 @@ pub(crate) fn minimum_discs_for_two_bins(depth: usize) -> usize {
     (10_usize.saturating_mul(1_usize << depth.min(60))).saturating_sub(1)
 }
 
+/// The smallest and largest value (R `min` and `max` of a census column).
+pub(crate) fn min_max(values: &[f64]) -> (f64, f64) {
+    values
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), value| {
+            (low.min(*value), high.max(*value))
+        })
+}
+
 /// Nearest-point rounding onto R's `seq(minimum, maximum, length.out = bins)`.
 ///
 /// R rounds with `FNN::knnx.index`, an ANN kd-tree (sliding-midpoint splits, one point per
@@ -57,7 +66,6 @@ impl NearestGrid {
         Some(grid)
     }
 
-    #[cfg(test)]
     pub(crate) fn points(&self) -> &[f64] {
         &self.points
     }

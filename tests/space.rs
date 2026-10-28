@@ -2,8 +2,8 @@ use std::path::Path;
 use std::process::Command;
 
 use marklab::space::{
-    load_space_input, space_census, space_cis, space_input_from_json, SpaceCisParameters,
-    SpaceError, SpaceNullStatus,
+    load_space_input, space_census, space_cis, space_input_from_json, space_trans,
+    SpaceCisParameters, SpaceError, SpaceNullStatus, SpaceTransParameters,
 };
 use serde_json::{json, Value};
 
@@ -290,21 +290,115 @@ fn ensemble_constraints_follow_r_measure_cis_mi() {
     ));
 }
 
+fn grouped(mut specimen: Value, groups: Value) -> Value {
+    specimen["groups"] = groups;
+    specimen
+}
+
+/// Three striped and three well-mixed specimens; `batch` cuts across the two patterns.
+fn trans_specimens() -> Value {
+    json!([
+        grouped(
+            grid_specimen("striped-1", 30, 4),
+            json!({"pattern": "striped", "batch": "a"})
+        ),
+        grouped(
+            grid_specimen("striped-2", 30, 5),
+            json!({"pattern": "striped", "batch": "b"})
+        ),
+        grouped(
+            grid_specimen("striped-3", 30, 6),
+            json!({"pattern": "striped", "batch": "a"})
+        ),
+        grouped(
+            grid_specimen("mixed-1", 30, 0),
+            json!({"pattern": "mixed", "batch": "b"})
+        ),
+        grouped(
+            grid_specimen("mixed-2", 30, 0),
+            json!({"pattern": "mixed", "batch": "a"})
+        ),
+        grouped(
+            grid_specimen("mixed-3", 30, 0),
+            json!({"pattern": "mixed", "batch": "b"})
+        ),
+    ])
+}
+
+#[test]
+fn trans_ranks_ensembles_that_separate_groups() {
+    let input = cis_input(trans_specimens(), 200);
+    let parameters = SpaceTransParameters {
+        depth: 2,
+        bootstraps: 200,
+        ..SpaceTransParameters::default()
+    };
+    let result = space_trans(&input, &parameters).unwrap();
+    let factors = result
+        .factors
+        .iter()
+        .map(|factor| (factor.factor.as_str(), factor.levels.len()))
+        .collect::<Vec<_>>();
+    assert_eq!(factors, [("batch", 2), ("pattern", 2)]);
+    // floor(((200 + 1) / 10)^(1/2)) = 4 bins; three variables give 3 + 3 ensembles.
+    assert_eq!((result.bins, result.minimum_disc_count), (4, 200));
+    let radius = &result.radii[0];
+    assert_eq!(radius.disc_counts, [200; 6]);
+    assert_eq!(radius.ensembles.len(), 6);
+    // Each specimen is rounded on its own range, so striped discs (0 to 100% A) spread over
+    // the extreme bins while mixed discs crowd the middle: composition separates the
+    // patterns but not the batches. Six specimens give 15 divergences to shuffle, so the
+    // null is wide and Z near 3 is close to the most a perfect split can reach.
+    let class_a = &radius.ensembles[0];
+    assert_eq!(class_a.variables, ["cell_type.A"]);
+    let [batch, pattern] = [&class_a.factors[0], &class_a.factors[1]];
+    assert_eq!(
+        (batch.factor.as_str(), pattern.factor.as_str()),
+        ("batch", "pattern")
+    );
+    assert!(pattern.trans_mi > batch.trans_mi, "{class_a:?}");
+    assert!(pattern.z_score > 2.5, "{pattern:?}");
+    assert!(pattern.p_value_monte_carlo <= 0.01, "{pattern:?}");
+    assert!(batch.z_score.abs() < 1.0, "{batch:?}");
+    assert_eq!(pattern.status, SpaceNullStatus::Available);
+
+    let error = |parameters: SpaceTransParameters| space_trans(&input, &parameters).unwrap_err();
+    assert!(matches!(
+        error(SpaceTransParameters { factors: vec!["site".into()], ..parameters.clone() }),
+        SpaceError::Invalid(message) if message.contains("no level for grouping factor site")
+    ));
+    assert!(matches!(
+        error(SpaceTransParameters { specimens: vec!["mixed-1".into()], ..parameters }),
+        SpaceError::Invalid(message) if message.contains("at least two specimens")
+    ));
+}
+
 #[cfg(feature = "parallel")]
 #[test]
-fn cis_results_do_not_depend_on_thread_count() {
-    let input = cis_input(json!([grid_specimen("random", 30, 0)]), 120);
-    let parameters = SpaceCisParameters {
+fn results_do_not_depend_on_thread_count() {
+    let input = cis_input(trans_specimens(), 120);
+    let cis = SpaceCisParameters {
         depth: 3,
         bootstraps: 20,
+        specimens: vec!["mixed-1".into()],
         ..SpaceCisParameters::default()
+    };
+    let trans = SpaceTransParameters {
+        depth: 2,
+        bootstraps: 20,
+        ..SpaceTransParameters::default()
     };
     let run = |threads| {
         rayon::ThreadPoolBuilder::new()
             .num_threads(threads)
             .build()
             .unwrap()
-            .install(|| space_cis(&input, &parameters).unwrap())
+            .install(|| {
+                (
+                    space_cis(&input, &cis).unwrap(),
+                    space_trans(&input, &trans).unwrap(),
+                )
+            })
     };
     assert_eq!(run(1), run(4));
 }
@@ -323,9 +417,9 @@ fn cellvit_tables_and_multiplex_recipes_are_direct_sources() {
     let census = json!({"radii_um": [2.0], "seed": 3, "seed_cell_ids": {"slide": [["b"]]}});
     let cellvit = json!({
         "format": "marklab.space_request", "version": 1,
-        "source": {"kind": "cellvit_he_csv", "path": "cells.csv",
+        "source": {"kind": "cellvit_he_csv", "specimens": [{"path": "cells.csv",
             "window_path": "window.geojson", "specimen_id": "slide",
-            "coordinate_frame_id": "slide-um", "groups": {"status": "biopsy"}},
+            "coordinate_frame_id": "slide-um", "groups": {"status": "biopsy"}}]},
         "objects": ["cellvit_class"],
         "linked_scalars": [{"channel": "cellvit_class", "class": "tumor",
             "scalar": "class_probability"}],
@@ -362,6 +456,31 @@ fn cellvit_tables_and_multiplex_recipes_are_direct_sources() {
         from_csv.specimens[0].radii[0].discs[0].values,
         [50.0, 50.0, (0.9 + 0.7) / 2.0]
     );
+    // Several tables share one class list, so a class means the same in every specimen.
+    std::fs::write(
+        path.join("second.csv"),
+        "cell_id,x_centroid_um,y_centroid_um,predicted_class,class_probability\n\
+         e,1,1,Stroma,0.6\nf,2,1,Tumor,0.9\n",
+    )
+    .unwrap();
+    let mut two = cellvit.clone();
+    two["source"]["specimens"].as_array_mut().unwrap().push(
+        json!({"path": "second.csv", "window_path": "window.geojson",
+            "specimen_id": "slide-2", "coordinate_frame_id": "slide-2-um"}),
+    );
+    two["census"] = json!({"radii_um": [2.0], "seed": 3,
+        "seed_cell_ids": {"slide": [["b"]], "slide-2": [["e"]]}});
+    std::fs::write(path.join("two.json"), two.to_string()).unwrap();
+    let from_two = space_census(&load_space_input(&path.join("two.json")).unwrap()).unwrap();
+    assert_eq!(from_two.specimens[0], from_csv.specimens[0]);
+    assert_eq!(
+        from_two.specimens[1].variables,
+        [
+            "cellvit_class.stroma",
+            "cellvit_class.tumor",
+            "cellvit_class.tumor_class_probability"
+        ]
+    );
 
     // The repository's synthetic multiplex recipe: slides become specimens with their group.
     let recipe = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/multiplex-study/recipe.json");
@@ -390,7 +509,7 @@ fn cellvit_tables_and_multiplex_recipes_are_direct_sources() {
 }
 
 #[test]
-fn cli_publishes_cis_json_and_table_once() {
+fn cli_publishes_json_and_tables_once() {
     let directory = tempfile::tempdir().unwrap();
     let request = directory.path().join("request.json");
     std::fs::write(
@@ -431,4 +550,39 @@ fn cli_publishes_cis_json_and_table_once() {
     let second = run();
     assert!(!second.status.success());
     assert!(String::from_utf8_lossy(&second.stderr).contains("already exists"));
+
+    let request = directory.path().join("trans-request.json");
+    std::fs::write(
+        &request,
+        inline_request(
+            trans_specimens(),
+            json!({"census": {"radii_um": [3.0], "sample_size": [100], "seed": 1}}),
+        ),
+    )
+    .unwrap();
+    let (out, table) = (
+        directory.path().join("trans.json"),
+        directory.path().join("trans.csv"),
+    );
+    let trans = Command::new(env!("CARGO_BIN_EXE_marklab"))
+        .args(["space", "trans", "--request"])
+        .arg(&request)
+        .arg("--out")
+        .arg(&out)
+        .arg("--table")
+        .arg(&table)
+        .args(["--depth", "1", "--bootstraps", "10", "--factor", "pattern"])
+        .output()
+        .unwrap();
+    assert!(
+        trans.status.success(),
+        "{}",
+        String::from_utf8_lossy(&trans.stderr)
+    );
+    let result: Value = serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
+    assert_eq!(result["format"], "marklab.space_trans_result");
+    let csv = std::fs::read_to_string(&table).unwrap();
+    assert!(csv.starts_with("radius_um,depth,v1,factor,trans_mi,"));
+    // Two classes at depth 1, one factor.
+    assert_eq!(csv.lines().count(), 1 + 2);
 }

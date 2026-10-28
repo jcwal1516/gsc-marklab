@@ -9,6 +9,7 @@ use super::{
     invalid, label, resource, SpaceError, SpaceVariable, SpaceVariableKind, SPACE_FORMAT_VERSION,
 };
 use crate::geom::spatial_index::SpatialIndex2D;
+#[cfg(feature = "cli")]
 use crate::multimodal::load_cellvit_he_cell_table_csv;
 use crate::multiplex_study::model::{Channel, ChannelKind, Recipe};
 use crate::{ObservationWindow2D, ObservationWindowLimits};
@@ -16,7 +17,9 @@ use crate::{ObservationWindow2D, ObservationWindowLimits};
 pub const SPACE_REQUEST_FORMAT: &str = "marklab.space_request";
 const MAXIMUM_REQUEST_BYTES: u64 = 256 * 1024 * 1024;
 const MAXIMUM_RECIPE_BYTES: u64 = 16 * 1024 * 1024;
+#[cfg(feature = "cli")]
 const MAXIMUM_CELL_TABLE_BYTES: u64 = 1024 * 1024 * 1024;
+#[cfg(feature = "cli")]
 const MAXIMUM_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
 const MAXIMUM_RADII: usize = 64;
 /// Class index of a cell with no class in an object channel (SPACE's background).
@@ -25,7 +28,9 @@ pub(crate) const NO_CLASS: u32 = u32::MAX;
 /// values beyond about 1e154 would overflow to infinity; this bound keeps every census mean,
 /// grid step and squared distance finite.
 const MAXIMUM_SCALAR_MAGNITUDE: f64 = 1e150;
+#[cfg(feature = "cli")]
 const CELLVIT_CLASS_CHANNEL: &str = "cellvit_class";
+#[cfg(feature = "cli")]
 const CELLVIT_PROBABILITY_CHANNEL: &str = "class_probability";
 
 #[derive(Deserialize)]
@@ -58,15 +63,29 @@ enum Source {
         path: PathBuf,
     },
     CellvitHeCsv {
-        path: PathBuf,
-        window_path: PathBuf,
-        specimen_id: String,
-        coordinate_frame_id: String,
+        specimens: Vec<CellvitSpecimen>,
         #[serde(default)]
         minimum_class_probability: f64,
-        #[serde(default)]
-        groups: BTreeMap<String, String>,
     },
+}
+
+/// One CellViT classification table and the specimen it describes.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+#[cfg_attr(
+    not(feature = "cli"),
+    expect(
+        dead_code,
+        reason = "parsed so the request format is the same; read only with cli"
+    )
+)]
+struct CellvitSpecimen {
+    path: PathBuf,
+    window_path: PathBuf,
+    specimen_id: String,
+    coordinate_frame_id: String,
+    #[serde(default)]
+    groups: BTreeMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -274,7 +293,8 @@ fn prepare(bytes: &[u8], base: Option<&Path>) -> Result<SpaceInput, SpaceError> 
         )));
     }
     validate_limits(request.limits)?;
-    let (source_kind, channels, raw) = load_source(request.source, base)?;
+    let (source_kind, channels, raw) =
+        load_source(request.source, base, request.limits.maximum_specimens)?;
     let channels = declared_channels(channels)?;
 
     let mut seen_objects = BTreeSet::new();
@@ -436,6 +456,7 @@ fn prepare(bytes: &[u8], base: Option<&Path>) -> Result<SpaceInput, SpaceError> 
 fn load_source(
     source: Source,
     base: Option<&Path>,
+    maximum_specimens: usize,
 ) -> Result<(&'static str, Vec<Channel>, Vec<RawSpecimen>), SpaceError> {
     match source {
         Source::Inline {
@@ -490,48 +511,87 @@ fn load_source(
             Ok(("multiplex_study_recipe", recipe.channels, raw))
         }
         Source::CellvitHeCsv {
-            path,
-            window_path,
-            specimen_id,
-            coordinate_frame_id,
+            specimens,
             minimum_class_probability,
-            groups,
         } => {
-            let path = resolve(base, &path)?;
-            check_regular_file(&path, MAXIMUM_CELL_TABLE_BYTES, "CellViT cell table")?;
-            let cells = load_cellvit_he_cell_table_csv(&path, minimum_class_probability)
-                .map_err(|error| invalid(error.to_string()))?;
-            let window_path = resolve(base, &window_path)?;
-            let window = read_bounded(&window_path, MAXIMUM_WINDOW_BYTES, "window")?;
-            let window_geojson =
-                String::from_utf8(window).map_err(|_| invalid("window GeoJSON must be UTF-8"))?;
-            let classes = cells
-                .iter()
-                .filter_map(|cell| cell.cell_type.clone())
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .collect::<Vec<_>>();
-            let provenance = "CellViT H&E cell table (cell_id, x_centroid_um, y_centroid_um, predicted_class, class_probability)";
-            let channels = vec![
-                Channel {
-                    id: CELLVIT_CLASS_CHANNEL.into(),
-                    label: "CellViT predicted class".into(),
-                    kind: ChannelKind::Categorical,
-                    unit: "categorical".into(),
-                    measurement_status: "imported_prediction".into(),
-                    provenance: provenance.into(),
-                    levels: classes.clone(),
-                },
-                Channel {
-                    id: CELLVIT_PROBABILITY_CHANNEL.into(),
-                    label: "CellViT predicted-class probability".into(),
-                    kind: ChannelKind::Continuous,
-                    unit: "probability".into(),
-                    measurement_status: "imported_prediction".into(),
-                    provenance: provenance.into(),
-                    levels: Vec::new(),
-                },
-            ];
+            #[cfg(feature = "cli")]
+            {
+                cellvit_source(
+                    specimens,
+                    minimum_class_probability,
+                    base,
+                    maximum_specimens,
+                )
+            }
+            #[cfg(not(feature = "cli"))]
+            {
+                let _ = (specimens, minimum_class_probability, maximum_specimens);
+                Err(invalid(
+                    "the cellvit_he_csv source reads CSV and needs Marklab's cli feature",
+                ))
+            }
+        }
+    }
+}
+
+/// CellViT H&E classification tables, one per specimen, with one class list across them.
+#[cfg(feature = "cli")]
+fn cellvit_source(
+    specimens: Vec<CellvitSpecimen>,
+    minimum_class_probability: f64,
+    base: Option<&Path>,
+    maximum_specimens: usize,
+) -> Result<(&'static str, Vec<Channel>, Vec<RawSpecimen>), SpaceError> {
+    // Checked before any table is read; other sources are bounded by their file size.
+    if specimens.len() > maximum_specimens {
+        return Err(resource(format!(
+            "{} CellViT tables exceed the maximum of {maximum_specimens} specimens",
+            specimens.len()
+        )));
+    }
+    let mut tables = Vec::with_capacity(specimens.len());
+    for specimen in specimens {
+        let path = resolve(base, &specimen.path)?;
+        check_regular_file(&path, MAXIMUM_CELL_TABLE_BYTES, "CellViT cell table")?;
+        let cells = load_cellvit_he_cell_table_csv(&path, minimum_class_probability)
+            .map_err(|error| invalid(format!("{}: {error}", specimen.specimen_id)))?;
+        let window_path = resolve(base, &specimen.window_path)?;
+        let window = read_bounded(&window_path, MAXIMUM_WINDOW_BYTES, "window")?;
+        let window_geojson =
+            String::from_utf8(window).map_err(|_| invalid("window GeoJSON must be UTF-8"))?;
+        tables.push((specimen, cells, window_geojson));
+    }
+    // One class list across every table, so a class means the same in each specimen.
+    let classes = tables
+        .iter()
+        .flat_map(|(_, cells, _)| cells.iter().filter_map(|cell| cell.cell_type.clone()))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let provenance = "CellViT H&E cell table (cell_id, x_centroid_um, y_centroid_um, predicted_class, class_probability)";
+    let channels = vec![
+        Channel {
+            id: CELLVIT_CLASS_CHANNEL.into(),
+            label: "CellViT predicted class".into(),
+            kind: ChannelKind::Categorical,
+            unit: "categorical".into(),
+            measurement_status: "imported_prediction".into(),
+            provenance: provenance.into(),
+            levels: classes.clone(),
+        },
+        Channel {
+            id: CELLVIT_PROBABILITY_CHANNEL.into(),
+            label: "CellViT predicted-class probability".into(),
+            kind: ChannelKind::Continuous,
+            unit: "probability".into(),
+            measurement_status: "imported_prediction".into(),
+            provenance: provenance.into(),
+            levels: Vec::new(),
+        },
+    ];
+    let raw = tables
+        .into_iter()
+        .map(|(specimen, cells, window_geojson)| {
             let mut class_values = Vec::with_capacity(cells.len());
             let mut probabilities = Vec::with_capacity(cells.len());
             let mut cell_ids = Vec::with_capacity(cells.len());
@@ -546,10 +606,10 @@ fn load_source(
                 cell_ids.push(cell.cell_id);
                 coordinates_um.push([cell.x_um, cell.y_um]);
             }
-            let raw = RawSpecimen {
-                id: specimen_id,
-                groups,
-                coordinate_frame_id,
+            RawSpecimen {
+                id: specimen.specimen_id,
+                groups: specimen.groups,
+                coordinate_frame_id: specimen.coordinate_frame_id,
                 window_geojson,
                 cell_ids,
                 coordinates_um,
@@ -557,10 +617,10 @@ fn load_source(
                     (CELLVIT_CLASS_CHANNEL.to_owned(), class_values),
                     (CELLVIT_PROBABILITY_CHANNEL.to_owned(), probabilities),
                 ]),
-            };
-            Ok(("cellvit_he_csv", channels, vec![raw]))
-        }
-    }
+            }
+        })
+        .collect();
+    Ok(("cellvit_he_csv", channels, raw))
 }
 
 fn resolve(base: Option<&Path>, path: &Path) -> Result<PathBuf, SpaceError> {

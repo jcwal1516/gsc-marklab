@@ -1357,21 +1357,24 @@
     "space_ensembles": {
       "does": [
         "SPACE census of radius discs around seed cells: object-class percentages, class-linked scalar means and independent scalar means",
-        "cisMI: rank every ensemble of up to depth variables (default 3) by co-information against shuffled-member randomized censuses"
+        "cisMI: rank every ensemble of up to depth variables (default 3) by co-information against shuffled-member randomized censuses",
+        "transMI: rank every ensemble by the modularity of each grouping factor on a specimen similarity network built from symmetric KL divergences of smoothed joint distributions, against shuffled divergences"
       ],
-      "input": "A marklab.space_request naming inline specimens, a multiplex study recipe or a CellViT H&E classification CSV, the object channels and scalars, and radii, disc counts and seeds.",
-      "output": "Disc census tables; per specimen and radius, every ensemble's observed and randomized co-information, CisMI, Z, SPACE's normal P with BH adjustment, a Monte Carlo P and each variable's binning range.",
-      "used_by": "marklab::space and the marklab space describe/census/cis commands.",
+      "input": "A marklab.space_request naming inline specimens, a multiplex study recipe or one CellViT H&E classification CSV per specimen, the object channels and scalars, grouping factors, and radii, disc counts and seeds.",
+      "output": "Disc census tables; per specimen and radius, every ensemble's observed and randomized co-information, CisMI, Z, SPACE's normal P with BH adjustment, a Monte Carlo P and each variable's binning range; per radius, ensemble and grouping factor, transMI, its shuffled-null mean and SD, Z, SPACE's one-sided normal P with BH adjustment and a Monte Carlo P.",
+      "used_by": "marklab::space and the marklab space describe/census/cis/trans commands.",
       "uses": [
         "Find three-way and higher cell-type and marker co-patterning that pairwise statistics miss",
+        "Find ensembles whose patterning separates clinical or experimental groups of specimens",
         "Use CellViT classifications or multiplex panels directly as SPACE objects and scalars"
       ],
-      "limits": "Port of R SPACE's table workflow (commit 94f0a0f); transMI, pattern learning and mapping, diversity and image census are not yet implemented. The randomized census tests departure from a well-mixed tissue, not direct interaction; discs overlap; rare variables have unstable bin grids.",
+      "limits": "Port of R SPACE's table workflow (commit 94f0a0f); pattern learning and mapping, diversity and image census are not yet implemented. The randomized census tests departure from a well-mixed tissue, not direct interaction; discs overlap; rare variables have unstable bin grids. transMI compares each specimen's distribution on its own range, and its null shuffles only the pairwise divergences, so few specimens give a coarse null.",
       "sources": [
         "src/space/mod.rs",
         "src/bin/marklab/space.rs",
         "docs/space.md",
-        "tests/fixtures/space/compare_space.R"
+        "tests/fixtures/space/compare_space.R",
+        "tests/fixtures/space/compare_space_trans.R"
       ]
     }
   },
@@ -1839,7 +1842,8 @@
       "equations": [
         "b = min(floor(((ss + 1) / 10)^(1 / depth)), max_bins) equally spaced bins per variable over its observed and randomized range",
         "Co-information of an ensemble S is the sum over nonempty subsets T of (-1)^(|T| - 1) H(T), with plug-in joint entropy H in bits",
-        "CisMI = observed co-information minus the mean over randomized censuses; Z = CisMI / null standard deviation"
+        "CisMI = observed co-information minus the mean over randomized censuses; Z = CisMI / null standard deviation",
+        "transMI: per specimen, a Chao-Jost-smoothed joint distribution over b^k cells on its own range; D = mean of KL(p||q) and KL(q||p) in bits; similarity 1 - D / max D; Q = sum over groups c of e_c / m - (K_c / m)^2 on the directed network with unit self-loops"
       ],
       "role": "SPACE's binned, multi-way information measure on disc compositions. It is distinct from the KSG mutual information and two-source partial information decomposition in structure descriptors.",
       "capabilities": [
@@ -1848,6 +1852,7 @@
       "sources": [
         "src/space/information.rs",
         "src/space/cis.rs",
+        "src/space/trans.rs",
         "docs/space.md"
       ]
     }
@@ -2702,7 +2707,8 @@
       "commands": [
         "describe",
         "census",
-        "cis"
+        "cis",
+        "trans"
       ],
       "sources": [
         "src/bin/marklab/space.rs"

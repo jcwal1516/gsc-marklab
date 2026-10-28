@@ -12,9 +12,11 @@
 mod binning;
 mod census;
 mod cis;
+mod ensembles;
 mod information;
 mod input;
 mod normal;
+mod trans;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -30,6 +32,10 @@ pub use cis::{
 pub use input::{
     load_space_input, space_input_from_json, SpaceCensusDesign, SpaceInput, SpaceLimits,
     SPACE_REQUEST_FORMAT,
+};
+pub use trans::{
+    space_trans, SpaceTransEnsemble, SpaceTransFactor, SpaceTransParameters, SpaceTransRadius,
+    SpaceTransResult, SpaceTransSpecimen, SpaceTransStatistic, SPACE_TRANS_FORMAT,
 };
 
 /// Version of every SPACE request and result format.
@@ -87,4 +93,42 @@ fn label(value: &str) -> bool {
         && value.len() <= 256
         && value.trim() == value
         && !value.chars().any(char::is_control)
+}
+
+fn worker_threads() -> usize {
+    #[cfg(feature = "parallel")]
+    {
+        rayon::current_num_threads()
+    }
+    #[cfg(not(feature = "parallel"))]
+    {
+        1
+    }
+}
+
+/// Apply `operation(state, chunk_index, chunk)` to consecutive chunks, in parallel when the
+/// `parallel` feature is enabled. Each chunk's result depends only on its index, so output is
+/// identical at any thread count.
+fn for_each_chunk<T, S>(
+    data: &mut [T],
+    chunk: usize,
+    init: impl Fn() -> S + Sync + Send,
+    operation: impl Fn(&mut S, usize, &mut [T]) + Sync + Send,
+) where
+    T: Send,
+{
+    #[cfg(feature = "parallel")]
+    {
+        use rayon::prelude::*;
+        data.par_chunks_mut(chunk)
+            .enumerate()
+            .for_each_init(init, |state, (index, slice)| operation(state, index, slice));
+    }
+    #[cfg(not(feature = "parallel"))]
+    {
+        let mut state = init();
+        for (index, slice) in data.chunks_mut(chunk).enumerate() {
+            operation(&mut state, index, slice);
+        }
+    }
 }

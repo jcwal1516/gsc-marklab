@@ -13,14 +13,16 @@ The algorithms follow the R package by Edward Schrom
 re-implementation for cell tables. It is not affiliated with or endorsed by the SPACE authors.
 The [differences from R SPACE](#differences-from-r-space) are listed below.
 
-This release implements the census and **cisMI** (patterning within one specimen). transMI
-(patterns that separate groups of specimens), pattern learning and mapping, diversity and
+This release implements the census, **cisMI** (patterning within one specimen) and **transMI**
+(patterning that separates groups of specimens). Pattern learning and mapping, diversity and
 image inputs are planned.
 
 ```sh
 marklab space describe
 marklab space census --request request.json --out census.json --table census.csv
 marklab space cis --request request.json --out cis.json --table cis.csv \
+  --depth 3 --bootstraps 100
+marklab space trans --request request.json --out trans.json --table trans.csv \
   --depth 3 --bootstraps 100
 ```
 
@@ -44,12 +46,13 @@ Cells come directly from inputs Marklab already reads. You do not need a SPACE-s
 - **`multiplex_study_recipe`**: `path` to a [multiplex study recipe](multiplex-study.md).
   Every slide becomes a specimen and its group becomes the factor `group`. The recipe's Moran
   design is ignored.
-- **`cellvit_he_csv`**: `path` to a CellViT H&E classification table (`cell_id`,
+- **`cellvit_he_csv`**: `specimens`, one entry per CellViT H&E classification table (`cell_id`,
   `x_centroid_um`, `y_centroid_um`, `predicted_class`, `class_probability`; the
-  [multimodal](capabilities.md) reader), plus `window_path`, `specimen_id`,
-  `coordinate_frame_id`, optional `groups` and `minimum_class_probability` (rows below it are
-  rejected). The predicted class becomes the categorical channel `cellvit_class`, with
-  normalized class names in sorted order. The probability becomes the continuous channel
+  [multimodal](capabilities.md) reader), each with `path`, `window_path`, `specimen_id`,
+  `coordinate_frame_id` and optional `groups`; plus an optional `minimum_class_probability`
+  (rows below it are rejected). The predicted class becomes the categorical channel
+  `cellvit_class`. Its classes are the normalized class names of every table, in sorted order,
+  so a class means the same in each specimen. The probability becomes the continuous channel
   `class_probability`.
 
 Every cell must lie inside its specimen's window, and cell IDs must be unique within a
@@ -97,7 +100,8 @@ Optional `limits` bound the following, each within a fixed hard maximum:
 - disc members;
 - enumerated ensembles;
 - bootstraps;
-- joint-entropy work (ensembles × (bootstraps + 1) × discs);
+- analysis work: for cisMI, ensembles × (bootstraps + 1) × discs; for transMI, each
+  ensemble's discs, grid cells and divergence pairs, and its modularity evaluations;
 - retained memory.
 
 ## cisMI
@@ -144,6 +148,51 @@ As in R, `all` and `alo` filter only the largest ensembles; smaller ones are sti
 and used in the subtraction. When `all` plus one `alo` slot fills the depth, every other
 variable is dropped.
 
+## transMI
+
+transMI asks which ensembles are patterned differently in different groups of specimens, for
+each grouping factor in the specimens' `groups` (for example clinical status or treatment). For
+each radius:
+
+1. Census every compared specimen and round each variable onto `b` equally spaced points over
+   that specimen's own range. `b = min(floor(((ss + 1)/10)^(1/depth)), max_bins)`, where `ss` is
+   the smallest disc count over the compared specimens and analysed radii.
+2. For every ensemble and specimen, build the joint distribution over all `b^k` grid cells
+   (R `build_dist` and `smooth_dist`):
+   - cells where two or more objects of the same channel would sum to more than 100% are
+     removed;
+   - when some cells are empty, the observed frequencies are scaled down and the empty cells
+     share a Chao–Jost estimate of the unseen probability mass (R's formula, including its
+     counts of singletons and doubletons).
+3. For every pair of specimens, average the Kullback–Leibler divergences in bits in both
+   directions, over the cells both distributions keep.
+4. Turn the divergences into similarities `1 − D/max(D)` (each specimen's similarity to itself
+   is 1). Score the factor's groups by igraph's directed weighted modularity on that complete
+   network. This modularity is the reported `trans_mi`.
+5. Shuffle the pairwise divergences `bootstraps` times and score each shuffled network. Report:
+   - `null_mean` and `null_sd`;
+   - `z_score = (trans_mi − null_mean)/null_sd`, set to 0 when `null_sd` is 0, as in R;
+   - SPACE's one-sided `p_value_normal = 1 − Φ(Z)`;
+   - its Benjamini–Hochberg adjustment `p_adjust_bh` over every ensemble at the radius,
+     separately for each factor;
+   - a Monte Carlo `p_value_monte_carlo = (1 + #{b: null_b ≥ trans_mi})/(1 + B)`.
+
+The variables are those present in any compared specimen. A class a specimen lacks is 0 in each
+of its discs, as R's `standardize_censuses` makes it. Every compared specimen needs a level for
+every tested factor.
+
+Parameters mirror R `measure_transMI`, with the same defaults as cisMI:
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `--depth` | 3 | Largest ensemble size. |
+| `--bootstraps` | 100 | Shuffles of the pairwise divergences (at least 2). |
+| `--all`, `--alo`, `--not` | none | As for cisMI. |
+| `--max-bins` | 100 | Upper bound on bins per variable. R accepts it but does not apply it. |
+| `--radii` | all | Census radii to analyse. |
+| `--specimen` | all | Specimens to compare (at least two). |
+| `--factor` | all | Grouping factors to test. |
+
 ## Interpreting the results
 
 - The randomized censuses keep each disc's size and each layer's overall composition. They
@@ -163,7 +212,15 @@ variable is dropped.
   discrete values, and its ensembles with it. R SPACE behaves the same way. Check
   `variable_ranges`, and treat ensembles of variables present in only a few discs as unstable,
   or merge or exclude those classes.
-- Results describe one specimen. They are not patient-level inference.
+- cisMI results describe one specimen. They are not patient-level inference.
+- **transMI compares distributions, not values.** Each specimen is rounded on its own range,
+  so transMI responds to the shape of an ensemble's distribution over discs. Two specimens with
+  the same shape at different overall levels look alike.
+- **transMI needs several specimens per group.** The null shuffles only the
+  `n(n − 1)/2` pairwise divergences, so with few specimens the null is coarse. In the synthetic
+  test, six specimens split cleanly into two groups of three gave Z near 3. The Monte Carlo P
+  value cannot fall below `1/(1 + B)`, and the shuffled networks need not be equally likely
+  under any model of the specimens.
 
 ## Differences from R SPACE
 
@@ -180,6 +237,23 @@ variable is dropped.
 - **Empty discs in multi-channel nulls.** With several object channels, each randomized
   channel keeps the original disc's count of classified cells. R moves discs that are empty in
   one channel to the end of that channel's randomized table.
+- **transMI defects fixed.** R's `measure_transMI` takes each specimen's grid maximum from the
+  wrong census (`sub_max[[j]]`, indexed by ensemble size, instead of `sub_max[[k]]`). It also
+  collapses the drop list to a single value when `all` and `alo` fill the depth. Marklab uses
+  each specimen's own range, and drops variables as cisMI does. The comparison with R uses a
+  copy of `measure_transMI` with both defects fixed.
+- **transMI compositions.** R removes cells where variables whose names contain `O1` (or `O2`,
+  …) sum above 100%. That pattern also matches linked scalars and, for example, `O10` under
+  `O1`. Marklab sums only object percentages of the same channel.
+- **transMI `max_bins`.** R ignores `max_bins` in transMI; Marklab applies it, as in cisMI.
+- **transMI `ss`.** R takes the smallest disc count over every radius in the censuses; Marklab
+  uses the analysed radii, as cisMI does. With all radii analysed they agree.
+- **Identical distributions.** When every pairwise divergence is zero, R divides zero by zero
+  and reports `NaN`. Marklab treats every pair as fully similar, giving `trans_mi = 0` and a
+  degenerate null.
+- **transMI null draws.** R draws a fresh shuffle for each factor; Marklab scores every factor
+  on the same shuffles of an ensemble's divergences. Each factor's null distribution is
+  unchanged.
 - **Variables come from the specimen.** Variables are the declared classes present in the
   specimen. R's columns are the classes present in the sampled discs, and a class present in
   one radius's discs but absent from another's becomes `NA` there. Unknown names in `all`,
@@ -197,11 +271,16 @@ variable is dropped.
   - hand-computed census values, including the inclusive radius and unclassified cells;
   - a striped pattern detected against random labels;
   - R's `all`/`alo`/`not` rules and the explicit errors;
-  - the CellViT CSV source giving the same census as the same cells declared inline;
+  - the CellViT CSV source giving the same census as the same cells declared inline, and
+    several tables sharing one class list;
   - the repository's synthetic multiplex recipe loading every slide as a specimen with its
     group, and refusing a scalar with missing values;
   - the scalar magnitude bound and the census retained-memory limit;
-  - identical results at one and four threads;
+  - transMI separating three striped from three well-mixed specimens but not an unrelated
+    batch factor, and its input errors;
+  - Chao–Jost smoothing, compositional removal and constant variables computed by hand from
+    R's `smooth_dist`, and modularity against an `igraph::modularity` value;
+  - identical cisMI and transMI results at one and four threads;
   - CLI outputs that refuse to overwrite.
 - **R oracle:** `tests/fixtures/space/compare_space.R` compares the census and cisMI with R
   SPACE, sourced from the pinned commit. The data is SPACE's own tutorial cell table
@@ -226,5 +305,21 @@ variable is dropped.
   - **Speed:** Marklab's cisMI took 0.77 s on 12 cores; R `measure_cisMI` took 138 s and 170 s
     with 11 workers.
 
-  The R and SPACE data stay outside the repository; the script's header gives the download
+- **R oracle for transMI:** `tests/fixtures/space/compare_space_trans.R` splits the same
+  tutorial table into a 3 × 2 grid of tiles. That gives six specimens of 1,098 to 2,047 cells,
+  with factors `column` (3 levels) and `row` (2 levels). The design used radius 10 µm, 1,000
+  discs per tile, depth 3 (4 bins, 1,350 ensembles) and 1,000 bootstraps. R ran a copy of
+  `measure_transMI` with its two defects fixed. All criteria were fixed before the comparison
+  and passed on the first run, 2026-10-28:
+  - **transMI:** for every ensemble and factor, it equals the modularity from R's
+    `round_column`, `build_dist`, `smooth_dist`, KL and `igraph::modularity`, and the fixed
+    `measure_transMI`, within 6.0e-16.
+  - **P values:** the BH adjustment matches `p.adjust` within 2.2e-16, and the normal P matches
+    `pnorm(Z, lower.tail = FALSE)` within 2.0e-15.
+  - **Shuffled null:** the Spearman correlation of Z is 0.9980 between Marklab and R, against
+    0.9979 between two R runs. The mean absolute Z difference is 0.046 for both pairs.
+  - **Speed:** Marklab's transMI took 0.06 s; R `measure_transMI` took 634 s and 580 s with 11
+    workers.
+
+  The R and SPACE data stay outside the repository; each script's header gives the download
   and run commands.

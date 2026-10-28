@@ -6,8 +6,8 @@ use std::{
 
 use clap::Subcommand;
 use marklab::space::{
-    load_space_input, space_census, space_cis, SpaceCensusResult, SpaceCisParameters,
-    SpaceCisResult, SpaceError, SpaceNullStatus,
+    load_space_input, space_census, space_cis, space_trans, SpaceCensusResult, SpaceCisParameters,
+    SpaceCisResult, SpaceError, SpaceNullStatus, SpaceTransParameters, SpaceTransResult,
 };
 use marklab::MarklabError;
 
@@ -65,6 +65,46 @@ pub(crate) enum SpaceCommand {
         #[arg(long, value_delimiter = ',')]
         specimen: Vec<String>,
     },
+    /// Rank ensembles by how well their patterning separates groups of specimens
+    /// (R measure_transMI).
+    Trans {
+        /// marklab.space_request version 1; file sources resolve relative to it.
+        #[arg(long)]
+        request: PathBuf,
+        /// New JSON result file.
+        #[arg(long)]
+        out: PathBuf,
+        /// Optional new CSV with one row per radius, ensemble and grouping factor.
+        #[arg(long)]
+        table: Option<PathBuf>,
+        /// Largest ensemble size (SPACE tutorial value).
+        #[arg(long, default_value_t = 3)]
+        depth: usize,
+        /// Shuffles of the pairwise divergences per ensemble.
+        #[arg(long, default_value_t = 100)]
+        bootstraps: usize,
+        /// Variables every largest ensemble must contain.
+        #[arg(long, value_delimiter = ',')]
+        all: Vec<String>,
+        /// Variables of which every largest ensemble must contain at least one.
+        #[arg(long, value_delimiter = ',')]
+        alo: Vec<String>,
+        /// Variables excluded from every ensemble.
+        #[arg(long, value_delimiter = ',')]
+        not: Vec<String>,
+        /// Upper bound on bins per variable.
+        #[arg(long, default_value_t = 100)]
+        max_bins: usize,
+        /// Census radii to analyse in micrometres (default: all).
+        #[arg(long, value_delimiter = ',')]
+        radii: Vec<f64>,
+        /// Specimens to compare (default: all).
+        #[arg(long, value_delimiter = ',')]
+        specimen: Vec<String>,
+        /// Grouping factors to test (default: every factor in the specimens' groups).
+        #[arg(long, value_delimiter = ',')]
+        factor: Vec<String>,
+    },
 }
 
 pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
@@ -119,6 +159,40 @@ pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
             }
             Ok(())
         }
+        SpaceCommand::Trans {
+            request,
+            out,
+            table,
+            depth,
+            bootstraps,
+            all,
+            alo,
+            not,
+            max_bins,
+            radii,
+            specimen,
+            factor,
+        } => {
+            require_new(&out, table.as_deref())?;
+            let input = load_space_input(&request).map_err(space_error)?;
+            let parameters = SpaceTransParameters {
+                depth,
+                bootstraps,
+                all,
+                alo,
+                not,
+                max_bins,
+                radii_um: radii,
+                specimens: specimen,
+                factors: factor,
+            };
+            let result = space_trans(&input, &parameters).map_err(space_error)?;
+            publish(&out, &result)?;
+            if let Some(table) = table {
+                write_new(&table, &trans_table(&result)?)?;
+            }
+            Ok(())
+        }
     }
 }
 
@@ -146,6 +220,12 @@ fn describe() -> serde_json::Value {
                 "r_function": "measure_cisMI",
                 "defaults": {"depth": 3, "bootstraps": 100, "max_bins": 100},
                 "p_values": ["SPACE normal approximation 2*Phi(-|Z|)", "Benjamini-Hochberg per radius", "Monte Carlo from the same randomized censuses"]
+            },
+            "trans": {
+                "r_function": "measure_transMI",
+                "defaults": {"depth": 3, "bootstraps": 100, "max_bins": 100},
+                "statistic": "directed weighted modularity of each grouping factor on the specimen similarity network built from symmetric KL divergences",
+                "p_values": ["SPACE normal approximation 1-Phi(Z)", "Benjamini-Hochberg per radius and factor", "Monte Carlo from the same shuffled divergences"]
             }
         },
         "deviations_from_r": "docs/space.md#differences-from-r-space",
@@ -301,10 +381,7 @@ fn cis_table(result: &SpaceCisResult) -> marklab::Result<Vec<u8>> {
                     number(ensemble.null_sd_mi),
                     number(ensemble.cis_mi),
                     ensemble.z_score.map(number).unwrap_or_default(),
-                    match ensemble.status {
-                        SpaceNullStatus::Available => "available".into(),
-                        SpaceNullStatus::DegenerateNull => "degenerate_null".into(),
-                    },
+                    status(ensemble.status),
                     number(ensemble.p_value_normal),
                     number(ensemble.p_adjust_bh),
                     number(ensemble.p_value_monte_carlo),
@@ -316,6 +393,67 @@ fn cis_table(result: &SpaceCisResult) -> marklab::Result<Vec<u8>> {
     writer
         .into_inner()
         .map_err(|error| MarklabError::Compute(format!("CSV buffer: {error}")))
+}
+
+fn trans_table(result: &SpaceTransResult) -> marklab::Result<Vec<u8>> {
+    let depth = result.parameters.depth;
+    let mut writer = csv::Writer::from_writer(Vec::new());
+    let mut header = vec!["radius_um".to_owned(), "depth".into()];
+    header.extend((1..=depth).map(|position| format!("v{position}")));
+    header.extend(
+        [
+            "factor",
+            "trans_mi",
+            "null_mean",
+            "null_sd",
+            "z_score",
+            "status",
+            "p_value_normal",
+            "p_adjust_bh",
+            "p_value_monte_carlo",
+        ]
+        .map(String::from),
+    );
+    writer.write_record(&header)?;
+    for radius in &result.radii {
+        for ensemble in &radius.ensembles {
+            for statistic in &ensemble.factors {
+                let mut record = vec![
+                    number(radius.radius_um),
+                    ensemble.variables.len().to_string(),
+                ];
+                record.extend((0..depth).map(|position| {
+                    ensemble
+                        .variables
+                        .get(position)
+                        .cloned()
+                        .unwrap_or_default()
+                }));
+                record.extend([
+                    statistic.factor.clone(),
+                    number(statistic.trans_mi),
+                    number(statistic.null_mean),
+                    number(statistic.null_sd),
+                    number(statistic.z_score),
+                    status(statistic.status),
+                    number(statistic.p_value_normal),
+                    number(statistic.p_adjust_bh),
+                    number(statistic.p_value_monte_carlo),
+                ]);
+                writer.write_record(&record)?;
+            }
+        }
+    }
+    writer
+        .into_inner()
+        .map_err(|error| MarklabError::Compute(format!("CSV buffer: {error}")))
+}
+
+fn status(status: SpaceNullStatus) -> String {
+    match status {
+        SpaceNullStatus::Available => "available".into(),
+        SpaceNullStatus::DegenerateNull => "degenerate_null".into(),
+    }
 }
 
 /// Shortest round-trip decimal, as in the JSON result.
