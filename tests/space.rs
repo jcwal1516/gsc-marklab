@@ -110,6 +110,52 @@ fn census_reports_class_percentages_and_scalar_means_of_inclusive_discs() {
     );
 }
 
+#[test]
+fn scalar_magnitude_and_retained_memory_are_bounded() {
+    let request = |ki67: f64, limits: Value| {
+        let specimen = json!({"specimen_id": "s1", "coordinate_frame_id": "s1-um",
+            "window": square(2.0), "cell_ids": ["c0", "c1"],
+            "coordinates_um": [[0.0, 0.0], [1.0, 0.0]],
+            "observations": {"cell_type": [0.0, 1.0], "ki67": [ki67, ki67]}});
+        inline_request(
+            json!([specimen]),
+            json!({
+                "independent_scalars": ["ki67"],
+                "census": {"radii_um": [1.0], "seed": 1, "seed_cell_ids": {"s1": [["c0"]]}},
+                "limits": limits
+            }),
+        )
+    };
+    // The bound keeps disc sums, grid steps and squared distances finite.
+    let largest =
+        space_census(&space_input_from_json(&request(1e150, json!({}))).unwrap()).unwrap();
+    assert_eq!(
+        largest.specimens[0].radii[0].discs[0].values,
+        [50.0, 50.0, 1e150]
+    );
+    assert!(matches!(
+        space_input_from_json(&request(1e200, json!({}))),
+        Err(SpaceError::Invalid(message)) if message.contains("magnitude at most 1e150")
+    ));
+    let small =
+        space_input_from_json(&request(1.0, json!({"maximum_retained_bytes": 64}))).unwrap();
+    assert!(matches!(
+        space_census(&small),
+        Err(SpaceError::Resource(message)) if message.contains("retained-memory")
+    ));
+    // One disc of 1,024 cells: its output row fits, but drawing its members stops at the
+    // budget instead of allocating them and the census plan first.
+    let crowded = inline_request(
+        json!([grid_specimen("g", 32, 4)]),
+        json!({"census": {"radii_um": [100.0], "seed": 1, "seed_cell_ids": {"g": [["g:0:0"]]}},
+            "limits": {"maximum_retained_bytes": 4096}}),
+    );
+    assert!(matches!(
+        space_census(&space_input_from_json(&crowded).unwrap()),
+        Err(SpaceError::Resource(message)) if message.contains("retained-memory limits allow")
+    ));
+}
+
 fn cis_input(specimens: Value, sample: usize) -> marklab::space::SpaceInput {
     let request = inline_request(
         specimens,

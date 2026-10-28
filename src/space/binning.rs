@@ -113,6 +113,8 @@ impl NearestGrid {
         };
         let mut best = (f64::INFINITY, usize::MAX);
         self.search(0, value, outside * outside, &mut best);
+        // Input scalars are bounded so squared distances stay finite and a point is found.
+        debug_assert!(best.1 < self.points.len(), "no grid point for {value}");
         best.1 as u8
     }
 

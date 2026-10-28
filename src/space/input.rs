@@ -21,6 +21,10 @@ const MAXIMUM_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
 const MAXIMUM_RADII: usize = 64;
 /// Class index of a cell with no class in an object channel (SPACE's background).
 pub(crate) const NO_CLASS: u32 = u32::MAX;
+/// Largest scalar magnitude accepted. Binning squares differences of disc means, so
+/// values beyond about 1e154 would overflow to infinity; this bound keeps every census mean,
+/// grid step and squared distance finite.
+const MAXIMUM_SCALAR_MAGNITUDE: f64 = 1e150;
 const CELLVIT_CLASS_CHANNEL: &str = "cellvit_class";
 const CELLVIT_PROBABILITY_CHANNEL: &str = "class_probability";
 
@@ -903,11 +907,14 @@ fn prepare_specimen(
             .iter()
             .enumerate()
             .map(|(row, value)| match value {
-                Some(value) if value.is_finite() && (!binary || *value == 0.0 || *value == 1.0) => {
+                Some(value)
+                    if value.abs() <= MAXIMUM_SCALAR_MAGNITUDE
+                        && (!binary || *value == 0.0 || *value == 1.0) =>
+                {
                     Ok(*value)
                 }
                 Some(_) => Err(invalid(format!(
-                    "specimen {id} cell row {row} has an invalid value of {channel}"
+                    "specimen {id} cell row {row} has an invalid value of {channel}; scalars must be finite with magnitude at most {MAXIMUM_SCALAR_MAGNITUDE:e}"
                 ))),
                 None => Err(invalid(format!(
                     "specimen {id} cell row {row} is missing {channel}; SPACE scalars must be observed on every cell"

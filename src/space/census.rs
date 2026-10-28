@@ -1,7 +1,7 @@
 //! Disc census of a cell table (R `census_table` and `summarize_patches`) and its randomized
 //! counterpart (R `random_census`).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -25,6 +25,77 @@ pub(crate) struct Discs {
 impl Discs {
     pub(crate) fn len(&self) -> usize {
         self.seeds.len()
+    }
+}
+
+/// Bytes held per disc member and per disc while a census is computed, known before the discs
+/// are drawn: the discs, the census plan and `scratches` scratch buffers.
+pub(crate) struct CensusCost {
+    per_member: usize,
+    per_disc: usize,
+}
+
+impl CensusCost {
+    pub(crate) fn new(variables: &[VariableSpec], scratches: usize) -> Self {
+        let maps = variables
+            .iter()
+            .filter_map(|spec| match *spec {
+                VariableSpec::Object { map, .. } | VariableSpec::Linked { map, .. } => Some(map),
+                VariableSpec::Independent { .. } => None,
+            })
+            .collect::<BTreeSet<_>>()
+            .len();
+        let independents = variables
+            .iter()
+            .filter(|spec| matches!(spec, VariableSpec::Independent { .. }))
+            .count();
+        // Disc members and map-layer rows grow by doubling, so they count twice; the plan
+        // copies every member once more, and each scratch holds every shuffled layer.
+        let rows = 2 + 2 * maps + 1 + scratches.saturating_mul(maps + independents);
+        Self {
+            per_member: rows.saturating_mul(size_of::<u32>()),
+            // Seed and disc offset, then one offset per map layer and one for all members.
+            per_disc: (maps + 3) * size_of::<usize>(),
+        }
+    }
+
+    pub(crate) fn bytes(&self, discs: usize, members: usize) -> usize {
+        self.per_disc
+            .saturating_mul(discs + 1)
+            .saturating_add(self.per_member.saturating_mul(members))
+    }
+
+    /// The most member rows `discs` discs may hold within `available` bytes and the
+    /// disc-member limit.
+    pub(crate) fn member_cap(&self, discs: usize, available: usize, limit: usize) -> usize {
+        (available.saturating_sub(self.bytes(discs, 0)) / self.per_member).min(limit)
+    }
+}
+
+/// Fail when an estimate of the bytes held at once exceeds the retained-memory limit.
+pub(crate) fn check_retained(input: &SpaceInput, bytes: usize) -> Result<(), SpaceError> {
+    if bytes > input.limits.maximum_retained_bytes {
+        return Err(resource(format!(
+            "retained-memory estimate {bytes} exceeds the maximum of {}",
+            input.limits.maximum_retained_bytes
+        )));
+    }
+    Ok(())
+}
+
+/// The number of discs [`draw_seeds`] draws, known before drawing them.
+pub(crate) fn disc_count(
+    input: &SpaceInput,
+    specimen_position: usize,
+    radius_position: usize,
+) -> usize {
+    match &input.specimens[specimen_position].explicit_seeds {
+        Some(explicit) => explicit[radius_position].len(),
+        None => input
+            .census
+            .sample_size
+            .as_ref()
+            .expect("validated: sample_size accompanies sampled specimens")[radius_position],
     }
 }
 
@@ -61,7 +132,9 @@ pub(crate) fn draw_seeds(
         &mut eligible,
         derive_seed(stream, SeedEndpoint::SpaceCensus, radius_position),
     );
+    // The candidates are proportional to the specimen already loaded; only the sample is kept.
     eligible.truncate(size);
+    eligible.shrink_to_fit();
     Ok(eligible)
 }
 
@@ -115,20 +188,27 @@ pub(crate) fn draw_discs(
     offsets.push(0);
     for &seed in &seeds {
         let start = members.len();
-        members.push(seed as u32);
+        // Members beyond the cap are never stored, so a crowded disc cannot outgrow it.
+        let mut exceeded = false;
+        let mut push = |row: u32| {
+            if members.len() < maximum_members {
+                members.push(row);
+            } else {
+                exceeded = true;
+            }
+        };
+        push(seed as u32);
         specimen
             .index
-            .visit_within_radius(seed, radius_um, |neighbor| {
-                members.push(neighbor.index as u32);
-            })
+            .visit_within_radius(seed, radius_um, |neighbor| push(neighbor.index as u32))
             .map_err(|error| invalid(format!("disc query failed: {error}")))?;
-        members[start..].sort_unstable();
-        if members.len() > maximum_members {
+        if exceeded {
             return Err(resource(format!(
-                "specimen {} has more than {maximum_members} disc members at {radius_um} um",
+                "specimen {} has more than the {maximum_members} disc members at {radius_um} um that the disc-member and retained-memory limits allow",
                 specimen.id
             )));
         }
+        members[start..].sort_unstable();
         offsets.push(members.len());
     }
     Ok(Discs {
@@ -218,18 +298,6 @@ impl CensusPlan {
             counts: Vec::new(),
             sums: Vec::new(),
         }
-    }
-
-    /// Bytes retained by the plan and by one scratch.
-    pub(crate) fn storage_bytes(&self) -> usize {
-        let layer_rows = self
-            .maps
-            .iter()
-            .map(|layer| layer.rows.len())
-            .sum::<usize>()
-            + self.all_rows.len() * (1 + self.independents.len());
-        layer_rows * 2 * std::mem::size_of::<u32>()
-            + (self.maps.len() + 1) * (self.disc_count + 1) * std::mem::size_of::<usize>()
     }
 
     /// The observed census, variable-major: `values[variable * discs + disc]`.
@@ -419,21 +487,39 @@ pub struct SpaceCensusNeighborhood {
 /// Draw and summarize the discs of every specimen at every radius.
 pub fn space_census(input: &SpaceInput) -> Result<SpaceCensusResult, SpaceError> {
     let mut specimens = Vec::with_capacity(input.specimens.len());
+    // Bytes of the disc rows produced so far, which the result keeps.
+    let mut retained = 0_usize;
     for (position, specimen) in input.specimens.iter().enumerate() {
         let present = present_variables(input, specimen);
         let specs = present.iter().map(|(_, spec)| *spec).collect::<Vec<_>>();
+        let cost = CensusCost::new(&specs, 1);
         let mut radii = Vec::with_capacity(input.census.radii_um.len());
         for (radius_position, &radius_um) in input.census.radii_um.iter().enumerate() {
             let seeds = draw_seeds(input, position, radius_position)?;
+            let count = seeds.len();
+            let values_bytes = specs.len().saturating_mul(count).saturating_mul(8);
+            let rows_bytes = seeds
+                .iter()
+                .map(|&seed| specimen.cell_ids[seed].len())
+                .sum::<usize>()
+                .saturating_add(count.saturating_mul(size_of::<SpaceCensusNeighborhood>()))
+                .saturating_add(values_bytes);
+            retained = retained.saturating_add(rows_bytes);
+            // The rows so far and this radius's values; the discs and plan get what remains.
+            let fixed = retained.saturating_add(values_bytes);
+            check_retained(input, fixed.saturating_add(cost.bytes(count, 0)))?;
             let discs = draw_discs(
                 specimen,
                 seeds,
                 radius_um,
-                input.limits.maximum_disc_members,
+                cost.member_cap(
+                    count,
+                    input.limits.maximum_retained_bytes - fixed,
+                    input.limits.maximum_disc_members,
+                ),
             )?;
             let plan = CensusPlan::new(specimen, &discs, &specs);
             let values = plan.observed(specimen, &mut plan.scratch());
-            let count = discs.len();
             let rows = (0..count)
                 .map(|disc| SpaceCensusNeighborhood {
                     seed_cell_id: specimen.cell_ids[discs.seeds[disc]].clone(),

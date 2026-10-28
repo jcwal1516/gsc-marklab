@@ -5,7 +5,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use super::binning::{bin_count, minimum_discs_for_two_bins, NearestGrid};
-use super::census::{draw_discs, draw_seeds, present_variables, CensusPlan, Discs};
+use super::census::{
+    check_retained, disc_count, draw_discs, draw_seeds, present_variables, CensusCost, CensusPlan,
+};
 use super::information::{co_information, combinations, joint_entropy, lexicographic_rank};
 use super::input::{Specimen, VariableSpec};
 use super::{
@@ -140,6 +142,8 @@ pub fn space_cis(
         }
     }
     let mut specimens = Vec::new();
+    // Estimated bytes of the ensembles reported so far, which the result keeps.
+    let mut retained = 0_usize;
     for (position, specimen) in input.specimens.iter().enumerate() {
         if !selected.is_empty() && !selected.contains(&specimen.id) {
             continue;
@@ -150,6 +154,7 @@ pub fn space_cis(
             position,
             specimen,
             &radius_positions,
+            &mut retained,
         )?);
     }
     Ok(SpaceCisResult {
@@ -225,6 +230,7 @@ fn analyze_specimen(
     position: usize,
     specimen: &Specimen,
     radius_positions: &[usize],
+    retained: &mut usize,
 ) -> Result<SpaceCisSpecimen, SpaceError> {
     let names = |index: usize| input.variable_descriptions[index].name.as_str();
     let not = parameters.not.iter().collect::<BTreeSet<_>>();
@@ -256,19 +262,9 @@ fn analyze_specimen(
         .map(|(index, _)| names(*index).to_owned())
         .collect::<Vec<_>>();
 
-    let mut discs = Vec::with_capacity(radius_positions.len());
-    for &radius_position in radius_positions {
-        let seeds = draw_seeds(input, position, radius_position)?;
-        discs.push(draw_discs(
-            specimen,
-            seeds,
-            input.census.radii_um[radius_position],
-            input.limits.maximum_disc_members,
-        )?);
-    }
-    let minimum_disc_count = discs
+    let minimum_disc_count = radius_positions
         .iter()
-        .map(Discs::len)
+        .map(|&radius_position| disc_count(input, position, radius_position))
         .min()
         .expect("at least one radius");
     let bins = bin_count(minimum_disc_count, parameters.depth, parameters.max_bins);
@@ -280,10 +276,14 @@ fn analyze_specimen(
             minimum_discs_for_two_bins(parameters.depth)
         )));
     }
-    let ensembles = Ensembles::new(variable_count, parameters, &active_names, input)?;
+    let ensembles = Ensembles::new(variable_count, parameters, &active_names, input, *retained)?;
 
-    let mut radii = Vec::with_capacity(discs.len());
-    for (discs, &radius_position) in discs.iter().zip(radius_positions) {
+    let result_bytes = ensembles.result_bytes(&active_names);
+    let mut radii = Vec::with_capacity(radius_positions.len());
+    for &radius_position in radius_positions {
+        // Discs are drawn one radius at a time so only one radius's members are held.
+        let seeds = draw_seeds(input, position, radius_position)?;
+        let disc_count = seeds.len();
         let stream = derive_seed(input.census.seed, SeedEndpoint::SpaceCisNull, position);
         let radius_seed = derive_seed(stream, SeedEndpoint::SpaceCisNull, radius_position);
         let (variable_ranges, ensembles) = analyze_radius(
@@ -291,15 +291,18 @@ fn analyze_specimen(
             parameters,
             specimen,
             &specs,
-            discs,
+            seeds,
+            input.census.radii_um[radius_position],
             bins,
             radius_seed,
             &ensembles,
             &active_names,
+            retained.saturating_add(result_bytes),
         )?;
+        *retained = retained.saturating_add(result_bytes);
         radii.push(SpaceCisRadius {
             radius_um: input.census.radii_um[radius_position],
-            disc_count: discs.len(),
+            disc_count,
             variable_ranges,
             ensembles,
         });
@@ -330,6 +333,7 @@ impl Ensembles {
         parameters: &SpaceCisParameters,
         names: &[String],
         input: &SpaceInput,
+        retained: usize,
     ) -> Result<Self, SpaceError> {
         let depth = parameters.depth;
         let position = |name: &String| names.iter().position(|known| known == name);
@@ -354,6 +358,12 @@ impl Ensembles {
                 input.limits.maximum_ensembles
             )));
         }
+        // The tables hold every enumerated ensemble, the largest size briefly twice.
+        let table_bytes = enumerated.saturating_mul(2 * depth as u64 * size_of::<u16>() as u64);
+        check_retained(
+            input,
+            retained.saturating_add(usize::try_from(table_bytes).unwrap_or(usize::MAX)),
+        )?;
         let mut by_size = (1..depth)
             .map(|size| combinations(variable_count, size))
             .collect::<Vec<_>>();
@@ -391,8 +401,23 @@ impl Ensembles {
         (1..=self.depth).map(|size| self.count(size)).sum()
     }
 
+    fn table_bytes(&self) -> usize {
+        self.by_size.iter().map(Vec::len).sum::<usize>() * size_of::<u16>()
+    }
+
     fn ensemble(&self, size: usize, index: usize) -> &[u16] {
         &self.by_size[size - 1][index * size..(index + 1) * size]
+    }
+
+    /// An upper estimate of the bytes one radius's reported ensembles and ranges occupy.
+    fn result_bytes(&self, names: &[String]) -> usize {
+        let longest = names.iter().map(String::len).max().unwrap_or(0);
+        let per_ensemble = size_of::<SpaceCisEnsemble>()
+            + self.depth * (size_of::<String>() + longest)
+            + size_of::<(usize, usize)>();
+        self.total()
+            .saturating_mul(per_ensemble)
+            .saturating_add(names.len().saturating_mul(size_of::<[f64; 2]>()))
     }
 }
 
@@ -405,20 +430,19 @@ fn analyze_radius(
     parameters: &SpaceCisParameters,
     specimen: &Specimen,
     specs: &[VariableSpec],
-    discs: &Discs,
+    seeds: Vec<usize>,
+    radius_um: f64,
     bins: usize,
     radius_seed: u64,
     ensembles: &Ensembles,
     names: &[String],
+    retained_results: usize,
 ) -> Result<(Vec<[f64; 2]>, Vec<SpaceCisEnsemble>), SpaceError> {
     let variables = specs.len();
-    let disc_count = discs.len();
+    let disc_count = seeds.len();
     let bootstraps = parameters.bootstraps;
     let censuses = bootstraps + 1;
     let total_ensembles = ensembles.total();
-    let entropy_rows = (1..=ensembles.depth)
-        .map(|size| ensembles.count(size))
-        .sum::<usize>();
     let visits = (total_ensembles as u64)
         .saturating_mul(censuses as u64)
         .saturating_mul(disc_count as u64);
@@ -428,17 +452,19 @@ fn analyze_radius(
             input.limits.maximum_entropy_visits
         )));
     }
-    let plan = CensusPlan::new(specimen, discs, specs);
     let threads = worker_threads();
-    let retained = [
+    // Results so far and this radius's, then the peak working set: ensemble tables, binned
+    // censuses, entropy and co-information tables, values per worker and ranges. The discs and census plan with
+    // a scratch per worker get what remains.
+    let fixed = [
+        ensembles.table_bytes(),
         censuses
             .saturating_mul(variables)
             .saturating_mul(disc_count),
-        entropy_rows
-            .saturating_add(total_ensembles)
+        total_ensembles
+            .saturating_mul(2)
             .saturating_mul(censuses)
             .saturating_mul(8),
-        plan.storage_bytes().saturating_mul(threads + 1),
         variables
             .saturating_mul(disc_count)
             .saturating_mul(8)
@@ -446,13 +472,20 @@ fn analyze_radius(
         bootstraps.saturating_mul(variables).saturating_mul(16),
     ]
     .iter()
-    .fold(0_usize, |sum, bytes| sum.saturating_add(*bytes));
-    if retained > input.limits.maximum_retained_bytes {
-        return Err(resource(format!(
-            "retained-memory estimate {retained} exceeds the maximum of {}",
-            input.limits.maximum_retained_bytes
-        )));
-    }
+    .fold(retained_results, |sum, bytes| sum.saturating_add(*bytes));
+    let cost = CensusCost::new(specs, threads + 1);
+    check_retained(input, fixed.saturating_add(cost.bytes(disc_count, 0)))?;
+    let discs = draw_discs(
+        specimen,
+        seeds,
+        radius_um,
+        cost.member_cap(
+            disc_count,
+            input.limits.maximum_retained_bytes - fixed,
+            input.limits.maximum_disc_members,
+        ),
+    )?;
+    let plan = CensusPlan::new(specimen, &discs, specs);
 
     let bootstrap_seed =
         |bootstrap: usize| derive_seed(radius_seed, SeedEndpoint::SpaceCisNull, bootstrap);

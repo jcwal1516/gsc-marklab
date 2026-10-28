@@ -70,7 +70,8 @@ specimen.
   `merge_objects`). The merged class takes the position of the first class it absorbs.
 
 Scalar channels used as variables must be observed on every cell. A missing value is an
-error, never a zero.
+error, never a zero. Scalar values must be finite with magnitude at most 1e150, so disc means
+and the squared distances used in binning cannot overflow.
 
 ### Census
 
@@ -196,7 +197,10 @@ variable is dropped.
   - hand-computed census values, including the inclusive radius and unclassified cells;
   - a striped pattern detected against random labels;
   - R's `all`/`alo`/`not` rules and the explicit errors;
-  - the CellViT CSV and multiplex-recipe sources giving the same census as inline input;
+  - the CellViT CSV source giving the same census as the same cells declared inline;
+  - the repository's synthetic multiplex recipe loading every slide as a specimen with its
+    group, and refusing a scalar with missing values;
+  - the scalar magnitude bound and the census retained-memory limit;
   - identical results at one and four threads;
   - CLI outputs that refuse to overwrite.
 - **R oracle:** `tests/fixtures/space/compare_space.R` compares the census and cisMI with R
