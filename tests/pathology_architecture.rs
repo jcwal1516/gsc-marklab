@@ -147,6 +147,78 @@ fn front_excludes_tissue_edges_and_declared_exclusions() {
     assert!(number(&slide["front"]["bulk_area_um2"]) > 159_000.0);
 }
 
+/// Three isosceles triangles with 80 um legs, 120 degrees apart, each apex `apex_distance` from
+/// (1000, 1000) and pointing at it. With apex turns near 60 degrees the facing sides of neighbours
+/// are nearly parallel and about 173 um apart, so the 100 um closing joins them into one bulk of
+/// about 44,000 um2. A dilation hole at the centre makes the erosion cut a disc of the closing
+/// radius that reaches the bulk edge and leaves three components of about 16,500 um2 in all. The
+/// round join at an apex is split into equal chords of about 0.05 rad, symmetric about the apex
+/// direction: a turn of 1.05 rad gets 21 chords, centring one on that direction, and a turn of
+/// 1.0 rad gets 20, putting a vertex there.
+fn apex_triangle_front(apex_distance: f64, turn: f64) -> Value {
+    let half_apex = 0.5 * (PI - turn);
+    let triangles = (0..3)
+        .map(|index| {
+            let (out_y, out_x) = (0.5 * PI + 2.0 * PI * f64::from(index) / 3.0).sin_cos();
+            let apex = [
+                1000.0 + apex_distance * out_x,
+                1000.0 + apex_distance * out_y,
+            ];
+            let base = |side: f64| {
+                let (sin, cos) = (side * half_apex).sin_cos();
+                [
+                    apex[0] + 80.0 * (cos * out_x - sin * out_y),
+                    apex[1] + 80.0 * (sin * out_x + cos * out_y),
+                ]
+            };
+            json!([[apex, base(-1.0), base(1.0), apex]])
+        })
+        .collect::<Vec<_>>();
+    let mut input = recipe();
+    input["design"]["closing_radius_um"] = json!(100.0);
+    input["design"]["minimum_bulk_area_um2"] = json!(100.0);
+    let slide = &mut input["slides"][0];
+    slide["window"] = polygon(200.0, 200.0, 1800.0, 1800.0);
+    slide["epithelium"] = json!({"type": "MultiPolygon", "coordinates": triangles});
+    slide["lumens"] = Value::Null;
+    slide["architecture_regions"] = json!([]);
+    slide["declared_front"] = Value::Null;
+    slide["cells"] = json!([]);
+    slide["spots"] = json!([]);
+    analyze(&input)["slides"][0]["front"].clone()
+}
+
+#[test]
+fn bulk_closing_fills_holes_opened_only_by_polygonal_arcs() {
+    // The middle chord faces the centre 0.031 um inside the 100 um arc. Apexes 0.01 um inside the
+    // closing radius are covered by the round dilation but leave a polygonal hole at the centre,
+    // which the erosion used to grow into a cut. The bulk must match apexes 0.2 um inside, where
+    // no hole opens.
+    let artifact = apex_triangle_front(99.99, 1.05);
+    let reference = apex_triangle_front(99.8, 1.05);
+    assert_eq!(artifact["bulk_component_count"], 1);
+    close(
+        &artifact["bulk_area_um2"],
+        number(&reference["bulk_area_um2"]),
+        500.0,
+    );
+}
+
+#[test]
+fn bulk_closing_keeps_thin_holes_the_round_dilation_leaves_open() {
+    // A vertex faces the centre, so there the polygonal arcs follow the round ones. Apexes 0.01 um
+    // beyond the closing radius leave a hole thinner than the chord error that the round dilation
+    // also leaves open, so the closing must cut the bulk as it does for apexes 0.2 um beyond.
+    let thin = apex_triangle_front(100.01, 1.0);
+    let clear = apex_triangle_front(100.2, 1.0);
+    assert_eq!(thin["bulk_component_count"], 3);
+    close(
+        &thin["bulk_area_um2"],
+        number(&clear["bulk_area_um2"]),
+        500.0,
+    );
+}
+
 #[test]
 fn empty_bands_tolerate_overlay_rounding_of_wide_front_offsets() {
     // The whole bulk and host tissue lie within 2,000 um of the front, so both bands beyond
