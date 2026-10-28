@@ -473,6 +473,112 @@ mod tests {
         assert!(bin_spectrum(&huge, &one_bin).is_err());
     }
 
+    /// 600 points every 30 Da from 2,000 Da: decaying background, three peaks and a ripple.
+    fn synthetic_spectrum(scale: f64) -> MassSpectrum {
+        let mz: Vec<f64> = (0..600).map(|index| 2000.0 + 30.0 * index as f64).collect();
+        let intensity = mz
+            .iter()
+            .enumerate()
+            .map(|(index, &mz)| {
+                let background = 500.0 * (-(mz - 2000.0) / 6000.0).exp();
+                let peaks: f64 = [(4365.0, 900.0), (7158.0, 600.0), (10300.0, 300.0)]
+                    .iter()
+                    .map(|&(centre, height)| height * (-((mz - centre) / 40.0).powi(2)).exp())
+                    .sum();
+                let ripple = 20.0 * (1.0 + (index as f64 * 1.7).sin());
+                scale * (background + peaks + ripple)
+            })
+            .collect();
+        MassSpectrum::new(mz, intensity).unwrap()
+    }
+
+    fn assert_close(actual: &MassSpectrum, expected: &MassSpectrum, relative: f64) {
+        assert_eq!(actual.mz(), expected.mz());
+        let largest = expected.intensity().iter().fold(0.0_f64, |a, &b| a.max(b));
+        for (index, (a, b)) in actual
+            .intensity()
+            .iter()
+            .zip(expected.intensity())
+            .enumerate()
+        {
+            assert!(
+                (a - b).abs() <= relative * largest,
+                "point {index}: {a} != {b}"
+            );
+        }
+    }
+
+    #[test]
+    fn full_pipeline_ignores_the_scale_of_raw_counts() {
+        // sqrt, smoothing, SNIP and clipping all scale with the counts; the area division cancels it.
+        let steps = [
+            PreprocessStep::Sqrt,
+            PreprocessStep::SavitzkyGolay {
+                half_window: 10,
+                polynomial_order: 3,
+            },
+            PreprocessStep::SnipBaseline {
+                iterations: 20,
+                decreasing: true,
+            },
+            PreprocessStep::TotalIonCurrent,
+            PreprocessStep::Trim {
+                min_mz: 2000.0,
+                max_mz: 15000.0,
+            },
+        ];
+        let reference = preprocess_spectrum(&synthetic_spectrum(1.0), &steps).unwrap();
+        for scale in [1e-3, 7.3, 1e4] {
+            let scaled = preprocess_spectrum(&synthetic_spectrum(scale), &steps).unwrap();
+            assert_close(&scaled, &reference, 1e-12);
+        }
+    }
+
+    #[test]
+    fn snip_cancels_any_background_linear_in_point_index() {
+        let spectrum = synthetic_spectrum(1.0);
+        let tilted = MassSpectrum::new(
+            spectrum.mz().to_vec(),
+            spectrum
+                .intensity()
+                .iter()
+                .enumerate()
+                .map(|(index, value)| value + 250.0 + 0.8 * index as f64)
+                .collect(),
+        )
+        .unwrap();
+        for decreasing in [true, false] {
+            let step = [PreprocessStep::SnipBaseline {
+                iterations: 20,
+                decreasing,
+            }];
+            assert_close(
+                &preprocess_spectrum(&tilted, &step).unwrap(),
+                &preprocess_spectrum(&spectrum, &step).unwrap(),
+                1e-12,
+            );
+        }
+    }
+
+    #[test]
+    fn binning_conserves_intensity_between_inclusive_edges() {
+        let spectrum = synthetic_spectrum(1.0);
+        // Both edges fall exactly on points (indices 10 and 400).
+        let binned = bin_spectrum(
+            &spectrum,
+            &BinSpec {
+                min_mz: 2300.0,
+                max_mz: 14000.0,
+                bins: 3600,
+            },
+        )
+        .unwrap();
+        let inside: f64 = spectrum.intensity()[10..=400].iter().sum();
+        let binned_total: f64 = binned.intensity.iter().sum();
+        assert_eq!(binned.points_outside, 600 - 391);
+        assert!((binned_total - inside).abs() <= 1e-12 * inside);
+    }
+
     #[test]
     fn configuration_rejects_unknown_steps_and_fields() {
         let steps: Vec<PreprocessStep> = serde_json::from_str(
