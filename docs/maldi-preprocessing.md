@@ -29,7 +29,8 @@ marklab microbio preprocess \
 
 Times of flight are `tof_i = DELAY + i DW`. Each m/z value `m` solves the flex-series calibration
 `tof = ML2 + sqrt(1e12 / ML1) sqrt(m) + ML3 m` (Titulaer et al., *BMC Bioinformatics* 2006), the
-same conversion readBrukerFlexData uses. Negative raw counts are set to zero, as readBrukerFlexData
+same conversion readBrukerFlexData uses, evaluated in a form that avoids cancellation when `ML3` is
+small. Negative raw counts are set to zero, as readBrukerFlexData
 does by default, and their number is reported. The resulting m/z values must be positive and
 strictly increasing.
 
@@ -76,12 +77,15 @@ Order matters. Total ion current before `trim` divides by the area of the whole 
 `trim`, by the area inside the range.
 
 Bins have edges `e_i = min_mz + i (max_mz − min_mz) / bins`, with the last edge exactly
-`max_mz`. Bin `i` covers `[e_i, e_{i+1})` and the last bin also includes `max_mz`. Intensities are
-summed in m/z order, and points outside `[min_mz, max_mz]` are counted in `points_outside`. This is
-`numpy.histogram` over `numpy.linspace` edges, as used by maldi-learn's `BinningVectorizer`, which
-produced the DRIAMS `binned_6000` files (2,000–20,000 Da, 6,000 bins of 3 Da). Unlike maldi-learn,
-Marklab keeps a point exactly at `min_mz` and never moves the edges; maldi-learn recomputes edges
-for a spectrum that extends beyond 2,000–20,000 Da. At most 1,000,000 bins are allowed.
+`max_mz`. Bin `i` covers `[e_i, e_{i+1})` and the last bin also includes `max_mz`. These are the
+boundaries of `numpy.histogram` over `numpy.linspace` edges, which maldi-learn's
+`BinningVectorizer` used to produce the DRIAMS `binned_6000` files (2,000–20,000 Da, 6,000 bins of
+3 Da). Each bin sums its own points in m/z order, and points outside `[min_mz, max_mz]` are counted
+in `points_outside`. Given explicit edges, NumPy instead differences cumulative sums, so a bin
+beside much larger intensities can differ from Marklab's by rounding relative to the running total.
+Unlike maldi-learn, Marklab keeps a point exactly at `min_mz` and never moves the edges;
+maldi-learn recomputes edges for a spectrum that extends beyond 2,000–20,000 Da. At most 1,000,000
+bins are allowed, and a non-finite bin width or bin sum is rejected.
 
 The example configuration is a starting point built from MALDIquant's smoothing defaults and the
 DRIAMS bin layout. DRIAMS's own step order and SNIP settings have not yet been confirmed against
@@ -115,10 +119,16 @@ and with both SNIP directions. The tolerances were fixed before the first run.
 
 | Comparison | Largest difference |
 |---|---|
-| m/z and raw intensities | identical |
-| Intensities after each step | 3.4e-14 of the spectrum maximum (tolerance 1e-9) |
-| 6,000-bin vectors | 6.0e-16 of the largest bin (tolerance 1e-9) |
+| m/z | 2.0e-12 relative (tolerance 1e-9) |
+| Raw intensities | identical |
+| Intensities after each step | 2.8e-12 of the spectrum maximum (tolerance 1e-9) |
+| 6,000-bin vectors against a per-bin R sum | 2.8e-12 of the largest bin (tolerance 1e-9) |
 | High-precision-calibration example | rejected as required |
+
+The m/z differences come from readBrukerFlexData's form of the root, which loses digits to
+cancellation for these calibrations. The intensity differences enter through the total ion
+current, which integrates over m/z; when both used the same root form, intensities agreed within
+3.4e-14.
 
 These spectra test numerical agreement with MALDIquant. They are not a cohort of isolates.
 

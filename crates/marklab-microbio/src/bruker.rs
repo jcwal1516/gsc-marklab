@@ -139,15 +139,13 @@ pub fn parse_bruker_flex(acqu: &[u8], fid: &[u8]) -> Result<BrukerAcquisition, M
         })
         .collect();
     let b = (1e12 / ml1).sqrt();
+    // readBrukerFlexData's root (-b + sqrt(b² - 4 ML3 c)) / (2 ML3), rearranged to avoid
+    // cancellation when ML3 is small; ML3 = 0 gives -c / b.
     let mz = (0..time_points)
         .map(|index| {
             let c = ml2 - (delay + index as f64 * time_delta);
-            if ml3 == 0.0 {
-                (c * c) / (b * b)
-            } else {
-                let root = (-b + (b * b - 4.0 * ml3 * c).sqrt()) / (2.0 * ml3);
-                root * root
-            }
+            let root = -2.0 * c / (b + (b * b - 4.0 * ml3 * c).sqrt());
+            root * root
         })
         .collect();
     let spectrum = MassSpectrum::new(mz, intensity).map_err(|error| {
@@ -274,13 +272,15 @@ fn read_capped(path: &Path, maximum_bytes: u64) -> Result<Vec<u8>, MicrobioError
         path: PathBuf::from(path),
         source,
     };
+    let not_regular = || MicrobioError::Bruker(format!("{} is not a regular file", path.display()));
+    // Checked before opening as well, because opening a FIFO without a writer blocks.
+    if !fs::metadata(path).map_err(io_error)?.is_file() {
+        return Err(not_regular());
+    }
     let file = fs::File::open(path).map_err(io_error)?;
     let metadata = file.metadata().map_err(io_error)?;
     if !metadata.is_file() {
-        return Err(MicrobioError::Bruker(format!(
-            "{} is not a regular file",
-            path.display()
-        )));
+        return Err(not_regular());
     }
     if metadata.len() > maximum_bytes {
         return Err(MicrobioError::Bruker(format!(
@@ -378,6 +378,19 @@ mod tests {
         assert_eq!(acquisition.time_points, 3);
         assert_eq!(acquisition.laser_shots, 200);
         assert_eq!(acquisition.tof_mode, Some(BrukerTofMode::Linear));
+
+        // A negligible ML3 must not lose the distinct masses to cancellation.
+        let nearly_linear = parse_bruker_flex(
+            &acqu(&with(base_fields(), "ML3", "1e-12")),
+            &fid(&[5, -7, 9], BrukerByteOrder::Little),
+        )
+        .unwrap();
+        for (mz, expected) in nearly_linear.spectrum.mz().iter().zip(expected) {
+            assert!(
+                (mz - expected).abs() <= 1e-9 * expected,
+                "{mz} != {expected}"
+            );
+        }
     }
 
     #[test]

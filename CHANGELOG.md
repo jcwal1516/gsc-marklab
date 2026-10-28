@@ -156,9 +156,10 @@
   declared steps in order (square root, Savitzky–Golay, SNIP baseline, total ion current, trim)
   and optionally sum fixed-edge m/z bins. High-precision calibration, LIFT, PSD and V1.0 CTOF2
   calibrations are rejected rather than approximated. On readBrukerFlexData 1.9.3's two example
-  spectra, m/z and raw intensities match readBrukerFlexData exactly, every step matches
-  MALDIquant 1.22.3 within 3.4e-14 of the spectrum maximum, the 6,000-bin vectors agree within
-  6.0e-16, and the HPC example is rejected.
+  spectra, raw intensities match readBrukerFlexData exactly and m/z within 2.0e-12 (its root
+  formula cancels; Marklab's does not), every step matches MALDIquant 1.22.3 within 2.8e-12 of
+  the spectrum maximum, the 6,000-bin vectors agree with a per-bin R sum within 2.8e-12, and the
+  HPC example is rejected.
 
 - Compare `numerics categorical-enrichment` with imcRtools 1.16.0 `testInteractions`
   (classic) and SPIAT 1.12.1 `mixing_score_summary` on three public CODEX spots. Graphs and

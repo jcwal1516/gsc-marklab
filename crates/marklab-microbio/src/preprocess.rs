@@ -270,8 +270,9 @@ fn snip_baseline(values: &[f64], iterations: usize, decreasing: bool) -> Vec<f64
 }
 
 /// Sum intensities into the bins of `spec`. Bin `i` covers `[e_i, e_{i+1})` with
-/// `e_i = min_mz + i (max_mz - min_mz) / bins` and the last bin also includes `max_mz`; the
-/// edges and the in-order summation match `numpy.histogram` over `numpy.linspace` edges.
+/// `e_i = min_mz + i (max_mz - min_mz) / bins` and the last bin also includes `max_mz`, the
+/// boundaries of `numpy.histogram` over `numpy.linspace` edges. Each bin sums its own points
+/// in m/z order.
 pub fn bin_spectrum(
     spectrum: &MassSpectrum,
     spec: &BinSpec,
@@ -296,9 +297,9 @@ pub fn bin_spectrum(
         .map(|index| index as f64 * step + min_mz)
         .chain([max_mz])
         .collect();
-    if edges.windows(2).any(|pair| pair[1] <= pair[0]) {
+    if !step.is_finite() || edges.windows(2).any(|pair| pair[1] <= pair[0]) {
         return Err(MicrobioError::Binning(
-            "bins are too narrow to be represented at this m/z".to_owned(),
+            "the bin edges cannot be represented in floating point".to_owned(),
         ));
     }
     let mut intensity = vec![0.0; bins];
@@ -310,6 +311,11 @@ pub fn bin_spectrum(
         }
         let bin = (edges.partition_point(|edge| *edge <= mz) - 1).min(bins - 1);
         intensity[bin] += value;
+    }
+    if intensity.iter().any(|value| !value.is_finite()) {
+        return Err(MicrobioError::Binning(
+            "a bin sum overflows to infinity".to_owned(),
+        ));
     }
     Ok(BinnedSpectrum {
         min_mz,
@@ -450,6 +456,21 @@ mod tests {
         // Bins [1, 3), [3, 5), [5, 7]; 0.5 and 7.5 fall outside.
         assert_eq!(binned.intensity, [3.0, 4.0, 24.0]);
         assert_eq!(binned.points_outside, 2);
+
+        // Finite inputs whose bin width or bin sum overflows are rejected.
+        let overflowing_width = BinSpec {
+            min_mz: -1e308,
+            max_mz: 1e308,
+            bins: 1,
+        };
+        assert!(bin_spectrum(&spectrum, &overflowing_width).is_err());
+        let huge = MassSpectrum::new(vec![1.0, 2.0], vec![1e308, 1e308]).unwrap();
+        let one_bin = BinSpec {
+            min_mz: 1.0,
+            max_mz: 2.0,
+            bins: 1,
+        };
+        assert!(bin_spectrum(&huge, &one_bin).is_err());
     }
 
     #[test]

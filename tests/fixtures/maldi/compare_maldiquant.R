@@ -22,7 +22,12 @@
 # * Tolerances: identical point counts; m/z within 1e-9 max(1, |reference|); every intensity
 #   (or bin) within 1e-9 times the largest reference intensity of that spectrum and stage.
 #   MALDIquant's Savitzky-Golay coefficients for these settings are within 1e-14 of the exact
-#   rational values, so the comparison is not limited by the reference's own rounding.
+#   rational values.
+#
+# Changed after the first runs: Marklab replaced readBrukerFlexData's root
+# (-b + sqrt(b^2 - 4 ML3 c)) / (2 ML3), which loses digits to cancellation, with the equivalent
+# -2c / (b + sqrt(b^2 - 4 ML3 c)). m/z therefore differs from the reference by the reference's
+# rounding error. The tolerances are unchanged.
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 3L) {
