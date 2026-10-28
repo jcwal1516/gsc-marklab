@@ -20,13 +20,13 @@ use super::{
 
 pub const SPACE_MAP_FORMAT: &str = "marklab.space_map_result";
 
-const MAXIMUM_PATTERN_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+const MAXIMUM_RESULT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// R's vote for the background, which a cell keeps when no region outvotes it.
 const BACKGROUND_VOTE: f64 = 0.000_001;
 
 /// Read a map result file.
 pub fn load_space_map_result(path: &Path) -> Result<SpaceMapResult, SpaceError> {
-    let bytes = read_bounded(path, MAXIMUM_PATTERN_BYTES, "map result")?;
+    let bytes = read_bounded(path, MAXIMUM_RESULT_BYTES, "map result")?;
     let result = serde_json::from_slice(&bytes)
         .map_err(|error| invalid(format!("invalid map JSON: {error}")))?;
     check_map(&result)?;
@@ -65,7 +65,7 @@ pub(super) fn check_map(result: &SpaceMapResult) -> Result<(), SpaceError> {
 
 /// Read a pattern result file.
 pub fn load_space_pattern_result(path: &Path) -> Result<SpacePatternResult, SpaceError> {
-    let bytes = read_bounded(path, MAXIMUM_PATTERN_BYTES, "pattern result")?;
+    let bytes = read_bounded(path, MAXIMUM_RESULT_BYTES, "pattern result")?;
     serde_json::from_slice(&bytes)
         .map_err(|error| invalid(format!("invalid pattern JSON: {error}")))
 }
