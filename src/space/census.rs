@@ -88,15 +88,26 @@ pub(crate) fn disc_count(
     input: &SpaceInput,
     specimen_position: usize,
     radius_position: usize,
-) -> usize {
+) -> Result<usize, SpaceError> {
     match &input.specimens[specimen_position].explicit_seeds {
-        Some(explicit) => explicit[radius_position].len(),
-        None => input
-            .census
-            .sample_size
-            .as_ref()
-            .expect("validated: sample_size accompanies sampled specimens")[radius_position],
+        Some(explicit) => Ok(explicit[radius_position].len()),
+        None => sample_size(input, specimen_position, radius_position),
     }
+}
+
+/// The declared sample size; a request may omit it when it is read only to suggest one.
+fn sample_size(
+    input: &SpaceInput,
+    specimen_position: usize,
+    radius_position: usize,
+) -> Result<usize, SpaceError> {
+    let sizes = input.census.sample_size.as_ref().ok_or_else(|| {
+        invalid(format!(
+            "specimen {} needs sample_size or seed_cell_ids to draw discs",
+            input.specimens[specimen_position].id
+        ))
+    })?;
+    Ok(sizes[radius_position])
 }
 
 /// Disc centres at one radius: explicit cells, or a seeded sample without replacement.
@@ -109,11 +120,7 @@ pub(crate) fn draw_seeds(
     if let Some(explicit) = &specimen.explicit_seeds {
         return Ok(explicit[radius_position].clone());
     }
-    let size = input
-        .census
-        .sample_size
-        .as_ref()
-        .expect("validated: sample_size accompanies sampled specimens")[radius_position];
+    let size = sample_size(input, specimen_position, radius_position)?;
     let mut eligible = eligible_seeds(input, specimen);
     if size > eligible.len() {
         return Err(invalid(format!(
@@ -138,7 +145,8 @@ pub(crate) fn draw_seeds(
     Ok(eligible)
 }
 
-fn eligible_seeds(input: &SpaceInput, specimen: &Specimen) -> Vec<usize> {
+/// Cells that may centre a disc (SPACE `seed_points`).
+pub(crate) fn eligible_seeds(input: &SpaceInput, specimen: &Specimen) -> Vec<usize> {
     let rows = specimen.cell_ids.len();
     match &input.census.seed_classes {
         None if input.object_channels.is_empty() => (0..rows).collect(),

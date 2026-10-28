@@ -6,10 +6,12 @@ use std::{
 
 use clap::{Subcommand, ValueEnum};
 use marklab::space::{
-    load_space_input, load_space_mi_result, load_space_pattern_result, space_census, space_cis,
-    space_dist, space_map, space_pattern, space_rank, space_trans, SpaceCisParameters,
-    SpaceDistParameters, SpaceError, SpaceMapParameters, SpaceNormalization,
-    SpacePatternParameters, SpaceRankParameters, SpaceTransParameters,
+    load_space_input, load_space_map_result, load_space_mi_result, load_space_pattern_result,
+    space_census, space_cis, space_dist, space_diversity, space_map, space_pattern, space_rank,
+    space_suggest, space_trans, SpaceCisParameters, SpaceConstituents, SpaceDistParameters,
+    SpaceDiversityParameters, SpaceDiversityParents, SpaceError, SpaceMapParameters,
+    SpaceNormalization, SpacePatternParameters, SpaceRankParameters, SpaceSuggestParameters,
+    SpaceTransParameters, SPACE_MAXIMUM_ADVISED_COVERAGE,
 };
 use marklab::MarklabError;
 
@@ -18,8 +20,8 @@ use super::exclusive_json_output::{publish_pretty_json, ExclusiveJsonOutputError
 mod tables;
 
 use tables::{
-    census_table, cis_table, dist_table, map_table, pattern_table, rank_table, rank_variable_table,
-    trans_table,
+    census_table, cis_table, dist_table, diversity_table, map_table, pattern_table, rank_table,
+    rank_variable_table, suggest_table, trans_table,
 };
 
 /// How pattern curves are rescaled for display.
@@ -288,6 +290,57 @@ pub(crate) enum SpaceCommand {
         #[arg(long, value_delimiter = ',')]
         specimen: Vec<String>,
     },
+    /// Composition and alpha diversity of each specimen, and beta diversity across its parent
+    /// classes or pattern regions (R alpha_diversity and beta_diversity).
+    Diversity {
+        /// marklab.space_request version 1; file sources resolve relative to it.
+        #[arg(long)]
+        request: PathBuf,
+        /// New JSON result file.
+        #[arg(long)]
+        out: PathBuf,
+        /// Optional new CSV with one row per specimen and per parent; a specimen row's
+        /// divergence is its beta diversity.
+        #[arg(long)]
+        table: Option<PathBuf>,
+        /// Object channel whose classes make up the compositions (R img_type "O").
+        #[arg(long, required_unless_present = "scalars", conflicts_with = "scalars")]
+        channel: Option<String>,
+        /// Compose the independent scalars, summed over cells, instead (R img_type "S").
+        #[arg(long)]
+        scalars: bool,
+        /// Object channel whose classes are the parents of beta diversity.
+        #[arg(long, conflicts_with = "map")]
+        parent_channel: Option<String>,
+        /// A marklab.space_map_result whose regions are the parents of beta diversity.
+        #[arg(long)]
+        map: Option<PathBuf>,
+        /// Specimens to measure (default: all).
+        #[arg(long, value_delimiter = ',')]
+        specimen: Vec<String>,
+    },
+    /// Discs per radius that give a desired coverage of each specimen's cells (R
+    /// suggest_number); the request may omit sample_size.
+    Suggest {
+        /// marklab.space_request version 1; file sources resolve relative to it.
+        #[arg(long)]
+        request: PathBuf,
+        /// New JSON result file.
+        #[arg(long)]
+        out: PathBuf,
+        /// Optional new CSV with one row per specimen and radius.
+        #[arg(long)]
+        table: Option<PathBuf>,
+        /// Mean number of discs each cell with a variable should fall in (R coverage).
+        #[arg(long)]
+        coverage: f64,
+        /// Census radii in micrometres (default: all).
+        #[arg(long, value_delimiter = ',')]
+        radii: Vec<f64>,
+        /// Specimens (default: all).
+        #[arg(long, value_delimiter = ',')]
+        specimen: Vec<String>,
+    },
 }
 
 pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
@@ -519,6 +572,81 @@ pub(crate) fn run(command: SpaceCommand) -> marklab::Result<()> {
             }
             Ok(())
         }
+        SpaceCommand::Diversity {
+            request,
+            out,
+            table,
+            channel,
+            scalars,
+            parent_channel,
+            map,
+            specimen,
+        } => {
+            require_new(&out, &[table.as_deref()])?;
+            let input = load_space_input(&request).map_err(space_error)?;
+            let map = map
+                .map(|path| load_space_map_result(&path))
+                .transpose()
+                .map_err(space_error)?;
+            let parameters = SpaceDiversityParameters {
+                constituents: match channel {
+                    Some(channel) if !scalars => SpaceConstituents::Objects { channel },
+                    _ => SpaceConstituents::Scalars,
+                },
+                parents: match (parent_channel, &map) {
+                    (Some(channel), _) => SpaceDiversityParents::Channel { channel },
+                    (None, Some(_)) => SpaceDiversityParents::Map,
+                    (None, None) => SpaceDiversityParents::None,
+                },
+                specimens: specimen,
+            };
+            let result = space_diversity(&input, &parameters, map.as_ref()).map_err(space_error)?;
+            publish(&out, &result)?;
+            if let Some(table) = table {
+                write_new(&table, &diversity_table(&result)?)?;
+            }
+            Ok(())
+        }
+        SpaceCommand::Suggest {
+            request,
+            out,
+            table,
+            coverage,
+            radii,
+            specimen,
+        } => {
+            require_new(&out, &[table.as_deref()])?;
+            let input = load_space_input(&request).map_err(space_error)?;
+            let parameters = SpaceSuggestParameters {
+                coverage,
+                radii_um: radii,
+                specimens: specimen,
+            };
+            let result = space_suggest(&input, &parameters).map_err(space_error)?;
+            if coverage > SPACE_MAXIMUM_ADVISED_COVERAGE {
+                eprintln!(
+                    "warning: coverage above {SPACE_MAXIMUM_ADVISED_COVERAGE} pseudo-replicates discs, as SPACE warns"
+                );
+            }
+            for specimen in &result.specimens {
+                for radius in &specimen.radii {
+                    if radius.sample_size > specimen.eligible_centres {
+                        eprintln!(
+                            "warning: specimen {} has {} eligible disc centres, fewer than the {} suggested at {} um",
+                            specimen.specimen_id,
+                            specimen.eligible_centres,
+                            radius.sample_size,
+                            radius.radius_um
+                        );
+                    }
+                }
+            }
+            publish(&out, &result)?;
+            if let Some(table) = table {
+                write_new(&table, &suggest_table(&result)?)?;
+            }
+            Ok(())
+        }
     }
 }
 
@@ -581,6 +709,17 @@ fn describe() -> serde_json::Value {
             "map": {
                 "r_function": "map_pattern, for cell tables",
                 "output": "each cell's region of the pattern's path, from distance-weighted votes of the discs containing it"
+            },
+            "diversity": {
+                "r_functions": ["alpha_diversity", "beta_diversity"],
+                "constituents": "the classes of an object channel (counted cells) or the independent scalars (summed over cells)",
+                "parents": "none, the classes of an object channel, or the regions of a space map result",
+                "output": "each specimen's composition and Shannon entropy in bits, each parent's composition, entropy and KL divergence from the cell-weighted mean composition, and beta diversity"
+            },
+            "suggest": {
+                "r_function": "suggest_number, for cell tables",
+                "formula": "ceiling(coverage x counted cells / mean counted cells per disc over every eligible centre)",
+                "warning": "coverage above 5 pseudo-replicates discs"
             }
         },
         "deviations_from_r": "docs/space.md#differences-from-r-space",

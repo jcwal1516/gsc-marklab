@@ -14,6 +14,7 @@ mod census;
 mod cis;
 mod dist;
 mod distribution;
+mod diversity;
 mod ensembles;
 mod information;
 mod input;
@@ -22,6 +23,7 @@ mod normal;
 mod pattern;
 mod rank;
 mod som;
+mod suggest;
 mod trans;
 
 use serde::{Deserialize, Serialize};
@@ -39,13 +41,17 @@ pub use dist::{
     space_dist, SpaceDistAxis, SpaceDistCell, SpaceDistCensus, SpaceDistParameters,
     SpaceDistResult, SpaceDistValues, SpaceDistVariable, SPACE_DIST_FORMAT,
 };
+pub use diversity::{
+    space_diversity, SpaceConstituents, SpaceDiversityParameters, SpaceDiversityParent,
+    SpaceDiversityParents, SpaceDiversityResult, SpaceDiversitySpecimen, SPACE_DIVERSITY_FORMAT,
+};
 pub use input::{
     load_space_input, space_input_from_json, SpaceCensusDesign, SpaceInput, SpaceLimits,
     SPACE_REQUEST_FORMAT,
 };
 pub use map::{
-    load_space_pattern_result, space_map, SpaceMapParameters, SpaceMapRegion, SpaceMapResult,
-    SpaceMapSpecimen, SPACE_MAP_FORMAT,
+    load_space_map_result, load_space_pattern_result, space_map, SpaceMapParameters,
+    SpaceMapRegion, SpaceMapResult, SpaceMapSpecimen, SPACE_MAP_FORMAT,
 };
 pub use pattern::{
     space_pattern, SpaceNormalization, SpacePatternCurve, SpacePatternParameters,
@@ -55,6 +61,10 @@ pub use rank::{
     load_space_mi_result, space_mi_result_from_json, space_rank, SpaceMiResult,
     SpaceRadiusStatistic, SpaceRankParameters, SpaceRankResult, SpaceRankView, SpaceRankedEnsemble,
     SpaceRankedVariable, SPACE_RANK_FORMAT,
+};
+pub use suggest::{
+    space_suggest, SpaceSuggestParameters, SpaceSuggestRadius, SpaceSuggestResult,
+    SpaceSuggestSpecimen, SPACE_MAXIMUM_ADVISED_COVERAGE, SPACE_SUGGEST_FORMAT,
 };
 pub use trans::{
     space_trans, SpaceTransEnsemble, SpaceTransFactor, SpaceTransParameters, SpaceTransRadius,

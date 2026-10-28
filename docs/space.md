@@ -20,9 +20,11 @@ This release implements:
 - the data behind SPACE's distribution and ranking plots;
 - **patterns**: how an ensemble's variables covary along a path through its discs, and their
   enrichment against a reference;
-- **maps**: each cell's region of a pattern's path.
+- **maps**: each cell's region of a pattern's path;
+- **diversity**: the composition of each specimen and of its parts;
+- **suggested sample sizes** for a desired coverage.
 
-Diversity and image inputs are planned.
+Image inputs and 3-D tables are planned.
 
 ```sh
 marklab space describe
@@ -39,6 +41,9 @@ marklab space pattern --request request.json --variables cell_type.T,cell_type.B
   --focal responder --reference non_responder --out pattern.json --table pattern.csv
 marklab space map --pattern pattern.json --request request.json --regions 0:30,70:100 \
   --out map.json --table map.csv
+marklab space diversity --request request.json --channel cell_type --map map.json \
+  --out diversity.json --table diversity.csv
+marklab space suggest --request request.json --coverage 5 --out suggest.json
 ```
 
 Each output file must not already exist.
@@ -96,7 +101,8 @@ and the squared distances used in binning cannot overflow.
 `census` holds:
 
 - `radii_um`: strictly increasing;
-- `sample_size`: discs per radius, drawn without replacement;
+- `sample_size`: discs per radius, drawn without replacement. Commands that draw discs need it
+  for every specimen without `seed_cell_ids`; `space diversity` and `space suggest` do not;
 - `seed_classes`: optional; a channel-to-classes map restricting which cells may be disc
   centres (SPACE `seed_points`). When absent, any classified cell may be a centre. Channels not
   listed contribute no centres;
@@ -349,6 +355,53 @@ variables and radius, usually the same request.
 The census follows the request: with the pattern's own request, the discs are the ones the
 pattern was learned from. `--table` writes one row per cell (`specimen_id, cell_id, region`).
 
+## Diversity
+
+`space diversity` returns the numbers of R `alpha_diversity` and `beta_diversity` without the
+plots, for cells instead of pixels.
+
+- **Constituents:** the classes of an object channel (`--channel`), counted over cells, or the
+  independent scalars summed over cells (`--scalars`). Scalars must not be negative. R does not
+  measure linked scalars.
+- **Alpha diversity:** each specimen's shares of the constituents, in percent, and their
+  Shannon entropy in bits.
+- **Beta diversity:** with parents, the classes of an object channel (`--parent-channel`) or the
+  regions of a `space map` result (`--map`), each parent's shares and entropy as well. Each
+  parent with any constituent is weighted by its share of those parents' cells. Beta diversity
+  is the weighted mean KL divergence, in bits, of the parents' shares from their weighted mean.
+  Zero shares become 0.000001 divided by the number of constituents before the divergences are
+  taken, as in R. Parents without constituents are reported with zero shares and no divergence.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `--channel` or `--scalars` | required | The constituents (R `img_type` "O" or "S"). |
+| `--parent-channel` or `--map` | none | The parents of beta diversity. |
+| `--specimen` | all | Specimens to measure. |
+
+A parent channel must be one of the request's object channels; cells without a class in it, or
+without a region in the map, belong to no parent. With `--map`, the request must hold the
+specimens and cells the map was made from. `--table` writes one row per specimen and per
+parent; a specimen row's divergence column holds its beta diversity.
+
+## Suggested sample sizes
+
+`space suggest` returns R `suggest_number`'s disc counts for cell tables: per specimen and
+radius, `ceiling(coverage × C / m)`. `C` counts the cells with a class in an object channel or
+a nonzero independent scalar (R's non-background pixels). `m` is the mean number of such cells
+in a disc, over every cell that may centre one. Each such cell then lies in `coverage` discs on
+average.
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `--coverage` | required | Mean number of discs each counted cell falls in (R `coverage`). |
+| `--radii` | all | Census radii. |
+| `--specimen` | all | Specimens. |
+
+The request may omit `sample_size`. As SPACE does, the command warns when the coverage exceeds 5,
+since overlapping discs then pseudo-replicate one another. It also warns when a suggestion
+exceeds the cells that may centre a disc, since discs are drawn without replacement. The
+counting visits every disc once and stops at the request's work limit.
+
 ## Interpreting the results
 
 - The randomized censuses keep each disc's size and each layer's overall composition. They
@@ -438,6 +491,13 @@ pattern was learned from. `--table` writes one row per cell (`specimen_id, cell_
 - **Maps for cell tables.** R maps patterns onto image pixels; Marklab maps them onto cells,
   each disc voting for its members. When every disc lies on the curves (`max d` = 0), R divides
   zero by zero; every disc then votes with weight 0.9999.
+- **Diversity of cells, not pixels.** R counts each object's pixels and weights each parent by
+  its pixels; Marklab counts cells and weights each parent by its cells. Marklab also reports
+  each specimen's alpha diversity alongside beta diversity, which R's `beta_diversity` does not.
+- **Suggested sizes from discs, not volumes.** R divides by the disc volume in pixels,
+  background included. Marklab divides by the mean number of counted cells in the discs of
+  every eligible centre, so the coverage is exact for the cells. R's coverage curve over a range
+  of coverages is not ported; its warning goes to standard error.
 - **Variables come from the specimen.** Variables are the declared classes present in the
   specimen. R's columns are the classes present in the sampled discs, and a class present in
   one radius's discs but absent from another's becomes `NA` there. Unknown names in `all`,
@@ -479,8 +539,13 @@ pattern was learned from. `--table` writes one row per cell (`specimen_id, cell_
     with the inferred factor, and errors, including variables off SPACE's scale;
   - maps: stripe interiors assigned to the expected regions, the catch-all region, and region
     errors;
+  - diversity: alpha and beta diversity of classes and of scalars equal to R `alpha_diversity`
+    and `beta_diversity` bit for bit, on one pixel per cell, with an empty parent left out;
+  - suggested sizes computed by hand, and a request without `sample_size` that suggests sizes
+    but refuses to draw discs;
   - identical patterns and maps at one and four threads;
-  - CLI outputs that refuse to overwrite.
+  - CLI outputs that refuse to overwrite, and pattern, map, diversity of the map's regions and
+    suggested sizes run through files.
 - **R oracle:** `tests/fixtures/space/compare_space.R` compares the census and cisMI with R
   SPACE, sourced from the pinned commit. The data is SPACE's own tutorial cell table
   (`HuLN_Object1_ObjTable_Types.csv`: 9,757 cells, 20 classes). The design used radii 10 and

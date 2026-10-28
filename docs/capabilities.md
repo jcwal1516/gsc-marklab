@@ -83,7 +83,8 @@ shuffled; it finds multi-way co-patterning that pairwise statistics do not repor
 transMI ranks the same combinations by how well their disc distributions separate groups of
 specimens. `space dist` and `space rank` return the data behind SPACE's distribution and ranking
 plots; `space pattern` learns how an ensemble covaries along a path through its discs, and
-`space map` assigns cells to regions of that path.
+`space map` assigns cells to regions of that path. `space diversity` measures compositions and
+alpha and beta diversity, and `space suggest` gives disc counts for a desired coverage.
 
 Pathology maps attach measurements to declared tissue geography. They provide marker/density
 profiles versus signed or unsigned distance from annotations, neighborhood composition maps,
@@ -374,7 +375,7 @@ where an individual model still lacks a complete public demonstration; a command
 | `numerics` | Research | Known numerical answers and finite/resource checks; local Moran has its own null conventions. |
 | `numerics categorical-co-occurrence` | Experimental for observed radius-dependent scores | Hand-counted duplicate/boundary cases and [public Squidpy agreement](categorical-cooccurrence.md); no calibrated null or patient test. |
 | `numerics categorical-enrichment` | Experimental for observed counts/exact null descriptors; Research for Monte Carlo inference | Hand-counted fixed-margin cases and [public count/moment agreement](categorical-enrichment.md). Monte Carlo z-score package agreement and multi-shape calibration remain unassessed. |
-| `space census`, `space cis`, `space trans`, `space dist`, `space rank`, `space pattern`, `space map` | Research | Hand-computed census, smoothing and modularity; kohonen-exact map training; synthetic striped/random controls; [R SPACE agreement](space.md#validation) on its public tutorial table. Exploratory ranking; the transMI null shuffles only pairwise divergences, so it is not calibrated patient-level inference. |
+| `space census`, `space cis`, `space trans`, `space dist`, `space rank`, `space pattern`, `space map`, `space diversity`, `space suggest` | Research | Hand-computed census, smoothing and modularity; kohonen-exact map training; synthetic striped/random controls; [R SPACE agreement](space.md#validation) on its public tutorial table. Exploratory ranking; the transMI null shuffles only pairwise divergences, so it is not calibrated patient-level inference. |
 | `inspect-slide`, `extract-region` | Experimental for the tested Aperio region; Research ceiling for other codecs | Public-file/OpenSlide pixel agreement plus codec fixtures and bounded reads; no statistical inference or universal scanner/OME guarantee. |
 | `smoke` | Research evidence generator | Production synthetic controls; smoke success is not calibration. |
 | `backend doctor` | Research ceiling; utility | Locked-package/runtime checks; not model suitability or numerical accuracy. |

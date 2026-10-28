@@ -205,6 +205,8 @@ pub fn space_trans(
                 .iter()
                 .map(move |&radius| disc_count(input, specimen, radius))
         })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
         .min()
         .expect("at least one specimen and radius");
     let bins = bin_count(minimum_disc_count, parameters.depth, parameters.max_bins);
@@ -363,7 +365,7 @@ impl Study<'_> {
             .compared
             .iter()
             .map(|&specimen| disc_count(input, specimen, radius_position))
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
         let discs = disc_counts
             .iter()
             .fold(0_u64, |sum, count| sum.saturating_add(*count as u64));

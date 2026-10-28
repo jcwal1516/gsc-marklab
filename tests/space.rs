@@ -2,11 +2,12 @@ use std::path::Path;
 use std::process::Command;
 
 use marklab::space::{
-    load_space_input, space_census, space_cis, space_dist, space_input_from_json, space_map,
-    space_mi_result_from_json, space_pattern, space_rank, space_trans, SpaceCisParameters,
-    SpaceDistCensus, SpaceDistParameters, SpaceDistValues, SpaceError, SpaceMapParameters,
-    SpaceMiResult, SpaceNullStatus, SpacePatternParameters, SpacePatternReference,
-    SpaceRankParameters, SpaceRankView, SpaceTransParameters,
+    load_space_input, space_census, space_cis, space_dist, space_diversity, space_input_from_json,
+    space_map, space_mi_result_from_json, space_pattern, space_rank, space_suggest, space_trans,
+    SpaceCisParameters, SpaceConstituents, SpaceDistCensus, SpaceDistParameters, SpaceDistValues,
+    SpaceDiversityParameters, SpaceDiversityParents, SpaceError, SpaceMapParameters, SpaceMiResult,
+    SpaceNullStatus, SpacePatternParameters, SpacePatternReference, SpaceRankParameters,
+    SpaceRankView, SpaceSuggestParameters, SpaceTransParameters,
 };
 use serde_json::{json, Value};
 
@@ -817,6 +818,166 @@ fn pattern_groups_and_map_regions() {
     ));
 }
 
+/// Six cells 10 um apart: classes A, A, B, B, B and none; scalars s1 and s2; zones x, y, z
+/// as given. The request has no sample_size, which diversity and suggest do not need.
+fn row_input(zones: Value) -> marklab::space::SpaceInput {
+    let channel = |id: &str, kind: &str, levels: Value| {
+        json!({"id": id, "label": id, "kind": kind,
+            "unit": if kind == "categorical" { "categorical" } else { "au" },
+            "measurement_status": "imported_prediction", "provenance": "synthetic",
+            "levels": levels})
+    };
+    let scalar = |id: &str| {
+        let mut declared = channel(id, "continuous", Value::Null);
+        declared.as_object_mut().unwrap().remove("levels");
+        declared
+    };
+    let specimen = json!({"specimen_id": "row", "coordinate_frame_id": "row-um",
+        "window": square(60.0), "cell_ids": ["c0", "c1", "c2", "c3", "c4", "c5"],
+        "coordinates_um": [[0.0, 0.0], [10.0, 0.0], [20.0, 0.0], [30.0, 0.0], [40.0, 0.0],
+            [50.0, 0.0]],
+        "observations": {"cell_type": [0.0, 0.0, 1.0, 1.0, 1.0, null], "zone": zones,
+            "s1": [2.0, 0.0, 1.0, 3.0, 0.0, 4.0], "s2": [1.0, 1.0, 0.0, 0.0, 5.0, 2.0]}});
+    let request = inline_request(
+        json!([specimen]),
+        json!({
+            "source": {"kind": "inline", "specimens": [specimen], "channels": [
+                channel("cell_type", "categorical", json!(["A", "B"])),
+                channel("zone", "categorical", json!(["x", "y", "z"])),
+                scalar("s1"), scalar("s2")]},
+            "objects": ["cell_type", "zone"],
+            "independent_scalars": ["s1", "s2"],
+            "census": {"radii_um": [10.0], "seed": 1}
+        }),
+    );
+    space_input_from_json(&request).unwrap()
+}
+
+#[test]
+fn diversity_matches_r_alpha_and_beta_diversity() {
+    // R, one pixel per cell: alpha_diversity(types, "O") and beta_diversity(list(zones, types),
+    // "O") with zones 1,1,1,2,2,2 and types 1,1,2,2,2,0. Zone z has no cells and stays out of
+    // beta diversity.
+    let input = row_input(json!([0.0, 0.0, 0.0, 1.0, 1.0, 1.0]));
+    let objects = SpaceDiversityParameters {
+        constituents: SpaceConstituents::Objects {
+            channel: "cell_type".into(),
+        },
+        parents: SpaceDiversityParents::Channel {
+            channel: "zone".into(),
+        },
+        specimens: Vec::new(),
+    };
+    let result = space_diversity(&input, &objects, None).unwrap();
+    assert_eq!(result.constituents, ["A", "B"]);
+    let specimen = &result.specimens[0];
+    assert_eq!(specimen.percentages, [40.0, 60.0]);
+    assert_eq!(specimen.alpha_bits, 0.9709505944546686);
+    assert_eq!(specimen.beta_bits, Some(0.45914257346392373));
+    let parents = specimen
+        .parents
+        .iter()
+        .map(|parent| {
+            (
+                parent.parent.as_str(),
+                parent.cell_count,
+                parent.percentages.clone(),
+                parent.alpha_bits,
+                parent.divergence_bits.is_some(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        parents,
+        [
+            (
+                "x",
+                3,
+                vec![66.66666666666666, 33.33333333333333],
+                0.9182958340544896,
+                true
+            ),
+            ("y", 3, vec![0.0, 100.0], 0.0, true),
+            ("z", 0, vec![0.0, 0.0], 0.0, false)
+        ]
+    );
+
+    // R: the scalar images s1 and s2 within zones 1,1,1,2,2,0 of three.
+    let input = row_input(json!([0.0, 0.0, 0.0, 1.0, 1.0, null]));
+    let scalars = SpaceDiversityParameters {
+        constituents: SpaceConstituents::Scalars,
+        ..objects.clone()
+    };
+    let specimen = &space_diversity(&input, &scalars, None).unwrap().specimens[0];
+    assert_eq!(
+        specimen.percentages,
+        [52.63157894736842, 47.368421052631575]
+    );
+    assert_eq!(specimen.alpha_bits, 0.9980008838722996);
+    assert_eq!(specimen.beta_bits, Some(0.035367483910022736));
+    assert_eq!(specimen.parents[1].percentages, [37.5, 62.5]);
+    assert_eq!(specimen.parents[1].alpha_bits, 0.954434002924965);
+
+    // Map parents need a map, and a map needs map parents.
+    let error = |parameters: &SpaceDiversityParameters| {
+        space_diversity(&input, parameters, None).unwrap_err()
+    };
+    assert!(matches!(
+        error(&SpaceDiversityParameters { parents: SpaceDiversityParents::Map, ..objects.clone() }),
+        SpaceError::Invalid(message) if message.contains("need a map result")
+    ));
+    assert!(matches!(
+        error(&SpaceDiversityParameters {
+            constituents: SpaceConstituents::Objects { channel: "ki67".into() },
+            ..objects
+        }),
+        SpaceError::Invalid(message) if message.contains("not an object channel")
+    ));
+}
+
+#[test]
+fn suggest_divides_coverage_by_mean_disc_cells() {
+    // Classified cells at x = 0, 1 and 2 and an unclassified one at x = 3. At 1 um the three
+    // eligible centres hold 2, 3 and 2 classified cells: ceiling(5 x 3 / (7/3)) = 7. At 10 um
+    // every disc holds all three: ceiling(5 x 3 / 3) = 5.
+    let specimen = json!({"specimen_id": "line", "coordinate_frame_id": "line-um",
+        "window": square(4.0), "cell_ids": ["a", "b", "c", "d"],
+        "coordinates_um": [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0], [3.0, 0.0]],
+        "observations": {"cell_type": [0.0, 1.0, 0.0, null], "ki67": [1.0, 1.0, 1.0, 1.0]}});
+    let request = inline_request(
+        json!([specimen]),
+        json!({"census": {"radii_um": [1.0, 10.0], "seed": 1}}),
+    );
+    let input = space_input_from_json(&request).unwrap();
+    let parameters = SpaceSuggestParameters {
+        coverage: 5.0,
+        radii_um: Vec::new(),
+        specimens: Vec::new(),
+    };
+    let result = space_suggest(&input, &parameters).unwrap();
+    let specimen = &result.specimens[0];
+    assert_eq!((specimen.counted_cells, specimen.eligible_centres), (3, 3));
+    let radii = specimen
+        .radii
+        .iter()
+        .map(|radius| (radius.radius_um, radius.mean_disc_cells, radius.sample_size))
+        .collect::<Vec<_>>();
+    assert_eq!(radii, [(1.0, 7.0 / 3.0, 7), (10.0, 3.0, 5)]);
+    assert!(space_suggest(
+        &input,
+        &SpaceSuggestParameters {
+            coverage: 0.0,
+            ..parameters
+        }
+    )
+    .is_err());
+    // Without sample_size, analyses that draw discs say what is missing.
+    assert!(matches!(
+        space_census(&input),
+        Err(SpaceError::Invalid(message)) if message.contains("needs sample_size or seed_cell_ids")
+    ));
+}
+
 #[cfg(feature = "parallel")]
 #[test]
 fn results_do_not_depend_on_thread_count() {
@@ -1102,6 +1263,50 @@ fn cli_publishes_json_and_tables_once() {
     let csv = std::fs::read_to_string(path("map.csv")).unwrap();
     assert!(csv.starts_with("specimen_id,cell_id,region\n"));
     assert_eq!(csv.lines().count(), 1 + 900);
+    // The map's regions as parents of beta diversity: the specimen, then regions 1 to 3.
+    marklab(&[
+        "space",
+        "diversity",
+        "--request",
+        &text("request.json"),
+        "--channel",
+        "cell_type",
+        "--map",
+        &text("map.json"),
+        "--out",
+        &text("diversity.json"),
+        "--table",
+        &text("diversity.csv"),
+    ]);
+    let csv = std::fs::read_to_string(path("diversity.csv")).unwrap();
+    assert!(csv.starts_with("specimen_id,parent,cell_count,alpha_bits,divergence_bits,A,B,C\n"));
+    assert_eq!(csv.lines().count(), 1 + 1 + 3);
+    // Suggested sample sizes for a request without one, with SPACE's coverage warning.
+    let mut request: Value =
+        serde_json::from_slice(&std::fs::read(path("request.json")).unwrap()).unwrap();
+    request["census"]
+        .as_object_mut()
+        .unwrap()
+        .remove("sample_size");
+    std::fs::write(path("unsized.json"), request.to_string()).unwrap();
+    let suggest = Command::new(env!("CARGO_BIN_EXE_marklab"))
+        .args(["space", "suggest", "--coverage", "6", "--request"])
+        .arg(path("unsized.json"))
+        .arg("--out")
+        .arg(path("suggest.json"))
+        .arg("--table")
+        .arg(path("suggest.csv"))
+        .output()
+        .unwrap();
+    assert!(
+        suggest.status.success(),
+        "{}",
+        String::from_utf8_lossy(&suggest.stderr)
+    );
+    assert!(String::from_utf8_lossy(&suggest.stderr).contains("warning: coverage above 5"));
+    let csv = std::fs::read_to_string(path("suggest.csv")).unwrap();
+    assert!(csv.starts_with("specimen_id,radius_um,counted_cells,eligible_centres,"));
+    assert_eq!(csv.lines().count(), 1 + 2);
 
     let request = directory.path().join("trans-request.json");
     std::fs::write(

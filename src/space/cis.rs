@@ -201,6 +201,8 @@ fn analyze_specimen(
     let minimum_disc_count = radius_positions
         .iter()
         .map(|&radius_position| disc_count(input, position, radius_position))
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
         .min()
         .expect("at least one radius");
     let bins = bin_count(minimum_disc_count, parameters.depth, parameters.max_bins);

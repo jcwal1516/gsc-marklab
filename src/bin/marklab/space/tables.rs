@@ -1,8 +1,9 @@
 //! CSV tables written beside SPACE JSON results.
 
 use marklab::space::{
-    SpaceCensusResult, SpaceCisResult, SpaceDistResult, SpaceDistValues, SpaceMapResult,
-    SpaceNullStatus, SpacePatternResult, SpaceRankResult, SpaceRankView, SpaceTransResult,
+    SpaceCensusResult, SpaceCisResult, SpaceDistResult, SpaceDistValues, SpaceDiversityResult,
+    SpaceMapResult, SpaceNullStatus, SpacePatternResult, SpaceRankResult, SpaceRankView,
+    SpaceSuggestResult, SpaceTransResult,
 };
 use marklab::MarklabError;
 
@@ -336,6 +337,70 @@ pub(super) fn map_table(result: &SpaceMapResult) -> marklab::Result<Vec<u8>> {
                 specimen.specimen_id.clone(),
                 cell.clone(),
                 region.map(|region| region.to_string()).unwrap_or_default(),
+            ])?;
+        }
+    }
+    finish(writer)
+}
+
+/// One row per specimen, with an empty parent, then one per parent; constituent shares in
+/// percent. A specimen row's divergence is its beta diversity.
+pub(super) fn diversity_table(result: &SpaceDiversityResult) -> marklab::Result<Vec<u8>> {
+    let mut writer = csv::Writer::from_writer(Vec::new());
+    let mut header = vec![
+        "specimen_id",
+        "parent",
+        "cell_count",
+        "alpha_bits",
+        "divergence_bits",
+    ];
+    header.extend(result.constituents.iter().map(String::as_str));
+    writer.write_record(&header)?;
+    let optional = |value: Option<f64>| value.map(|value| value.to_string()).unwrap_or_default();
+    for specimen in &result.specimens {
+        let mut record = vec![
+            specimen.specimen_id.clone(),
+            String::new(),
+            specimen.cell_count.to_string(),
+            specimen.alpha_bits.to_string(),
+            optional(specimen.beta_bits),
+        ];
+        record.extend(specimen.percentages.iter().map(f64::to_string));
+        writer.write_record(&record)?;
+        for parent in &specimen.parents {
+            let mut record = vec![
+                specimen.specimen_id.clone(),
+                parent.parent.clone(),
+                parent.cell_count.to_string(),
+                parent.alpha_bits.to_string(),
+                optional(parent.divergence_bits),
+            ];
+            record.extend(parent.percentages.iter().map(f64::to_string));
+            writer.write_record(&record)?;
+        }
+    }
+    finish(writer)
+}
+
+pub(super) fn suggest_table(result: &SpaceSuggestResult) -> marklab::Result<Vec<u8>> {
+    let mut writer = csv::Writer::from_writer(Vec::new());
+    writer.write_record([
+        "specimen_id",
+        "radius_um",
+        "counted_cells",
+        "eligible_centres",
+        "mean_disc_cells",
+        "sample_size",
+    ])?;
+    for specimen in &result.specimens {
+        for radius in &specimen.radii {
+            writer.write_record([
+                specimen.specimen_id.clone(),
+                radius.radius_um.to_string(),
+                specimen.counted_cells.to_string(),
+                specimen.eligible_centres.to_string(),
+                radius.mean_disc_cells.to_string(),
+                radius.sample_size.to_string(),
             ])?;
         }
     }

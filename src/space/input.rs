@@ -123,7 +123,8 @@ struct MergeRule {
 pub struct SpaceCensusDesign {
     /// Strictly increasing disc radii in micrometres.
     pub radii_um: Vec<f64>,
-    /// Discs drawn without replacement at each radius (SPACE `sample_size`).
+    /// Discs drawn without replacement at each radius (SPACE `sample_size`). Needed to draw
+    /// discs for specimens without `seed_cell_ids`; `space suggest` reads a request without it.
     #[serde(default)]
     pub sample_size: Option<Vec<usize>>,
     /// Object classes whose cells may be disc centres, by channel (SPACE `seed_points`).
@@ -1050,15 +1051,6 @@ fn attach_explicit_seeds(
             }
             specimen.explicit_seeds = Some(resolved);
         }
-    }
-    if census.sample_size.is_none()
-        && specimens
-            .iter()
-            .any(|specimen| specimen.explicit_seeds.is_none())
-    {
-        return Err(invalid(
-            "sample_size is required unless every specimen has seed_cell_ids",
-        ));
     }
     Ok(())
 }

@@ -1380,17 +1380,18 @@
         "cisMI: rank every ensemble of up to depth variables (default 3) by co-information against shuffled-member randomized censuses",
         "transMI: rank every ensemble by the modularity of each grouping factor on a specimen similarity network built from symmetric KL divergences of smoothed joint distributions, against shuffled divergences",
         "Plot data: one or two variables' disc values or smoothed joint distribution, and a cisMI or transMI result's kept ensembles, variable scores or one ensemble across radii",
-        "Patterns: a self-organizing-map path through an ensemble's focal discs with each variable's rolling mean and band, and enrichment against a reference group or a randomized census; maps of each cell's region of that path"
+        "Patterns: a self-organizing-map path through an ensemble's focal discs with each variable's rolling mean and band, and enrichment against a reference group or a randomized census; maps of each cell's region of that path",
+        "Diversity: each specimen's class or scalar composition and Shannon entropy, and beta diversity across parent classes or pattern regions; suggested disc counts for a desired coverage"
       ],
       "input": "A marklab.space_request naming inline specimens, a multiplex study recipe or one CellViT H&E classification CSV per specimen, the object channels and scalars, grouping factors, and radii, disc counts and seeds.",
-      "output": "Disc census tables; per specimen and radius, every ensemble's observed and randomized co-information, CisMI, Z, SPACE's normal P with BH adjustment, a Monte Carlo P and each variable's binning range; per radius, ensemble and grouping factor, transMI, its shuffled-null mean and SD, Z, SPACE's one-sided normal P with BH adjustment and a Monte Carlo P. Distribution views and rankings of those results; pattern curves along a learned path and per-cell path regions.",
-      "used_by": "marklab::space and the marklab space describe/census/cis/trans/dist/rank/pattern/map commands.",
+      "output": "Disc census tables; per specimen and radius, every ensemble's observed and randomized co-information, CisMI, Z, SPACE's normal P with BH adjustment, a Monte Carlo P and each variable's binning range; per radius, ensemble and grouping factor, transMI, its shuffled-null mean and SD, Z, SPACE's one-sided normal P with BH adjustment and a Monte Carlo P. Distribution views and rankings of those results; pattern curves along a learned path and per-cell path regions; compositions, alpha and beta diversity; suggested sample sizes.",
+      "used_by": "marklab::space and the marklab space describe/census/cis/trans/dist/rank/pattern/map/diversity/suggest commands.",
       "uses": [
         "Find three-way and higher cell-type and marker co-patterning that pairwise statistics miss",
         "Find ensembles whose patterning separates clinical or experimental groups of specimens",
         "Use CellViT classifications or multiplex panels directly as SPACE objects and scalars"
       ],
-      "limits": "Port of R SPACE's table workflow (commit 94f0a0f); diversity and image census are not yet implemented. The randomized census tests departure from a well-mixed tissue, not direct interaction; discs overlap; rare variables have unstable bin grids; a pattern's path is an ordering of discs, and its map depends on the seed. transMI compares each specimen's distribution on its own range, and its null shuffles only the pairwise divergences, so few specimens give a coarse null.",
+      "limits": "Port of R SPACE's table workflow (commit 94f0a0f); image census and 3-D tables are not yet implemented. The randomized census tests departure from a well-mixed tissue, not direct interaction; discs overlap; rare variables have unstable bin grids; a pattern's path is an ordering of discs, and its map depends on the seed. transMI compares each specimen's distribution on its own range, and its null shuffles only the pairwise divergences, so few specimens give a coarse null.",
       "sources": [
         "src/space/mod.rs",
         "src/bin/marklab/space.rs",
