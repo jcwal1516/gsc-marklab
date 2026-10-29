@@ -1,11 +1,11 @@
 [package]
-name = "marklab-microbio"
+name = "marklab-spectrum"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "MALDI-TOF spectrum reading and preprocessing for Marklab microbiology workflows"
+description = "Spectrum reading and preprocessing for Marklab, such as MALDI-TOF mass spectra"
 
 [lib]
 bench = false

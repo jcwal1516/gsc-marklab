@@ -7,11 +7,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use marklab_microbio::{
-    bin_spectrum, preprocess_spectrum, read_bruker_flex, read_text_spectrum, BinSpec,
-    BinnedSpectrum, BrukerByteOrder, BrukerTofMode, MassSpectrum, MicrobioError, PreprocessStep,
-};
 use marklab_prediction::MAXIMUM_LOGISTIC_VALUES;
+use marklab_spectrum::{
+    bin_spectrum, preprocess_spectrum, read_bruker_flex, read_text_spectrum, BinSpec,
+    BinnedSpectrum, BrukerByteOrder, BrukerTofMode, MassSpectrum, PreprocessStep, SpectrumError,
+};
 use serde::{Deserialize, Serialize};
 
 use super::feature_table::{
@@ -256,9 +256,9 @@ fn read_binned_result(path: &Path) -> Result<BinnedResult> {
         .map_err(|error| MarklabError::Validation(format!("{}: {error}", path.display())))
 }
 
-fn into_marklab(error: MicrobioError) -> MarklabError {
+fn into_marklab(error: SpectrumError) -> MarklabError {
     match error {
-        MicrobioError::Io { path, source } => MarklabError::io(path, source),
+        SpectrumError::Io { path, source } => MarklabError::io(path, source),
         other => MarklabError::Validation(other.to_string()),
     }
 }

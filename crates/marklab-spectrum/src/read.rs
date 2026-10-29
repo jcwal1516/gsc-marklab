@@ -4,12 +4,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::MicrobioError;
+use crate::SpectrumError;
 
 /// Read a regular file of at most `maximum_bytes`. The file type is checked before opening, so a
 /// FIFO without a writer cannot block, and again on the open handle.
-pub(crate) fn read_capped(path: &Path, maximum_bytes: u64) -> Result<Vec<u8>, MicrobioError> {
-    let error = |source| MicrobioError::Io {
+pub(crate) fn read_capped(path: &Path, maximum_bytes: u64) -> Result<Vec<u8>, SpectrumError> {
+    let error = |source| SpectrumError::Io {
         path: PathBuf::from(path),
         source,
     };

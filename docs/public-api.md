@@ -268,7 +268,7 @@ scientific domains. Import them directly from the corresponding workspace crate:
 provides [discrete two-source Williams–Beer I_min decomposition](partial-information-decomposition.md).
 These methods use separate version-1 research results; existing core result formats are unchanged.
 
-`marklab_microbio::{read_bruker_flex, parse_bruker_flex, read_text_spectrum, parse_text_spectrum,
+`marklab_spectrum::{read_bruker_flex, parse_bruker_flex, read_text_spectrum, parse_text_spectrum,
 preprocess_spectrum, bin_spectrum, PreprocessStep, BinSpec}` read Bruker flex MALDI-TOF
 acquisitions or two-column text spectra and apply ordered spectrum preprocessing and fixed-edge
 binning ([spectrum preprocessing](spectrum-preprocessing.md)).

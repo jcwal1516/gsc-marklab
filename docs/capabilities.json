@@ -1131,8 +1131,8 @@
       ],
       "limits": "HPC, LIFT, PSD and V1.0 CTOF2 calibrations are rejected. One spectrum per run; no peak detection, alignment, replicate averaging, mzML or mzXML. Not spatial.",
       "sources": [
-        "crates/marklab-microbio/src/bruker.rs",
-        "crates/marklab-microbio/src/preprocess.rs",
+        "crates/marklab-spectrum/src/bruker.rs",
+        "crates/marklab-spectrum/src/preprocess.rs",
         "src/cli/spectrum.rs",
         "docs/spectrum-preprocessing.md",
         "tests/fixtures/maldi/compare_maldiquant.R"

@@ -151,7 +151,7 @@
 
 ### Public-data validation and interoperability
 
-- Add `marklab spectrum preprocess` and the `marklab-microbio` crate: read one Bruker flex
+- Add `marklab spectrum preprocess` and the `marklab-spectrum` crate: read one Bruker flex
   MALDI-TOF acquisition (`fid` with `acqu` or `acqus`), convert time of flight to m/z, apply
   declared steps in order (square root, Savitzky–Golay, SNIP baseline, total ion current, trim)
   and optionally sum fixed-edge m/z bins. High-precision calibration, LIFT, PSD and V1.0 CTOF2
@@ -245,7 +245,8 @@
   false-negative and false-positive rates instead of very major and major errors. A feature table's
   unit may be any name. Models are `marklab.classifier` files; `marklab.ast-model` files must be
   refitted. [Pipelines](examples/README.md) maps the susceptibility terms and shows the command
-  sequences.
+  sequences. The library crate `marklab-microbio` is now `marklab-spectrum`, and its
+  `MicrobioError` is `SpectrumError`.
 - The `cohort` commands read input tables of up to 512 MiB, raised from 16 MiB, so tests over
   thousands of endpoints or features fit. Each command's work limits are unchanged; `cohort
   max-t`, for example, still allows at most 10^8 patient-endpoint-permutation evaluations. A

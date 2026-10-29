@@ -12,7 +12,7 @@ libfuzzer-sys = "0.4"
 tempfile = "3"
 marklab = { path = "..", default-features = false, features = ["csv", "wsi"] }
 marklab-embeddings = { path = "../crates/marklab-embeddings", default-features = false, features = ["csv", "parquet"] }
-marklab-microbio = { path = "../crates/marklab-microbio" }
+marklab-spectrum = { path = "../crates/marklab-spectrum" }
 
 [[bin]]
 name = "multiplex_study"

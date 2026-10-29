@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{MassSpectrum, MicrobioError};
+use crate::{MassSpectrum, SpectrumError};
 
 /// One preprocessing operation. Steps run in the order they are declared.
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
@@ -85,12 +85,12 @@ impl PreprocessStep {
 pub fn preprocess_spectrum(
     spectrum: &MassSpectrum,
     steps: &[PreprocessStep],
-) -> Result<MassSpectrum, MicrobioError> {
+) -> Result<MassSpectrum, SpectrumError> {
     steps
         .iter()
         .enumerate()
         .try_fold(spectrum.clone(), |current, (index, step)| {
-            apply(&current, step).map_err(|message| MicrobioError::Step {
+            apply(&current, step).map_err(|message| SpectrumError::Step {
                 index,
                 step: step.name(),
                 message,
@@ -276,19 +276,19 @@ fn snip_baseline(values: &[f64], iterations: usize, decreasing: bool) -> Vec<f64
 pub fn bin_spectrum(
     spectrum: &MassSpectrum,
     spec: &BinSpec,
-) -> Result<BinnedSpectrum, MicrobioError> {
+) -> Result<BinnedSpectrum, SpectrumError> {
     let &BinSpec {
         min_mz,
         max_mz,
         bins,
     } = spec;
     if !(min_mz.is_finite() && max_mz.is_finite() && min_mz < max_mz) {
-        return Err(MicrobioError::Binning(format!(
+        return Err(SpectrumError::Binning(format!(
             "min_mz {min_mz} and max_mz {max_mz} must be finite with min_mz < max_mz"
         )));
     }
     if !(1..=MAXIMUM_BINS).contains(&bins) {
-        return Err(MicrobioError::Binning(format!(
+        return Err(SpectrumError::Binning(format!(
             "bins must be in 1..={MAXIMUM_BINS}"
         )));
     }
@@ -298,7 +298,7 @@ pub fn bin_spectrum(
         .chain([max_mz])
         .collect();
     if !step.is_finite() || edges.windows(2).any(|pair| pair[1] <= pair[0]) {
-        return Err(MicrobioError::Binning(
+        return Err(SpectrumError::Binning(
             "the bin edges cannot be represented in floating point".to_owned(),
         ));
     }
@@ -313,7 +313,7 @@ pub fn bin_spectrum(
         intensity[bin] += value;
     }
     if intensity.iter().any(|value| !value.is_finite()) {
-        return Err(MicrobioError::Binning(
+        return Err(SpectrumError::Binning(
             "a bin sum overflows to infinity".to_owned(),
         ));
     }

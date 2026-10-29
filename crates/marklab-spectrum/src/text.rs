@@ -3,12 +3,12 @@
 
 use std::path::Path;
 
-use crate::{read::read_capped, MassSpectrum, MicrobioError, MAXIMUM_BRUKER_TIME_POINTS};
+use crate::{read::read_capped, MassSpectrum, SpectrumError, MAXIMUM_BRUKER_TIME_POINTS};
 
 const MAXIMUM_TEXT_BYTES: u64 = 128 * 1024 * 1024;
 
 /// Read a text spectrum file; see [`parse_text_spectrum`].
-pub fn read_text_spectrum(path: &Path) -> Result<MassSpectrum, MicrobioError> {
+pub fn read_text_spectrum(path: &Path) -> Result<MassSpectrum, SpectrumError> {
     parse_text_spectrum(&read_capped(path, MAXIMUM_TEXT_BYTES)?)
 }
 
@@ -16,7 +16,7 @@ pub fn read_text_spectrum(path: &Path) -> Result<MassSpectrum, MicrobioError> {
 /// remaining line may be a header of two non-numeric fields. Every other line must hold exactly
 /// two finite numbers, m/z and a non-negative intensity, separated by whitespace, with m/z
 /// strictly increasing.
-pub fn parse_text_spectrum(bytes: &[u8]) -> Result<MassSpectrum, MicrobioError> {
+pub fn parse_text_spectrum(bytes: &[u8]) -> Result<MassSpectrum, SpectrumError> {
     let text = String::from_utf8_lossy(bytes);
     let (mut mz, mut intensity) = (Vec::new(), Vec::new());
     let mut header_allowed = true;
@@ -27,7 +27,7 @@ pub fn parse_text_spectrum(bytes: &[u8]) -> Result<MassSpectrum, MicrobioError> 
         }
         let fields: Vec<&str> = line.split_whitespace().collect();
         if fields.len() != 2 {
-            return Err(MicrobioError::Text(format!(
+            return Err(SpectrumError::Text(format!(
                 "line {}: expected 2 columns, found {}",
                 index + 1,
                 fields.len()
@@ -40,7 +40,7 @@ pub fn parse_text_spectrum(bytes: &[u8]) -> Result<MassSpectrum, MicrobioError> 
             }
             (Err(_), Err(_)) if header_allowed => {}
             _ => {
-                return Err(MicrobioError::Text(format!(
+                return Err(SpectrumError::Text(format!(
                     "line {}: {line:?} is not two finite numbers",
                     index + 1
                 )))
@@ -48,12 +48,12 @@ pub fn parse_text_spectrum(bytes: &[u8]) -> Result<MassSpectrum, MicrobioError> 
         }
         header_allowed = false;
         if mz.len() > MAXIMUM_BRUKER_TIME_POINTS {
-            return Err(MicrobioError::Text(format!(
+            return Err(SpectrumError::Text(format!(
                 "more than {MAXIMUM_BRUKER_TIME_POINTS} points"
             )));
         }
     }
-    MassSpectrum::new(mz, intensity).map_err(|error| MicrobioError::Text(error.to_string()))
+    MassSpectrum::new(mz, intensity).map_err(|error| SpectrumError::Text(error.to_string()))
 }
 
 #[cfg(test)]

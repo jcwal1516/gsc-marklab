@@ -4,7 +4,7 @@ use thiserror::Error;
 
 /// Errors from reading or preprocessing a mass spectrum.
 #[derive(Debug, Error)]
-pub enum MicrobioError {
+pub enum SpectrumError {
     /// A file could not be read.
     #[error("{path}: {source}")]
     Io {

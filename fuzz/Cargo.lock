@@ -1339,7 +1339,6 @@ dependencies = [
  "marklab-embeddings",
  "marklab-graph",
  "marklab-longitudinal",
- "marklab-microbio",
  "marklab-numerics",
  "marklab-policy",
  "marklab-prediction",
@@ -1347,6 +1346,7 @@ dependencies = [
  "marklab-sbi",
  "marklab-simulation",
  "marklab-spatial3d",
+ "marklab-spectrum",
  "marklab-topology",
  "marklab-transport",
  "marklab-workflow",
@@ -1450,7 +1450,7 @@ dependencies = [
  "libfuzzer-sys",
  "marklab",
  "marklab-embeddings",
- "marklab-microbio",
+ "marklab-spectrum",
  "tempfile",
 ]
 
@@ -1482,14 +1482,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "marklab-microbio"
-version = "0.1.0"
-dependencies = [
- "serde",
- "thiserror 2.0.18",
-]
-
-[[package]]
 name = "marklab-numerics"
 version = "0.1.0"
 dependencies = [
@@ -1511,6 +1503,8 @@ version = "0.1.0"
 dependencies = [
  "marklab-core",
  "marklab-numerics",
+ "rand 0.8.6",
+ "rand_chacha",
  "serde",
  "thiserror 2.0.18",
 ]
@@ -1563,6 +1557,14 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "marklab-spectrum"
+version = "0.1.0"
+dependencies = [
+ "serde",
  "thiserror 2.0.18",
 ]
 

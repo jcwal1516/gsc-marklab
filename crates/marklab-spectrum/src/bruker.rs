@@ -5,7 +5,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
-use crate::{read::read_capped, MassSpectrum, MicrobioError};
+use crate::{read::read_capped, MassSpectrum, SpectrumError};
 
 /// Largest accepted number of time points (`TD`), so a `fid` file is at most 16 MiB.
 pub const MAXIMUM_BRUKER_TIME_POINTS: usize = 4 * 1024 * 1024;
@@ -50,13 +50,13 @@ pub struct BrukerAcquisition {
 
 /// Read the acquisition in `spectrum_dir`, the directory holding `fid` and `acqu` (for example
 /// `0_A1/1/1SLin`). `acqu` is used when present, otherwise `acqus`.
-pub fn read_bruker_flex(spectrum_dir: &Path) -> Result<BrukerAcquisition, MicrobioError> {
+pub fn read_bruker_flex(spectrum_dir: &Path) -> Result<BrukerAcquisition, SpectrumError> {
     let acqu_path = ["acqu", "acqus"]
         .iter()
         .map(|name| spectrum_dir.join(name))
         .find(|path| path.is_file())
         .ok_or_else(|| {
-            MicrobioError::Bruker(format!(
+            SpectrumError::Bruker(format!(
                 "{} contains neither an acqu nor an acqus file",
                 spectrum_dir.display()
             ))
@@ -74,7 +74,7 @@ pub fn read_bruker_flex(spectrum_dir: &Path) -> Result<BrukerAcquisition, Microb
 /// m/z follows the flex-series calibration `tof = ML2 + sqrt(1e12 / ML1) sqrt(m) + ML3 m` with
 /// `tof = DELAY + i DW`, as in the R package readBrukerFlexData. High-precision calibration,
 /// LIFT, PSD and V1.0 CTOF2 calibrations are rejected rather than approximated.
-pub fn parse_bruker_flex(acqu: &[u8], fid: &[u8]) -> Result<BrukerAcquisition, MicrobioError> {
+pub fn parse_bruker_flex(acqu: &[u8], fid: &[u8]) -> Result<BrukerAcquisition, SpectrumError> {
     let fields = AcquFields::parse(acqu);
     reject_unsupported(&fields)?;
     let byte_order = match fields.required("BYTORDA")? {
@@ -159,7 +159,7 @@ pub fn parse_bruker_flex(acqu: &[u8], fid: &[u8]) -> Result<BrukerAcquisition, M
     })
 }
 
-fn reject_unsupported(fields: &AcquFields) -> Result<(), MicrobioError> {
+fn reject_unsupported(fields: &AcquFields) -> Result<(), SpectrumError> {
     if fields.optional("HPClUse")? == Some("yes") {
         let in_use = fields.finite("HPClBLo")? > 0.0
             && fields.finite("HPClBHi")? > 0.0
@@ -178,7 +178,7 @@ fn reject_unsupported(fields: &AcquFields) -> Result<(), MicrobioError> {
             "V1.0CTOF2CalibrationConstants calibrations are not supported",
         ));
     }
-    let nonzero = |key| -> Result<bool, MicrobioError> {
+    let nonzero = |key| -> Result<bool, SpectrumError> {
         Ok(match fields.optional(key)? {
             Some(_) => fields.finite(key)? != 0.0,
             None => false,
@@ -203,8 +203,8 @@ fn reject_unsupported(fields: &AcquFields) -> Result<(), MicrobioError> {
     }
 }
 
-fn bruker(message: impl Into<String>) -> MicrobioError {
-    MicrobioError::Bruker(message.into())
+fn bruker(message: impl Into<String>) -> SpectrumError {
+    SpectrumError::Bruker(message.into())
 }
 
 /// `##$KEY= value` parameters of an `acqu` file. Values keep their text; enclosing `<` `>`
@@ -229,7 +229,7 @@ impl AcquFields {
         Self { fields }
     }
 
-    fn optional(&self, key: &str) -> Result<Option<&str>, MicrobioError> {
+    fn optional(&self, key: &str) -> Result<Option<&str>, SpectrumError> {
         let mut matches = self.fields.iter().filter(|(name, _)| name == key);
         let first = matches.next().map(|(_, value)| value.as_str());
         if matches.next().is_some() {
@@ -238,13 +238,13 @@ impl AcquFields {
         Ok(first)
     }
 
-    fn required(&self, key: &str) -> Result<&str, MicrobioError> {
+    fn required(&self, key: &str) -> Result<&str, SpectrumError> {
         self.optional(key)?
             .ok_or_else(|| bruker(format!("{key} is missing from acqu")))
     }
 
     /// A finite number; a decimal comma is read as a point, as readBrukerFlexData does.
-    fn finite(&self, key: &str) -> Result<f64, MicrobioError> {
+    fn finite(&self, key: &str) -> Result<f64, SpectrumError> {
         let text = self.required(key)?;
         text.replace(',', ".")
             .parse::<f64>()
@@ -253,7 +253,7 @@ impl AcquFields {
             .ok_or_else(|| bruker(format!("{key} value {text:?} is not a finite number")))
     }
 
-    fn count(&self, key: &str) -> Result<usize, MicrobioError> {
+    fn count(&self, key: &str) -> Result<usize, SpectrumError> {
         let text = self.required(key)?;
         text.parse::<usize>().map_err(|_| {
             bruker(format!(
