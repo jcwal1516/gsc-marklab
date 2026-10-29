@@ -138,8 +138,8 @@ geojson = { version = "0.24", default-features = false }
 geo = { version = "0.33.1", default-features = false }
 rstar = { version = "0.13.0", default-features = false }
 
-arrow = { version = "56", optional = true }
-parquet = { version = "56", optional = true }
+arrow = { version = "60", optional = true }
+parquet = { version = "60", optional = true }
 csv = { workspace = true, optional = true }
 wsi-rs = { version = "=0.5.0", optional = true }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
@@ -157,6 +157,7 @@ predicates = "3"
 tempfile.workspace = true
 dicom-core = "0.9.1"
 dicom-object = "0.9.1"
+thrift = { version = "=0.17.0", default-features = false }
 
 [[example]]
 name = "generate_dicom_wsi_fixture"

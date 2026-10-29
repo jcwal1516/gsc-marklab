@@ -1,7 +1,4 @@
-use std::{
-    io::{self, Write},
-    sync::Arc,
-};
+use std::{io::Write, sync::Arc};
 
 use arrow::{
     array::{ArrayRef, StringBuilder, UInt64Array, UInt64Builder},
@@ -20,9 +17,8 @@ use super::{
     super::{
         super::super::{ColumnarError, EmbeddingColumnarBudgets, RowLinkColumnarWriteSummary},
         profile::{
-            align, enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
-            validity_bytes, ALIGNMENT, CONTINUATION_MARKER, MAXIMUM_MESSAGE_BYTES,
-            RECORD_BATCH_ROWS,
+            enforce_decoded_budget, enforce_retained_budget, enforce_row_group_budget,
+            validity_bytes, ALIGNMENT, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
         },
         writer::DigestingWriter,
     },
@@ -66,8 +62,7 @@ pub fn write_cell_embedding_row_link_arrow(
     let schema = row_link_schema(row_link)?;
     let options = IpcWriteOptions::try_new(ALIGNMENT, false, MetadataVersion::V5)
         .map_err(|_| ColumnarError::ArrowWriter)?;
-    let digesting_sink = DigestingWriter::new(output, budgets.maximum_file_bytes());
-    let mut sink = CanonicalRowLinkWriter::new(digesting_sink);
+    let mut sink = DigestingWriter::new(output, budgets.maximum_file_bytes());
     let write_result = (|| {
         let mut writer = FileWriter::try_new_with_options(&mut sink, &schema, options)
             .map_err(|_| ColumnarError::ArrowWriter)?;
@@ -78,20 +73,8 @@ pub fn write_cell_embedding_row_link_arrow(
                 .map(|value| value.min(row_count))
                 .ok_or(ColumnarError::SizeOverflow)?;
             let batch = build_batch(row_link, &schema, start, end)?;
-            if let Some((body_offset, replacement)) =
-                nullable_validity_tail_patch(row_link, start, end)?
-            {
-                writer
-                    .get_mut()
-                    .arm_batch_patch(body_offset, replacement)
-                    .map_err(|_| ColumnarError::ArrowWriter)?;
-            }
             writer
                 .write(&batch)
-                .map_err(|_| ColumnarError::ArrowWriter)?;
-            writer
-                .get_mut()
-                .finish_batch()
                 .map_err(|_| ColumnarError::ArrowWriter)?;
             start = end;
         }
@@ -110,219 +93,6 @@ pub fn write_cell_embedding_row_link_arrow(
         encoded_byte_len,
         row_link.row_count(),
     ))
-}
-
-fn nullable_validity_tail_patch(
-    row_link: &CellEmbeddingRowLink,
-    start: usize,
-    end: usize,
-) -> Result<Option<(u64, u8)>, ColumnarError> {
-    let entries = row_link
-        .entries()
-        .get(start..end)
-        .ok_or(ColumnarError::SizeOverflow)?;
-    let rows = entries.len();
-    let remainder = rows % 8;
-    if remainder == 0
-        || entries
-            .iter()
-            .any(|entry| entry.source_embedding_row().is_none())
-    {
-        return Ok(None);
-    }
-    let validity = validity_bytes(rows)?;
-    let identifier_bytes = entries.iter().try_fold(0_usize, |total, entry| {
-        total
-            .checked_add(entry.cell_id().as_str().len())
-            .ok_or(ColumnarError::SizeOverflow)
-    })?;
-    let offsets = rows
-        .checked_add(1)
-        .and_then(|value| value.checked_mul(size_of::<i32>()))
-        .ok_or(ColumnarError::SizeOverflow)?;
-    let values = rows
-        .checked_mul(size_of::<u64>())
-        .ok_or(ColumnarError::SizeOverflow)?;
-    let lengths = [validity, offsets, identifier_bytes, validity, values];
-    let nullable_validity_offset = lengths.into_iter().try_fold(0_usize, |next, length| {
-        align(next)?
-            .checked_add(length)
-            .ok_or(ColumnarError::SizeOverflow)
-    })?;
-    let tail_offset = align(nullable_validity_offset)?
-        .checked_add(validity.checked_sub(1).ok_or(ColumnarError::SizeOverflow)?)
-        .ok_or(ColumnarError::SizeOverflow)?;
-    let replacement = u8::MAX >> (8 - remainder);
-    Ok(Some((
-        u64::try_from(tail_offset).map_err(|_| ColumnarError::SizeOverflow)?,
-        replacement,
-    )))
-}
-
-struct PendingTailPatch {
-    batch_start: u64,
-    body_offset: u64,
-    replacement: u8,
-    prefix: [u8; 8],
-    prefix_bytes: usize,
-    patch_offset: Option<u64>,
-    applied: bool,
-}
-
-struct CanonicalRowLinkWriter<'a> {
-    inner: DigestingWriter<'a>,
-    byte_len: u64,
-    pending: Option<PendingTailPatch>,
-}
-
-impl<'a> CanonicalRowLinkWriter<'a> {
-    fn new(inner: DigestingWriter<'a>) -> Self {
-        Self {
-            inner,
-            byte_len: 0,
-            pending: None,
-        }
-    }
-
-    fn arm_batch_patch(&mut self, body_offset: u64, replacement: u8) -> io::Result<()> {
-        if self.pending.is_some() {
-            return Err(io::Error::other("canonical row-link patch already armed"));
-        }
-        self.pending = Some(PendingTailPatch {
-            batch_start: self.byte_len,
-            body_offset,
-            replacement,
-            prefix: [0; 8],
-            prefix_bytes: 0,
-            patch_offset: None,
-            applied: false,
-        });
-        Ok(())
-    }
-
-    fn finish_batch(&mut self) -> io::Result<()> {
-        if self.pending.as_ref().is_some_and(|patch| !patch.applied) {
-            return Err(io::Error::other("canonical row-link patch was not applied"));
-        }
-        self.pending = None;
-        Ok(())
-    }
-
-    fn budget_exceeded(&self) -> Option<u64> {
-        self.inner.budget_exceeded()
-    }
-
-    fn finish(self) -> (marklab_project::ContentDigest, u64) {
-        self.inner.finish()
-    }
-
-    fn write_inner(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        let written = self.inner.write(bytes)?;
-        self.byte_len = self
-            .byte_len
-            .checked_add(
-                u64::try_from(written).map_err(|_| io::Error::other("columnar size overflow"))?,
-            )
-            .ok_or_else(|| io::Error::other("columnar size overflow"))?;
-        Ok(written)
-    }
-}
-
-impl Write for CanonicalRowLinkWriter<'_> {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        if buffer.is_empty() {
-            return Ok(0);
-        }
-        let needs_prefix = self
-            .pending
-            .as_ref()
-            .is_some_and(|patch| patch.patch_offset.is_none());
-        if needs_prefix {
-            let prefix_remaining = self
-                .pending
-                .as_ref()
-                .map(|patch| {
-                    8_usize
-                        .checked_sub(patch.prefix_bytes)
-                        .ok_or_else(|| io::Error::other("invalid canonical row-link IPC prefix"))
-                })
-                .transpose()?
-                .unwrap_or_default();
-            let length = buffer.len().min(prefix_remaining);
-            let written = self.write_inner(&buffer[..length])?;
-            if written == 0 {
-                return Ok(0);
-            }
-            let patch = self
-                .pending
-                .as_mut()
-                .ok_or_else(|| io::Error::other("canonical row-link patch disappeared"))?;
-            let prefix_end = patch
-                .prefix_bytes
-                .checked_add(written)
-                .ok_or_else(|| io::Error::other("columnar size overflow"))?;
-            patch.prefix[patch.prefix_bytes..prefix_end].copy_from_slice(&buffer[..written]);
-            patch.prefix_bytes = prefix_end;
-            if patch.prefix_bytes == patch.prefix.len() {
-                if &patch.prefix[..4] != CONTINUATION_MARKER {
-                    return Err(io::Error::other("invalid canonical row-link IPC prefix"));
-                }
-                let declared = i32::from_le_bytes(
-                    patch.prefix[4..]
-                        .try_into()
-                        .map_err(|_| io::Error::other("invalid canonical row-link IPC prefix"))?,
-                );
-                let declared = u64::try_from(declared)
-                    .map_err(|_| io::Error::other("invalid canonical row-link IPC prefix"))?;
-                patch.patch_offset = Some(
-                    patch
-                        .batch_start
-                        .checked_add(8)
-                        .and_then(|value| value.checked_add(declared))
-                        .and_then(|value| value.checked_add(patch.body_offset))
-                        .ok_or_else(|| io::Error::other("columnar size overflow"))?,
-                );
-            }
-            return Ok(written);
-        }
-
-        let patch_offset = self.pending.as_ref().and_then(|patch| patch.patch_offset);
-        if let Some(patch_offset) = patch_offset {
-            if self.byte_len < patch_offset {
-                let distance = usize::try_from(patch_offset - self.byte_len)
-                    .map_err(|_| io::Error::other("columnar size overflow"))?;
-                return self.write_inner(&buffer[..buffer.len().min(distance)]);
-            }
-            if self.byte_len == patch_offset {
-                if buffer[0] != u8::MAX {
-                    return Err(io::Error::other(
-                        "unexpected canonical row-link validity tail",
-                    ));
-                }
-                let replacement = self
-                    .pending
-                    .as_ref()
-                    .map(|patch| patch.replacement)
-                    .ok_or_else(|| io::Error::other("canonical row-link patch disappeared"))?;
-                let written = self.write_inner(&[replacement])?;
-                if written == 1 {
-                    self.pending
-                        .as_mut()
-                        .ok_or_else(|| io::Error::other("canonical row-link patch disappeared"))?
-                        .applied = true;
-                }
-                return Ok(written);
-            }
-            if self.pending.as_ref().is_some_and(|patch| !patch.applied) {
-                return Err(io::Error::other("canonical row-link patch was skipped"));
-            }
-        }
-        self.write_inner(buffer)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.inner.flush()
-    }
 }
 
 fn build_batch(

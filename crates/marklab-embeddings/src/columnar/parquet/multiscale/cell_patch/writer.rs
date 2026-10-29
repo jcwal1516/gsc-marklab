@@ -16,7 +16,6 @@ use crate::columnar::{
         enforce_retained_budget, enforce_row_group_budget, validate_cell_patch_domain,
     },
     parquet::{
-        compact::canonical_compact_len,
         profile::{MAXIMUM_FOOTER_BYTES, PUBLIC_BATCH_ROWS, ROW_GROUP_ROWS},
         writer::{
             estimate_metadata_retained_bytes_for_columns, ParquetDigestingWriter,
@@ -101,10 +100,8 @@ where
                 .map_err(|_| ColumnarError::ParquetWriter)?;
             start = end;
         }
-        let metadata = writer.close().map_err(|_| ColumnarError::ParquetWriter)?;
-        canonical_compact_len(&metadata, MAXIMUM_FOOTER_BYTES)
-            .map_err(|_| ColumnarError::ParquetWriter)?;
-        Ok(())
+        writer.close().map_err(|_| ColumnarError::ParquetWriter)?;
+        sink.require_footer_within(MAXIMUM_FOOTER_BYTES)
     })();
     if let Some(observed) = sink.budget_exceeded() {
         return Err(ColumnarError::FileByteBudgetExceeded {

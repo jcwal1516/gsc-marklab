@@ -26,7 +26,7 @@ pub(super) fn schema(link: &PatchRegionLink) -> Result<Schema, ColumnarError> {
     validate_patch_region_domain(link)?;
     Ok(Schema::new_with_metadata(
         crate::columnar::multiscale::patch_region_fields(),
-        metadata(link).into_iter().collect(),
+        metadata(link),
     ))
 }
 

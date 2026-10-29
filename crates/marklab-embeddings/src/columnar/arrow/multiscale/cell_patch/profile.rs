@@ -52,9 +52,7 @@ pub(super) fn assignment_schema(link: &CellPatchLink) -> Result<Schema, Columnar
     validate_cell_patch_domain(link)?;
     Ok(Schema::new_with_metadata(
         crate::columnar::multiscale::cell_patch_assignment_fields(),
-        metadata(CellPatchArrowProfile::Assignment, link)
-            .into_iter()
-            .collect(),
+        metadata(CellPatchArrowProfile::Assignment, link),
     ))
 }
 
@@ -62,9 +60,7 @@ pub(super) fn edge_schema(link: &CellPatchLink) -> Result<Schema, ColumnarError>
     validate_cell_patch_domain(link)?;
     Ok(Schema::new_with_metadata(
         crate::columnar::multiscale::cell_patch_edge_fields(),
-        metadata(CellPatchArrowProfile::Edge, link)
-            .into_iter()
-            .collect(),
+        metadata(CellPatchArrowProfile::Edge, link),
     ))
 }
 

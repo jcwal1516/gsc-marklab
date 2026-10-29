@@ -150,6 +150,14 @@ pub(super) fn validate_nullable_bitmap(
         .entries()
         .get(start..end)
         .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidRowCount))?;
+    // Arrow 60 writes an empty bitmap for a batch without nulls.
+    if bytes.is_empty()
+        && entries
+            .iter()
+            .any(|entry| entry.source_embedding_row().is_none())
+    {
+        return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
+    }
     for (byte_index, observed) in bytes.iter().enumerate() {
         let mut expected = 0_u8;
         for bit in 0..8 {
@@ -170,4 +178,76 @@ pub(super) fn validate_nullable_bitmap(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use marklab_data::{
+        CellId, CohortHierarchy, HierarchyId, HierarchyNode, PatientId, ReplicationRole, SlideId,
+    };
+    use marklab_project::{ArtifactId, ContentDigest};
+
+    use crate::{CellEmbeddingRowLink, CellEmbeddingRowLinkEntry, ExpectedCellSet};
+
+    use super::{validate_nullable_bitmap, ArrowIpcFailure, ColumnarError};
+
+    fn artifact_id(label: &[u8]) -> ArtifactId {
+        ArtifactId::from_str(&ContentDigest::from_bytes(label).to_string()).expect("artifact ID")
+    }
+
+    #[test]
+    fn nullable_bitmap_may_be_empty_only_for_rows_without_missing_vectors() {
+        let cells = vec![
+            CellId::new("cell-a").expect("cell"),
+            CellId::new("cell-b").expect("cell"),
+        ];
+        let expected = ExpectedCellSet::new("bitmap.v1", cells.clone()).expect("expected");
+        let patient = HierarchyId::from(PatientId::new("patient").expect("patient"));
+        let slide = HierarchyId::from(SlideId::new("slide").expect("slide"));
+        let mut nodes = vec![
+            HierarchyNode::new(patient.clone(), None, ReplicationRole::BiologicalUnit),
+            HierarchyNode::new(
+                slide.clone(),
+                None,
+                ReplicationRole::TechnicalReplicate {
+                    biological_source: patient,
+                },
+            ),
+        ];
+        nodes.extend(cells.iter().cloned().map(|cell_id| {
+            HierarchyNode::new(
+                HierarchyId::from(cell_id),
+                Some(slide.clone()),
+                ReplicationRole::Structural,
+            )
+        }));
+        let hierarchy = CohortHierarchy::new(nodes, Vec::new()).expect("hierarchy");
+        let row_link = CellEmbeddingRowLink::new(
+            artifact_id(b"source-cells"),
+            artifact_id(b"source-vectors"),
+            artifact_id(b"expected"),
+            artifact_id(b"identity-map"),
+            artifact_id(b"converter"),
+            &expected,
+            &hierarchy,
+            vec![
+                CellEmbeddingRowLinkEntry::present(cells[0].clone(), 0, 0),
+                CellEmbeddingRowLinkEntry::missing_vector(cells[1].clone(), 1),
+            ],
+            1024 * 1024,
+        )
+        .expect("row link");
+
+        // Arrow 60 writes no bitmap for a batch without nulls.
+        validate_nullable_bitmap(&[], &row_link, 0, 1).expect("present row without bitmap");
+        validate_nullable_bitmap(&[0b01], &row_link, 0, 2).expect("mixed rows with bitmap");
+        assert!(matches!(
+            validate_nullable_bitmap(&[], &row_link, 0, 2),
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidBuffers,
+            })
+        ));
+    }
 }

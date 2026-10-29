@@ -6,10 +6,9 @@ use crate::columnar::parquet::multiscale::preflight::preflight_summary;
 use std::io::{Cursor, Read, Seek};
 
 use marklab_project::ContentDigest;
-use parquet::{
-    file::metadata::ParquetMetaData,
-    format::{FieldRepetitionType, FileMetaData, SchemaElement, Type},
-};
+use parquet::file::metadata::ParquetMetaData;
+
+use crate::columnar::parquet::format::{FieldRepetitionType, FileMetaData, SchemaElement, Type};
 
 use crate::columnar::parquet::schema::{
     is_flat_group as is_group, is_required_utf8 as is_utf8, is_unsigned_u64 as is_u64,

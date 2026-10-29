@@ -2,6 +2,11 @@
 
 #[path = "support/multiscale_columnar.rs"]
 mod support;
+/// Parquet's Thrift footer types, shared with marklab-embeddings' bounded preflight.
+#[allow(clippy::all)]
+#[rustfmt::skip]
+#[path = "../crates/marklab-embeddings/src/columnar/parquet/format.rs"]
+mod parquet_format;
 
 use std::{fs, io::Write, mem::size_of, process::Command};
 
@@ -18,12 +23,10 @@ use marklab::{
     },
     workflow::{ContentDigest, LocalArtifactStore, PublicationDisposition, StoreId, TableFormat},
 };
-use parquet::{
-    file::metadata::ParquetMetaDataReader,
-    format::{
-        ColumnChunk, ColumnMetaData, ColumnOrder, Encoding, FileMetaData, KeyValue,
-        PageEncodingStats, RowGroup, SchemaElement,
-    },
+use parquet::file::metadata::ParquetMetaDataReader;
+use parquet_format::{
+    ColumnChunk, ColumnMetaData, ColumnOrder, Encoding, FileMetaData, KeyValue, PageEncodingStats,
+    RowGroup, SchemaElement,
 };
 use tempfile::TempDir;
 

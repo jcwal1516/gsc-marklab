@@ -4,13 +4,11 @@ use std::{
 };
 
 use marklab_project::ContentDigest;
-use parquet::{
-    file::metadata::ParquetMetaDataReader,
-    format::{
-        ColumnChunk, ColumnMetaData, ColumnOrder, Encoding, FileMetaData, KeyValue,
-        PageEncodingStats, RowGroup, SchemaElement,
-    },
-    thrift::TSerializable,
+use parquet::file::metadata::ParquetMetaDataReader;
+
+use crate::columnar::parquet::format::{
+    ColumnChunk, ColumnMetaData, ColumnOrder, Encoding, FileMetaData, KeyValue, PageEncodingStats,
+    RowGroup, SchemaElement, TSerializable,
 };
 
 use crate::{
@@ -195,8 +193,7 @@ pub(in crate::columnar::parquet) fn prepare_cell_embedding_table_parquet_reader<
             != Some(expected.cells().len())
         || stock_metadata.num_row_groups() != expected_row_groups
         || stock_metadata.file_metadata().created_by() != Some(CREATED_BY)
-        || stock_metadata.column_index().is_some()
-        || stock_metadata.offset_index().is_some()
+        || stock_metadata.page_index().is_some()
     {
         return Err(parquet_failure(ParquetFailure::StockDecode));
     }

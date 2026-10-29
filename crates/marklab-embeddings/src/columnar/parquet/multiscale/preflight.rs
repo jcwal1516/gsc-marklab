@@ -3,11 +3,10 @@ use crate::columnar::parquet::physical::{decode_stock_metadata, read_footer, Raw
 use std::io::{Cursor, Read, Seek};
 
 use marklab_project::ContentDigest;
-use parquet::{
-    file::metadata::ParquetMetaData,
-    format::{
-        Encoding, FieldRepetitionType, FileMetaData, PageHeader, PageType, SchemaElement, Type,
-    },
+use parquet::file::metadata::ParquetMetaData;
+
+use crate::columnar::parquet::format::{
+    Encoding, FieldRepetitionType, FileMetaData, PageHeader, PageType, SchemaElement, Type,
 };
 
 use crate::columnar::parquet::schema::{is_flat_group as is_group, is_required_utf8 as is_utf8};
@@ -665,13 +664,13 @@ fn decoded_chunk(
 
 #[cfg(test)]
 mod tests {
+    use crate::columnar::parquet::format::{
+        ColumnChunk, ColumnMetaData, CompressionCodec, ConvertedType, DataPageHeaderV2,
+        LogicalType, PageEncodingStats, Statistics, StringType,
+    };
     use crate::columnar::parquet::{
         physical::{page_header_length_is_valid, validate_footer_length},
         profile::{MAXIMUM_FOOTER_BYTES, MAXIMUM_PAGE_HEADER_BYTES},
-    };
-    use parquet::format::{
-        ColumnChunk, ColumnMetaData, CompressionCodec, ConvertedType, DataPageHeaderV2,
-        LogicalType, PageEncodingStats, Statistics, StringType,
     };
 
     use super::super::super::physical::validate_column_features;

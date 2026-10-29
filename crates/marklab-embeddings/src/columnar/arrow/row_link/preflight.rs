@@ -1,6 +1,6 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
-use arrow_ipc::convert::fb_to_schema;
+use arrow_ipc::convert::try_fb_to_schema;
 use marklab_project::ContentDigest;
 
 use crate::columnar::enforce_file_budget;
@@ -11,7 +11,7 @@ use super::{
         super::super::{ArrowIpcFailure, ColumnarError, EmbeddingColumnarBudgets},
         physical::{
             decode_footer, decode_record_batch_message, read_footer, read_record_batch_block,
-            validate_schema_message,
+            validate_schema_message, BufferLength,
         },
         profile::{
             align, arrow_failure, enforce_decoded_budget, enforce_retained_budget,
@@ -116,7 +116,9 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
         .schema()
         .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     validate_flatbuffer_schema(footer_schema, row_link)?;
-    if fb_to_schema(footer_schema) != row_link_schema(row_link)? {
+    if try_fb_to_schema(footer_schema).map_err(|_| arrow_failure(ArrowIpcFailure::InvalidSchema))?
+        != row_link_schema(row_link)?
+    {
         return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     enforce_retained_budget(MAXIMUM_MESSAGE_BYTES, budgets)?;
@@ -255,7 +257,7 @@ fn validate_record_batch(
     if buffers.len() != 7 {
         return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
     }
-    let validity = validity_bytes(rows)?;
+    let validity = BufferLength::Validity(validity_bytes(rows)?);
     let offsets = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
@@ -269,7 +271,13 @@ fn validate_record_batch(
         .checked_mul(size_of::<u64>())
         .ok_or(ColumnarError::SizeOverflow)?;
     let exact_lengths = [
-        validity, offsets, cell_bytes, validity, values, validity, values,
+        validity,
+        BufferLength::Exact(offsets),
+        BufferLength::Exact(cell_bytes),
+        validity,
+        BufferLength::Exact(values),
+        validity,
+        BufferLength::Exact(values),
     ];
     let mut ranges = [(0_usize, 0_usize); 7];
     let mut next_offset = 0_usize;
@@ -277,7 +285,8 @@ fn validate_record_batch(
     for (index, (buffer, exact_length)) in buffers.iter().zip(exact_lengths).enumerate() {
         let offset = nonnegative_usize(buffer.offset(), ArrowIpcFailure::InvalidBuffers)?;
         let length = nonnegative_usize(buffer.length(), ArrowIpcFailure::InvalidBuffers)?;
-        if offset != align(next_offset)? || offset % ALIGNMENT != 0 || length != exact_length {
+        if offset != align(next_offset)? || offset % ALIGNMENT != 0 || !exact_length.accepts(length)
+        {
             return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
         }
         let end = offset
@@ -289,7 +298,10 @@ fn validate_record_batch(
         ranges[index] = (offset, end);
         next_offset = end;
         decoded_bytes = decoded_bytes
-            .checked_add(u64::try_from(length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .checked_add(
+                u64::try_from(exact_length.decoded_bytes())
+                    .map_err(|_| ColumnarError::SizeOverflow)?,
+            )
             .ok_or(ColumnarError::SizeOverflow)?;
     }
     if align(next_offset)? != body_bytes.len() {

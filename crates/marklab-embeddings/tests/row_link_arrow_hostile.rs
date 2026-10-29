@@ -232,3 +232,16 @@ fn public_row_link_preflight_rejects_compression_variadic_and_table_heavy_messag
         ));
     }
 }
+
+#[test]
+fn public_row_link_preflight_accepts_the_bytes_arrow_56_wrote() {
+    // Arrow 56 wrote an all-valid bitmap for each column without nulls; Arrow 60 writes none.
+    let arrow_56 = include_bytes!("fixtures/row_link_arrow56.arrow");
+    let (expected, row_link, budgets) = fixture();
+    let mut arrow_60 = Vec::new();
+    write_cell_embedding_row_link_arrow(&mut arrow_60, &row_link, budgets)
+        .expect("canonical row-link Arrow");
+    assert!(arrow_60.len() < arrow_56.len());
+    preflight_cell_embedding_row_link_arrow_bytes(arrow_56, &expected, &row_link, budgets)
+        .expect("Arrow 56 row link");
+}

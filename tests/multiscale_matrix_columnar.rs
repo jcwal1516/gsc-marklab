@@ -402,33 +402,33 @@ fn all_matrix_encodings_have_stable_golden_identities() {
     let expected = [
         (
             "patch-arrow",
-            3_394,
-            "5db36dbb4b430dc13bf20b4674d7d54489a08183ec34436c101f472090c7926e".to_owned(),
+            3_138,
+            "f16669f6a53d7496a3daa73d7889b90a260409a4bd75c9a9f79aad3f7c6d6dc5".to_owned(),
         ),
         (
             "patch-parquet",
             1_224,
-            "93dba0b4f55c93d3870aac853cff1c4aebfe7b9d443f93886c204e3ea051de1a".to_owned(),
+            "f39462a78151bda6c714c305568187435277c9330b705486018fe87121b5e401".to_owned(),
         ),
         (
             "region-arrow",
-            3_394,
-            "70802935d5585917d7607609721bf99a2da39763de6c816a516bb91281404fa4".to_owned(),
+            3_138,
+            "b6ac7f4940b62072d10e35509374e5c90dbb047554f31a817cefe7b69072a627".to_owned(),
         ),
         (
             "region-parquet",
             1_133,
-            "68f71780e528de67214dc4d707f669a7c4bbc9ba9b65c2ea9e283735497725db".to_owned(),
+            "9fbcec52d5cf4f1177f0ec36ed7f9b383bf37c2fdc7c8dfcae89e49cd792baa7".to_owned(),
         ),
         (
             "slide-arrow",
-            3_394,
-            "fadc6f04d785a619156b144e988fe83bed75ae204c3abc8cd66c4de510e5d0c4".to_owned(),
+            3_138,
+            "ddb0e63dc48d6880252d6489b1fae438b3402bda0dbda10d4446b623df2512ab".to_owned(),
         ),
         (
             "slide-parquet",
             1_096,
-            "644856f69f0fa323fb20c39ebc97f9afd63ad47489eb97209e02b9e43d8959a4".to_owned(),
+            "d95db260e20ea255385335a691c47efd0dd58b83588e238ae10dc4c019780098".to_owned(),
         ),
     ];
     assert_eq!(observed, expected);

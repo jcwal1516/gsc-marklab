@@ -11,6 +11,8 @@ use std::{collections::BTreeMap, io::Cursor, mem::size_of};
 
 use adversarial_support::{
     arrow_buffer_location, arrow_footer_bounds, first_arrow_block as shared_first_arrow_block,
+    one_byte_validity,
+    parquet_format::{CompressionCodec, Encoding, Statistics},
     rewrite_parquet_footer, trusted_parquet_metadata,
 };
 use arrow::ipc::reader::FileReader;
@@ -30,7 +32,6 @@ use marklab::{
         ArtifactId, ArtifactRecord, ArtifactRef, ContentDigest, LocalArtifactStore, StoreId,
     },
 };
-use parquet::format::{CompressionCodec, Encoding, Statistics};
 
 use support::{matrix_fixture, LARGE};
 
@@ -376,9 +377,7 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
     }
 
     for validity_index in [0, 3, 4, 6] {
-        let mut wrong_validity = canonical.clone();
-        let validity = arrow_buffer_range(&wrong_validity, validity_index);
-        wrong_validity[validity.start] = 0xfe;
+        let wrong_validity = one_byte_validity(&canonical, validity_index);
         assert!(matches!(
             preflight_patch_embedding_table_arrow_bytes(&wrong_validity, table, budgets()),
             Err(ColumnarError::Arrow {
@@ -388,10 +387,10 @@ fn matrix_arrow_preflight_rejects_profile_rows_buffers_fillers_and_padding() {
     }
 
     let mut wrong_padding = canonical.clone();
-    let validity = arrow_buffer_range(&wrong_padding, 0);
     let offsets = arrow_buffer_range(&wrong_padding, 1);
-    assert!(validity.end < offsets.start);
-    wrong_padding[validity.end] = 1;
+    let ids = arrow_buffer_range(&wrong_padding, 2);
+    assert!(offsets.end < ids.start);
+    wrong_padding[offsets.end] = 1;
     assert!(matches!(
         preflight_patch_embedding_table_arrow_bytes(&wrong_padding, table, budgets()),
         Err(ColumnarError::Arrow {

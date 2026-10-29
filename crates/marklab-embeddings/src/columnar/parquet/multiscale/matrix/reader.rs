@@ -402,8 +402,7 @@ pub(in crate::columnar::parquet) fn visit_batch(
     }
     let dimension = usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?;
     for local in 0..batch.num_rows() {
-        let value_start = usize::try_from(embeddings.value_offset(local))
-            .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
+        let value_start = embeddings.value_offset_at(local);
         let value_end = value_start
             .checked_add(dimension)
             .ok_or(ColumnarError::SizeOverflow)?;

@@ -3,6 +3,11 @@
 #[allow(dead_code)]
 #[path = "support/multiscale_matrix_columnar.rs"]
 mod support;
+/// Parquet's Thrift footer types, shared with marklab-embeddings' bounded preflight.
+#[allow(clippy::all)]
+#[rustfmt::skip]
+#[path = "../crates/marklab-embeddings/src/columnar/parquet/format.rs"]
+mod parquet_format;
 
 use std::{io::Write, mem::size_of};
 
@@ -19,14 +24,12 @@ use marklab::{
     },
     workflow::{LocalArtifactStore, StoreId},
 };
-use parquet::{
-    file::metadata::{
-        ColumnChunkMetaData, ParquetMetaData, ParquetMetaDataReader, RowGroupMetaData,
-    },
-    format::{
-        ColumnChunk, ColumnMetaData, ColumnOrder, Encoding, FileMetaData, KeyValue,
-        PageEncodingStats, RowGroup, SchemaElement,
-    },
+use parquet::file::metadata::{
+    ColumnChunkMetaData, ParquetMetaData, ParquetMetaDataReader, RowGroupMetaData,
+};
+use parquet_format::{
+    ColumnChunk, ColumnMetaData, ColumnOrder, Encoding, FileMetaData, KeyValue, PageEncodingStats,
+    RowGroup, SchemaElement,
 };
 use tempfile::TempDir;
 
@@ -188,14 +191,21 @@ fn arrow_reader_requirements(bytes: &[u8]) -> (usize, usize, u64) {
         maximum_group = maximum_group.max(metadata + body);
         let message = arrow::ipc::root_as_message(&bytes[offset + 8..offset + metadata])
             .expect("record message");
-        let batch_decoded = message
-            .header_as_record_batch()
-            .expect("record batch")
+        let batch = message.header_as_record_batch().expect("record batch");
+        let batch_decoded = batch
             .buffers()
             .expect("buffers")
             .iter()
             .map(|buffer| usize::try_from(buffer.length()).expect("buffer length"))
-            .sum::<usize>();
+            .sum::<usize>()
+            // Arrow 60 omits the validity bitmap of a column without nulls; readers still charge it.
+            + batch
+                .nodes()
+                .expect("nodes")
+                .iter()
+                .filter(|node| node.null_count() == 0)
+                .map(|node| usize::try_from(node.length()).expect("node length").div_ceil(8))
+                .sum::<usize>();
         maximum_decoded = maximum_decoded.max(batch_decoded);
         aggregate_decoded += batch_decoded as u64;
     }

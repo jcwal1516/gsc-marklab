@@ -13,9 +13,9 @@ use parquet::{
         ArrowReaderMetadata, ArrowReaderOptions, ParquetRecordBatchReaderBuilder,
     },
     file::metadata::{ParquetMetaData, ParquetMetaDataReader, RowGroupMetaData},
-    format::{FileMetaData, SchemaElement, Type},
-    thrift::TSerializable,
 };
+
+use crate::columnar::parquet::format::{FileMetaData, SchemaElement, TSerializable, Type};
 
 use crate::columnar::{
     enforce_decoded_budget, enforce_file_budget, enforce_retained_budget, enforce_row_group_budget,
@@ -446,8 +446,7 @@ pub(super) fn prepare<R: Read + Seek + ?Sized>(
         || usize::try_from(metadata.file_metadata().num_rows()).ok() != Some(rows)
         || metadata.num_row_groups() != groups
         || metadata.file_metadata().created_by() != Some(CREATED_BY)
-        || metadata.column_index().is_some()
-        || metadata.offset_index().is_some()
+        || metadata.page_index().is_some()
     {
         return Err(failure(ParquetFailure::StockDecode));
     }

@@ -3,12 +3,12 @@ use std::mem::size_of;
 
 use crate::columnar::parquet::levels::LevelStreamError;
 
-use parquet::file::metadata::{ParquetMetaDataReader, RowGroupMetaData};
-use parquet::format::{
-    ColumnChunk, ColumnMetaData, ColumnOrder, CompressionCodec, Encoding, FileMetaData, PageHeader,
-    PageType,
+use crate::columnar::parquet::format::{
+    ColumnChunk, ColumnMetaData, CompressionCodec, Encoding, FileMetaData, PageHeader, PageType,
+    TSerializable,
 };
-use parquet::thrift::TSerializable;
+use crate::columnar::parquet::schema::has_writer_column_orders;
+use parquet::file::metadata::{ParquetMetaDataReader, RowGroupMetaData};
 
 use crate::columnar::{
     enforce_retained_budget, enforce_row_group_budget,
@@ -125,8 +125,7 @@ pub(super) fn decode_stock_metadata(
         || usize::try_from(stock.file_metadata().num_rows()).ok() != Some(row_count)
         || stock.num_row_groups() != row_count.div_ceil(ROW_GROUP_ROWS)
         || stock.file_metadata().created_by() != Some(CREATED_BY)
-        || stock.column_index().is_some()
-        || stock.offset_index().is_some()
+        || stock.page_index().is_some()
     {
         return Err(parquet_failure(ParquetFailure::StockDecode));
     }
@@ -226,10 +225,7 @@ where
         || metadata.encryption_algorithm.is_some()
         || metadata.footer_signing_key_metadata.is_some()
         || metadata.column_orders.as_ref().is_none_or(|orders| {
-            orders.len() != column_count
-                || orders
-                    .iter()
-                    .any(|order| !matches!(order, ColumnOrder::TYPEORDER(_)))
+            orders.len() != column_count || !has_writer_column_orders(&metadata.schema, orders)
         })
     {
         return Err(parquet_failure(ParquetFailure::InvalidMetadata));

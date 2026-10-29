@@ -1,6 +1,6 @@
 use std::io::{self, Cursor, Read, Write};
 
-use parquet::thrift::TSerializable;
+use crate::columnar::parquet::format::TSerializable;
 use thrift::{
     protocol::{
         TCompactOutputProtocol, TFieldIdentifier, TInputProtocol, TListIdentifier, TMapIdentifier,
@@ -142,22 +142,6 @@ pub(super) fn is_canonical_compact<T: TSerializable>(
     Ok(output.bytes == bytes)
 }
 
-/// Measure canonical compact-Thrift output while enforcing a hard byte ceiling.
-pub(super) fn canonical_compact_len<T: TSerializable>(
-    value: &T,
-    maximum_bytes: usize,
-) -> thrift::Result<usize> {
-    let mut output = BoundedCompactCounter {
-        byte_len: 0,
-        maximum_bytes,
-    };
-    {
-        let mut protocol = TCompactOutputProtocol::new(&mut output);
-        value.write_to_out_protocol(&mut protocol)?;
-    }
-    Ok(output.byte_len)
-}
-
 struct BoundedCompactOutput {
     bytes: Vec<u8>,
     maximum_bytes: usize,
@@ -187,29 +171,6 @@ impl Write for BoundedCompactOutput {
             return Err(io::Error::other("bounded compact-Thrift output rejected"));
         }
         self.bytes.extend_from_slice(buffer);
-        Ok(buffer.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
-struct BoundedCompactCounter {
-    byte_len: usize,
-    maximum_bytes: usize,
-}
-
-impl Write for BoundedCompactCounter {
-    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        let attempted = self
-            .byte_len
-            .checked_add(buffer.len())
-            .ok_or_else(|| io::Error::other("bounded compact-Thrift output rejected"))?;
-        if attempted > self.maximum_bytes {
-            return Err(io::Error::other("bounded compact-Thrift output rejected"));
-        }
-        self.byte_len = attempted;
         Ok(buffer.len())
     }
 

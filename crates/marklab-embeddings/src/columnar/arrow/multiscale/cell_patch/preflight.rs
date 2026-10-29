@@ -1,7 +1,7 @@
 use crate::columnar::arrow::multiscale::preflight::preflight_summary;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
-use arrow_ipc::convert::fb_to_schema;
+use arrow_ipc::convert::try_fb_to_schema;
 use marklab_project::ContentDigest;
 
 use crate::{CellPatchAssignmentMode, CellPatchLink};
@@ -9,7 +9,7 @@ use crate::{CellPatchAssignmentMode, CellPatchLink};
 use super::super::super::physical::{
     align, checked_range, decode_footer, decode_record_batch_message, nonnegative_i32,
     nonnegative_i64, read_footer, traverse_record_batches, validate_footer_features,
-    validate_record_batch_features, validity_bytes,
+    validate_record_batch_features, validity_bytes, BufferLength,
 };
 use super::profile::{
     arrow_failure, expected_schema, validate_flatbuffer_schema, CellPatchArrowProfile,
@@ -98,7 +98,9 @@ pub(super) fn preflight_reader<R: Read + Seek + ?Sized>(
         .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     validate_flatbuffer_schema(footer_schema, profile, link)?;
     let schema = expected_schema(profile, link)?;
-    if fb_to_schema(footer_schema) != schema {
+    if try_fb_to_schema(footer_schema).map_err(|_| arrow_failure(ArrowIpcFailure::InvalidSchema))?
+        != schema
+    {
         return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let row_count = profile.row_count(link);
@@ -188,7 +190,9 @@ fn validate_record_message(
     }
     let decoded = expected_lengths.iter().try_fold(0_u64, |total, length| {
         total
-            .checked_add(u64::try_from(*length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .checked_add(
+                u64::try_from(length.decoded_bytes()).map_err(|_| ColumnarError::SizeOverflow)?,
+            )
             .ok_or(ColumnarError::SizeOverflow)
     })?;
     Ok(decoded)
@@ -223,8 +227,8 @@ fn expected_buffer_lengths(
     link: &CellPatchLink,
     start: usize,
     rows: usize,
-) -> Result<Vec<usize>, ColumnarError> {
-    let validity = validity_bytes(rows)?;
+) -> Result<Vec<BufferLength>, ColumnarError> {
+    let validity = BufferLength::Validity(validity_bytes(rows)?);
     let offsets = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
@@ -232,6 +236,7 @@ fn expected_buffer_lengths(
     let values = rows
         .checked_mul(size_of::<u64>())
         .ok_or(ColumnarError::SizeOverflow)?;
+    let (offsets, values) = (BufferLength::Exact(offsets), BufferLength::Exact(values));
     match profile {
         CellPatchArrowProfile::Assignment => {
             let selected = &link.assignments()[checked_range(start, rows)?];
@@ -249,8 +254,20 @@ fn expected_buffer_lengths(
                 },
             )?;
             Ok(vec![
-                validity, offsets, cells, validity, offsets, statuses, validity, values, validity,
-                values, validity, values, validity, values,
+                validity,
+                offsets,
+                BufferLength::Exact(cells),
+                validity,
+                offsets,
+                BufferLength::Exact(statuses),
+                validity,
+                values,
+                validity,
+                values,
+                validity,
+                values,
+                validity,
+                values,
             ])
         }
         CellPatchArrowProfile::Edge => {
@@ -261,7 +278,15 @@ fn expected_buffer_lengths(
                     .ok_or(ColumnarError::SizeOverflow)
             })?;
             Ok(vec![
-                validity, values, validity, offsets, patches, validity, values, validity, values,
+                validity,
+                values,
+                validity,
+                offsets,
+                BufferLength::Exact(patches),
+                validity,
+                values,
+                validity,
+                values,
             ])
         }
     }
@@ -270,7 +295,7 @@ fn expected_buffer_lengths(
 fn validate_buffer_ranges(
     buffers: flatbuffers::Vector<'_, arrow_ipc::Buffer>,
     body: &[u8],
-    expected_lengths: &[usize],
+    expected_lengths: &[BufferLength],
 ) -> Result<Vec<std::ops::Range<usize>>, ColumnarError> {
     let mut ranges = Vec::new();
     let range_bytes = buffers
@@ -287,7 +312,7 @@ fn validate_buffer_ranges(
         let offset = nonnegative_i64(buffer.offset(), ArrowIpcFailure::InvalidBuffers)?;
         let length = nonnegative_i64(buffer.length(), ArrowIpcFailure::InvalidBuffers)?;
         let aligned = align(next)?;
-        if offset != aligned || offset % ALIGNMENT != 0 || length != *expected_len {
+        if offset != aligned || offset % ALIGNMENT != 0 || !expected_len.accepts(length) {
             return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
         }
         if offset > body.len() || body[next..offset].iter().any(|byte| *byte != 0) {
@@ -395,6 +420,10 @@ fn validate_weight_bitmap(
     rows: usize,
     mode: CellPatchAssignmentMode,
 ) -> Result<(), ColumnarError> {
+    // Arrow 60 writes an empty bitmap for a column without nulls.
+    if bytes.is_empty() && mode == CellPatchAssignmentMode::DeclaredWeightedInterpolation {
+        return Ok(());
+    }
     let expected = vec![
         match mode {
             CellPatchAssignmentMode::ContainedShared => 0,
@@ -520,7 +549,27 @@ mod tests {
     };
     use flatbuffers::{FlatBufferBuilder, WIPOffset};
 
-    use super::{validate_record_batch_features, ArrowIpcFailure, ColumnarError};
+    use super::{
+        validate_record_batch_features, validate_weight_bitmap, ArrowIpcFailure, ColumnarError,
+    };
+    use crate::CellPatchAssignmentMode;
+
+    #[test]
+    fn weight_bitmap_may_be_empty_only_without_null_weights() {
+        // Arrow 60 writes no bitmap for a column without nulls.
+        validate_weight_bitmap(
+            &[],
+            3,
+            CellPatchAssignmentMode::DeclaredWeightedInterpolation,
+        )
+        .expect("all weights present");
+        assert!(matches!(
+            validate_weight_bitmap(&[], 3, CellPatchAssignmentMode::ContainedShared),
+            Err(ColumnarError::Arrow {
+                reason: ArrowIpcFailure::InvalidBuffers,
+            })
+        ));
+    }
 
     #[test]
     fn record_batch_feature_gate_rejects_compression_and_variadic_buffers() {

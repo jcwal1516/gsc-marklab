@@ -506,8 +506,7 @@ where
             if status != link.status() {
                 return Err(arrow_failure(ArrowIpcFailure::InvalidStatus));
             }
-            let start = usize::try_from(embeddings.value_offset(local_row))
-                .map_err(|_| arrow_failure(ArrowIpcFailure::StockDecode))?;
+            let start = embeddings.value_offset_at(local_row);
             let end = start
                 .checked_add(usize::try_from(dimension).map_err(|_| ColumnarError::SizeOverflow)?)
                 .ok_or(ColumnarError::SizeOverflow)?;

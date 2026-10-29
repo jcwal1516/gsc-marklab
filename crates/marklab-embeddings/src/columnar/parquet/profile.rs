@@ -3,8 +3,10 @@ use std::sync::Arc;
 use ::arrow::datatypes::{DataType, Field, Schema};
 use parquet::{
     basic::{Compression, Encoding},
-    file::properties::{EnabledStatistics, WriterProperties, WriterVersion},
-    format::KeyValue,
+    file::{
+        metadata::KeyValue,
+        properties::{EnabledStatistics, WriterProperties, WriterVersion},
+    },
 };
 
 use super::super::{CellEmbeddingTablePhysicalBindings, ColumnarError};
@@ -28,6 +30,9 @@ const SCHEMA_VERSION: &str = "1";
 pub(super) const ENCODING_VERSION: &str = "marklab.parquet.embedding-table.v1";
 pub(super) const CONTENT_KIND: &str = "application/vnd.marklab.cell-embedding-table.v1+parquet";
 pub(super) const ROOT_NAME: &str = "marklab_cell_embedding_table";
+/// Writer identity that every table records and preflight requires. It names the Parquet release
+/// the profile was defined with; parquet 60 writes the same bytes apart from the float column
+/// order, which preflight accepts in either form, so tables from both releases stay readable.
 pub(super) const CREATED_BY: &str = "marklab-embeddings/0.1.0 parquet-56.2.1 profile-v1";
 
 pub(super) const METADATA_KEYS: [&str; 7] = [
@@ -83,7 +88,7 @@ pub(super) fn writer_properties_with_metadata(metadata: Vec<KeyValue>) -> Writer
         .set_data_page_size_limit(PAGE_BYTES)
         .set_data_page_row_count_limit(PAGE_ROWS)
         .set_write_batch_size(PARQUET_WRITE_BATCH_SIZE)
-        .set_max_row_group_size(ROW_GROUP_ROWS)
+        .set_max_row_group_row_count(Some(ROW_GROUP_ROWS))
         .set_created_by(CREATED_BY.to_owned())
         .set_offset_index_disabled(true)
         .set_key_value_metadata(Some(metadata))

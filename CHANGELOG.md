@@ -236,6 +236,18 @@
 
 ### Engineering in the unreleased development batch
 
+- Update Arrow and Parquet from 56 to 60. Parquet 60 keeps its Thrift footer types private, so
+  the bounded Parquet preflight carries parquet 56.2.1's generated types (Apache License 2.0) with
+  a local generic serialization trait and the IEEE 754 column order added. Newly written embedding
+  tables differ from earlier ones in two ways that no writer option restores: Parquet files record
+  IEEE 754 total order instead of the type-defined order for the float embedding column (one byte),
+  and Arrow IPC files carry an empty validity buffer instead of an all-valid bitmap for each column
+  without nulls, so they are smaller. Content digests of new tables therefore change. Preflight
+  and readers accept both forms, so tables written with Arrow and Parquet 56 remain readable, and
+  decoded-byte budgets still count every validity bitmap, so they are the same for both. The
+  row-link Arrow writer no longer patches its validity bitmap. Parquet 60 also moves Parquet off
+  `zstd` 0.13; the WSI stack (`wsi-rs` 0.5.0) still resolves `zstd` 0.13.3 and `zstd-safe` 7.2.4,
+  which RUSTSEC-2026-0391, -0398 and -0403 affect.
 - Name the spectrum and classifier commands for what they do rather than for MALDI-TOF
   susceptibility: `microbio preprocess` and `microbio feature-table` are now `spectrum preprocess`
   and `spectrum feature-table`, which takes `--modality` and `--unit`; `microbio fit-ast` and

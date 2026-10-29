@@ -1,4 +1,4 @@
-use parquet::format::{
+use crate::columnar::parquet::format::{
     ConvertedType, FieldRepetitionType, FileMetaData, LogicalType, SchemaElement, Type,
 };
 

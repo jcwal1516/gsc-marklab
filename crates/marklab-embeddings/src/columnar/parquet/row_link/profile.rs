@@ -1,5 +1,5 @@
 use arrow::datatypes::{DataType, Field, Schema};
-use parquet::{file::properties::WriterProperties, format::KeyValue};
+use parquet::file::{metadata::KeyValue, properties::WriterProperties};
 
 use crate::CellEmbeddingRowLink;
 

@@ -33,11 +33,11 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 csv = { workspace = true, optional = true }
-arrow = { version = "56", default-features = false, features = ["ipc"], optional = true }
-arrow-ipc = { version = "56", optional = true }
+arrow = { version = "60", default-features = false, features = ["ipc"], optional = true }
+arrow-ipc = { version = "60", optional = true }
 bytes = { version = "=1.11.1", optional = true }
 flatbuffers = { version = "25", optional = true }
-parquet = { version = "=56.2.1", default-features = false, features = ["arrow"], optional = true }
+parquet = { version = "=60.1.0", default-features = false, features = ["arrow"], optional = true }
 thrift = { version = "=0.17.0", default-features = false, optional = true }
 
 [dev-dependencies]

@@ -64,9 +64,7 @@ pub(super) fn footprint_schema(
     validate_footprint_domain(expected, context, footprints)?;
     Ok(Schema::new_with_metadata(
         crate::columnar::multiscale::footprint_fields(),
-        footprint_metadata(expected, footprints)
-            .into_iter()
-            .collect(),
+        footprint_metadata(expected, footprints),
     ))
 }
 
@@ -79,9 +77,7 @@ pub(super) fn overlap_schema(
     validate_overlap_domain(expected, context, footprints, overlap)?;
     Ok(Schema::new_with_metadata(
         crate::columnar::multiscale::overlap_fields(),
-        overlap_metadata(expected, footprints, overlap)
-            .into_iter()
-            .collect(),
+        overlap_metadata(expected, footprints, overlap),
     ))
 }
 

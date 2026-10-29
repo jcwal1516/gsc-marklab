@@ -76,11 +76,13 @@ impl RawBatch<'_> {
         data: usize,
         row: usize,
     ) -> Result<Option<u64>, ColumnarError> {
-        if self.buffers[validity].len() != self.rows.div_ceil(8) {
+        let bitmap = self.buffers[validity];
+        // Arrow 60 writes an empty bitmap for a column without nulls; preflight has checked that.
+        if !bitmap.is_empty() && bitmap.len() != self.rows.div_ceil(8) {
             return invalid();
         }
         let value = self.number(data, row)?;
-        Ok((self.buffers[validity][row / 8] & (1 << (row % 8)) != 0).then_some(value))
+        Ok((bitmap.is_empty() || bitmap[row / 8] & (1 << (row % 8)) != 0).then_some(value))
     }
 }
 
