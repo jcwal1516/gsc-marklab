@@ -20,8 +20,8 @@ from numpyro.infer import NUTS
 sys.path.append(str(Path(__file__).resolve().parent))
 
 import marklab_numpyro_student_t_hierarchy_worker as agreement
-from marklab_worker_support import student_t_hierarchy as source_contract
 from marklab_worker_support import numpyro_sbc
+from marklab_worker_support import student_t_hierarchy as source_contract
 from marklab_worker_support.protocol import (
     MIB,
     derive_seed,

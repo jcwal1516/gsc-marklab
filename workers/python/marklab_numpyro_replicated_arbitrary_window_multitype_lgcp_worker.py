@@ -135,9 +135,7 @@ def fit(
     if not prior_finite:
         raise ContractError("prior predictive counts are non-finite or outside the Poisson range")
     maximum_tree_depth = config["numpyro_maximum_tree_depth"]
-    samples, flat, extra = sample_posterior(
-        model, config, seed_for(config["seed"], "nuts")
-    )
+    samples, flat, extra = sample_posterior(model, config, seed_for(config["seed"], "nuts"))
     patient_effect, pattern_effect = lgcp.hierarchy_effect_draws(
         config, flat["patient_sd"], flat["patient_raw"], flat["pattern_sd"], flat["pattern_raw"]
     )

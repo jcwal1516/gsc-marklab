@@ -20,8 +20,8 @@ from numpyro.infer import NUTS
 
 sys.path.append(str(Path(__file__).resolve().parent))
 
-from marklab_worker_support import beta_binomial_group as source_contract
 from marklab_numpyro_beta_binomial_group_regression_worker import model
+from marklab_worker_support import beta_binomial_group as source_contract
 from marklab_worker_support import numpyro_sbc
 from marklab_worker_support.posterior import sigmoid
 from marklab_worker_support.protocol import (
