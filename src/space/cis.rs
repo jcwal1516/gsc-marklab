@@ -308,7 +308,7 @@ fn analyze_radius(
     ]
     .iter()
     .fold(retained_results, |sum, bytes| sum.saturating_add(*bytes));
-    let cost = CensusCost::new(specs, threads + 1);
+    let cost = CensusCost::new(specimen, specs, threads + 1);
     check_retained(input, fixed.saturating_add(cost.bytes(disc_count, 0)))?;
     let discs = draw_discs(
         specimen,

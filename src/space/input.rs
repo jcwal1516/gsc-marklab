@@ -6,6 +6,10 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::index::CellIndex;
+use super::raster::{
+    isodata_threshold, read_raster, sample_at_cells, Grid, PixelGeometry, RasterChannel,
+    RasterDeclaration, RasterSpecimen,
+};
 use super::{
     invalid, label, resource, SpaceError, SpaceVariable, SpaceVariableKind, SPACE_FORMAT_VERSION,
 };
@@ -47,6 +51,9 @@ struct Request {
     independent_scalars: Vec<String>,
     #[serde(default)]
     merge: Vec<MergeRule>,
+    /// Raster channels sampled at every specimen's cells.
+    #[serde(default)]
+    rasters: Vec<RasterDeclaration>,
     census: SpaceCensusDesign,
     #[serde(default)]
     limits: SpaceLimits,
@@ -66,6 +73,11 @@ enum Source {
         specimens: Vec<CellvitSpecimen>,
         #[serde(default)]
         minimum_class_probability: f64,
+    },
+    /// Grid points of label and intensity images.
+    Raster {
+        layers: Vec<RasterChannel>,
+        specimens: Vec<RasterSpecimen>,
     },
 }
 
@@ -234,6 +246,14 @@ pub(crate) enum VariableSpec {
     },
 }
 
+/// The grid behind a raster specimen's points, for patch nulls and default seeds.
+pub(crate) struct RasterGrid {
+    /// Each point's (column, row) in grid steps.
+    pub steps: Vec<[u32; 2]>,
+    /// Per scalar channel, the IsoData threshold at or above which a point is bright.
+    pub thresholds: Vec<u32>,
+}
+
 pub(crate) struct Specimen {
     pub id: String,
     pub groups: BTreeMap<String, String>,
@@ -249,6 +269,8 @@ pub(crate) struct Specimen {
     /// Per scalar channel, the value of every cell.
     pub scalars: Vec<Vec<f64>>,
     pub index: CellIndex,
+    /// The pixel grid of a raster specimen.
+    pub grid: Option<RasterGrid>,
     /// Cell indices of explicit disc centres, one list per radius.
     pub explicit_seeds: Option<Vec<Vec<usize>>>,
 }
@@ -274,6 +296,8 @@ struct RawSpecimen {
     coordinates_um: Vec<[f64; 2]>,
     z_um: Option<Vec<f64>>,
     observations: BTreeMap<String, Vec<Option<f64>>>,
+    /// Grid steps of a raster specimen's points.
+    grid_steps: Option<Vec<[u32; 2]>>,
 }
 
 /// Read a SPACE request file; file sources resolve relative to its directory.
@@ -300,8 +324,14 @@ fn prepare(bytes: &[u8], base: Option<&Path>) -> Result<SpaceInput, SpaceError> 
         )));
     }
     validate_limits(request.limits)?;
-    let (source_kind, channels, raw) =
-        load_source(request.source, base, request.limits.maximum_specimens)?;
+    let (source_kind, mut channels, mut raw) = load_source(request.source, base, request.limits)?;
+    sample_rasters(
+        &request.rasters,
+        &mut channels,
+        &mut raw,
+        base,
+        request.limits,
+    )?;
     let channels = declared_channels(channels)?;
 
     let mut seen_objects = BTreeSet::new();
@@ -463,8 +493,9 @@ fn prepare(bytes: &[u8], base: Option<&Path>) -> Result<SpaceInput, SpaceError> 
 fn load_source(
     source: Source,
     base: Option<&Path>,
-    maximum_specimens: usize,
+    limits: SpaceLimits,
 ) -> Result<(&'static str, Vec<Channel>, Vec<RawSpecimen>), SpaceError> {
+    let maximum_specimens = limits.maximum_specimens;
     match source {
         Source::Inline {
             channels,
@@ -484,6 +515,7 @@ fn load_source(
                         coordinates_um: specimen.coordinates_um,
                         z_um: specimen.z_um,
                         observations: specimen.observations,
+                        grid_steps: None,
                     })
                 })
                 .collect::<Result<Vec<_>, SpaceError>>()?;
@@ -514,6 +546,7 @@ fn load_source(
                         coordinates_um: slide.coordinates_um,
                         z_um: None,
                         observations: slide.observations,
+                        grid_steps: None,
                     })
                 })
                 .collect::<Result<Vec<_>, SpaceError>>()?;
@@ -540,7 +573,166 @@ fn load_source(
                 ))
             }
         }
+        Source::Raster { layers, specimens } => raster_source(layers, specimens, base, limits),
     }
+}
+
+/// Decoded raster samples are 16-bit; the retained-memory limit bounds one image's pixels.
+fn maximum_raster_pixels(limits: SpaceLimits) -> usize {
+    limits.maximum_retained_bytes / size_of::<u16>()
+}
+
+/// Grid points of each specimen's images, one channel per layer.
+fn raster_source(
+    layers: Vec<RasterChannel>,
+    specimens: Vec<RasterSpecimen>,
+    base: Option<&Path>,
+    limits: SpaceLimits,
+) -> Result<(&'static str, Vec<Channel>, Vec<RawSpecimen>), SpaceError> {
+    if layers.is_empty() {
+        return Err(invalid("a raster source needs at least one layer"));
+    }
+    if specimens.len() > limits.maximum_specimens {
+        return Err(resource(format!(
+            "{} raster specimens exceed the maximum of {}",
+            specimens.len(),
+            limits.maximum_specimens
+        )));
+    }
+    let classes = layers
+        .iter()
+        .map(RasterChannel::classes)
+        .collect::<Result<Vec<_>, _>>()?;
+    let channels = layers
+        .iter()
+        .zip(&classes)
+        .map(|(layer, classes)| layer.declaration(classes.as_ref()))
+        .collect();
+    let raw = specimens
+        .into_iter()
+        .map(|specimen| {
+            let id = specimen.specimen_id;
+            let geometry = PixelGeometry {
+                pixel_size_um: specimen.pixel_size_um,
+                origin_um: specimen.origin_um,
+            };
+            geometry.validate()?;
+            if specimen.images.len() != layers.len()
+                || layers
+                    .iter()
+                    .any(|layer| !specimen.images.contains_key(&layer.channel))
+            {
+                return Err(invalid(format!(
+                    "raster specimen {id} needs exactly one image per layer"
+                )));
+            }
+            let mut observations = BTreeMap::new();
+            let mut grid = None::<(usize, usize, Grid)>;
+            for (layer, classes) in layers.iter().zip(&classes) {
+                let image = &specimen.images[&layer.channel];
+                let raster = read_raster(
+                    &resolve(base, &image.path)?,
+                    image,
+                    maximum_raster_pixels(limits),
+                )?;
+                let (width, height) = (raster.width, raster.height);
+                let grid = match &mut grid {
+                    Some((known_width, known_height, grid)) => {
+                        if (*known_width, *known_height) != (width, height) {
+                            return Err(invalid(format!(
+                                "raster specimen {id}: layer {} is {width} x {height} pixels, unlike the others",
+                                layer.channel
+                            )));
+                        }
+                        grid
+                    }
+                    None => {
+                        let built = Grid::new(
+                            width,
+                            height,
+                            &geometry,
+                            specimen.stride_px,
+                            limits.maximum_cells_per_specimen,
+                        )?;
+                        &mut grid.insert((width, height, built)).2
+                    }
+                };
+                observations.insert(
+                    layer.channel.clone(),
+                    grid.observe(layer, classes.as_ref(), &raster)?,
+                );
+            }
+            let (width, height, grid) = grid.expect("at least one layer");
+            Ok(RawSpecimen {
+                id,
+                groups: specimen.groups,
+                coordinate_frame_id: specimen.coordinate_frame_id,
+                window_geojson: Grid::window(width, height, &geometry),
+                cell_ids: grid.cell_ids,
+                coordinates_um: grid.coordinates_um,
+                z_um: None,
+                observations,
+                grid_steps: Some(grid.steps),
+            })
+        })
+        .collect::<Result<Vec<_>, SpaceError>>()?;
+    Ok(("raster", channels, raw))
+}
+
+/// Add each declared raster channel to every specimen, sampled at its cells.
+fn sample_rasters(
+    rasters: &[RasterDeclaration],
+    channels: &mut Vec<Channel>,
+    raw: &mut [RawSpecimen],
+    base: Option<&Path>,
+    limits: SpaceLimits,
+) -> Result<(), SpaceError> {
+    for declaration in rasters {
+        let layer = declaration.layer();
+        if channels.iter().any(|channel| channel.id == layer.channel) {
+            return Err(invalid(format!(
+                "raster channel {} is already declared by the source",
+                layer.channel
+            )));
+        }
+        if let Some(unknown) = declaration
+            .images
+            .keys()
+            .find(|id| !raw.iter().any(|specimen| &specimen.id == *id))
+        {
+            return Err(invalid(format!(
+                "raster channel {} has an image for unknown specimen {unknown}",
+                layer.channel
+            )));
+        }
+        let classes = layer.classes()?;
+        channels.push(layer.declaration(classes.as_ref()));
+        for specimen in raw.iter_mut() {
+            let image = declaration.images.get(&specimen.id).ok_or_else(|| {
+                invalid(format!(
+                    "raster channel {} has no image for specimen {}",
+                    layer.channel, specimen.id
+                ))
+            })?;
+            let geometry = image.geometry();
+            geometry.validate()?;
+            let raster = read_raster(
+                &resolve(base, &image.path)?,
+                &image.reference(),
+                maximum_raster_pixels(limits),
+            )?;
+            let values = sample_at_cells(
+                &layer,
+                classes.as_ref(),
+                &raster,
+                &geometry,
+                &specimen.coordinates_um,
+                &specimen.cell_ids,
+            )?;
+            specimen.observations.insert(layer.channel.clone(), values);
+        }
+    }
+    Ok(())
 }
 
 /// CellViT H&E classification tables, one per specimen, with one class list across them.
@@ -623,6 +815,7 @@ fn cellvit_source(
                 cell_ids,
                 coordinates_um,
                 z_um: None,
+                grid_steps: None,
                 observations: BTreeMap::from([
                     (CELLVIT_CLASS_CHANNEL.to_owned(), class_values),
                     (CELLVIT_PROBABILITY_CHANNEL.to_owned(), probabilities),
@@ -1003,6 +1196,14 @@ fn prepare_specimen(
     }
     let index = CellIndex::new(&x_um, &y_um, raw.z_um.as_deref())
         .map_err(|error| invalid(format!("specimen {id}: {error}")))?;
+    // Raster intensities are 16-bit integers.
+    let grid = raw.grid_steps.map(|steps| RasterGrid {
+        steps,
+        thresholds: scalars
+            .iter()
+            .map(|values| isodata_threshold(values.iter().map(|value| *value as u16)))
+            .collect(),
+    });
     Ok(Specimen {
         id,
         groups: raw.groups,
@@ -1014,6 +1215,7 @@ fn prepare_specimen(
         class_counts,
         scalars,
         index,
+        grid,
         explicit_seeds: None,
     })
 }

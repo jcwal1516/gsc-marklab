@@ -173,7 +173,7 @@ pub(super) fn ensemble_census(
     let specs = present.iter().map(|(_, spec)| *spec).collect::<Vec<_>>();
     let seeds = draw_seeds(input, position, radius_position)?;
     let count = seeds.len();
-    let cost = CensusCost::new(&specs, 1);
+    let cost = CensusCost::new(specimen, &specs, 1);
     let fixed = held.saturating_add(
         count
             .saturating_mul(variables.len() + specs.len())

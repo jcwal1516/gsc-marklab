@@ -506,7 +506,7 @@ impl Study<'_> {
         let seeds = draw_seeds(input, position, radius_position)?;
         let count = seeds.len();
         let variables = self.specs.len();
-        let cost = CensusCost::new(self.specs, 1);
+        let cost = CensusCost::new(specimen, self.specs, 1);
         let fixed = held.saturating_add(variables.saturating_mul(count).saturating_mul(8));
         check_retained(input, fixed.saturating_add(cost.bytes(count, 0)))?;
         let discs = draw_discs(

@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::{Deserialize, Serialize};
 
 use super::input::{Specimen, VariableSpec, NO_CLASS};
+use super::patches::{layer_seed, LayerPatches};
 use super::{
     invalid, resource, SpaceError, SpaceInput, SpaceVariable, SPACE_FORMAT_VERSION,
     SPACE_REFERENCE_COMMIT,
@@ -29,14 +30,15 @@ impl Discs {
 }
 
 /// Bytes held per disc member and per disc while a census is computed, known before the discs
-/// are drawn: the discs, the census plan and `scratches` scratch buffers.
+/// are drawn: the discs, the census plan and `scratches` scratch buffers, and for a raster
+/// specimen its patches.
 pub(crate) struct CensusCost {
     per_member: usize,
     per_disc: usize,
 }
 
 impl CensusCost {
-    pub(crate) fn new(variables: &[VariableSpec], scratches: usize) -> Self {
+    pub(crate) fn new(specimen: &Specimen, variables: &[VariableSpec], scratches: usize) -> Self {
         let maps = variables
             .iter()
             .filter_map(|spec| match *spec {
@@ -51,11 +53,25 @@ impl CensusCost {
             .count();
         // Disc members and map-layer rows grow by doubling, so they count twice; the plan
         // copies every member once more, and each scratch holds every shuffled layer.
-        let rows = 2 + 2 * maps + 1 + scratches.saturating_mul(maps + independents);
+        let mut rows = 2 + 2 * maps + 1 + scratches.saturating_mul(maps + independents);
+        // Seed and disc offset, then one offset per map layer and one for all members.
+        let mut per_disc = (maps + 3) * size_of::<usize>();
+        if specimen.grid.is_some() {
+            // At most one patch per member and layer: its area and class, two words per
+            // scalar total, and each scratch's shuffled order. Each scratch also sums every
+            // class and total per disc.
+            let linked = variables
+                .iter()
+                .filter(|spec| matches!(spec, VariableSpec::Linked { .. }))
+                .count();
+            rows += (2 + scratches) * (maps + independents) + 2 * (linked + independents);
+            let classes = specimen.class_counts.iter().map(Vec::len).sum::<usize>();
+            per_disc +=
+                scratches.saturating_mul(classes + linked + independents) * size_of::<f64>();
+        }
         Self {
             per_member: rows.saturating_mul(size_of::<u32>()),
-            // Seed and disc offset, then one offset per map layer and one for all members.
-            per_disc: (maps + 3) * size_of::<usize>(),
+            per_disc,
         }
     }
 
@@ -148,10 +164,30 @@ pub(crate) fn draw_seeds(
 /// Cells that may centre a disc (SPACE `seed_points`).
 pub(crate) fn eligible_seeds(input: &SpaceInput, specimen: &Specimen) -> Vec<usize> {
     let rows = specimen.cell_ids.len();
+    // R seeds raster discs on any object or on points bright for any independent scalar.
+    let bright = specimen.grid.as_ref().map(|grid| {
+        input
+            .variables
+            .iter()
+            .filter_map(|spec| match *spec {
+                VariableSpec::Independent { scalar } => Some((
+                    &specimen.scalars[scalar],
+                    f64::from(grid.thresholds[scalar]),
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    });
     match &input.census.seed_classes {
-        None if input.object_channels.is_empty() => (0..rows).collect(),
+        None if input.object_channels.is_empty() && bright.is_none() => (0..rows).collect(),
         None => (0..rows)
-            .filter(|&row| specimen.classes.iter().any(|map| map[row] != NO_CLASS))
+            .filter(|&row| {
+                specimen.classes.iter().any(|map| map[row] != NO_CLASS)
+                    || bright
+                        .iter()
+                        .flatten()
+                        .any(|(values, threshold)| values[row] >= *threshold)
+            })
             .collect(),
         Some(seed_classes) => {
             let accepted = input
@@ -229,7 +265,8 @@ pub(crate) fn draw_discs(
 ///
 /// Each object channel and each independent scalar is a layer whose member rows a
 /// randomized census shuffles independently, as R shuffles each object map and each
-/// independent scalar set; linked scalars move with their cell.
+/// independent scalar set; linked scalars move with their cell. A raster specimen's layers
+/// shuffle contiguous patches instead, as R does for images.
 pub(crate) struct CensusPlan {
     variable_count: usize,
     disc_count: usize,
@@ -237,6 +274,8 @@ pub(crate) struct CensusPlan {
     independents: Vec<IndependentLayer>,
     all_offsets: Vec<usize>,
     all_rows: Vec<u32>,
+    /// A raster specimen's patches: each map layer's, then each independent layer's.
+    patches: Vec<LayerPatches>,
 }
 
 struct MapLayer {
@@ -261,6 +300,9 @@ pub(crate) struct CensusScratch {
     independent_rows: Vec<Vec<u32>>,
     counts: Vec<u32>,
     sums: Vec<f64>,
+    /// Patch nulls: the shuffled patch order and per-disc areas.
+    order: Vec<u32>,
+    areas: Vec<f64>,
 }
 
 impl CensusPlan {
@@ -284,6 +326,48 @@ impl CensusPlan {
                 }
             }
         }
+        let patches = specimen.grid.as_ref().map_or_else(Vec::new, |grid| {
+            let mut patches = maps
+                .iter()
+                .map(|layer| {
+                    let classes = &specimen.classes[layer.map];
+                    LayerPatches::new(
+                        &layer.offsets,
+                        &layer.rows,
+                        &grid.steps,
+                        layer.linked_variables.len(),
+                        |row| classes[row as usize],
+                        |row, class, totals| {
+                            for (column, &(linked_class, variable)) in
+                                layer.linked_variables.iter().enumerate()
+                            {
+                                if linked_class == class {
+                                    let scalar = layer.linked[class as usize]
+                                        .iter()
+                                        .find(|(_, linked)| *linked == variable)
+                                        .expect("linked variable of its class")
+                                        .0;
+                                    totals[column] += specimen.scalars[scalar][row as usize];
+                                }
+                            }
+                        },
+                    )
+                })
+                .collect::<Vec<_>>();
+            for layer in &independents {
+                let values = &specimen.scalars[layer.scalar];
+                let threshold = f64::from(grid.thresholds[layer.scalar]);
+                patches.push(LayerPatches::new(
+                    &discs.offsets,
+                    &discs.members,
+                    &grid.steps,
+                    1,
+                    |row| u32::from(values[row as usize] >= threshold),
+                    |row, _, totals| totals[0] += values[row as usize],
+                ));
+            }
+            patches
+        });
         Self {
             variable_count: variables.len(),
             disc_count: discs.len(),
@@ -291,6 +375,7 @@ impl CensusPlan {
             independents,
             all_offsets: discs.offsets.clone(),
             all_rows: discs.members.clone(),
+            patches,
         }
     }
 
@@ -304,6 +389,8 @@ impl CensusPlan {
                 .collect(),
             counts: Vec::new(),
             sums: Vec::new(),
+            order: Vec::new(),
+            areas: Vec::new(),
         }
     }
 
@@ -321,7 +408,7 @@ impl CensusPlan {
     }
 
     /// One randomized census: every layer's member rows shuffled across discs and re-split at
-    /// the original disc sizes.
+    /// the original disc sizes, or for a raster specimen every layer's patches.
     pub(crate) fn randomized(
         &self,
         specimen: &Specimen,
@@ -329,6 +416,10 @@ impl CensusPlan {
         scratch: &mut CensusScratch,
         values: &mut [f64],
     ) {
+        if !self.patches.is_empty() {
+            self.randomized_patches(seed, scratch, values);
+            return;
+        }
         for (layer_index, (rows, layer)) in scratch.map_rows.iter_mut().zip(&self.maps).enumerate()
         {
             rows.copy_from_slice(&layer.rows);
@@ -347,6 +438,67 @@ impl CensusPlan {
         self.summarize(specimen, scratch, values);
     }
 
+    /// R `random_census` on images: each layer's patches refill the discs, and the census is
+    /// taken from the areas and scalar totals placed in each (R `summarize_patches`).
+    fn randomized_patches(&self, seed: u64, scratch: &mut CensusScratch, values: &mut [f64]) {
+        let discs = self.disc_count;
+        let CensusScratch {
+            order, areas, sums, ..
+        } = scratch;
+        for (index, (layer, patches)) in self.maps.iter().zip(&self.patches).enumerate() {
+            let (classes, width) = (layer.class_count, patches.width);
+            areas.clear();
+            areas.resize(discs * classes, 0.0);
+            sums.clear();
+            sums.resize(discs * width, 0.0);
+            patches.refill(layer_seed(seed, index), order, |disc, patch, area| {
+                areas[disc * classes + patches.classes[patch] as usize] += f64::from(area);
+                for column in 0..width {
+                    sums[disc * width + column] += patches.piece_total(patch, column, area);
+                }
+            });
+            for disc in 0..discs {
+                let total = f64::from(patches.capacities[disc]);
+                for &(class, variable) in &layer.objects {
+                    values[variable * discs + disc] = if total == 0.0 {
+                        0.0
+                    } else {
+                        100.0 * (areas[disc * classes + class as usize] / total)
+                    };
+                }
+                for (column, &(class, variable)) in layer.linked_variables.iter().enumerate() {
+                    let area = areas[disc * classes + class as usize];
+                    values[variable * discs + disc] = if area == 0.0 {
+                        0.0
+                    } else {
+                        sums[disc * width + column] / area
+                    };
+                }
+            }
+        }
+        let first = self.maps.len();
+        for (position, (layer, patches)) in self
+            .independents
+            .iter()
+            .zip(&self.patches[first..])
+            .enumerate()
+        {
+            sums.clear();
+            sums.resize(discs, 0.0);
+            patches.refill(
+                layer_seed(seed, first + position),
+                order,
+                |disc, patch, area| {
+                    sums[disc] += patches.piece_total(patch, 0, area);
+                },
+            );
+            for disc in 0..discs {
+                values[layer.variable * discs + disc] =
+                    sums[disc] / f64::from(patches.capacities[disc]);
+            }
+        }
+    }
+
     fn summarize(&self, specimen: &Specimen, scratch: &mut CensusScratch, values: &mut [f64]) {
         let discs = self.disc_count;
         let CensusScratch {
@@ -354,6 +506,7 @@ impl CensusPlan {
             independent_rows,
             counts,
             sums,
+            ..
         } = scratch;
         for (layer, rows) in self.maps.iter().zip(map_rows.iter()) {
             let classes = &specimen.classes[layer.map];
@@ -502,7 +655,7 @@ pub fn space_census(input: &SpaceInput) -> Result<SpaceCensusResult, SpaceError>
     for (position, specimen) in input.specimens.iter().enumerate() {
         let present = present_variables(input, specimen);
         let specs = present.iter().map(|(_, spec)| *spec).collect::<Vec<_>>();
-        let cost = CensusCost::new(&specs, 1);
+        let cost = CensusCost::new(specimen, &specs, 1);
         let mut radii = Vec::with_capacity(input.census.radii_um.len());
         for (radius_position, &radius_um) in input.census.radii_um.iter().enumerate() {
             let seeds = draw_seeds(input, position, radius_position)?;

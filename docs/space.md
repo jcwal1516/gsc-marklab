@@ -23,9 +23,12 @@ This release implements:
 - **maps**: each cell's region of a pattern's path;
 - **diversity**: the composition of each specimen and of its parts;
 - **suggested sample sizes** for a desired coverage;
-- three-dimensional cell tables.
+- three-dimensional cell tables;
+- **rasters**: label masks and marker images as channels of any source, or as specimens of
+  their own.
 
-Image inputs are planned.
+Rasters are read from 8- and 16-bit greyscale PNG files. TIFF and slide formats follow with the
+next wsi-rs update.
 
 ```sh
 marklab space describe
@@ -81,6 +84,42 @@ Cells come directly from inputs Marklab already reads. You do not need a SPACE-s
 
 Every cell must lie inside its specimen's window, and cell IDs must be unique within a
 specimen.
+
+### Rasters
+
+Rasters need Marklab built with the `wsi` feature. A raster image is placed in a specimen's
+micrometre frame by `pixel_size_um` (`[x, y]`) and `origin_um` (default `[0, 0]`): pixel
+(column i, row j) covers `[origin + i·size, origin + (i+1)·size)`. Each raster is a channel of
+one of two kinds:
+- **`labels`**: integer labels that `levels` names, such as `{"1": "tumour", "2": "stroma"}`. The
+  channel is categorical with those classes in label order. Label 0 is background
+  (unclassified) unless named; any other unnamed label is an error.
+- **`intensity`**: marker values, a continuous channel.
+
+**Raster channels on cells (`rasters`).** A request's optional `rasters` list adds raster
+channels to any source. Each entry has `channel`, `kind`, `levels` and `images`, with one image
+per specimen (`path`, `pixel_size_um`, `origin_um`). Each cell takes the value of the pixel
+holding its centroid. Labels outside the image leave a cell unclassified. An intensity outside
+it is an error, since scalars must be observed on every cell. The new channels can be used as
+objects, linked or independent scalars, seed classes, merges and diversity parents. For
+example, a zone mask over CellViT cells gives `space diversity --parent-channel zone`.
+
+**Raster specimens (source `raster`).** `layers` declares the channels (`channel`, `kind`,
+`levels`). `specimens` gives each specimen's `specimen_id`, optional `groups`,
+`coordinate_frame_id`, `pixel_size_um`, `origin_um`, `stride_px` (default 1) and `images`, one
+per layer by channel. Every image of a specimen must have the same size.
+- **Points:** every `stride_px`-th pixel in each direction becomes a point at the pixel's
+  centre, with ID `column:row`. The window is the image rectangle. At stride 1 the census is
+  R `census_image`'s pixel census, with objects as shares of the disc's non-background
+  pixels.
+- **Disc centres:** by default, points with a class, or points bright for an independent
+  scalar, as R seeds image discs. A point is bright when at or above the scalar's IsoData
+  threshold, R `census_image`'s algorithm, computed over the specimen's points.
+- **Null:** randomized censuses shuffle patches, as R does for images, not single points.
+  Within each disc, a layer's points form 8-connected patches of one class, or of bright or
+  dim intensity for an independent scalar. Each layer's patches are pooled over the discs,
+  shuffled and dealt back so that every disc keeps its own count of the layer's points.
+  Patches that straddle two discs are split, with their scalar totals in proportion.
 
 ### Variables
 
@@ -426,6 +465,12 @@ counting visits every disc once and stops at the request's work limit.
   `variable_ranges`, and treat ensembles of variables present in only a few discs as unstable,
   or merge or exclude those classes.
 - cisMI results describe one specimen. They are not patient-level inference.
+- **Patch nulls at high coverage.** Shuffling patches keeps each layer's patchiness, which a
+  per-point shuffle loses. Two unrelated patchy layers (8-pixel stripes crossing at right
+  angles on a 48 × 48 image, radius 4) gave |Z| ≤ 1.1 at 300 discs (about 6× coverage) against
+  3.2 to 5.8 for a per-point shuffle of the same pixels. At 600 discs (about 13× coverage), far
+  above SPACE's advised 5, the patch null reached Z ≈ 4 and the per-point shuffle 13 to 19.
+  Keep raster coverage near SPACE's advice (`space suggest`).
 - **A pattern's path is an ordering, not a distance.** Positions are ranks of discs along the
   map, so equal steps along the path need not be equal changes in composition. Different seeds
   train different maps; the curves agree in shape, not position by position.
@@ -502,6 +547,12 @@ counting visits every disc once and stops at the request's work limit.
   background included. Marklab divides by the mean number of counted cells in the discs of
   every eligible centre, so the coverage is exact for the cells. R's coverage curve over a range
   of coverages is not ported; its warning goes to standard error.
+- **Raster discs.** R draws image discs as ellipsoids with per-axis pixel radii rounded from
+  micrometres; Marklab's discs are circles in micrometres over pixel centres, which matches
+  when the radius is a whole number of pixels. R reuses one set of image disc centres at every
+  radius; Marklab draws each radius's centres separately, as for tables. R's IsoData is
+  defined on 8-bit images; Marklab runs the same algorithm over every level of 16-bit images.
+  `stride_px` above 1 is Marklab's: it subsamples pixels and is not a pixel census.
 - **Variables come from the specimen.** Variables are the declared classes present in the
   specimen. R's columns are the classes present in the sampled discs, and a class present in
   one radius's discs but absent from another's becomes `NA` there. Unknown names in `all`,
@@ -519,7 +570,11 @@ counting visits every disc once and stops at the request's work limit.
     ring (1e-12), kohonen's default radii, and R's path orientation;
   - rolling means and quantiles against `zoo::rollapply`, bit for bit where zoo's running sum
     rounds differently from per-window means;
-  - the partition of the path into regions and the catch-all.
+  - the partition of the path into regions and the catch-all;
+  - IsoData thresholds equal to R `census_image`'s on seven 8-bit histograms, with and
+    without zeros;
+  - pixel placement, 8-connected patch labelling by hand, and patch refills that keep every
+    disc's count and every layer's totals.
 - **Integration tests (`tests/space.rs`):**
   - hand-computed census values, including the inclusive radius and unclassified cells, and
     spheres instead of discs in a three-dimensional table;
@@ -550,7 +605,11 @@ counting visits every disc once and stops at the request's work limit.
     but refuses to draw discs;
   - identical patterns and maps at one and four threads;
   - CLI outputs that refuse to overwrite, and pattern, map, diversity of the map's regions and
-    suggested sizes run through files.
+    suggested sizes run through files;
+  - rasters (with `wsi`): mask and intensity values sampled at cells, with the off-image and
+    naming errors; a raster specimen's census by hand; bright default centres; a striped
+    raster detected and a random one not; the patch null against a per-point shuffle on
+    crossed stripes; and raster requests through the CLI.
 - **R oracle:** `tests/fixtures/space/compare_space.R` compares the census and cisMI with R
   SPACE, sourced from the pinned commit. The data is SPACE's own tutorial cell table
   (`HuLN_Object1_ObjTable_Types.csv`: 9,757 cells, 20 classes). The design used radii 10 and

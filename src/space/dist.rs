@@ -144,7 +144,7 @@ pub fn space_dist(
     let cells = parameters.bins.map_or(0, |bins| bins.pow(count as u32));
     // The census values and the reported values or cells.
     let fixed = (2 * count * discs_drawn * 8).saturating_add(cells.saturating_mul(48));
-    let cost = CensusCost::new(&specs, 1);
+    let cost = CensusCost::new(specimen, &specs, 1);
     check_retained(input, fixed.saturating_add(cost.bytes(discs_drawn, 0)))?;
     let discs = draw_discs(
         specimen,

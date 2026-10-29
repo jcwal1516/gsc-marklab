@@ -1379,3 +1379,434 @@ fn cli_publishes_json_and_tables_once() {
     // Two classes at depth 1, one factor.
     assert_eq!(csv.lines().count(), 1 + 2);
 }
+
+#[cfg(feature = "wsi")]
+mod rasters {
+    use super::*;
+    use marklab::space::SpaceInput;
+
+    fn labels_png(path: &Path, width: u32, height: u32, label: impl Fn(u32, u32) -> u8) {
+        image::GrayImage::from_fn(width, height, |x, y| image::Luma([label(x, y)]))
+            .save(path)
+            .unwrap();
+    }
+
+    fn intensity_png(path: &Path, width: u32, height: u32, value: impl Fn(u32, u32) -> u16) {
+        image::ImageBuffer::<image::Luma<u16>, Vec<u16>>::from_fn(width, height, |x, y| {
+            image::Luma([value(x, y)])
+        })
+        .save(path)
+        .unwrap();
+    }
+
+    fn load(directory: &Path, request: Value) -> Result<SpaceInput, SpaceError> {
+        // Each request gets its own file, as several share one directory.
+        static REQUESTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let number = REQUESTS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = directory.join(format!("request-{number}.json"));
+        std::fs::write(&path, request.to_string()).unwrap();
+        load_space_input(&path)
+    }
+
+    #[test]
+    fn rasters_add_channels_sampled_at_each_cell() {
+        // A 4 x 4 um zone mask (label 1 in the left half, 2 in the right) and a 16-bit CD8
+        // image (100 x column + row + 100), one pixel per um. Cells c0 to c2 lie on it; c3,
+        // at (6, 6), lies beyond it.
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        labels_png(
+            &path.join("zones.png"),
+            4,
+            4,
+            |x, _| if x < 2 { 1 } else { 2 },
+        );
+        intensity_png(&path.join("cd8.png"), 4, 4, |x, y| {
+            100 * x as u16 + y as u16 + 100
+        });
+        let specimen = |cells: &[(&str, f64, f64)]| {
+            json!({"specimen_id": "s", "coordinate_frame_id": "s-um", "window": square(8.0),
+                "cell_ids": cells.iter().map(|cell| cell.0).collect::<Vec<_>>(),
+                "coordinates_um": cells.iter().map(|cell| [cell.1, cell.2]).collect::<Vec<_>>(),
+                "observations": {"cell_type": cells.iter().map(|_| 0.0).collect::<Vec<_>>()}})
+        };
+        let cells = [
+            ("c0", 0.5, 0.5),
+            ("c1", 3.5, 0.5),
+            ("c2", 3.5, 3.5),
+            ("c3", 6.0, 6.0),
+        ];
+        let zone = json!({"channel": "zone", "kind": "labels",
+            "levels": {"1": "inner", "2": "outer"},
+            "images": {"s": {"path": "zones.png", "pixel_size_um": [1.0, 1.0]}}});
+        let cd8 = json!({"channel": "cd8", "kind": "intensity",
+            "images": {"s": {"path": "cd8.png", "pixel_size_um": [1.0, 1.0]}}});
+        let request = |cells: &[(&str, f64, f64)], rasters: Value, extra: Value| {
+            let mut request: Value =
+                serde_json::from_slice(&inline_request(json!([specimen(cells)]), extra)).unwrap();
+            request["rasters"] = rasters;
+            request["census"] = json!({"radii_um": [10.0], "seed": 1,
+                "seed_cell_ids": {"s": [["c0"]]}});
+            request
+        };
+        // The disc around c0 holds every cell: c3 lies off the mask and has no zone.
+        let input = load(
+            path,
+            request(
+                &cells,
+                json!([zone]),
+                json!({"objects": ["cell_type", "zone"]}),
+            ),
+        )
+        .unwrap();
+        let census = space_census(&input).unwrap();
+        let specimen = &census.specimens[0];
+        let zone_columns = ["zone.inner", "zone.outer"].map(|name| {
+            specimen
+                .variables
+                .iter()
+                .position(|known| known == name)
+                .unwrap()
+        });
+        let disc = &specimen.radii[0].discs[0];
+        assert_eq!(disc.member_count, 4);
+        let shares = zone_columns.map(|column| disc.values[column]);
+        assert!((shares[0] - 100.0 / 3.0).abs() < 1e-12 && (shares[1] - 200.0 / 3.0).abs() < 1e-12);
+
+        // CD8 at the three cells on the image: 100, 403 and 403 (+ row 3 for c2).
+        let input = load(
+            path,
+            request(
+                &cells[..3],
+                json!([zone, cd8]),
+                json!({"objects": ["cell_type"], "independent_scalars": ["cd8"]}),
+            ),
+        )
+        .unwrap();
+        let census = space_census(&input).unwrap();
+        let disc = &census.specimens[0].radii[0].discs[0];
+        assert_eq!(*disc.values.last().unwrap(), (100.0 + 400.0 + 403.0) / 3.0);
+
+        // An intensity off the image, an unnamed label, and a channel the source declares.
+        let error = |request: Value| match load(path, request) {
+            Err(SpaceError::Invalid(message)) => message,
+            other => panic!("{:?}", other.map(|_| ())),
+        };
+        assert!(error(request(
+            &cells,
+            json!([cd8]),
+            json!({"independent_scalars": ["cd8"]})
+        ))
+        .contains("lies outside the cd8 raster"));
+        let mut unnamed = zone.clone();
+        unnamed["levels"] = json!({"1": "inner"});
+        assert!(error(request(&cells, json!([unnamed]), json!({})))
+            .contains("label 2, which names no class"));
+        let mut taken = zone.clone();
+        taken["channel"] = json!("cell_type");
+        assert!(error(request(&cells, json!([taken]), json!({}))).contains("already declared"));
+    }
+
+    fn raster_request(images: Value, layers: Value, extra: Value) -> Value {
+        let mut request = json!({"format": "marklab.space_request", "version": 1,
+            "source": {"kind": "raster", "layers": layers,
+                "specimens": [{"specimen_id": "img", "coordinate_frame_id": "img-um",
+                    "pixel_size_um": [1.0, 1.0], "images": images}]},
+            "census": {"radii_um": [1.0], "seed": 3}});
+        for (key, value) in extra.as_object().unwrap() {
+            request[key] = value.clone();
+        }
+        request
+    }
+
+    #[test]
+    fn raster_sources_census_grid_points() {
+        // An 8 x 8 image of 2-pixel stripes, A (label 1) then B (label 2), and a marker of 200
+        // on A and 10 on B.
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        let striped = |x: u32| (x / 2).is_multiple_of(2);
+        labels_png(&path.join("tissue.png"), 8, 8, |x, _| {
+            if striped(x) {
+                1
+            } else {
+                2
+            }
+        });
+        intensity_png(&path.join("marker.png"), 8, 8, |x, _| {
+            if striped(x) {
+                200
+            } else {
+                10
+            }
+        });
+        let layers = json!([
+            {"channel": "tissue", "kind": "labels", "levels": {"1": "A", "2": "B"}},
+            {"channel": "marker", "kind": "intensity"}]);
+        let images = json!({"tissue": {"path": "tissue.png"}, "marker": {"path": "marker.png"}});
+        let request = raster_request(
+            images.clone(),
+            layers.clone(),
+            json!({"objects": ["tissue"], "independent_scalars": ["marker"],
+                "census": {"radii_um": [1.0], "seed": 3, "seed_cell_ids": {"img": [["3:3"]]}}}),
+        );
+        let input = load(path, request).unwrap();
+        // Within 1 um of pixel (3, 3): itself and its four edge neighbours; columns 2 and 3
+        // are B, column 4 is A.
+        let census = space_census(&input).unwrap();
+        let disc = &census.specimens[0].radii[0].discs[0];
+        assert_eq!((disc.x_um, disc.y_um, disc.member_count), (3.5, 3.5, 5));
+        assert_eq!(disc.values, [20.0, 80.0, (200.0 + 4.0 * 10.0) / 5.0]);
+
+        // Default centres are the classified points; with only the marker, the bright ones,
+        // above its IsoData threshold (half the points).
+        let marker_only = raster_request(
+            json!({"marker": {"path": "marker.png"}}),
+            json!([{"channel": "marker", "kind": "intensity"}]),
+            json!({"independent_scalars": ["marker"]}),
+        );
+        let suggested = space_suggest(
+            &load(path, marker_only).unwrap(),
+            &SpaceSuggestParameters {
+                coverage: 1.0,
+                radii_um: Vec::new(),
+                specimens: Vec::new(),
+            },
+        )
+        .unwrap();
+        assert_eq!(suggested.specimens[0].eligible_centres, 32);
+
+        // Layers must share one pixel grid, and each needs its image.
+        labels_png(&path.join("small.png"), 4, 8, |_, _| 1);
+        let error = |images: Value| match load(
+            path,
+            raster_request(images, layers.clone(), json!({"objects": ["tissue"]})),
+        ) {
+            Err(SpaceError::Invalid(message)) => message,
+            other => panic!("{:?}", other.map(|_| ())),
+        };
+        assert!(
+            error(json!({"tissue": {"path": "small.png"}, "marker": {"path": "marker.png"}}))
+                .contains("unlike the others")
+        );
+        assert!(error(json!({"tissue": {"path": "tissue.png"}})).contains("one image per layer"));
+        assert!(
+            error(json!({"tissue": {"path": "tissue.tif"}, "marker": {"path": "marker.png"}}))
+                .contains("not a PNG")
+        );
+    }
+
+    #[test]
+    fn cli_reads_raster_requests() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        labels_png(
+            &path.join("tissue.png"),
+            6,
+            4,
+            |x, _| if x < 3 { 1 } else { 2 },
+        );
+        labels_png(
+            &path.join("zone.png"),
+            6,
+            4,
+            |_, y| if y < 2 { 1 } else { 2 },
+        );
+        let request = raster_request(
+            json!({"tissue": {"path": "tissue.png"}, "zone": {"path": "zone.png"}}),
+            json!([{"channel": "tissue", "kind": "labels", "levels": {"1": "A", "2": "B"}},
+                {"channel": "zone", "kind": "labels", "levels": {"1": "top", "2": "bottom"}}]),
+            json!({"objects": ["tissue", "zone"],
+                "census": {"radii_um": [1.5], "sample_size": [10], "seed": 2}}),
+        );
+        std::fs::write(path.join("request.json"), request.to_string()).unwrap();
+        let run = |arguments: &[&str]| {
+            let output = Command::new(env!("CARGO_BIN_EXE_marklab"))
+                .args(arguments)
+                .current_dir(path)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        };
+        run(&[
+            "space",
+            "census",
+            "--request",
+            "request.json",
+            "--out",
+            "census.json",
+            "--table",
+            "census.csv",
+        ]);
+        let csv = std::fs::read_to_string(path.join("census.csv")).unwrap();
+        assert_eq!(csv.lines().count(), 1 + 10);
+        // Tissue composition within each zone: both halves of the image in each.
+        run(&[
+            "space",
+            "diversity",
+            "--request",
+            "request.json",
+            "--channel",
+            "tissue",
+            "--parent-channel",
+            "zone",
+            "--out",
+            "diversity.json",
+        ]);
+        let result: Value =
+            serde_json::from_slice(&std::fs::read(path.join("diversity.json")).unwrap()).unwrap();
+        let specimen = &result["specimens"][0];
+        assert_eq!(specimen["percentages"], json!([50.0, 50.0]));
+        assert_eq!(specimen["parents"][0]["cell_count"], 12);
+        assert_eq!(specimen["beta_bits"], 0.0);
+    }
+
+    #[test]
+    fn patch_nulls_detect_striped_rasters_and_not_random_ones() {
+        // 48 x 48 images: 8-pixel stripes of A and B with a marker bright on A, against labels
+        // and an independent marker drawn at random per pixel.
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut coin = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state.is_multiple_of(2)
+        };
+        let random = (0..48 * 48 * 2).map(|_| coin()).collect::<Vec<_>>();
+        let index = |x: u32, y: u32| (y * 48 + x) as usize;
+        labels_png(&path.join("striped.png"), 48, 48, |x, _| {
+            1 + u8::from(!(x / 8).is_multiple_of(2))
+        });
+        intensity_png(&path.join("striped-marker.png"), 48, 48, |x, _| {
+            if (x / 8).is_multiple_of(2) {
+                200
+            } else {
+                10
+            }
+        });
+        labels_png(&path.join("random.png"), 48, 48, |x, y| {
+            1 + u8::from(random[index(x, y)])
+        });
+        intensity_png(&path.join("random-marker.png"), 48, 48, |x, y| {
+            if random[48 * 48 + index(x, y)] {
+                200
+            } else {
+                10
+            }
+        });
+        let layers = json!([
+            {"channel": "tissue", "kind": "labels", "levels": {"1": "A", "2": "B"}},
+            {"channel": "marker", "kind": "intensity"}]);
+        let cis = |name: &str| {
+            let request = raster_request(
+                json!({"tissue": {"path": format!("{name}.png")},
+                    "marker": {"path": format!("{name}-marker.png")}}),
+                layers.clone(),
+                json!({"objects": ["tissue"], "independent_scalars": ["marker"],
+                    "census": {"radii_um": [4.0], "sample_size": [300], "seed": 9}}),
+            );
+            let result = space_cis(
+                &load(path, request).unwrap(),
+                &SpaceCisParameters {
+                    depth: 2,
+                    bootstraps: 40,
+                    ..SpaceCisParameters::default()
+                },
+            )
+            .unwrap();
+            result.specimens[0].radii[0]
+                .ensembles
+                .iter()
+                .find(|ensemble| ensemble.variables == ["tissue.A", "marker"])
+                .unwrap()
+                .z_score
+                .unwrap()
+        };
+        let (striped, random) = (cis("striped"), cis("random"));
+        assert!(striped > 10.0, "{striped}");
+        assert!(random.abs() < 4.0, "{random}");
+    }
+}
+
+#[cfg(feature = "wsi")]
+#[test]
+fn patch_nulls_keep_patchy_but_unrelated_layers_unremarkable() {
+    // 48 x 48 pixels: tissue in 8-pixel vertical stripes, a marker in 8-pixel horizontal
+    // stripes, so the two are unrelated but each patchy. As a raster, discs keep whole patches
+    // in the null; as a cell table, each pixel is shuffled alone and the null loses the
+    // layers' patchiness. Over seeds 1 to 4 the patch null's Z stayed within 1.1 of 0 and the
+    // pixel shuffle's ranged from 3.2 to 5.8.
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path();
+    let tissue = |x: u32| 1 + u8::from(!(x / 8).is_multiple_of(2));
+    let marker = |y: u32| {
+        if (y / 8).is_multiple_of(2) {
+            200_u16
+        } else {
+            10
+        }
+    };
+    image::GrayImage::from_fn(48, 48, |x, _| image::Luma([tissue(x)]))
+        .save(path.join("tissue.png"))
+        .unwrap();
+    image::ImageBuffer::<image::Luma<u16>, Vec<u16>>::from_fn(48, 48, |_, y| {
+        image::Luma([marker(y)])
+    })
+    .save(path.join("marker.png"))
+    .unwrap();
+    let census = json!({"radii_um": [4.0], "sample_size": [300], "seed": 4});
+    let raster = json!({"format": "marklab.space_request", "version": 1,
+        "source": {"kind": "raster",
+            "layers": [{"channel": "tissue", "kind": "labels", "levels": {"1": "A", "2": "B"}},
+                {"channel": "marker", "kind": "intensity"}],
+            "specimens": [{"specimen_id": "img", "coordinate_frame_id": "img-um",
+                "pixel_size_um": [1.0, 1.0],
+                "images": {"tissue": {"path": "tissue.png"}, "marker": {"path": "marker.png"}}}]},
+        "objects": ["tissue"], "independent_scalars": ["marker"], "census": census});
+    let points = (0..48 * 48).map(|i| (i % 48, i / 48)).collect::<Vec<_>>();
+    let table = json!({"format": "marklab.space_request", "version": 1,
+        "source": {"kind": "inline",
+            "channels": [cell_type(&["A", "B"]),
+                json!({"id": "marker", "label": "marker", "kind": "continuous", "unit": "au",
+                    "measurement_status": "measured", "provenance": "synthetic"})],
+            "specimens": [{"specimen_id": "img", "coordinate_frame_id": "img-um",
+                "window": square(49.0),
+                "cell_ids": points.iter().map(|(x, y)| format!("{x}:{y}")).collect::<Vec<_>>(),
+                "coordinates_um": points.iter()
+                    .map(|&(x, y)| [f64::from(x) + 0.5, f64::from(y) + 0.5]).collect::<Vec<_>>(),
+                "observations": {
+                    "cell_type": points.iter().map(|&(x, _)| f64::from(tissue(x) - 1))
+                        .collect::<Vec<_>>(),
+                    "marker": points.iter().map(|&(_, y)| f64::from(marker(y)))
+                        .collect::<Vec<_>>()}}]},
+        "objects": ["cell_type"], "independent_scalars": ["marker"], "census": census});
+    let z = |request: &Value, name: &str| {
+        let file = path.join(format!("{name}.json"));
+        std::fs::write(&file, request.to_string()).unwrap();
+        let result = space_cis(
+            &load_space_input(&file).unwrap(),
+            &SpaceCisParameters {
+                depth: 2,
+                bootstraps: 40,
+                ..SpaceCisParameters::default()
+            },
+        )
+        .unwrap();
+        result.specimens[0].radii[0]
+            .ensembles
+            .iter()
+            .find(|ensemble| ensemble.variables.len() == 2 && ensemble.variables[1] == "marker")
+            .unwrap()
+            .z_score
+            .unwrap()
+    };
+    let (patches, pixels) = (z(&raster, "raster"), z(&table, "table"));
+    assert!(patches.abs() < 2.0, "{patches}");
+    assert!(pixels > 4.0, "{pixels}");
+}
