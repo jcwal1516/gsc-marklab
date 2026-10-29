@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::{
-    validate_and_normalize, validate_spd, CoordinateUnit, CuboidWindowInput, HomogeneousK3dSpec,
-    K3dCorrection, Point3DInput, Spatial3dError,
+    metric::{distance, validate_spd},
+    validate_and_normalize, CoordinateUnit, CuboidWindowInput, HomogeneousK3dSpec, K3dCorrection,
+    Point3DInput, Spatial3dError,
 };
 use marklab_core::backend::ClaimStatus;
 
@@ -162,7 +163,11 @@ pub fn build_spatial_graph3d(
     for left in 0..points.len() {
         for right in (left + 1)..points.len() {
             let displacement = subtract(points[right].coordinates_um, points[left].coordinates_um);
-            let nominal = distance(displacement, metric)?;
+            let nominal = distance(
+                displacement,
+                metric,
+                "graph squared distance is negative or non-finite",
+            )?;
             let uncertainty =
                 points[left].position_uncertainty_um + points[right].position_uncertainty_um;
             let metric_uncertainty = uncertainty * uncertainty_scale;
@@ -466,26 +471,6 @@ fn update_optional_u64(digest: &mut Sha256, value: Option<u64>) {
 
 fn subtract(right: [f64; 3], left: [f64; 3]) -> [f64; 3] {
     [right[0] - left[0], right[1] - left[1], right[2] - left[2]]
-}
-
-fn distance(displacement: [f64; 3], metric: [[f64; 3]; 3]) -> Result<f64, Spatial3dError> {
-    let transformed = metric.map(|row| {
-        row.iter()
-            .zip(displacement)
-            .map(|(coefficient, value)| coefficient * value)
-            .sum::<f64>()
-    });
-    let squared = displacement
-        .iter()
-        .zip(transformed)
-        .map(|(left, right)| left * right)
-        .sum::<f64>();
-    if !squared.is_finite() || squared < 0.0 {
-        return Err(Spatial3dError::Numerical(
-            "graph squared distance is negative or non-finite".into(),
-        ));
-    }
-    Ok(squared.sqrt())
 }
 
 #[cfg(test)]

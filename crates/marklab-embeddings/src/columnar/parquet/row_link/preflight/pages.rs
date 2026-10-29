@@ -1,7 +1,5 @@
-use super::{
-    levels::{absolute_slice, validate_plain_cell_ids},
-    *,
-};
+use super::{levels::validate_plain_cell_ids, *};
+use crate::columnar::parquet::physical::{read_data_page, validate_strings};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate_pages(
@@ -43,41 +41,15 @@ pub(in crate::columnar::parquet) fn validate_pages_profile(
     let mut page_count = 0_usize;
     let mut page_start_row = 0_usize;
     while cursor < end {
-        let header_limit = cursor
-            .checked_add(MAXIMUM_PAGE_HEADER_BYTES)
-            .map(|value| value.min(end))
-            .ok_or(ColumnarError::SizeOverflow)?;
-        let window = absolute_slice(bytes, base_offset, cursor, header_limit)
-            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPageHeader))?;
-        let mut protocol = BoundedCompactProtocol::new(window, page_limits());
-        let header = PageHeader::read_from_in_protocol(&mut protocol)
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidPageHeader))?;
-        let header_bytes = protocol
-            .consumed_bytes()
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidPageHeader))?;
-        if header_bytes == 0
-            || header_bytes > MAXIMUM_PAGE_HEADER_BYTES
-            || !is_canonical_compact(
-                &header,
-                window
-                    .get(..header_bytes)
-                    .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPageHeader))?,
-            )
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidPageHeader))?
-        {
-            return Err(parquet_failure(ParquetFailure::InvalidPageHeader));
-        }
-        let body_bytes = usize::try_from(header.compressed_page_size)
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
-        let uncompressed_bytes = usize::try_from(header.uncompressed_page_size)
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
-        let body_start = cursor
-            .checked_add(header_bytes)
-            .ok_or(ColumnarError::SizeOverflow)?;
-        let page_end = body_start
-            .checked_add(body_bytes)
-            .ok_or(ColumnarError::SizeOverflow)?;
-        let page = header
+        let physical = read_data_page(
+            bytes,
+            base_offset,
+            cursor,
+            end,
+            ParquetFailure::InvalidPageHeader,
+        )?;
+        let page = physical
+            .header
             .data_page_header_v2
             .as_ref()
             .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
@@ -91,18 +63,7 @@ pub(in crate::columnar::parquet) fn validate_pages_profile(
             .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
         let repetitions = usize::try_from(page.repetition_levels_byte_length)
             .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
-        if body_bytes > MAXIMUM_PAGE_BYTES
-            || body_bytes != uncompressed_bytes
-            || page_end > end
-            || header.type_ != PageType::DATA_PAGE_V2
-            || header.crc.is_some()
-            || header.data_page_header.is_some()
-            || header.index_page_header.is_some()
-            || header.dictionary_page_header.is_some()
-            || page.encoding != Encoding::PLAIN
-            || page.is_compressed != Some(false)
-            || page.statistics.is_some()
-            || rows == 0
+        if rows == 0
             || values != rows
             || page_start_row
                 .checked_add(rows)
@@ -113,8 +74,7 @@ pub(in crate::columnar::parquet) fn validate_pages_profile(
         {
             return Err(parquet_failure(ParquetFailure::InvalidPage));
         }
-        let body = absolute_slice(bytes, base_offset, body_start, page_end)
-            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
+        let body = physical.body;
         let data = body
             .get(definitions..)
             .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
@@ -126,7 +86,7 @@ pub(in crate::columnar::parquet) fn validate_pages_profile(
                 if let Some(row_link) = row_link {
                     validate_plain_cell_ids(data, row_link, absolute_start, rows)?;
                 } else {
-                    crate::columnar::parquet::read::validate_strings(data, rows)?;
+                    validate_strings(data, rows)?;
                 }
             }
             1 => {
@@ -191,21 +151,10 @@ pub(in crate::columnar::parquet) fn validate_pages_profile(
         page_count = page_count
             .checked_add(1)
             .ok_or(ColumnarError::SizeOverflow)?;
-        cursor = page_end;
+        cursor = physical.end;
     }
     if cursor != end || page_start_row != group_rows {
         return Err(parquet_failure(ParquetFailure::InvalidPage));
     }
     Ok(page_count)
-}
-
-pub(super) fn page_limits() -> CompactLimits {
-    CompactLimits {
-        maximum_depth: 8,
-        maximum_fields: 64,
-        maximum_collection_elements: 16,
-        maximum_total_elements: 64,
-        maximum_string_bytes: MAXIMUM_PAGE_HEADER_BYTES,
-        maximum_total_string_bytes: MAXIMUM_PAGE_HEADER_BYTES,
-    }
 }

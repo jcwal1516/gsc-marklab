@@ -14,7 +14,10 @@ mod reaction_diffusion;
 mod summary_matching;
 mod thomas;
 mod thomas_minimum_contrast;
+mod time_grid;
 mod vascular_transport;
+
+use time_grid::TimeGrid;
 
 pub use agent_competition::{
     simulate_agent_competition, Agent, AgentCompetitionEvent, AgentCompetitionEventCounts,
@@ -191,16 +194,15 @@ pub fn simulate_growth_front(spec: GrowthFrontSpec) -> Result<GrowthFrontResult,
         total_density_mass: initial_mass,
         front_position_um: initial_front,
     }];
-    let mut time = 0.0;
     let mut completed_steps = 0_u32;
     let mut positivity_violations = 0_u64;
-    while completed_steps < planned_steps {
-        let next_time = if completed_steps + 1 == planned_steps {
-            spec.final_time
-        } else {
-            f64::from(completed_steps + 1) * spec.time_step
-        };
-        let dt = next_time - time;
+    for step in TimeGrid::new(
+        spec.final_time,
+        spec.time_step,
+        planned_steps,
+        spec.record_every_steps,
+    ) {
+        let dt = step.dt;
         reaction_step(
             &mut density,
             spec.growth_rate_per_time,
@@ -230,13 +232,10 @@ pub fn simulate_growth_front(spec: GrowthFrontSpec) -> Result<GrowthFrontResult,
                 "density left the invariant interval".into(),
             ));
         }
-        time = next_time;
-        completed_steps = completed_steps
-            .checked_add(1)
-            .ok_or_else(|| SimulationError::Numerical("completed step count overflowed".into()))?;
-        if completed_steps.is_multiple_of(spec.record_every_steps) || time == spec.final_time {
+        completed_steps = step.completed_steps;
+        if step.should_record {
             trajectory.push(GrowthFrontSnapshot {
-                time,
+                time: step.time,
                 total_density_mass: trapezoidal_mass(&density, grid_spacing),
                 front_position_um: front_position(&positions, &density, threshold),
             });

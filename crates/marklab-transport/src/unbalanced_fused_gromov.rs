@@ -14,14 +14,14 @@
 //! strongly they are held to them. The worker fits from three starting plans and reports the
 //! lowest objective with the spread across starts.
 
-use std::collections::HashSet;
-
 use marklab_core::backend::is_worker_timeout;
 use marklab_core::backend::versions::{POT_VERSION, PYTHON_VERSION};
 use marklab_core::backend::{BackendContract, ClaimStatus, FitState, WorkerBackend, WorkerError};
 use serde::{Deserialize, Serialize};
 
-use crate::fused_gromov::{approximately_equal, squared_feature_cost};
+use crate::fgw_common::{
+    approximately_equal, audit_plan, same_values, valid_structure, valid_support,
+};
 use crate::{FgwPlanEntry, FgwSupport};
 
 const MAXIMUM_POINTS: usize = 32;
@@ -51,7 +51,6 @@ pub struct UnbalancedFusedGromovWassersteinSpec {
     pub maximum_inner_iterations: u32,
     pub timeout_seconds: u64,
 }
-
 #[derive(Clone, Debug, Serialize)]
 pub struct UnbalancedFgwResources {
     pub maximum_source_points: u32,
@@ -146,8 +145,12 @@ fn validate_spec(spec: &UnbalancedFusedGromovWassersteinSpec) -> Result<(), Work
         && (1..=10_000).contains(&spec.maximum_iterations)
         && (1..=100_000).contains(&spec.maximum_inner_iterations)
         && is_worker_timeout(spec.timeout_seconds)
-        && valid_support(&spec.source, dimension)
-        && valid_support(&spec.target, dimension))
+        && valid_support(&spec.source, dimension, |mass| {
+            (f64::MIN_POSITIVE..=1e6).contains(&mass)
+        })
+        && valid_support(&spec.target, dimension, |mass| {
+            (f64::MIN_POSITIVE..=1e6).contains(&mass)
+        }))
     {
         return Err(WorkerError::InvalidSpec(
             "unbalanced FGW dimensions, supports, or controls are invalid".into(),
@@ -172,30 +175,6 @@ fn validate_spec(spec: &UnbalancedFusedGromovWassersteinSpec) -> Result<(), Work
         ));
     }
     Ok(())
-}
-
-fn valid_support(rows: &[FgwSupport], dimension: usize) -> bool {
-    let mut ids = HashSet::new();
-    rows.iter().all(|row| {
-        !row.id.trim().is_empty()
-            && row.id.trim() == row.id
-            && ids.insert(row.id.as_str())
-            && finite_in(row.mass, f64::MIN_POSITIVE, 1e6)
-            && row.features.len() == dimension
-            && row.features.iter().all(|value| value.is_finite())
-    })
-}
-
-fn valid_structure(matrix: &[f64], size: usize) -> bool {
-    (0..size).all(|row| {
-        (0..size).all(|column| {
-            let value = matrix[row * size + column];
-            value.is_finite()
-                && value >= 0.0
-                && (row != column || value.abs() <= 1e-12)
-                && approximately_equal(value, matrix[column * size + row])
-        })
-    })
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -329,27 +308,16 @@ fn validate_fit(
             "unbalanced FGW fit dimensions or convergence differ",
         ));
     }
-    let mut source_marginals = vec![0.0; rows];
-    let mut target_marginals = vec![0.0; columns];
-    for (row, source_marginal) in source_marginals.iter_mut().enumerate() {
-        for (column, target_marginal) in target_marginals.iter_mut().enumerate() {
-            let entry = &fit.plan[row * columns + column];
-            let cost = squared_feature_cost(
-                &request.source[row].features,
-                &request.target[column].features,
-                request.feature_scale,
-            );
-            if entry.source_id != request.source[row].id
-                || entry.target_id != request.target[column].id
-                || !approximately_equal(entry.feature_cost, cost)
-                || !finite_in(entry.mass, 0.0, f64::MAX)
-            {
-                return Err(contract("unbalanced FGW plan entry differs"));
-            }
-            *source_marginal += entry.mass;
-            *target_marginal += entry.mass;
-        }
-    }
+    let marginals = audit_plan(
+        &fit.plan,
+        &request.source,
+        &request.target,
+        request.feature_scale,
+        |_, _| {},
+    )
+    .ok_or_else(|| contract("unbalanced FGW plan entry differs"))?;
+    let source_marginals = marginals.source;
+    let target_marginals = marginals.target;
     let deviations = |marginals: &[f64], supports: &[FgwSupport]| {
         marginals
             .iter()
@@ -390,12 +358,4 @@ fn validate_fit(
         ));
     }
     Ok(())
-}
-
-fn same_values(left: &[f64], right: &[f64]) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .zip(right)
-            .all(|(left, right)| approximately_equal(*left, *right))
 }

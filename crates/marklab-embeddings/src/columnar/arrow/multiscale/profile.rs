@@ -6,7 +6,7 @@ use crate::{ExpectedPatchSet, PatchEmbeddingContext, PatchFootprintSet, PatchOve
 use super::super::super::multiscale::{
     validate_footprint_domain, validate_overlap_domain, ArrowIpcFailure, ColumnarError,
 };
-use super::physical::validate_required_utf8_field;
+use super::super::physical::validate_required_utf8_field;
 use crate::multiscale::physical::{
     encoding_version, schema_id, SpatialArtifactRole, SpatialPhysicalEncoding,
 };

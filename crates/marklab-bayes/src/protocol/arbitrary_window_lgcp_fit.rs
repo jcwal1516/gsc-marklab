@@ -12,7 +12,7 @@
 //! complete fit claims `experimental_single_pattern_latent_field`, otherwise
 //! `diagnostic_only_nonconverged`.
 
-use super::posterior_validation::scalar_valid;
+use super::posterior_validation::{diagnostics_pass, scalar_valid};
 use crate::BackendContract;
 use crate::BayesError;
 use crate::FitState;
@@ -193,22 +193,10 @@ pub fn validate(
                 && scalar_valid(&result.expected_count, true)
                 && scalar_valid(&result.pearson_residual, false)
         });
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= request.source_request.diagnostic_policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= request.source_request.diagnostic_policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= request.source_request.diagnostic_policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi
-            >= request.source_request.diagnostic_policy.minimum_ebfmi
-        && result.diagnostics.divergences
-            <= request.source_request.diagnostic_policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits
-            <= request
-                .source_request
-                .diagnostic_policy
-                .maximum_tree_depth_hits;
+    let diagnostics_pass = diagnostics_pass(
+        &result.diagnostics,
+        &request.source_request.diagnostic_policy,
+    );
     let spatial_summary_valid = |summary: &SpatialPpcSummary| {
         [
             summary.observed,

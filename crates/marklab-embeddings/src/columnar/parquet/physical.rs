@@ -3,22 +3,135 @@ use std::mem::size_of;
 
 use crate::columnar::parquet::levels::LevelStreamError;
 
-use parquet::file::metadata::RowGroupMetaData;
+use parquet::file::metadata::{ParquetMetaDataReader, RowGroupMetaData};
 use parquet::format::{
-    ColumnChunk, ColumnMetaData, ColumnOrder, CompressionCodec, Encoding, FileMetaData, PageType,
+    ColumnChunk, ColumnMetaData, ColumnOrder, CompressionCodec, Encoding, FileMetaData, PageHeader,
+    PageType,
 };
+use parquet::thrift::TSerializable;
 
 use crate::columnar::{
-    multiscale::{enforce_row_group_budget, ParquetFailure},
+    enforce_retained_budget, enforce_row_group_budget,
     parquet::{
-        compact::CompactLimits,
+        compact::{is_canonical_compact, BoundedCompactProtocol, CompactLimits},
+        preflight::estimate_raw_preflight_bytes,
         profile::{
-            CREATED_BY, MAXIMUM_FOOTER_BYTES, MAXIMUM_PAGE_HEADER_BYTES, PARQUET_MAGIC,
-            ROW_GROUP_ROWS,
+            CREATED_BY, MAXIMUM_FOOTER_BYTES, MAXIMUM_PAGE_BYTES, MAXIMUM_PAGE_HEADER_BYTES,
+            PARQUET_MAGIC, ROW_GROUP_ROWS, TRAILER_BYTES,
         },
     },
-    ColumnarError, EmbeddingColumnarBudgets,
+    ColumnarError, EmbeddingColumnarBudgets, ParquetFailure,
 };
+
+/// Bounded physical footer admission shared by canonical multiscale profiles.
+pub(super) struct RawFooter {
+    pub(super) footer: Vec<u8>,
+    pub(super) raw: FileMetaData,
+    pub(super) footer_start: usize,
+    pub(super) raw_retained: usize,
+    pub(super) stock_retained: usize,
+}
+
+pub(super) fn read_footer<R: Read + Seek + ?Sized>(
+    reader: &mut R,
+    encoded_byte_len: u64,
+    compact_limits: impl FnOnce() -> Result<CompactLimits, ColumnarError>,
+    budgets: EmbeddingColumnarBudgets,
+) -> Result<RawFooter, ColumnarError> {
+    let minimum = u64::try_from(PARQUET_MAGIC.len() + TRAILER_BYTES)
+        .map_err(|_| ColumnarError::SizeOverflow)?;
+    if encoded_byte_len < minimum {
+        return Err(parquet_failure(ParquetFailure::InvalidMagic));
+    }
+    if reader
+        .seek(SeekFrom::End(0))
+        .map_err(|_| parquet_failure(ParquetFailure::ArtifactRead))?
+        != encoded_byte_len
+    {
+        return Err(parquet_failure(ParquetFailure::ArtifactRead));
+    }
+    let mut leading = [0_u8; 4];
+    read_exact_at(reader, 0, &mut leading)?;
+    let mut trailer = [0_u8; TRAILER_BYTES];
+    read_exact_at(
+        reader,
+        encoded_byte_len - TRAILER_BYTES as u64,
+        &mut trailer,
+    )?;
+    if &leading != PARQUET_MAGIC || trailer.get(4..) != Some(PARQUET_MAGIC) {
+        return Err(parquet_failure(ParquetFailure::InvalidMagic));
+    }
+    let footer_len = usize::try_from(u32::from_le_bytes(
+        trailer[..4]
+            .try_into()
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidFooterLength))?,
+    ))
+    .map_err(|_| ColumnarError::SizeOverflow)?;
+    let file_len = usize::try_from(encoded_byte_len).map_err(|_| ColumnarError::SizeOverflow)?;
+    let footer_length_offset = file_len
+        .checked_sub(TRAILER_BYTES)
+        .ok_or_else(|| parquet_failure(ParquetFailure::InvalidFooterLength))?;
+    let footer_start = validate_footer_length(footer_len, footer_length_offset)?;
+    let limits = compact_limits()?;
+    let raw_retained = estimate_raw_preflight_bytes(footer_len, limits)
+        .map_err(|_| ColumnarError::SizeOverflow)?;
+    let stock_retained = estimate_raw_preflight_bytes(MAXIMUM_FOOTER_BYTES, limits)
+        .map_err(|_| ColumnarError::SizeOverflow)?
+        .checked_mul(2)
+        .ok_or(ColumnarError::SizeOverflow)?;
+    enforce_retained_budget(raw_retained.max(stock_retained), budgets)?;
+    let mut footer = Vec::new();
+    footer
+        .try_reserve_exact(footer_len)
+        .map_err(|_| ColumnarError::AllocationFailed {
+            requested: footer_len,
+        })?;
+    footer.resize(footer_len, 0);
+    read_exact_at(
+        reader,
+        u64::try_from(footer_start).map_err(|_| ColumnarError::SizeOverflow)?,
+        &mut footer,
+    )?;
+    let mut protocol = BoundedCompactProtocol::new(&footer, limits);
+    let raw = FileMetaData::read_from_in_protocol(&mut protocol)
+        .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?;
+    if protocol
+        .consumed_bytes()
+        .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?
+        != footer.len()
+        || !is_canonical_compact(&raw, &footer)
+            .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?
+    {
+        return Err(parquet_failure(ParquetFailure::InvalidFooter));
+    }
+    Ok(RawFooter {
+        footer,
+        raw,
+        footer_start,
+        raw_retained,
+        stock_retained,
+    })
+}
+
+pub(super) fn decode_stock_metadata(
+    footer: &[u8],
+    row_count: usize,
+    stock_retained: usize,
+) -> Result<parquet::file::metadata::ParquetMetaData, ColumnarError> {
+    let stock = ParquetMetaDataReader::decode_metadata(footer)
+        .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
+    if stock.memory_size() > stock_retained
+        || stock.file_metadata().version() != 2
+        || usize::try_from(stock.file_metadata().num_rows()).ok() != Some(row_count)
+        || stock.num_row_groups() != row_count.div_ceil(ROW_GROUP_ROWS)
+        || stock.file_metadata().created_by() != Some(CREATED_BY)
+        || stock.column_index().is_some()
+        || stock.offset_index().is_some()
+    {
+        return Err(parquet_failure(ParquetFailure::StockDecode));
+    }
+    Ok(stock)
+}
 
 pub(in crate::columnar::parquet) fn validate_footer_length(
     footer_len: usize,
@@ -224,6 +337,77 @@ pub(in crate::columnar::parquet) fn absolute_slice(
     bytes.get(start.checked_sub(base)?..end.checked_sub(base)?)
 }
 
+pub(in crate::columnar::parquet) struct PhysicalDataPage<'a> {
+    pub header: PageHeader,
+    pub body: &'a [u8],
+    pub end: usize,
+}
+
+pub(in crate::columnar::parquet) fn page_header_length_is_valid(header_bytes: usize) -> bool {
+    header_bytes != 0 && header_bytes <= MAXIMUM_PAGE_HEADER_BYTES
+}
+
+pub(in crate::columnar::parquet) fn read_data_page<'a>(
+    bytes: &'a [u8],
+    base_offset: usize,
+    start: usize,
+    column_end: usize,
+    header_failure: ParquetFailure,
+) -> Result<PhysicalDataPage<'a>, ColumnarError> {
+    let header_limit = start
+        .checked_add(MAXIMUM_PAGE_HEADER_BYTES)
+        .map(|value| value.min(column_end))
+        .ok_or(ColumnarError::SizeOverflow)?;
+    let window = absolute_slice(bytes, base_offset, start, header_limit)
+        .ok_or_else(|| parquet_failure(header_failure))?;
+    let mut protocol = BoundedCompactProtocol::new(window, page_limits());
+    let header = PageHeader::read_from_in_protocol(&mut protocol)
+        .map_err(|_| parquet_failure(header_failure))?;
+    let header_bytes = protocol
+        .consumed_bytes()
+        .map_err(|_| parquet_failure(header_failure))?;
+    if !page_header_length_is_valid(header_bytes)
+        || !is_canonical_compact(
+            &header,
+            window
+                .get(..header_bytes)
+                .ok_or_else(|| parquet_failure(header_failure))?,
+        )
+        .map_err(|_| parquet_failure(header_failure))?
+    {
+        return Err(parquet_failure(header_failure));
+    }
+    let body_bytes = usize::try_from(header.compressed_page_size)
+        .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
+    let uncompressed = usize::try_from(header.uncompressed_page_size)
+        .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
+    let body_start = start
+        .checked_add(header_bytes)
+        .ok_or(ColumnarError::SizeOverflow)?;
+    let end = body_start
+        .checked_add(body_bytes)
+        .ok_or(ColumnarError::SizeOverflow)?;
+    if body_bytes > MAXIMUM_PAGE_BYTES
+        || body_bytes != uncompressed
+        || end > column_end
+        || header.type_ != PageType::DATA_PAGE_V2
+        || header.crc.is_some()
+        || header.data_page_header.is_some()
+        || header.index_page_header.is_some()
+        || header.dictionary_page_header.is_some()
+        || header.data_page_header_v2.as_ref().is_none_or(|page| {
+            page.encoding != Encoding::PLAIN
+                || page.is_compressed != Some(false)
+                || page.statistics.is_some()
+        })
+    {
+        return Err(parquet_failure(ParquetFailure::InvalidPage));
+    }
+    let body = absolute_slice(bytes, base_offset, body_start, end)
+        .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
+    Ok(PhysicalDataPage { header, body, end })
+}
+
 pub(in crate::columnar::parquet) fn validate_plain_strings<'a>(
     bytes: &[u8],
     expected: impl Iterator<Item = &'a str>,
@@ -285,6 +469,67 @@ pub(in crate::columnar::parquet) fn validate_plain_u64(
             .ok_or(ColumnarError::SizeOverflow)?
     {
         return Err(parquet_failure(ParquetFailure::InvalidPage));
+    }
+    Ok(())
+}
+
+pub(in crate::columnar::parquet) fn validate_strings(
+    bytes: &[u8],
+    rows: usize,
+) -> Result<(), ColumnarError> {
+    let mut cursor = 0_usize;
+    for _ in 0..rows {
+        let prefix_end = cursor.checked_add(4).ok_or(ColumnarError::SizeOverflow)?;
+        let length = u32::from_le_bytes(
+            bytes
+                .get(cursor..prefix_end)
+                .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?
+                .try_into()
+                .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?,
+        ) as usize;
+        let end = prefix_end
+            .checked_add(length)
+            .ok_or(ColumnarError::SizeOverflow)?;
+        std::str::from_utf8(
+            bytes
+                .get(prefix_end..end)
+                .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?,
+        )
+        .map_err(|_| parquet_failure(ParquetFailure::InvalidCanonicalRows))?;
+        cursor = end;
+    }
+    if cursor != bytes.len() {
+        return Err(parquet_failure(ParquetFailure::InvalidPage));
+    }
+    Ok(())
+}
+
+pub(in crate::columnar::parquet) fn validate_fixed_width(
+    bytes: &[u8],
+    count: usize,
+    width: usize,
+) -> Result<(), ColumnarError> {
+    if bytes.len()
+        != count
+            .checked_mul(width)
+            .ok_or(ColumnarError::SizeOverflow)?
+    {
+        return Err(parquet_failure(ParquetFailure::InvalidPage));
+    }
+    Ok(())
+}
+
+pub(in crate::columnar::parquet) fn validate_f32(
+    bytes: &[u8],
+    count: usize,
+) -> Result<(), ColumnarError> {
+    validate_fixed_width(bytes, count, 4)?;
+    for chunk in bytes.as_chunks::<4>().0 {
+        let bits = u32::from_le_bytes(*chunk);
+        let value = f32::from_bits(bits);
+        if !value.is_finite() || (value == 0.0 && bits != 0) {
+            return Err(parquet_failure(ParquetFailure::InvalidCanonicalRows));
+        }
     }
     Ok(())
 }

@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use super::SimulationError;
+use super::{time_grid::TimeGrid, SimulationError};
 
 mod mapping;
 mod types;
@@ -29,19 +29,18 @@ pub fn simulate_vascular_transport(
     let mut concentration = spec.initial_concentration_row_major.clone();
     let mut trajectory = vec![snapshot(0.0, &concentration, &spec)];
     let mut completed_steps = 0_u32;
-    let mut time = 0.0;
     let mut source_mass = 0.0;
     let mut uptake_mass = 0.0;
     let mut maximum_transport_residual = 0.0_f64;
     let positivity_violations = 0_u64;
 
-    while completed_steps < planned_steps {
-        let next_time = if completed_steps + 1 == planned_steps {
-            spec.final_time
-        } else {
-            f64::from(completed_steps + 1) * spec.time_step
-        };
-        let dt = next_time - time;
+    for step in TimeGrid::new(
+        spec.final_time,
+        spec.time_step,
+        planned_steps,
+        spec.record_every_steps,
+    ) {
+        let dt = step.dt;
         let (added, removed) = local_flow(&mut concentration, &sources, &uptake, &spec, dt / 2.0)?;
         source_mass += added;
         uptake_mass += removed;
@@ -63,12 +62,9 @@ pub fn simulate_vascular_transport(
         for value in &mut concentration {
             *value = value.max(0.0);
         }
-        time = next_time;
-        completed_steps += 1;
-        if completed_steps.is_multiple_of(spec.record_every_steps)
-            || completed_steps == planned_steps
-        {
-            trajectory.push(snapshot(time, &concentration, &spec));
+        completed_steps = step.completed_steps;
+        if step.should_record {
+            trajectory.push(snapshot(step.time, &concentration, &spec));
         }
     }
     let final_mass = mass(&concentration, &spec);

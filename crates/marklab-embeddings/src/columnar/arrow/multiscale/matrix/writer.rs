@@ -8,7 +8,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 
-use super::super::physical::{enforce_writer_budgets, write_record_batches};
+use super::super::super::physical::{enforce_writer_budgets, write_record_batches};
 use super::profile::{schema, BUFFER_COUNT};
 use crate::columnar::arrow::profile::{ALIGNMENT, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS};
 use crate::columnar::{

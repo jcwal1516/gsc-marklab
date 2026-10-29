@@ -1,4 +1,4 @@
-use crate::validation::all_finite;
+use crate::validation::{all_finite, diagnostics_satisfy_policy};
 pub use marklab_core::backend::{FitState, WorkerBackend};
 
 use serde::{Deserialize, Serialize};
@@ -188,17 +188,8 @@ impl WorkerResult {
                 "posterior predictive result changed the observed data".into(),
             ));
         }
-        let diagnostics_pass = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= request.diagnostic_policy.maximum_r_hat
-            && self.diagnostics.ess_bulk >= request.diagnostic_policy.minimum_bulk_ess
-            && self.diagnostics.ess_tail >= request.diagnostic_policy.minimum_tail_ess
-            && self.diagnostics.minimum_ebfmi >= request.diagnostic_policy.minimum_ebfmi
-            && self.diagnostics.divergences <= request.diagnostic_policy.maximum_divergences
-            && self.diagnostics.max_tree_depth_hits
-                <= request.diagnostic_policy.maximum_tree_depth_hits;
+        let diagnostics_pass =
+            diagnostics_satisfy_policy(&self.diagnostics, &request.diagnostic_policy);
         if (self.fit_state == FitState::Complete) != diagnostics_pass {
             return Err(BayesError::WorkerContract(
                 "fit state disagrees with the declared diagnostic policy".into(),

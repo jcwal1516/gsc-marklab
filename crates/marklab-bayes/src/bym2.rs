@@ -1,5 +1,8 @@
+use crate::areal_contract::{
+    component_constraints, validate_predictive_and_diagnostics, validate_sampling,
+    validate_scalar as validate_areal_scalar, validate_spec as validate_areal_spec, ArealSpec,
+};
 use crate::is_worker_timeout;
-use crate::validation::all_finite as finite;
 
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +13,6 @@ use crate::{
         BackendContract, DiagnosticPolicy, WorkerResourceLimits, MODEL_FORMAT, MODEL_VERSION,
         PYMC_VERSION, WORKER_REQUEST_FORMAT, WORKER_REQUEST_VERSION,
     },
-    sar_fit::design_full_rank,
     BayesError, BymPosteriorPredictive, FitState, NutsSamplingSpec, PosteriorDiagnostics,
     SamplingSummary, SarCoefficientSummary, ScalarSummary, WorkerBackend,
 };
@@ -162,99 +164,26 @@ impl Bym2FitWorkerRequest {
 }
 
 fn validate_spec(spec: &Bym2FitSpec) -> Result<(), BayesError> {
-    let dimension = spec.region_ids.len();
-    let predictors = spec.predictor_names.len();
-    let constrained_dimension = dimension.saturating_sub(spec.rank_deficiency);
-    if !(6..=64).contains(&dimension)
-        || !(1..=16).contains(&predictors)
-        || spec.counts.len() != dimension
-        || spec.expected.len() != dimension
-        || spec.design.len() != dimension * predictors
-        || spec.scaled_icar_transform.len() != dimension * constrained_dimension
-        || spec.rank_deficiency == 0
-        || spec.rank_deficiency >= dimension
-        || spec.components.len() != spec.rank_deficiency
-    {
-        return Err(BayesError::InvalidSpec(
-            "BYM2 input dimensions violate the region, predictor, or ICAR contract".into(),
-        ));
-    }
-    for (index, region_id) in spec.region_ids.iter().enumerate() {
-        if region_id.is_empty()
-            || region_id.trim() != region_id
-            || (index > 0 && spec.region_ids[index - 1] >= *region_id)
-        {
-            return Err(BayesError::InvalidSpec(
-                "BYM2 region IDs must be exact and strictly increasing".into(),
-            ));
-        }
-    }
-    for (index, predictor) in spec.predictor_names.iter().enumerate() {
-        if predictor.is_empty()
-            || predictor.trim() != predictor
-            || predictor == "intercept"
-            || spec.predictor_names[..index].contains(predictor)
-        {
-            return Err(BayesError::InvalidSpec(
-                "BYM2 predictor names must be exact, unique, and not intercept".into(),
-            ));
-        }
-    }
-    if spec
-        .expected
-        .iter()
-        .any(|value| !value.is_finite() || *value <= 0.0)
-        || spec.design.iter().any(|value| !value.is_finite())
-        || spec
-            .scaled_icar_transform
-            .iter()
-            .any(|value| !value.is_finite())
-        || !design_full_rank(&spec.design, dimension, predictors)
-        || !spec.original_typical_marginal_variance.is_finite()
+    validate_areal_spec(
+        ArealSpec {
+            region_ids: &spec.region_ids,
+            weights_digest_sha256: &spec.weights_digest_sha256,
+            transform: &spec.scaled_icar_transform,
+            rank_deficiency: spec.rank_deficiency,
+            components: &spec.components,
+            counts_len: spec.counts.len(),
+            expected: &spec.expected,
+            design: &spec.design,
+            predictor_names: &spec.predictor_names,
+        },
+        "BYM2",
+    )?;
+    if !spec.original_typical_marginal_variance.is_finite()
         || spec.original_typical_marginal_variance <= 0.0
         || !spec.scaled_typical_marginal_variance.is_finite()
         || (spec.scaled_typical_marginal_variance - 1.0).abs() > 1e-12
     {
-        return Err(BayesError::InvalidSpec(
-            "BYM2 expected/design/transform/rank or ICAR scale is invalid".into(),
-        ));
-    }
-    let mut covered = vec![false; dimension];
-    for component in &spec.components {
-        if component.len() < 2 {
-            return Err(BayesError::InvalidSpec(
-                "BYM2 ICAR components must contain at least two regions".into(),
-            ));
-        }
-        for &index in component {
-            if index >= dimension || std::mem::replace(&mut covered[index], true) {
-                return Err(BayesError::InvalidSpec(
-                    "BYM2 components must partition all regions exactly once".into(),
-                ));
-            }
-        }
-        for column in 0..constrained_dimension {
-            let sum = component
-                .iter()
-                .map(|&row| spec.scaled_icar_transform[row * constrained_dimension + column])
-                .sum::<f64>();
-            if sum.abs() > 1e-10 {
-                return Err(BayesError::InvalidSpec(
-                    "BYM2 scaled ICAR transform violates sum-to-zero".into(),
-                ));
-            }
-        }
-    }
-    if covered.iter().any(|covered| !covered)
-        || spec.weights_digest_sha256.len() != 64
-        || !spec
-            .weights_digest_sha256
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit())
-    {
-        return Err(BayesError::InvalidSpec(
-            "BYM2 components or weights identity are invalid".into(),
-        ));
+        return Err(BayesError::InvalidSpec("BYM2 ICAR scale is invalid".into()));
     }
     for (value, name) in [
         (spec.intercept_prior_sd, "intercept prior SD"),
@@ -329,19 +258,15 @@ impl Bym2FitWorkerResult {
                 "BYM2 result identity mismatch".into(),
             ));
         }
-        let expected_draws =
-            u64::from(request.sampling.chains) * u64::from(request.sampling.draws_per_chain);
-        if self.sampling.chains != request.sampling.chains
-            || self.sampling.tune_per_chain != request.sampling.tune_per_chain
-            || self.sampling.draws_per_chain != request.sampling.draws_per_chain
-            || self.sampling.completed_draws != expected_draws
-            || self.posterior.coefficients.len() != request.predictor_names.len()
-            || self.regions.len() != request.region_ids.len()
-        {
-            return Err(BayesError::WorkerContract(
-                "BYM2 sampling, coefficient, or region counts mismatch".into(),
-            ));
-        }
+        validate_sampling(
+            &self.sampling,
+            &request.sampling,
+            self.posterior.coefficients.len(),
+            request.predictor_names.len(),
+            self.regions.len(),
+            request.region_ids.len(),
+            "BYM2",
+        )?;
         for summary in [
             &self.posterior.intercept,
             &self.posterior.sigma,
@@ -385,45 +310,13 @@ impl Bym2FitWorkerResult {
             validate_scalar(&region.combined_effect, false)?;
             validate_scalar(&region.relative_risk, true)?;
         }
-        let observed_total = request.counts.iter().sum::<u64>();
-        let observed_zeros = request.counts.iter().filter(|&&count| count == 0).count() as u64;
-        if self.posterior_predictive.observed_total_count != observed_total
-            || self.posterior_predictive.observed_zero_regions != observed_zeros
-            || !finite(&[
-                self.posterior_predictive.replicated_total_mean,
-                self.posterior_predictive.replicated_total_sd,
-                self.posterior_predictive.replicated_zero_regions_mean,
-                self.diagnostics.r_hat,
-                self.diagnostics.ess_bulk,
-                self.diagnostics.ess_tail,
-                self.diagnostics.mcse_mean,
-                self.diagnostics.mcse_sd,
-                self.diagnostics.minimum_ebfmi,
-            ])
-            || self.posterior_predictive.replicated_total_sd < 0.0
-            || self.posterior_predictive.replicated_zero_regions_mean < 0.0
-            || self.diagnostics.r_hat <= 0.0
-            || self.diagnostics.ess_bulk <= 0.0
-            || self.diagnostics.ess_tail <= 0.0
-            || self.diagnostics.mcse_mean < 0.0
-            || self.diagnostics.mcse_sd < 0.0
-            || self.diagnostics.minimum_ebfmi < 0.0
-        {
-            return Err(BayesError::WorkerContract(
-                "BYM2 predictive or diagnostics are invalid".into(),
-            ));
-        }
-        let pass = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= request.diagnostic_policy.maximum_r_hat
-            && self.diagnostics.ess_bulk >= request.diagnostic_policy.minimum_bulk_ess
-            && self.diagnostics.ess_tail >= request.diagnostic_policy.minimum_tail_ess
-            && self.diagnostics.minimum_ebfmi >= request.diagnostic_policy.minimum_ebfmi
-            && self.diagnostics.divergences <= request.diagnostic_policy.maximum_divergences
-            && self.diagnostics.max_tree_depth_hits
-                <= request.diagnostic_policy.maximum_tree_depth_hits;
+        let pass = validate_predictive_and_diagnostics(
+            &self.posterior_predictive,
+            &self.diagnostics,
+            &request.counts,
+            &request.diagnostic_policy,
+            "BYM2",
+        )?;
         if (self.fit_state == FitState::Complete) != pass {
             return Err(BayesError::WorkerContract(
                 "BYM2 fit state disagrees with diagnostics".into(),
@@ -457,20 +350,7 @@ impl Bym2FitWorkerResult {
                 scaled_typical_marginal_variance: request.scaled_typical_marginal_variance,
             },
             rank_deficiency: request.rank_deficiency,
-            constraints: request
-                .components
-                .iter()
-                .map(|component| {
-                    format!(
-                        "sum_to_zero:{}",
-                        component
-                            .iter()
-                            .map(|&index| request.region_ids[index].as_str())
-                            .collect::<Vec<_>>()
-                            .join(",")
-                    )
-                })
-                .collect(),
+            constraints: component_constraints(&request.components, &request.region_ids),
             regions: self.regions,
             diagnostics: self.diagnostics,
             posterior_predictive: self.posterior_predictive,
@@ -481,20 +361,7 @@ impl Bym2FitWorkerResult {
 }
 
 fn validate_scalar(summary: &ScalarSummary, positive: bool) -> Result<(), BayesError> {
-    if !finite(&[
-        summary.mean,
-        summary.sd,
-        summary.interval_lower,
-        summary.interval_upper,
-    ]) || summary.sd <= 0.0
-        || summary.interval_lower > summary.interval_upper
-        || (positive && (summary.mean <= 0.0 || summary.interval_lower <= 0.0))
-    {
-        return Err(BayesError::WorkerContract(
-            "invalid BYM2 scalar summary".into(),
-        ));
-    }
-    Ok(())
+    validate_areal_scalar(summary, positive, "BYM2")
 }
 
 #[derive(Debug, Serialize)]

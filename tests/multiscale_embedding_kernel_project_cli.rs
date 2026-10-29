@@ -17,7 +17,8 @@ fn fixture(directory: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
         "sample_id,scale_um,embedding_0,embedding_1\na,10,1,0\na,20,0,2\nb,10,3,0\nb,20,0,1\n",
     )
     .expect("summary fixture");
-    fs::write(&weights, "scale_um,weight\n10,0.25\n20,0.75\n").expect("weight fixture");
+    // The library accepts this positive sum within its 1e-12 tolerance.
+    fs::write(&weights, "scale_um,weight\n10,1\n20,1e-13\n").expect("weight fixture");
     (input, weights)
 }
 

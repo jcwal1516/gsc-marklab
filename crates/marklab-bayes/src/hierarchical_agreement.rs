@@ -5,8 +5,8 @@ use crate::agreement_metric::{compare_parameter, ParameterAgreement};
 pub use crate::backend_versions::JAX_VERSION;
 pub use crate::backend_versions::NUMPYRO_VERSION;
 use crate::backend_versions::PYTHON_VERSION;
-use crate::validation::all_finite as finite;
 use crate::validation::is_sha256;
+use crate::validation::{all_finite as finite, diagnostics_satisfy_policy};
 use crate::AgreementStatus;
 use crate::ClaimStatus;
 use crate::{
@@ -213,16 +213,7 @@ impl NumpyroHierarchyWorkerResult {
             ));
         }
         let policy = &source.diagnostic_policy;
-        let diagnostics_pass = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= policy.maximum_r_hat
-            && self.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-            && self.diagnostics.ess_tail >= policy.minimum_tail_ess
-            && self.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-            && self.diagnostics.divergences <= policy.maximum_divergences
-            && self.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
+        let diagnostics_pass = diagnostics_satisfy_policy(&self.diagnostics, policy);
         if (self.fit_state == FitState::Complete) != diagnostics_pass {
             return Err(BayesError::WorkerContract(
                 "NumPyro hierarchy fit state disagrees with diagnostics".into(),

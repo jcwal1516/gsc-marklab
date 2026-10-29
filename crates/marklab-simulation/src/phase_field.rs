@@ -2,7 +2,10 @@ use marklab_core::backend::ClaimStatus;
 use rustfft::{num_complex::Complex, Fft, FftPlanner};
 use serde::Serialize;
 
-use super::SimulationError;
+use super::{
+    time_grid::{retained_snapshot_count, TimeGrid},
+    SimulationError,
+};
 
 const MAXIMUM_CELLS: usize = 65_536;
 const MAXIMUM_CELL_STEPS: u64 = 50_000_000;
@@ -152,7 +155,6 @@ pub fn simulate_phase_field(spec: PhaseFieldSpec) -> Result<PhaseFieldResult, Si
     let laplacian_eigenvalues = laplacian_eigenvalues(&spec)?;
     let mut trajectory = vec![initial_snapshot];
     let mut completed_steps = 0_u32;
-    let mut time = 0.0;
     let mut previous_energy = initial_energy;
     let mut largest_step_increase = 0.0_f64;
     let mut maximum_step_tolerance = 0.0_f64;
@@ -160,13 +162,13 @@ pub fn simulate_phase_field(spec: PhaseFieldSpec) -> Result<PhaseFieldResult, Si
     let mut maximum_update_number = 0.0_f64;
     let mut maximum_mean_drift = 0.0_f64;
 
-    while completed_steps < planned_steps {
-        let next_time = if completed_steps + 1 == planned_steps {
-            spec.final_time
-        } else {
-            f64::from(completed_steps + 1) * spec.time_step
-        };
-        let dt = next_time - time;
+    for step in TimeGrid::new(
+        spec.final_time,
+        spec.time_step,
+        planned_steps,
+        spec.record_every_steps,
+    ) {
+        let dt = step.dt;
         let maximum_absolute_phase = phase.iter().copied().map(f64::abs).fold(0.0, f64::max);
         if maximum_absolute_phase > MAXIMUM_SOLVER_ABSOLUTE_PHASE {
             return Err(SimulationError::Numerical(format!(
@@ -238,7 +240,7 @@ pub fn simulate_phase_field(spec: PhaseFieldSpec) -> Result<PhaseFieldResult, Si
                 "phase-field mean drift {mean_drift} exceeds tolerance {mean_tolerance}"
             )));
         }
-        let current = snapshot(next_time, &phase, &spec);
+        let current = snapshot(step.time, &phase, &spec);
         validate_snapshot(&current, "evolved")?;
         let energy_increase = (current.total_free_energy - previous_energy).max(0.0);
         let energy_tolerance = 1e-10 * (1.0 + previous_energy.abs());
@@ -250,11 +252,8 @@ pub fn simulate_phase_field(spec: PhaseFieldSpec) -> Result<PhaseFieldResult, Si
             )));
         }
         previous_energy = current.total_free_energy;
-        time = next_time;
-        completed_steps += 1;
-        if completed_steps.is_multiple_of(spec.record_every_steps)
-            || completed_steps == planned_steps
-        {
+        completed_steps = step.completed_steps;
+        if step.should_record {
             trajectory.push(current);
         }
     }
@@ -332,7 +331,7 @@ pub fn simulate_phase_field(spec: PhaseFieldSpec) -> Result<PhaseFieldResult, Si
             laplacian: "periodic_five_point_finite_difference_spectrum",
             completed_steps,
             cell_steps: u64::from(completed_steps) * cells as u64,
-            retained_snapshots: u32::try_from(trajectory_len(
+            retained_snapshots: u32::try_from(retained_snapshot_count(
                 planned_steps,
                 spec.record_every_steps,
             ))
@@ -400,7 +399,7 @@ fn validate(spec: &PhaseFieldSpec) -> Result<(usize, u32), SimulationError> {
             "{work} cell-steps exceed the declared resource bound"
         )));
     }
-    let snapshots = trajectory_len(planned_steps, spec.record_every_steps);
+    let snapshots = retained_snapshot_count(planned_steps, spec.record_every_steps);
     if snapshots > MAXIMUM_RETAINED_SNAPSHOTS {
         return Err(SimulationError::Invalid(format!(
             "{snapshots} retained phase-field snapshots exceed the {MAXIMUM_RETAINED_SNAPSHOTS} limit"
@@ -462,10 +461,6 @@ fn validate_derived_geometry_and_operator(
         ));
     }
     Ok(())
-}
-
-fn trajectory_len(steps: u32, record_every_steps: u32) -> u64 {
-    1 + u64::from(steps / record_every_steps) + u64::from(!steps.is_multiple_of(record_every_steps))
 }
 
 fn transform_2d(

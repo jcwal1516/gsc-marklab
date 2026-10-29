@@ -25,8 +25,18 @@ from typing import Any
 import numpy as np
 
 from . import versions
+from .nuts_contract import convergence_passes
 from .posterior import summary, two_sided_tail
-from .protocol import BACKEND_KEYS, ContractError, derive_seed, exact, number, obj, validate_backend
+from .protocol import (
+    BACKEND_KEYS,
+    ContractError,
+    derive_seed,
+    exact,
+    number,
+    obj,
+    sha256_digest,
+    validate_backend,
+)
 
 FIXED_KERNEL_REQUEST_FORMAT = "marklab.pymc_replicated_arbitrary_window_lgcp_request"
 INFERRED_KERNEL_REQUEST_FORMAT = (
@@ -36,6 +46,61 @@ FIXED_KERNEL_WORKER = "marklab_pymc_replicated_arbitrary_window_lgcp_worker.py"
 INFERRED_KERNEL_WORKER = "marklab_pymc_replicated_arbitrary_window_lgcp_inferred_kernel_worker.py"
 INFERRED_KERNEL_SEED_DOMAIN = "marklab-replicated-lgcp-inferred-kernel-v1"
 HIERARCHY_PARAMETERS = ("intercept", "group_effect", "covariate_effect", "patient_sd", "pattern_sd")
+
+
+def _validate_numpyro_envelope(
+    request: Any,
+    request_format: str,
+    lock_digest: str,
+    worker_digest: str,
+    validate_source: Callable[[Any], dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Validate the common NumPyro agreement envelope and delegate its source request."""
+    request = obj(
+        request,
+        {
+            "format",
+            "version",
+            "backend",
+            "jax_version",
+            "source_request_sha256",
+            "source_request",
+            "maximum_tree_depth",
+        },
+        "request",
+    )
+    exact(request["format"], request_format, "request.format")
+    exact(request["version"], 1, "request.version")
+    validate_backend(
+        request["backend"],
+        "backend",
+        name="numpyro",
+        version=versions.NUMPYRO,
+        lock_sha256=lock_digest,
+        worker_sha256=worker_digest,
+    )
+    exact(request["jax_version"], versions.JAX, "request.jax_version")
+    sha256_digest(request["source_request_sha256"], "source request digest")
+    maximum_tree_depth = request["maximum_tree_depth"]
+    if (
+        isinstance(maximum_tree_depth, bool)
+        or not isinstance(maximum_tree_depth, int)
+        or not 10 <= maximum_tree_depth <= 14
+    ):
+        raise ContractError("maximum_tree_depth is outside [10, 14]")
+    config = validate_source(request["source_request"])
+    config["numpyro_maximum_tree_depth"] = maximum_tree_depth
+    return request, config
+
+
+def _fit_is_complete(
+    prior_finite: bool,
+    posterior_finite: bool,
+    policy: dict[str, Any],
+    diagnostics: dict[str, Any],
+) -> bool:
+    """Apply the source request's convergence policy after the shared finiteness gates."""
+    return prior_finite and posterior_finite and convergence_passes(policy, diagnostics)
 
 
 def validate_request(request: Any, lock_digest: str, worker_digest: str) -> dict[str, Any]:

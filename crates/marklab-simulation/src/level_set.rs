@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use super::SimulationError;
+use super::{time_grid::TimeGrid, SimulationError};
 use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug)]
@@ -97,27 +97,22 @@ pub fn evolve_interface_level_set(spec: LevelSetSpec) -> Result<LevelSetResult, 
     let mut completed_steps = 0_u32;
     let mut reinitializations = 0_u32;
     let mut distance_visits = 0_u64;
-    let mut time = 0.0;
-
-    while completed_steps < planned_steps {
-        let next_time = if completed_steps + 1 == planned_steps {
-            spec.final_time
-        } else {
-            f64::from(completed_steps + 1) * spec.time_step
-        };
-        advance(&mut phi, &spec, next_time - time)?;
-        time = next_time;
-        completed_steps += 1;
+    for step in TimeGrid::new(
+        spec.final_time,
+        spec.time_step,
+        planned_steps,
+        spec.record_every_steps,
+    ) {
+        advance(&mut phi, &spec, step.dt)?;
+        completed_steps = step.completed_steps;
         if spec.reinitialize_every_steps != 0
             && completed_steps.is_multiple_of(spec.reinitialize_every_steps)
         {
             reinitialize(&mut phi, &spec, &mut distance_visits)?;
             reinitializations += 1;
         }
-        if completed_steps.is_multiple_of(spec.record_every_steps)
-            || completed_steps == planned_steps
-        {
-            trajectory.push(snapshot(time, &phi, &spec));
+        if step.should_record {
+            trajectory.push(snapshot(step.time, &phi, &spec));
         }
     }
 

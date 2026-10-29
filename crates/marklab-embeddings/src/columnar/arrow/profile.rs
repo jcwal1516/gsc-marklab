@@ -241,16 +241,6 @@ pub(super) fn nonnegative_usize(
     usize::try_from(value).map_err(|_| arrow_failure(failure))
 }
 
-pub(super) fn nonnegative_i32_usize(
-    value: i32,
-    failure: ArrowIpcFailure,
-) -> Result<usize, ColumnarError> {
-    if value < 0 {
-        return Err(arrow_failure(failure));
-    }
-    usize::try_from(value).map_err(|_| arrow_failure(failure))
-}
-
 pub(super) fn align(value: usize) -> Result<usize, ColumnarError> {
     value
         .checked_add(ALIGNMENT - 1)

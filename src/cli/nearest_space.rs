@@ -11,7 +11,7 @@ use crate::{
     MarklabError, ObservationWindow2D, Pattern, PatternLoader, Result,
 };
 
-use super::{classical, NearestSpaceRequest};
+use super::{project_runtime, NearestSpaceRequest};
 
 const MAXIMUM_RADII: usize = 4_096;
 const CELL_SOURCE_KIND: &str = "application/vnd.marklab.source.cell-table;version=1";
@@ -39,12 +39,12 @@ pub(super) fn run(request: NearestSpaceRequest) -> Result<()> {
 
 pub(super) fn run_project(project_path: PathBuf, request: NearestSpaceRequest) -> Result<()> {
     let (prepared, source_artifacts) = prepare_project(&request)?;
-    let runtime = classical::native_runtime_provenance()?;
+    let runtime = project_runtime::native_runtime_provenance()?;
     let project_limits = DurableProjectLimits::for_object_bytes(prepared.memory_bytes)
         .map_err(|error| MarklabError::Validation(error.to_string()))?;
     let mut durable = DurableProject::open_or_create(&project_path, project_limits)
         .map_err(|error| MarklabError::Compute(error.to_string()))?;
-    classical::report_recovery(&durable);
+    project_runtime::report_recovery(&durable);
 
     let mut project = MarklabProject::with_inline_artifact_limit(prepared.memory_bytes)
         .map_err(|error| MarklabError::Validation(error.to_string()))?;
@@ -98,8 +98,8 @@ fn prepare_project(
 
 fn source_artifacts(request: &NearestSpaceRequest) -> Result<Vec<ArtifactRef>> {
     Ok(vec![
-        classical::source_artifact(&request.cells, CELL_SOURCE_KIND)?,
-        classical::source_artifact(&request.mask, WINDOW_SOURCE_KIND)?,
+        project_runtime::source_artifact(&request.cells, CELL_SOURCE_KIND)?,
+        project_runtime::source_artifact(&request.mask, WINDOW_SOURCE_KIND)?,
     ])
 }
 
@@ -111,7 +111,7 @@ fn prepare(request: &NearestSpaceRequest) -> Result<PreparedNearestSpace> {
         .ok_or_else(|| MarklabError::Validation("--memory-budget-mib is too large".into()))?;
     let window_limits = ObservationWindowLimits::default();
     let window_text =
-        classical::read_bounded_utf8(&request.mask, window_limits.maximum_input_bytes)?;
+        project_runtime::read_bounded_utf8(&request.mask, window_limits.maximum_input_bytes)?;
     let window = ObservationWindow2D::from_geojson_str(&window_text, window_limits)
         .map_err(|error| MarklabError::Geometry(error.to_string()))?;
     let mask = TumorMask::from_geojson_str(&window_text)?;

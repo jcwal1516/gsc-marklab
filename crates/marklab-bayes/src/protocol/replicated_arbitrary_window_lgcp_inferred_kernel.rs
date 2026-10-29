@@ -10,7 +10,7 @@
 //! kernel draws and finite fields, not expected counts. A complete fit claims
 //! `experimental_inferred_shared_kernel`, otherwise `diagnostic_only_nonconverged`.
 
-use super::posterior_validation::summary_valid;
+use super::posterior_validation::{diagnostics_pass, summary_valid};
 use super::replicated_arbitrary_window_lgcp_fit::predictive_valid;
 use super::replicated_arbitrary_window_lgcp_fit::NodePosterior;
 use super::replicated_arbitrary_window_lgcp_fit::PatientEffect;
@@ -153,16 +153,7 @@ pub fn validate_result(
         &result.posterior.field_amplitude,
         &result.posterior.field_length_scale_um,
     ];
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && result.diagnostics.divergences <= policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
+    let diagnostics_pass = diagnostics_pass(&result.diagnostics, policy);
     if result.format != "marklab.bayesian_replicated_arbitrary_window_lgcp_inferred_kernel_fit"
         || result.version != 1
         || !result.backend.matches(backend)
@@ -205,16 +196,7 @@ impl ResultDocument {
             &self.posterior.field_amplitude,
             &self.posterior.field_length_scale_um,
         ];
-        let diagnostics_pass = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= policy.maximum_r_hat
-            && self.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-            && self.diagnostics.ess_tail >= policy.minimum_tail_ess
-            && self.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-            && self.diagnostics.divergences <= policy.maximum_divergences
-            && self.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
+        let diagnostics_pass = diagnostics_pass(&self.diagnostics, policy);
         let resources_match = self.resources.maximum_kernel_cube_work
             == expected.resources.maximum_kernel_cube_work
             && self.resources.kernel_cube_work == expected.resources.kernel_cube_work

@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::backend_versions::PYTHON_VERSION;
-use crate::validation::{validate_scalar_summary, SummarySupport};
+use crate::validation::{diagnostics_satisfy_policy, validate_scalar_summary, SummarySupport};
 use crate::ClaimStatus;
 use crate::ScalarSummary;
 use crate::{
@@ -383,17 +383,7 @@ impl ExactGpWorkerResult {
                 "GP posterior predictive changed observed summaries".into(),
             ));
         }
-        let complete = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= request.diagnostic_policy.maximum_r_hat
-            && self.diagnostics.ess_bulk >= request.diagnostic_policy.minimum_bulk_ess
-            && self.diagnostics.ess_tail >= request.diagnostic_policy.minimum_tail_ess
-            && self.diagnostics.minimum_ebfmi >= request.diagnostic_policy.minimum_ebfmi
-            && self.diagnostics.divergences <= request.diagnostic_policy.maximum_divergences
-            && self.diagnostics.max_tree_depth_hits
-                <= request.diagnostic_policy.maximum_tree_depth_hits;
+        let complete = diagnostics_satisfy_policy(&self.diagnostics, &request.diagnostic_policy);
         if (self.fit_state == FitState::Complete) != complete {
             return Err(BayesError::WorkerContract(
                 "GP fit state disagrees with diagnostics".into(),

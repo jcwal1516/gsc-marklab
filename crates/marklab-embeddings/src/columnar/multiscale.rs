@@ -59,7 +59,7 @@ impl SpatialColumnarWriteSummary {
 pub(crate) use super::error::{
     enforce_decoded_budget, enforce_file_budget, enforce_retained_budget, enforce_row_group_budget,
 };
-pub(crate) use super::{ArrowIpcFailure, ColumnarError, ParquetFailure};
+pub(crate) use super::{ArrowIpcFailure, ColumnarError};
 
 pub(crate) fn validate_footprint_domain(
     expected: &crate::ExpectedPatchSet,

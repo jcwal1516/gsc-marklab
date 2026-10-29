@@ -12,7 +12,7 @@
 //! `experimental_correlated_multitype_latent_field`; the zero-correlation null is reported as a
 //! descriptor and is not tested.
 
-use super::posterior_validation::summary_valid;
+use super::posterior_validation::{diagnostics_pass, summary_valid};
 use super::replicated_arbitrary_window_multitype_lgcp::pair_differences_valid;
 use super::replicated_arbitrary_window_multitype_lgcp::type_posteriors_valid;
 use super::replicated_arbitrary_window_multitype_lgcp::PairDifference;
@@ -195,16 +195,7 @@ pub fn validate_worker(
     let complete_draws = fixed["sampling"]["chains"].as_u64().unwrap_or(0)
         * fixed["sampling"]["draws_per_chain"].as_u64().unwrap_or(0);
     let policy = DiagnosticPolicy::default();
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && result.diagnostics.divergences <= policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
+    let diagnostics_pass = diagnostics_pass(&result.diagnostics, &policy);
     let expected_pairs = types.len() * (types.len() - 1) / 2;
     let correlation_pairs = result.cross_type_correlations.len() == expected_pairs
         && result.cross_type_correlations.iter().all(|row| {

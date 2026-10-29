@@ -22,7 +22,6 @@ mod classical;
 mod inhomogeneous_bandwidth_selection;
 mod inhomogeneous_categorical_cross_pair_correlation;
 mod inhomogeneous_pair_correlation;
-mod inhomogeneous_project;
 mod inhomogeneous_spatial;
 mod isotropic_pair_correlation;
 mod isotropic_spatial;
@@ -34,11 +33,13 @@ mod piecewise_compartment_spatial;
 mod prepost;
 mod profile;
 mod project_output;
+mod project_runtime;
 mod scalar_variogram;
 mod simulate;
 #[cfg(feature = "wsi")]
 mod slide;
 mod smoke;
+mod spatial_project;
 mod translation_pair_correlation;
 mod translation_spatial;
 

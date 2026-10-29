@@ -6,8 +6,8 @@ use crate::{
     TumorMask,
 };
 
-use super::classical::{read_bounded_utf8, source_artifact};
 pub(super) use super::project_output::write_output;
+use super::project_runtime::{read_bounded_utf8, source_artifact};
 
 const SOURCE_CELLS_KIND: &str = "application/vnd.marklab.source.point-table;version=1";
 const SOURCE_WINDOW_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";
@@ -21,7 +21,7 @@ pub(super) struct PrepareRequest<'a> {
     pub source_change_message: &'static str,
 }
 
-pub(super) struct PreparedInhomogeneousProject {
+pub(super) struct PreparedSpatialProject {
     pub durable: DurableProject,
     pub project: MarklabProject,
     pub store: LocalArtifactStore,
@@ -30,7 +30,7 @@ pub(super) struct PreparedInhomogeneousProject {
     pub memory_bytes: usize,
 }
 
-pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedInhomogeneousProject> {
+pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedSpatialProject> {
     let cells_before = source_artifact(request.cells, SOURCE_CELLS_KIND)?;
     let window_before = source_artifact(request.mask, SOURCE_WINDOW_KIND)?;
     let memory_bytes = request
@@ -70,7 +70,7 @@ pub(super) fn prepare(request: PrepareRequest<'_>) -> Result<PreparedInhomogeneo
     .map_err(|error| MarklabError::Compute(error.to_string()))?;
     let project = MarklabProject::with_inline_artifact_limit(memory_bytes)
         .map_err(|error| MarklabError::Validation(error.to_string()))?;
-    Ok(PreparedInhomogeneousProject {
+    Ok(PreparedSpatialProject {
         durable,
         project,
         store,

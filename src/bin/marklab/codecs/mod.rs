@@ -3,3 +3,7 @@
 pub(crate) mod embedding_envelope;
 pub(crate) mod graph_signal;
 pub(crate) mod hierarchical_max_t;
+
+pub(crate) mod embedding_kernel;
+pub(crate) mod fingerprints;
+pub(crate) mod multiscale_kernel;

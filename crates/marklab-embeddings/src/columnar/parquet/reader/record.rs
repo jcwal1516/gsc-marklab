@@ -1,4 +1,4 @@
-use marklab_project::{ArtifactRecord, TableColumnType, TableFormat, TableScalarType};
+use marklab_project::{ArtifactRecord, TableFormat};
 
 use crate::{
     CellEmbeddingRowLink, EmbeddingError, EmbeddingStatus, ExpectedCellSet,
@@ -8,7 +8,10 @@ use crate::{
 use super::super::profile::{
     CONTENT_KIND, ENCODING_VERSION, MAXIMUM_DIMENSION, MAXIMUM_ROWS, SCHEMA_ID,
 };
-use crate::columnar::{ColumnarError, ParquetFailure};
+use crate::columnar::{
+    admission::{admit_cell_embedding_record, CellEmbeddingRecordProfile},
+    ColumnarError, ParquetFailure,
+};
 
 pub(super) fn validate_embedding_record(
     record: &ArtifactRecord,
@@ -17,65 +20,20 @@ pub(super) fn validate_embedding_record(
     row_link: &CellEmbeddingRowLink,
     graph: VerifiedCellEmbeddingArtifactGraph,
 ) -> Result<u32, ColumnarError> {
-    if record.content().kind() != CONTENT_KIND
-        || record.content().byte_len() != observed_byte_len
-        || record.schema().id() != SCHEMA_ID
-        || record.schema().version() != 1
-        || !record.semantic_metadata().is_empty()
-        || graph.dependency_count != 13
-        || graph.expected_cells_logical_digest != expected.logical_digest()
-        || graph.row_link_logical_digest != row_link.logical_digest()
-        || graph.expected_cells_artifact_id != row_link.expected_cells_artifact_id()
-        || graph.source_cells_artifact_id != row_link.source_cells_artifact_id()
-        || graph.source_vectors_artifact_id != row_link.source_vectors_artifact_id()
-        || graph.identity_map_artifact_id != row_link.identity_map_artifact_id()
-        || graph.converter_artifact_id != row_link.converter_artifact_id()
-        || row_link.expected_cells_logical_digest() != expected.logical_digest()
-        || row_link.entries().len() != expected.cells().len()
-    {
-        return Err(ColumnarError::ArtifactBindingMismatch);
-    }
-    let mut expected_dependencies = vec![
-        graph.expected_cells_artifact_id,
-        graph.provenance_artifact_id,
-        graph.row_link_artifact_id,
-    ];
-    expected_dependencies.sort_unstable();
-    if record.dependencies() != expected_dependencies {
-        return Err(ColumnarError::ArtifactBindingMismatch);
-    }
-    let manifest = record
-        .table()
-        .ok_or(ColumnarError::ArtifactBindingMismatch)?;
-    if manifest.format() != TableFormat::ParquetFile
-        || manifest.encoding_version() != ENCODING_VERSION
-        || manifest.row_count()
-            != u64::try_from(expected.cells().len()).map_err(|_| ColumnarError::SizeOverflow)?
-        || manifest.columns().len() != 3
-        || manifest.columns()[0].name() != "cell_id"
-        || manifest.columns()[0].column_type() != &TableColumnType::Scalar(TableScalarType::Utf8)
-        || manifest.columns()[0].nullable()
-        || manifest.columns()[1].name() != "embedding"
-        || manifest.columns()[1].nullable()
-        || manifest.columns()[2].name() != "embedding_status"
-        || manifest.columns()[2].column_type() != &TableColumnType::Scalar(TableScalarType::Utf8)
-        || manifest.columns()[2].nullable()
-        || manifest.primary_key() != ["cell_id"]
-    {
-        return Err(ColumnarError::ArtifactBindingMismatch);
-    }
-    let dimension = match manifest.columns()[1].column_type() {
-        TableColumnType::FixedSizeList {
-            element: TableScalarType::F32,
-            length,
-        } => *length,
-        _ => return Err(ColumnarError::ArtifactBindingMismatch),
-    };
-    if dimension != graph.output_dimension
-        || dimension == 0
-        || dimension > MAXIMUM_DIMENSION
-        || expected.cells().len() > MAXIMUM_ROWS
-    {
+    let dimension = admit_cell_embedding_record(
+        record,
+        observed_byte_len,
+        expected,
+        row_link,
+        graph,
+        CellEmbeddingRecordProfile {
+            content_kind: CONTENT_KIND,
+            encoding_version: ENCODING_VERSION,
+            schema_id: SCHEMA_ID,
+            table_format: TableFormat::ParquetFile,
+        },
+    )?;
+    if dimension == 0 || dimension > MAXIMUM_DIMENSION || expected.cells().len() > MAXIMUM_ROWS {
         return Err(ColumnarError::ArtifactBindingMismatch);
     }
     Ok(dimension)

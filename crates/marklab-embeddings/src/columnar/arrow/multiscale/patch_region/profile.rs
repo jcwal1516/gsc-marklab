@@ -12,7 +12,7 @@ use crate::{
 use arrow::datatypes::Schema;
 use arrow_ipc::{Endianness, Type};
 
-use super::super::physical::validate_required_utf8_field;
+use super::super::super::physical::validate_required_utf8_field;
 
 pub(super) const METADATA_LIMIT: usize = 64 * 1024;
 pub(super) const FIELD_COUNT: usize = 5;

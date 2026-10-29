@@ -1,4 +1,8 @@
-use crate::edge_corrected::{estimate_curve, CurveWork};
+use crate::edge_corrected::{
+    estimate_curve,
+    inference::{conditional_csr_envelope, CsrError, CsrResult, CurveEvaluation},
+    CurveWork,
+};
 use crate::result_vocabulary::{
     ArcMeasureOwner, DuplicatePointPolicy, EdgeCorrection, PairTraversal, SpatialExecutionMode,
 };
@@ -8,14 +12,12 @@ use crate::common::finite::canonical_zero;
 
 use crate::{
     classical::{
-        sample_conditional_csr, window_summary, ClassicalInferenceSummary, ClassicalNullDesign,
-        ClassicalNullModel, ClassicalRandomizationUnit, ClassicalSpatialLimits,
-        SpatialGeometryPlan2D,
+        window_summary, ClassicalNullDesign, ClassicalNullModel, ClassicalRandomizationUnit,
+        ClassicalSpatialLimits, SpatialGeometryPlan2D,
     },
-    common::seeds::{derive_seed, SeedEndpoint},
+    common::seeds::SeedEndpoint,
     data::Pattern,
     geom::window::ObservationWindow2D,
-    permutation::envelopes::GlobalEnvelope,
 };
 
 use super::{edge::IsotropicArcBudget, types::*};
@@ -103,70 +105,44 @@ pub fn analyze_isotropic_spatial_pattern(
     }
 
     let mut budget = IsotropicArcBudget::new(config.limits, window);
-    let observed = isotropic_curve(
-        &pattern.x_um,
-        &pattern.y_um,
-        window,
-        &config.radii_um,
-        &mut budget,
-    )?;
+    let evaluate = |x: &[f64], y: &[f64], budget: &mut IsotropicArcBudget| {
+        let work = isotropic_curve(x, y, window, &config.radii_um, budget)?;
+        let points = make_curve(window.area_um2(), pattern.len(), &config.radii_um, &work)?;
+        let values = points
+            .iter()
+            .map(|point| point.l.expect("two-point isotropic curve is available"))
+            .collect();
+        Ok(CurveEvaluation {
+            points,
+            values,
+            eligible: vec![true; config.radii_um.len()],
+        })
+    };
+    let observed = evaluate(&pattern.x_um, &pattern.y_um, &mut budget)?;
     geometry.observed_pair_visits = budget.pair_visits;
     geometry.observed_visible_arc_evaluations = budget.visible_arc_evaluations;
-    let mut curve = make_curve(
-        window.area_um2(),
-        pattern.len(),
-        &config.radii_um,
-        &observed,
-    )?;
-    let mut simulated_l = Vec::new();
-    simulated_l
-        .try_reserve_exact(config.simulations)
-        .map_err(|_| IsotropicSpatialError::AllocationFailed)?;
-    let mut csr_draws = 0_usize;
-    for simulation in 0..config.simulations {
-        let seed = derive_seed(config.seed, SeedEndpoint::IsotropicSpatialCsr, simulation);
-        let (x, y) = sample_conditional_csr(
-            window,
-            pattern.len(),
-            seed,
-            &mut csr_draws,
-            config.limits.maximum_csr_draws,
-        )
-        .map_err(|error| IsotropicSpatialError::Csr {
-            reason: error.to_string(),
-        })?;
-        SpatialGeometryPlan2D::new(&x, &y, window, classical_limits).map_err(|error| {
-            IsotropicSpatialError::Csr {
-                reason: error.to_string(),
-            }
-        })?;
-        let work = isotropic_curve(&x, &y, window, &config.radii_um, &mut budget)?;
-        let simulated = make_curve(window.area_um2(), pattern.len(), &config.radii_um, &work)?;
-        simulated_l.push(
-            simulated
-                .into_iter()
-                .map(|point| point.l.expect("two-point isotropic curve is available"))
-                .collect(),
-        );
-    }
-    let observed_l = curve
-        .iter()
-        .map(|point| point.l.expect("two-point isotropic curve is available"))
-        .collect::<Vec<_>>();
-    let eligibility = vec![true; observed_l.len()];
-    let envelope = GlobalEnvelope::from_curves_with_eligibility(
-        &observed_l,
-        &simulated_l,
-        config.alpha,
-        &eligibility,
+    let CsrResult {
+        curve,
+        inference,
+        candidate_draws: csr_draws,
+    } = conditional_csr_envelope(
+        window,
+        &null_design,
+        classical_limits,
+        SeedEndpoint::IsotropicSpatialCsr,
+        observed,
+        |x, y| evaluate(x, y, &mut budget),
+        |point, lower, upper| {
+            point.lower_l = Some(lower);
+            point.upper_l = Some(upper);
+        },
     )
-    .map_err(|error| IsotropicSpatialError::Inference {
-        reason: error.to_string(),
+    .map_err(|error| match error {
+        CsrError::Allocation => IsotropicSpatialError::AllocationFailed,
+        CsrError::Simulation(reason) => IsotropicSpatialError::Csr { reason },
+        CsrError::Evaluation(error) => error,
+        CsrError::Inference(reason) => IsotropicSpatialError::Inference { reason },
     })?;
-    for (index, point) in curve.iter_mut().enumerate() {
-        point.lower_l = Some(canonical_zero(envelope.lower[index]));
-        point.upper_l = Some(canonical_zero(envelope.upper[index]));
-    }
     geometry.total_pair_visits = budget.pair_visits;
     geometry.total_visible_arc_evaluations = budget.visible_arc_evaluations;
     geometry.total_arc_segment_tests = budget.arc_segment_tests;
@@ -182,13 +158,7 @@ pub fn analyze_isotropic_spatial_pattern(
         configuration,
         null_design,
         curve,
-        inference: Some(ClassicalInferenceSummary {
-            p_global: canonical_zero(envelope.p_global),
-            erl_depth: canonical_zero(envelope.erl_depth),
-            critical_depth: canonical_zero(envelope.critical_depth),
-            simulations: envelope.n_permutations,
-            eligible_radius_count: config.radii_um.len(),
-        }),
+        inference,
         csr_candidate_draws: csr_draws,
     })
 }

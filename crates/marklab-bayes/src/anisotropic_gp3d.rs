@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use serde::{Deserialize, Serialize};
 
 use crate::backend_versions::PYTHON_VERSION;
-use crate::validation::{validate_scalar_summary, SummarySupport};
+use crate::validation::{diagnostics_satisfy_policy, validate_scalar_summary, SummarySupport};
 use crate::ClaimStatus;
 use crate::{
     gp::GpPosteriorPredictive,
@@ -462,16 +462,7 @@ fn validate_diagnostics(
             "non-finite anisotropic 3-D GP diagnostics".into(),
         ));
     }
-    let complete = diagnostics.prior_predictive_finite
-        && diagnostics.posterior_finite
-        && diagnostics.constraints_valid
-        && diagnostics.identifiability_checks_passed
-        && diagnostics.r_hat <= request.diagnostic_policy.maximum_r_hat
-        && diagnostics.ess_bulk >= request.diagnostic_policy.minimum_bulk_ess
-        && diagnostics.ess_tail >= request.diagnostic_policy.minimum_tail_ess
-        && diagnostics.minimum_ebfmi >= request.diagnostic_policy.minimum_ebfmi
-        && diagnostics.divergences <= request.diagnostic_policy.maximum_divergences
-        && diagnostics.max_tree_depth_hits <= request.diagnostic_policy.maximum_tree_depth_hits;
+    let complete = diagnostics_satisfy_policy(diagnostics, &request.diagnostic_policy);
     if (result.fit_state == FitState::Complete) != complete {
         return Err(BayesError::WorkerContract(
             "anisotropic 3-D GP fit state disagrees with diagnostics".into(),

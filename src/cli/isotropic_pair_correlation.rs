@@ -1,6 +1,6 @@
 use super::{
-    classical::{native_runtime_provenance, source_artifact},
-    inhomogeneous_project::{prepare, write_output, PrepareRequest, PreparedInhomogeneousProject},
+    project_runtime::{native_runtime_provenance, source_artifact},
+    spatial_project::{prepare, write_output, PrepareRequest, PreparedSpatialProject},
 };
 use crate::{
     spatial::{
@@ -71,7 +71,7 @@ pub struct Request {
 }
 
 pub(super) fn run_project(request: Request) -> Result<()> {
-    let PreparedInhomogeneousProject {
+    let PreparedSpatialProject {
         mut durable,
         mut project,
         store,

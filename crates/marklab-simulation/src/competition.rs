@@ -1,6 +1,8 @@
 use serde::Serialize;
 
-use super::{diffusion_step, reaction_step, trapezoidal_mass, SimulationError};
+use super::{
+    diffusion_step, reaction_step, time_grid::TimeGrid, trapezoidal_mass, SimulationError,
+};
 use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Debug)]
@@ -138,32 +140,28 @@ pub fn simulate_spatial_competition(
     let mut b_event = false;
     let mut extinction_events = Vec::new();
     let mut trajectory = vec![snapshot(0.0, &density_a, &density_b, spacing)];
-    let mut time = 0.0;
     let mut completed_steps = 0_u32;
     let mut positivity_violations = 0_u64;
-    while completed_steps < planned_steps {
-        let next_time = if completed_steps + 1 == planned_steps {
-            spec.final_time
-        } else {
-            f64::from(completed_steps + 1) * spec.time_step
-        };
-        let dt = next_time - time;
+    for step in TimeGrid::new(
+        spec.final_time,
+        spec.time_step,
+        planned_steps,
+        spec.record_every_steps,
+    ) {
+        let dt = step.dt;
         competition_reaction_step(&mut density_a, &mut density_b, &spec, dt / 2.0)?;
         diffusion_step(&mut density_a, spec.diffusion_a_um2_per_time, spacing, dt)?;
         diffusion_step(&mut density_b, spec.diffusion_b_um2_per_time, spacing, dt)?;
         competition_reaction_step(&mut density_a, &mut density_b, &spec, dt / 2.0)?;
         check_state(&mut density_a, spec.carrying_a, &mut positivity_violations)?;
         check_state(&mut density_b, spec.carrying_b, &mut positivity_violations)?;
-        time = next_time;
-        completed_steps = completed_steps
-            .checked_add(1)
-            .ok_or_else(|| SimulationError::Numerical("step count overflowed".into()))?;
+        completed_steps = step.completed_steps;
         let max_a = maximum(&density_a);
         let max_b = maximum(&density_b);
         if a_was_above && !a_event && max_a <= threshold_a {
             extinction_events.push(CompetitionExtinctionEvent {
                 species: "a",
-                time,
+                time: step.time,
                 threshold: threshold_a,
             });
             a_event = true;
@@ -171,15 +169,15 @@ pub fn simulate_spatial_competition(
         if b_was_above && !b_event && max_b <= threshold_b {
             extinction_events.push(CompetitionExtinctionEvent {
                 species: "b",
-                time,
+                time: step.time,
                 threshold: threshold_b,
             });
             b_event = true;
         }
         a_was_above |= max_a > threshold_a;
         b_was_above |= max_b > threshold_b;
-        if completed_steps.is_multiple_of(spec.record_every_steps) || time == spec.final_time {
-            trajectory.push(snapshot(time, &density_a, &density_b, spacing));
+        if step.should_record {
+            trajectory.push(snapshot(step.time, &density_a, &density_b, spacing));
         }
     }
     let final_max_a = maximum(&density_a);

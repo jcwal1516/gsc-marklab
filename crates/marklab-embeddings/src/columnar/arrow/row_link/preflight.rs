@@ -1,9 +1,6 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
-use arrow_ipc::{
-    convert::fb_to_schema, root_as_footer_with_opts, root_as_message_with_opts, MessageHeader,
-    MetadataVersion,
-};
+use arrow_ipc::convert::fb_to_schema;
 use marklab_project::ContentDigest;
 
 use crate::columnar::enforce_file_budget;
@@ -12,13 +9,14 @@ use crate::{CellEmbeddingRowLink, ExpectedCellSet};
 use super::{
     super::{
         super::super::{ArrowIpcFailure, ColumnarError, EmbeddingColumnarBudgets},
-        preflight_reader::{read_exact_at, read_footer, read_vec_at},
+        physical::{
+            decode_footer, decode_record_batch_message, read_footer, read_record_batch_block,
+            validate_schema_message,
+        },
         profile::{
             align, arrow_failure, enforce_decoded_budget, enforce_retained_budget,
-            enforce_row_group_budget, footer_verifier_options, message_verifier_options,
-            nonnegative_i32_usize, nonnegative_usize, schema_message_verifier_options,
-            validate_all_valid_bitmap, validity_bytes, ALIGNMENT, CONTINUATION_MARKER, EOS_BYTES,
-            HEADER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
+            nonnegative_usize, validate_all_valid_bitmap, validity_bytes, ALIGNMENT, EOS_BYTES,
+            MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
         },
     },
     profile::{row_link_schema, validate_flatbuffer_schema, validate_nullable_bitmap},
@@ -101,11 +99,7 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
     let data_end = footer_start
         .checked_sub(EOS_BYTES)
         .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidFooterLength))?;
-    let footer = root_as_footer_with_opts(&footer_verifier_options(), &footer_bytes)
-        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidFooter))?;
-    if footer.version() != MetadataVersion::V5 {
-        return Err(arrow_failure(ArrowIpcFailure::UnsupportedVersion));
-    }
+    let footer = decode_footer(&footer_bytes)?;
     if footer
         .custom_metadata()
         .is_some_and(|metadata| !metadata.is_empty())
@@ -125,7 +119,16 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
     if fb_to_schema(footer_schema) != row_link_schema(row_link)? {
         return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
-    let schema_end = validate_initial_schema(reader, file_len, footer_start, row_link, budgets)?;
+    enforce_retained_budget(MAXIMUM_MESSAGE_BYTES, budgets)?;
+    let expected_schema = row_link_schema(row_link)?;
+    let schema_end = validate_schema_message(
+        reader,
+        file_len,
+        footer_start,
+        &expected_schema,
+        |schema| validate_flatbuffer_schema(schema, row_link),
+        |_bytes| Ok(()),
+    )?;
     let batches = footer
         .recordBatches()
         .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidFooter))?;
@@ -142,43 +145,19 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
     let mut decoded_bytes = 0_u64;
     let mut maximum_batch_decoded_bytes = 0_u64;
     for (batch_index, block) in batches.iter().enumerate() {
-        let offset = nonnegative_usize(block.offset(), ArrowIpcFailure::InvalidBlock)?;
-        let metadata_length =
-            nonnegative_i32_usize(block.metaDataLength(), ArrowIpcFailure::InvalidBlock)?;
-        let body_length = nonnegative_usize(block.bodyLength(), ArrowIpcFailure::InvalidBlock)?;
-        if offset != next_offset
-            || offset % ALIGNMENT != 0
-            || !(8..=MAXIMUM_MESSAGE_BYTES).contains(&metadata_length)
-            || metadata_length % ALIGNMENT != 0
-            || body_length % ALIGNMENT != 0
-        {
-            return Err(arrow_failure(ArrowIpcFailure::InvalidBlock));
-        }
-        let block_bytes = metadata_length
-            .checked_add(body_length)
-            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidBlock))?;
-        enforce_row_group_budget(block_bytes, budgets)?;
-        let block_retained = footer_length
-            .checked_mul(2)
-            .and_then(|value| value.checked_add(block_bytes))
-            .and_then(|value| value.checked_add(MAXIMUM_MESSAGE_BYTES))
-            .ok_or(ColumnarError::SizeOverflow)?;
-        retained_required = retained_required.max(block_retained);
-        enforce_retained_budget(retained_required, budgets)?;
-        let block_end = offset
-            .checked_add(block_bytes)
-            .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidBlock))?;
-        if block_end > data_end {
-            return Err(arrow_failure(ArrowIpcFailure::InvalidBlock));
-        }
-        let physical_block = read_vec_at(
+        let physical = read_record_batch_block(
             reader,
             file_len,
-            offset,
-            block_bytes,
-            ArrowIpcFailure::InvalidBlock,
+            footer_start,
+            footer_length,
+            next_offset,
+            block.offset(),
+            block.metaDataLength(),
+            block.bodyLength(),
+            budgets,
         )?;
-        let (message_bytes, body_bytes) = physical_block.split_at(metadata_length);
+        retained_required = retained_required.max(physical.retained_preflight_bytes);
+        let (message_bytes, body_bytes) = physical.message_and_body();
         let start = batch_index
             .checked_mul(RECORD_BATCH_ROWS)
             .ok_or(ColumnarError::SizeOverflow)?;
@@ -206,7 +185,7 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
         aggregate_rows = aggregate_rows
             .checked_add(rows)
             .ok_or(ColumnarError::SizeOverflow)?;
-        next_offset = block_end;
+        next_offset = physical.end;
     }
     if next_offset != data_end || aggregate_rows != row_link.entries().len() {
         return Err(arrow_failure(ArrowIpcFailure::InvalidRowCount));
@@ -224,77 +203,6 @@ pub(super) fn preflight_cell_embedding_row_link_arrow_reader<R: Read + Seek + ?S
     })
 }
 
-fn validate_initial_schema<R: Read + Seek + ?Sized>(
-    reader: &mut R,
-    file_len: usize,
-    footer_start: usize,
-    row_link: &CellEmbeddingRowLink,
-    budgets: EmbeddingColumnarBudgets,
-) -> Result<usize, ColumnarError> {
-    let data_end = footer_start
-        .checked_sub(EOS_BYTES)
-        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidFooterLength))?;
-    let mut prefix = [0_u8; 8];
-    read_exact_at(
-        reader,
-        file_len,
-        HEADER_BYTES,
-        &mut prefix,
-        ArrowIpcFailure::InvalidMessage,
-    )?;
-    if &prefix[..4] != CONTINUATION_MARKER {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
-    }
-    let declared = nonnegative_i32_usize(
-        i32::from_le_bytes(
-            prefix[4..]
-                .try_into()
-                .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?,
-        ),
-        ArrowIpcFailure::InvalidMessage,
-    )?;
-    let metadata_length = declared
-        .checked_add(8)
-        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
-    let end = HEADER_BYTES
-        .checked_add(metadata_length)
-        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
-    if declared == 0
-        || metadata_length > MAXIMUM_MESSAGE_BYTES
-        || metadata_length % ALIGNMENT != 0
-        || end > data_end
-    {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
-    }
-    enforce_retained_budget(MAXIMUM_MESSAGE_BYTES, budgets)?;
-    let bytes = read_vec_at(
-        reader,
-        file_len,
-        HEADER_BYTES,
-        metadata_length,
-        ArrowIpcFailure::InvalidMessage,
-    )?;
-    let message = root_as_message_with_opts(&schema_message_verifier_options(), &bytes[8..])
-        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
-    if message.version() != MetadataVersion::V5
-        || message.header_type() != MessageHeader::Schema
-        || message.bodyLength() != 0
-        || message
-            .custom_metadata()
-            .is_some_and(|metadata| !metadata.is_empty())
-    {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
-    }
-    let schema = message
-        .header_as_schema()
-        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
-    validate_flatbuffer_schema(schema, row_link)?;
-    if fb_to_schema(schema) != row_link_schema(row_link)? {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
-    }
-    Ok(end)
-}
-
 fn validate_record_batch(
     message_bytes: &[u8],
     body_bytes: &[u8],
@@ -304,39 +212,7 @@ fn validate_record_batch(
     rows: usize,
     aggregate_decoded_bytes: &mut u64,
 ) -> Result<(), ColumnarError> {
-    if message_bytes.len() < 8 || &message_bytes[..4] != CONTINUATION_MARKER {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
-    }
-    let declared = nonnegative_i32_usize(
-        i32::from_le_bytes(
-            message_bytes[4..8]
-                .try_into()
-                .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?,
-        ),
-        ArrowIpcFailure::InvalidMessage,
-    )?;
-    if declared == 0
-        || declared.checked_add(8) != Some(message_bytes.len())
-        || declared > MAXIMUM_MESSAGE_BYTES - 8
-    {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
-    }
-    let message = root_as_message_with_opts(&message_verifier_options(), &message_bytes[8..])
-        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
-    if message.version() != MetadataVersion::V5
-        || message.header_type() != MessageHeader::RecordBatch
-        || message.bodyLength() != declared_body_length
-        || message.bodyLength()
-            != i64::try_from(body_bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?
-        || message
-            .custom_metadata()
-            .is_some_and(|metadata| !metadata.is_empty())
-    {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
-    }
-    let batch = message
-        .header_as_record_batch()
-        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
+    let batch = decode_record_batch_message(message_bytes, body_bytes, declared_body_length)?;
     if batch.compression().is_some()
         || batch
             .variadicBufferCounts()

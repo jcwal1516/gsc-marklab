@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use arrow::datatypes::Schema;
 use arrow_ipc::{Endianness, Precision, Type};
 
-use super::super::physical::validate_required_utf8_field;
+use super::super::super::physical::validate_required_utf8_field;
 
 use crate::{
     columnar::{

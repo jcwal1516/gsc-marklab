@@ -68,35 +68,46 @@ pub fn chebyshev_apply(
                 .into(),
         ));
     }
+    chebyshev_recurrence(
+        input,
+        coefficients,
+        |vector| matrix_vector(scaled_matrix, vector),
+        "Chebyshev recurrence produced non-finite output",
+    )
+}
+
+pub(crate) fn chebyshev_recurrence(
+    input: &[f64],
+    coefficients: &[f64],
+    mut matrix_vector: impl FnMut(&[f64]) -> Vec<f64>,
+    non_finite_message: &'static str,
+) -> Result<Vec<f64>, GraphError> {
     let mut previous = input.to_vec();
     let mut output = previous
         .iter()
         .map(|value| 0.5 * coefficients[0] * value)
         .collect::<Vec<_>>();
-    if coefficients.len() == 1 {
-        return Ok(output);
-    }
-    let mut current = matrix_vector(scaled_matrix, input);
-    for (target, value) in output.iter_mut().zip(&current) {
-        *target += coefficients[1] * value;
-    }
-    for &coefficient in coefficients.iter().skip(2) {
-        let product = matrix_vector(scaled_matrix, &current);
-        let next = product
-            .iter()
-            .zip(&previous)
-            .map(|(product, previous)| 2.0 * product - previous)
-            .collect::<Vec<_>>();
-        for (target, value) in output.iter_mut().zip(&next) {
-            *target += coefficient * value;
+    if coefficients.len() > 1 {
+        let mut current = matrix_vector(input);
+        for (target, value) in output.iter_mut().zip(&current) {
+            *target += coefficients[1] * value;
         }
-        previous = current;
-        current = next;
+        for &coefficient in coefficients.iter().skip(2) {
+            let product = matrix_vector(&current);
+            let next = product
+                .iter()
+                .zip(&previous)
+                .map(|(product, previous)| 2.0 * product - previous)
+                .collect::<Vec<_>>();
+            for (target, value) in output.iter_mut().zip(&next) {
+                *target += coefficient * value;
+            }
+            previous = current;
+            current = next;
+        }
     }
     if output.iter().any(|value| !value.is_finite()) {
-        return Err(GraphError::Numerical(
-            "Chebyshev recurrence produced non-finite output".into(),
-        ));
+        return Err(GraphError::Numerical(non_finite_message.into()));
     }
     Ok(output)
 }
@@ -154,4 +165,16 @@ pub(crate) fn heat_grid_error(
             (approximation - (-time * eigenvalue).exp()).abs()
         })
         .fold(0.0_f64, f64::max)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn single_coefficient_rejects_non_finite_output() {
+        let error = chebyshev_apply(&[vec![0.0]], &[f64::MAX], &[4.0])
+            .expect_err("overflowed output must be rejected");
+        assert!(matches!(error, GraphError::Numerical(_)));
+    }
 }

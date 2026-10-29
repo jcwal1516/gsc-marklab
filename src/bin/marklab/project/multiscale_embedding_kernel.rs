@@ -1,9 +1,10 @@
-use std::{borrow::Cow, collections::HashSet, io};
+use std::{borrow::Cow, io};
+
+use crate::codecs::multiscale_kernel::{read_summaries, read_weights};
 
 use marklab_embeddings::analysis::{
     multiscale_embedding_kernel, MultiscaleBaseKernel, MultiscaleEmbeddingKernelResult,
-    MultiscaleEmbeddingKernelSpec, MultiscaleEmbeddingSummary, MultiscaleKernelError,
-    MultiscaleKernelWeight,
+    MultiscaleEmbeddingKernelSpec, MultiscaleKernelError,
 };
 use marklab_project::ContentDigest;
 use marklab_workflow::NodeError;
@@ -80,7 +81,7 @@ pub(super) fn run(args: MultiscaleEmbeddingKernelProjectArgs) -> Result<(), CliE
         kernel_scale,
         maximum_component_scale_visits,
     };
-    let requirements = preflight(&analysis, limits)?;
+    preflight(&analysis, limits)?;
     let retained = retained_bytes(
         source_bytes,
         analysis.summaries.len(),
@@ -100,7 +101,6 @@ pub(super) fn run(args: MultiscaleEmbeddingKernelProjectArgs) -> Result<(), CliE
     let weights_sha256 = sources[1].artifact().digest().to_string();
     let (analysis, contract) = MultiscaleEmbeddingKernel::new(
         analysis,
-        requirements,
         input_sha256,
         weights_sha256,
         base_kernel,
@@ -141,216 +141,23 @@ fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, 
     )
 }
 
-fn read_summaries(
-    bytes: &[u8],
-) -> Result<(Vec<MultiscaleEmbeddingSummary>, Vec<String>), CliError> {
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .flexible(false)
-        .from_reader(bytes);
-    let headers = reader.headers()?.clone();
-    if headers.len() < 3 || headers.iter().take(2).collect::<Vec<_>>() != ["sample_id", "scale_um"]
-    {
-        return Err(CliError::Input(
-            "multiscale summaries require sample_id,scale_um and embedding_* columns".into(),
-        ));
-    }
-    let feature_names = headers
-        .iter()
-        .skip(2)
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
-    let mut rows = Vec::new();
-    for record in reader.records() {
-        let record = record?;
-        rows.push(MultiscaleEmbeddingSummary {
-            sample_id: record[0].to_owned(),
-            scale_um: record[1]
-                .parse()
-                .map_err(|_| CliError::Input("summary scale is invalid".into()))?,
-            embedding: (2..record.len())
-                .map(|index| {
-                    record[index].parse::<f64>().map_err(|_| {
-                        CliError::Input(format!("summary value {} is invalid", &headers[index]))
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-        });
-    }
-    Ok((rows, feature_names))
-}
-
-fn read_weights(bytes: &[u8]) -> Result<Vec<MultiscaleKernelWeight>, CliError> {
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .flexible(false)
-        .from_reader(bytes);
-    if reader.headers()?.iter().collect::<Vec<_>>() != ["scale_um", "weight"] {
-        return Err(CliError::Input(
-            "multiscale weight headers must be scale_um,weight".into(),
-        ));
-    }
-    reader
-        .records()
-        .map(|record| {
-            let record = record?;
-            Ok(MultiscaleKernelWeight {
-                scale_um: record[0]
-                    .parse()
-                    .map_err(|_| CliError::Input("weight scale is invalid".into()))?,
-                weight: record[1]
-                    .parse()
-                    .map_err(|_| CliError::Input("scale weight is invalid".into()))?,
-            })
-        })
-        .collect()
-}
-
-#[derive(Clone)]
-struct Requirements {
-    sorted_weights: Vec<(f64, f64)>,
-    component_scale_visits: u64,
-}
-
 fn preflight(
     analysis: &MultiscaleEmbeddingKernelSpec,
     limits: MultiscaleEmbeddingKernelLimits,
-) -> Result<Requirements, CliError> {
-    let MultiscaleEmbeddingKernelSpec {
-        summaries,
-        feature_names,
-        weights,
-        sample_a,
-        sample_b,
-        ..
-    } = analysis;
-    let base_kernel = analysis.base_kernel;
-    let kernel_scale = analysis.kernel_scale;
-    let MultiscaleEmbeddingKernelLimits {
-        maximum_summaries,
-        maximum_dimension,
-        maximum_component_scale_visits,
-        ..
-    } = limits;
-    if sample_a.is_empty()
-        || sample_b.is_empty()
-        || sample_a == sample_b
-        || !(1..=128).contains(&feature_names.len())
-        || !(2..=64).contains(&weights.len())
-    {
-        return Err(CliError::Input(
-            "dimensions or sample identities are invalid".into(),
-        ));
-    }
-    if summaries.len() > maximum_summaries {
+) -> Result<(), CliError> {
+    if analysis.summaries.len() > limits.maximum_summaries {
         return Err(CliError::Input(format!(
-            "multiscale summary count exceeds maximum_summaries {maximum_summaries}"
+            "multiscale summary count exceeds maximum_summaries {}",
+            limits.maximum_summaries
         )));
     }
-    if feature_names.len() > maximum_dimension {
+    if analysis.feature_names.len() > limits.maximum_dimension {
         return Err(CliError::Input(format!(
-            "multiscale embedding dimension exceeds maximum_dimension {maximum_dimension}"
+            "multiscale embedding dimension exceeds maximum_dimension {}",
+            limits.maximum_dimension
         )));
     }
-    let mut names = HashSet::new();
-    if feature_names
-        .iter()
-        .any(|name| !name.starts_with("embedding_") || !names.insert(name.as_str()))
-    {
-        return Err(CliError::Input("feature names are invalid".into()));
-    }
-    if matches!(
-        base_kernel,
-        MultiscaleBaseKernel::Rbf | MultiscaleBaseKernel::Laplacian
-    ) {
-        if kernel_scale.is_none_or(|value| !value.is_finite() || value <= 0.0) {
-            return Err(CliError::Input(
-                "RBF/Laplacian kernel scale is invalid".into(),
-            ));
-        }
-    } else if kernel_scale.is_some() {
-        return Err(CliError::Input(
-            "linear/cosine kernels do not accept a scale".into(),
-        ));
-    }
-    let mut sorted_weights = weights
-        .iter()
-        .map(|row| (row.scale_um, row.weight))
-        .collect::<Vec<_>>();
-    sorted_weights.sort_by(|left, right| left.0.total_cmp(&right.0));
-    if sorted_weights.iter().any(|(scale, weight)| {
-        !scale.is_finite()
-            || *scale <= 0.0
-            || !weight.is_finite()
-            || *weight <= 0.0
-            || *weight >= 1.0
-    }) || sorted_weights.windows(2).any(|rows| rows[0].0 == rows[1].0)
-    {
-        return Err(CliError::Input("scale weights are invalid".into()));
-    }
-    let weight_sum = sorted_weights.iter().map(|row| row.1).sum::<f64>();
-    if !weight_sum.is_finite() || (weight_sum - 1.0).abs() > 1e-12 {
-        return Err(CliError::Input("scale weights must sum to one".into()));
-    }
-    let component_scale_visits = (weights.len() as u64)
-        .checked_mul(feature_names.len() as u64)
-        .ok_or_else(|| CliError::Input("component-scale work overflowed".into()))?;
-    if component_scale_visits > maximum_component_scale_visits
-        || maximum_component_scale_visits > 250_000_000
-    {
-        return Err(CliError::Input(
-            "component-scale work exceeds its bound".into(),
-        ));
-    }
-    let mut sorted_summaries = summaries.iter().collect::<Vec<_>>();
-    sorted_summaries.sort_by(|left, right| {
-        left.sample_id
-            .cmp(&right.sample_id)
-            .then_with(|| left.scale_um.total_cmp(&right.scale_um))
-    });
-    if summaries.len() != weights.len() * 2 {
-        return Err(CliError::Input(
-            "both samples require every weighted scale".into(),
-        ));
-    }
-    let selected = |id: &str| {
-        sorted_summaries
-            .iter()
-            .copied()
-            .filter(|row| row.sample_id == id)
-            .collect::<Vec<_>>()
-    };
-    let a = selected(sample_a);
-    let b = selected(sample_b);
-    if a.len() != weights.len() || b.len() != weights.len() {
-        return Err(CliError::Input(
-            "input contains unknown samples or missing scales".into(),
-        ));
-    }
-    for (index, (scale, _)) in sorted_weights.iter().enumerate() {
-        if a[index].scale_um.to_bits() != scale.to_bits()
-            || b[index].scale_um.to_bits() != scale.to_bits()
-            || a[index].embedding.len() != feature_names.len()
-            || b[index].embedding.len() != feature_names.len()
-            || a[index]
-                .embedding
-                .iter()
-                .chain(&b[index].embedding)
-                .any(|value| !value.is_finite())
-        {
-            return Err(CliError::Input("sample scales or vectors differ".into()));
-        }
-        if base_kernel == MultiscaleBaseKernel::Cosine
-            && (a[index].embedding.iter().all(|value| *value == 0.0)
-                || b[index].embedding.iter().all(|value| *value == 0.0))
-        {
-            return Err(CliError::Input("cosine summary has zero norm".into()));
-        }
-    }
-    Ok(Requirements {
-        sorted_weights,
-        component_scale_visits,
-    })
+    Ok(())
 }
 
 fn retained_bytes(
@@ -371,16 +178,12 @@ fn retained_bytes(
 }
 
 struct MultiscaleEmbeddingKernel {
-    analysis: MultiscaleEmbeddingKernelSpec,
-    requirements: Requirements,
-    input_sha256: String,
-    weights_sha256: String,
+    expected: Output,
 }
 
 impl MultiscaleEmbeddingKernel {
     fn new(
         analysis: MultiscaleEmbeddingKernelSpec,
-        requirements: Requirements,
         input_sha256: String,
         weights_sha256: String,
         base_kernel: String,
@@ -418,10 +221,11 @@ impl MultiscaleEmbeddingKernel {
         .into_bytes();
         Ok((
             Self {
-                analysis,
-                requirements,
-                input_sha256,
-                weights_sha256,
+                expected: Output::from_result(
+                    input_sha256,
+                    weights_sha256,
+                    multiscale_embedding_kernel(analysis).map_err(map_error)?,
+                ),
             },
             NodeContract {
                 id: "multiscale-embedding-kernel",
@@ -437,24 +241,7 @@ impl MultiscaleEmbeddingKernel {
     }
 
     fn validate(&self, output: &Output) -> io::Result<()> {
-        if self.requirements.sorted_weights.len() != self.analysis.weights.len()
-            || self.requirements.component_scale_visits
-                > self.analysis.maximum_component_scale_visits
-        {
-            return Err(invalid("multiscale kernel requirements differ"));
-        }
-        let expected_result =
-            multiscale_embedding_kernel(self.analysis.clone()).map_err(|error| {
-                invalid(&format!(
-                    "multiscale kernel replay validation failed: {error}"
-                ))
-            })?;
-        let expected = Output::from_result(
-            self.input_sha256.clone(),
-            self.weights_sha256.clone(),
-            expected_result,
-        );
-        let expected_bytes = marklab::exact_float_json::encode(&expected)
+        let expected_bytes = marklab::exact_float_json::encode(&self.expected)
             .map_err(|error| invalid(&error.to_string()))?;
         let actual_bytes = marklab::exact_float_json::encode(output)
             .map_err(|error| invalid(&error.to_string()))?;
@@ -464,13 +251,7 @@ impl MultiscaleEmbeddingKernel {
     }
 
     fn execute(&self) -> Result<Output, NodeError> {
-        let result =
-            multiscale_embedding_kernel(self.analysis.clone()).map_err(NodeError::execution)?;
-        Ok(Output::from_result(
-            self.input_sha256.clone(),
-            self.weights_sha256.clone(),
-            result,
-        ))
+        Ok(self.expected.clone())
     }
 }
 

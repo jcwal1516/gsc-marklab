@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    super::physical::validated_stock_group_range,
+    super::super::physical::validated_stock_group_range,
     preflight::{
         parquet_failure, prepare_reader, PatchRegionParquetPreflight, PreparedPatchRegionParquet,
     },

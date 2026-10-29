@@ -20,8 +20,8 @@ use crate::{
     SpatialAxis, TumorMask,
 };
 
-use super::classical::{native_runtime_provenance, read_bounded_utf8, source_artifact};
 pub(super) use super::project_output::write_output;
+use super::project_runtime::{native_runtime_provenance, read_bounded_utf8, source_artifact};
 
 const SOURCE_CELLS_KIND: &str = "application/vnd.marklab.source.point-table;version=1";
 const SOURCE_OBSERVATION_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";

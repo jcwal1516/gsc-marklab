@@ -1,6 +1,6 @@
 //! Typed messages and scientific checks for replicated arbitrary window lgcp agreement.
 
-use super::posterior_validation::summary_valid;
+use super::posterior_validation::{diagnostics_pass, summary_valid};
 use super::replicated_arbitrary_window_lgcp_fit::predictive_valid;
 use super::replicated_arbitrary_window_lgcp_fit::NodePosterior;
 use super::replicated_arbitrary_window_lgcp_fit::PatientEffect;
@@ -144,16 +144,7 @@ pub fn validate_numpyro(
                 && summary_valid(&left.expected_count)
                 && left.expected_count.mean > 0.0
         });
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= 1.01
-        && result.diagnostics.ess_bulk >= 400.0
-        && result.diagnostics.ess_tail >= 400.0
-        && result.diagnostics.minimum_ebfmi >= 0.2
-        && result.diagnostics.divergences == 0
-        && result.diagnostics.max_tree_depth_hits == 0;
+    let diagnostics_pass = diagnostics_pass(&result.diagnostics, source.diagnostic_policy());
     if result.format != "marklab.numpyro_replicated_arbitrary_window_lgcp_result"
         || result.version != 1
         || !result.backend.matches(backend)

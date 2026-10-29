@@ -3,9 +3,11 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    boundary_distance, metric_ball_scale, validate_and_normalize, validate_spd, CompiledCuboid3D,
-    CoordinateUnit, CuboidWindowInput, HomogeneousK3dSpec, K3dCorrection, NormalizedPoint3D,
-    Point3DInput, Spatial3dError, MAXIMUM_PAIR_RADIUS_EVALUATIONS,
+    boundary_distance,
+    metric::{distance, metric_ball_scale, validate_spd},
+    validate_and_normalize, CompiledCuboid3D, CoordinateUnit, CuboidWindowInput,
+    HomogeneousK3dSpec, K3dCorrection, NormalizedPoint3D, Point3DInput, Spatial3dError,
+    MAXIMUM_PAIR_RADIUS_EVALUATIONS,
 };
 use marklab_core::backend::ClaimStatus;
 
@@ -259,7 +261,12 @@ fn inhomogeneous_sum(
     for left in 0..points.len() {
         for right in (left + 1)..points.len() {
             let displacement = subtract(points[right].coordinates_um, points[left].coordinates_um);
-            if distance(displacement, metric)? > radius {
+            if distance(
+                displacement,
+                metric,
+                "anisotropic squared distance is negative or non-finite",
+            )? > radius
+            {
                 continue;
             }
             let weight = edge_weight(displacement, window, correction)?
@@ -303,7 +310,12 @@ fn cross_sum(
         }
         for right in type_b {
             let displacement = subtract(right.coordinates_um, left.coordinates_um);
-            if distance(displacement, metric)? <= radius {
+            if distance(
+                displacement,
+                metric,
+                "anisotropic squared distance is negative or non-finite",
+            )? <= radius
+            {
                 sum += edge_weight(displacement, window, correction)?
                     / (left.intensity_per_um3 * right.intensity_per_um3);
                 eligible += 1;
@@ -389,26 +401,6 @@ fn metric(spec: &HomogeneousK3dSpec) -> Result<[[f64; 3]; 3], Spatial3dError> {
             .unwrap_or([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     validate_spd(matrix)?;
     Ok(matrix)
-}
-
-fn distance(displacement: [f64; 3], metric: [[f64; 3]; 3]) -> Result<f64, Spatial3dError> {
-    let transformed = metric.map(|row| {
-        row.iter()
-            .zip(displacement)
-            .map(|(coefficient, value)| coefficient * value)
-            .sum::<f64>()
-    });
-    let squared = displacement
-        .iter()
-        .zip(transformed)
-        .map(|(left, right)| left * right)
-        .sum::<f64>();
-    if !squared.is_finite() || squared < 0.0 {
-        return Err(Spatial3dError::Numerical(
-            "anisotropic squared distance is negative or non-finite".into(),
-        ));
-    }
-    Ok(squared.sqrt())
 }
 
 fn validate_intensities(points: &[WeightedPoint3DInput], name: &str) -> Result<(), Spatial3dError> {

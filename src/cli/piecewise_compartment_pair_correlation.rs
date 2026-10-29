@@ -14,10 +14,10 @@ use crate::{
 };
 
 use super::{
-    classical::native_runtime_provenance,
     piecewise_compartment_spatial::{
         prepare, write_output, PrepareRequest, PreparedPiecewiseCompartmentProject,
     },
+    project_runtime::native_runtime_provenance,
 };
 
 #[derive(clap::Args, Debug)]

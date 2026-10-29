@@ -1,5 +1,6 @@
 mod load;
 mod multiscale;
+pub(crate) mod physical;
 mod preflight;
 mod preflight_reader;
 mod profile;

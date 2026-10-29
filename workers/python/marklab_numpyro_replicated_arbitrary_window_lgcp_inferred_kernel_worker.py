@@ -21,7 +21,6 @@ import numpyro
 import numpyro.distributions as dist
 from numpyro.infer import MCMC, NUTS
 
-from marklab_worker_support import versions
 from marklab_worker_support.diagnostics import (
     divergence_count,
     mcse_extremes,
@@ -32,17 +31,13 @@ from marklab_worker_support.diagnostics import (
 from marklab_worker_support.posterior import summary
 from marklab_worker_support.protocol import (
     MIB,
-    ContractError,
     backend_identity,
     derive_seed,
-    exact,
     file_sha256,
-    obj,
     read_request,
     require_versions,
     run_worker,
     sha256_hex,
-    validate_backend,
     worker_digests,
     write_result,
 )
@@ -50,6 +45,8 @@ from marklab_worker_support.replicated_lgcp import (
     FIXED_KERNEL_WORKER,
     HIERARCHY_PARAMETERS,
     INFERRED_KERNEL_WORKER,
+    _fit_is_complete,
+    _validate_numpyro_envelope,
     center_within_groups,
     effect_summaries,
     inferred_kernel_prior_is_finite,
@@ -77,45 +74,15 @@ def validate(
     pymc_worker_digest: str,
     fixed_worker_digest: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    request = obj(
+    return _validate_numpyro_envelope(
         request,
-        {
-            "format",
-            "version",
-            "backend",
-            "jax_version",
-            "source_request_sha256",
-            "source_request",
-            "maximum_tree_depth",
-        },
-        "request",
+        REQUEST_FORMAT,
+        lock_digest,
+        worker_digest,
+        lambda source: validate_inferred_kernel_request(
+            source, lock_digest, pymc_worker_digest, fixed_worker_digest
+        ),
     )
-    exact(request["format"], REQUEST_FORMAT, "request.format")
-    exact(request["version"], 1, "request.version")
-    validate_backend(
-        request["backend"],
-        "backend",
-        name="numpyro",
-        version=versions.NUMPYRO,
-        lock_sha256=lock_digest,
-        worker_sha256=worker_digest,
-    )
-    exact(request["jax_version"], versions.JAX, "request.jax_version")
-    maximum_tree_depth = request["maximum_tree_depth"]
-    if (
-        isinstance(maximum_tree_depth, bool)
-        or not isinstance(maximum_tree_depth, int)
-        or not 10 <= maximum_tree_depth <= 14
-    ):
-        raise ContractError("maximum_tree_depth is outside [10, 14]")
-    source_sha = request["source_request_sha256"]
-    if not isinstance(source_sha, str) or len(source_sha) != 64:
-        raise ContractError("source request digest is invalid")
-    config = validate_inferred_kernel_request(
-        request["source_request"], lock_digest, pymc_worker_digest, fixed_worker_digest
-    )
-    config["numpyro_maximum_tree_depth"] = maximum_tree_depth
-    return request, config
 
 
 def seed_for(seed: int, purpose: str) -> int:
@@ -251,16 +218,15 @@ def fit(
     policy = config["policy"]
     prior_finite = inferred_kernel_prior_is_finite(config)
     finite = all(np.isfinite(value).all() for value in samples.values())
-    complete = (
-        prior_finite
-        and finite
-        and r_hat <= policy["maximum_r_hat"]
-        and bulk >= policy["minimum_bulk_ess"]
-        and tail >= policy["minimum_tail_ess"]
-        and ebfmi >= policy["minimum_ebfmi"]
-        and divergences == 0
-        and depth_hits == 0
-    )
+    convergence = {
+        "r_hat": r_hat,
+        "ess_bulk": bulk,
+        "ess_tail": tail,
+        "minimum_ebfmi": ebfmi,
+        "divergences": divergences,
+        "max_tree_depth_hits": depth_hits,
+    }
+    complete = _fit_is_complete(prior_finite, finite, policy, convergence)
     return {
         "format": RESULT_FORMAT,
         "version": 1,
@@ -291,14 +257,9 @@ def fit(
         "diagnostics": {
             "prior_predictive_finite": prior_finite,
             "posterior_finite": finite,
-            "r_hat": r_hat,
-            "ess_bulk": bulk,
-            "ess_tail": tail,
+            **convergence,
             "mcse_mean": mcse_mean,
             "mcse_sd": mcse_sd,
-            "minimum_ebfmi": ebfmi,
-            "divergences": divergences,
-            "max_tree_depth_hits": depth_hits,
             "constraints_valid": finite,
             "identifiability_checks_passed": True,
         },

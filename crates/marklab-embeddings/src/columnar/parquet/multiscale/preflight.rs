@@ -1,21 +1,22 @@
-use std::io::{Cursor, Read, Seek, SeekFrom};
+use crate::columnar::parquet::physical::{decode_stock_metadata, read_footer, RawFooter};
+
+use std::io::{Cursor, Read, Seek};
 
 use marklab_project::ContentDigest;
 use parquet::{
-    file::metadata::{ParquetMetaData, ParquetMetaDataReader},
+    file::metadata::ParquetMetaData,
     format::{
         Encoding, FieldRepetitionType, FileMetaData, PageHeader, PageType, SchemaElement, Type,
     },
-    thrift::TSerializable,
 };
 
 use crate::columnar::parquet::schema::{is_flat_group as is_group, is_required_utf8 as is_utf8};
 use crate::{ExpectedPatchSet, PatchEmbeddingContext, PatchFootprintSet, PatchOverlapGraph};
 
-pub(super) use super::physical::parquet_failure;
-use super::physical::{
-    absolute_slice, page_limits, read_exact_at, validate_footer_length, validate_plain_strings,
-    validate_row_group_tree,
+pub(super) use super::super::physical::parquet_failure;
+use super::super::physical::{
+    read_data_page, read_exact_at, validate_fixed_width, validate_plain_strings,
+    validate_row_group_tree, validate_strings,
 };
 use super::profile::{metadata_entries, SpatialParquetProfile};
 use crate::columnar::{
@@ -24,13 +25,8 @@ use crate::columnar::{
         validate_footprint_domain, validate_overlap_domain,
     },
     parquet::{
-        compact::{is_canonical_compact, BoundedCompactProtocol},
-        preflight::{estimate_raw_preflight_bytes, footer_compact_limits_with_metadata},
-        profile::{
-            CREATED_BY, MAXIMUM_APPLICATION_METADATA_BYTES, MAXIMUM_FOOTER_BYTES,
-            MAXIMUM_PAGE_BYTES, MAXIMUM_PAGE_HEADER_BYTES, PARQUET_MAGIC, ROW_GROUP_ROWS,
-            TRAILER_BYTES,
-        },
+        preflight::footer_compact_limits_with_metadata,
+        profile::{MAXIMUM_APPLICATION_METADATA_BYTES, MAXIMUM_PAGE_BYTES, ROW_GROUP_ROWS},
     },
     ColumnarError, EmbeddingColumnarBudgets, ParquetFailure,
 };
@@ -183,78 +179,26 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
             .edge_count(),
     };
     enforce_decoded_budget(decoded_bytes(profile, footprints, overlap)?, budgets)?;
-    let minimum = u64::try_from(PARQUET_MAGIC.len() + TRAILER_BYTES)
-        .map_err(|_| ColumnarError::SizeOverflow)?;
-    if encoded_byte_len < minimum {
-        return Err(parquet_failure(ParquetFailure::InvalidMagic));
-    }
-    let actual = reader
-        .seek(SeekFrom::End(0))
-        .map_err(|_| parquet_failure(ParquetFailure::ArtifactRead))?;
-    if actual != encoded_byte_len {
-        return Err(parquet_failure(ParquetFailure::ArtifactRead));
-    }
-    let mut leading = [0_u8; 4];
-    read_exact_at(reader, 0, &mut leading)?;
-    let mut trailer = [0_u8; TRAILER_BYTES];
-    read_exact_at(
+    let RawFooter {
+        footer,
+        raw,
+        footer_start,
+        raw_retained,
+        stock_retained,
+    } = read_footer(
         reader,
-        encoded_byte_len - TRAILER_BYTES as u64,
-        &mut trailer,
+        encoded_byte_len,
+        || {
+            let metadata_count = match profile {
+                SpatialParquetProfile::Footprint => 7,
+                SpatialParquetProfile::Overlap => 8,
+            };
+            footer_compact_limits_with_metadata(row_count.div_ceil(ROW_GROUP_ROWS), metadata_count)
+                .map_err(|_| ColumnarError::SizeOverflow)
+        },
+        budgets,
     )?;
-    if &leading != PARQUET_MAGIC || trailer.get(4..) != Some(PARQUET_MAGIC) {
-        return Err(parquet_failure(ParquetFailure::InvalidMagic));
-    }
-    let footer_len = usize::try_from(u32::from_le_bytes(
-        trailer[..4]
-            .try_into()
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidFooterLength))?,
-    ))
-    .map_err(|_| ColumnarError::SizeOverflow)?;
-    let file_len = usize::try_from(encoded_byte_len).map_err(|_| ColumnarError::SizeOverflow)?;
-    let footer_length_offset = file_len
-        .checked_sub(TRAILER_BYTES)
-        .ok_or_else(|| parquet_failure(ParquetFailure::InvalidFooterLength))?;
-    let footer_start = validate_footer_length(footer_len, footer_length_offset)?;
-    let expected_groups = row_count.div_ceil(ROW_GROUP_ROWS);
-    let metadata_count = match profile {
-        SpatialParquetProfile::Footprint => 7,
-        SpatialParquetProfile::Overlap => 8,
-    };
-    let limits = footer_compact_limits_with_metadata(expected_groups, metadata_count)
-        .map_err(|_| ColumnarError::SizeOverflow)?;
-    let raw_retained = estimate_raw_preflight_bytes(footer_len, limits)
-        .map_err(|_| ColumnarError::SizeOverflow)?;
-    let stock_retained = estimate_raw_preflight_bytes(MAXIMUM_FOOTER_BYTES, limits)
-        .map_err(|_| ColumnarError::SizeOverflow)?
-        .checked_mul(2)
-        .ok_or(ColumnarError::SizeOverflow)?;
     let mut retained = raw_retained.max(stock_retained);
-    enforce_retained_budget(retained, budgets)?;
-    let mut footer = Vec::new();
-    footer
-        .try_reserve_exact(footer_len)
-        .map_err(|_| ColumnarError::AllocationFailed {
-            requested: footer_len,
-        })?;
-    footer.resize(footer_len, 0);
-    read_exact_at(
-        reader,
-        u64::try_from(footer_start).map_err(|_| ColumnarError::SizeOverflow)?,
-        &mut footer,
-    )?;
-    let mut protocol = BoundedCompactProtocol::new(&footer, limits);
-    let raw = FileMetaData::read_from_in_protocol(&mut protocol)
-        .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?;
-    if protocol
-        .consumed_bytes()
-        .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?
-        != footer.len()
-        || !is_canonical_compact(&raw, &footer)
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidFooter))?
-    {
-        return Err(parquet_failure(ParquetFailure::InvalidFooter));
-    }
     validate_metadata_tree(
         footer_start,
         &raw,
@@ -298,18 +242,7 @@ pub(super) fn prepare_reader<R: Read + Seek + ?Sized>(
     )?;
     let row_group_count = raw.row_groups.len();
     drop(raw);
-    let stock = ParquetMetaDataReader::decode_metadata(&footer)
-        .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
-    if stock.memory_size() > stock_retained
-        || stock.file_metadata().version() != 2
-        || usize::try_from(stock.file_metadata().num_rows()).ok() != Some(row_count)
-        || stock.num_row_groups() != expected_groups
-        || stock.file_metadata().created_by() != Some(CREATED_BY)
-        || stock.column_index().is_some()
-        || stock.offset_index().is_some()
-    {
-        return Err(parquet_failure(ParquetFailure::StockDecode));
-    }
+    let stock = decode_stock_metadata(&footer, row_count, stock_retained)?;
     Ok(CommonParquetPreflight {
         row_count: u64::try_from(row_count).map_err(|_| ColumnarError::SizeOverflow)?,
         row_group_count: u32::try_from(row_group_count).map_err(|_| ColumnarError::SizeOverflow)?,
@@ -370,13 +303,6 @@ where
         },
         page_validator,
     )
-}
-
-fn validate_page_header_length(header_bytes: usize) -> Result<(), ColumnarError> {
-    if header_bytes == 0 || header_bytes > MAXIMUM_PAGE_HEADER_BYTES {
-        return Err(parquet_failure(ParquetFailure::InvalidPage));
-    }
-    Ok(())
 }
 
 fn validate_page_declarations(
@@ -466,50 +392,18 @@ pub(in crate::columnar::parquet) fn validate_pages_profile(
     let mut page_count = 0_usize;
     let mut page_start_row = 0_usize;
     while cursor < end {
-        let header_limit = cursor
-            .checked_add(MAXIMUM_PAGE_HEADER_BYTES)
-            .map(|value| value.min(end))
-            .ok_or(ColumnarError::SizeOverflow)?;
-        let window = absolute_slice(bytes, base_offset, cursor, header_limit)
-            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
-        let mut protocol = BoundedCompactProtocol::new(window, page_limits());
-        let header = PageHeader::read_from_in_protocol(&mut protocol)
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
-        let header_bytes = protocol
-            .consumed_bytes()
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
-        validate_page_header_length(header_bytes)?;
-        if !is_canonical_compact(
-            &header,
-            window
-                .get(..header_bytes)
-                .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?,
-        )
-        .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?
-        {
-            return Err(parquet_failure(ParquetFailure::InvalidPage));
-        }
-        let body_bytes = usize::try_from(header.compressed_page_size)
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
-        let uncompressed = usize::try_from(header.uncompressed_page_size)
-            .map_err(|_| parquet_failure(ParquetFailure::InvalidPage))?;
-        let body_start = cursor
-            .checked_add(header_bytes)
-            .ok_or(ColumnarError::SizeOverflow)?;
-        let page_end = body_start
-            .checked_add(body_bytes)
-            .ok_or(ColumnarError::SizeOverflow)?;
+        let physical =
+            read_data_page(bytes, base_offset, cursor, end, ParquetFailure::InvalidPage)?;
         let rows = validate_page_declarations(
-            &header,
-            body_bytes,
-            uncompressed,
-            page_end,
+            &physical.header,
+            physical.body.len(),
+            physical.body.len(),
+            physical.end,
             end,
             page_start_row,
             group_rows,
         )?;
-        let data = absolute_slice(bytes, base_offset, body_start, page_end)
-            .ok_or_else(|| parquet_failure(ParquetFailure::InvalidPage))?;
+        let data = physical.body;
         let absolute_start = group_start_row
             .checked_add(page_start_row)
             .ok_or(ColumnarError::SizeOverflow)?;
@@ -524,9 +418,9 @@ pub(in crate::columnar::parquet) fn validate_pages_profile(
                 overlap,
             )?;
         } else if profile == SpatialParquetProfile::Overlap || column_index == 0 {
-            crate::columnar::parquet::read::validate_strings(data, rows)?;
+            validate_strings(data, rows)?;
         } else {
-            crate::columnar::parquet::read::validate_fixed_width(data, rows, 8)?;
+            validate_fixed_width(data, rows, 8)?;
         }
         page_start_row = page_start_row
             .checked_add(rows)
@@ -534,7 +428,7 @@ pub(in crate::columnar::parquet) fn validate_pages_profile(
         page_count = page_count
             .checked_add(1)
             .ok_or(ColumnarError::SizeOverflow)?;
-        cursor = page_end;
+        cursor = physical.end;
     }
     if cursor != end || page_start_row != group_rows {
         return Err(parquet_failure(ParquetFailure::InvalidPage));
@@ -771,12 +665,16 @@ fn decoded_chunk(
 
 #[cfg(test)]
 mod tests {
+    use crate::columnar::parquet::{
+        physical::{page_header_length_is_valid, validate_footer_length},
+        profile::{MAXIMUM_FOOTER_BYTES, MAXIMUM_PAGE_HEADER_BYTES},
+    };
     use parquet::format::{
         ColumnChunk, ColumnMetaData, CompressionCodec, ConvertedType, DataPageHeaderV2,
         LogicalType, PageEncodingStats, Statistics, StringType,
     };
 
-    use super::super::physical::validate_column_features;
+    use super::super::super::physical::validate_column_features;
     use super::*;
 
     fn footprint_schema_elements() -> Vec<SchemaElement> {
@@ -958,8 +856,8 @@ mod tests {
             4
         );
         assert!(validate_footer_length(MAXIMUM_FOOTER_BYTES + 1, usize::MAX).is_err());
-        validate_page_header_length(MAXIMUM_PAGE_HEADER_BYTES).expect("maximum page header");
-        assert!(validate_page_header_length(MAXIMUM_PAGE_HEADER_BYTES + 1).is_err());
+        assert!(page_header_length_is_valid(MAXIMUM_PAGE_HEADER_BYTES));
+        assert!(!page_header_length_is_valid(MAXIMUM_PAGE_HEADER_BYTES + 1));
 
         let canonical = canonical_page();
         assert_eq!(

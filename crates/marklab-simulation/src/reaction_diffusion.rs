@@ -1,7 +1,7 @@
 use rustfft::{num_complex::Complex, FftPlanner};
 use serde::{Deserialize, Serialize};
 
-use super::SimulationError;
+use super::{time_grid::TimeGrid, SimulationError};
 use marklab_core::backend::ClaimStatus;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -176,16 +176,15 @@ pub fn simulate_reaction_diffusion(
     let reference_state = mean(&spec.initial_row_major);
     let mut values = spec.initial_row_major.clone();
     let mut trajectory = vec![snapshot(0.0, &values, &spec)];
-    let mut time = 0.0;
     let mut completed_steps = 0_u32;
     let mut positivity_violations = 0_u64;
-    while completed_steps < planned_steps {
-        let next_time = if completed_steps + 1 == planned_steps {
-            spec.final_time
-        } else {
-            f64::from(completed_steps + 1) * spec.time_step
-        };
-        let dt = next_time - time;
+    for step in TimeGrid::new(
+        spec.final_time,
+        spec.time_step,
+        planned_steps,
+        spec.record_every_steps,
+    ) {
+        let dt = step.dt;
         spec.reaction.apply(&mut values, dt / 2.0)?;
         diffusion_step(&mut values, &spec, dt)?;
         spec.reaction.apply(&mut values, dt / 2.0)?;
@@ -204,12 +203,9 @@ pub fn simulate_reaction_diffusion(
                 "reaction-diffusion state became negative".into(),
             ));
         }
-        time = next_time;
-        completed_steps = completed_steps
-            .checked_add(1)
-            .ok_or_else(|| SimulationError::Numerical("step count overflowed".into()))?;
-        if completed_steps.is_multiple_of(spec.record_every_steps) || time == spec.final_time {
-            trajectory.push(snapshot(time, &values, &spec));
+        completed_steps = step.completed_steps;
+        if step.should_record {
+            trajectory.push(snapshot(step.time, &values, &spec));
         }
     }
     let pattern = pattern_diagnostics(&values, &spec, reference_state);

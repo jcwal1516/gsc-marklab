@@ -12,6 +12,7 @@
 //! request policy; the claim is then `experimental_single_pattern_association`, otherwise
 //! `diagnostic_only_nonconverged`.
 
+use super::posterior_validation::diagnostics_pass;
 use crate::BayesError;
 use crate::FitState;
 use crate::InhomogeneousPoissonFitWorkerRequest;
@@ -130,18 +131,8 @@ impl ArbitraryWindowIppFitResult {
                         && scalar_valid(&result.intensity_per_um2, true)
                         && scalar_valid(&result.expected_count, true)
                 });
-        let diagnostics_pass = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= expected.request.diagnostic_policy.maximum_r_hat
-            && self.diagnostics.ess_bulk >= expected.request.diagnostic_policy.minimum_bulk_ess
-            && self.diagnostics.ess_tail >= expected.request.diagnostic_policy.minimum_tail_ess
-            && self.diagnostics.minimum_ebfmi >= expected.request.diagnostic_policy.minimum_ebfmi
-            && self.diagnostics.divergences
-                <= expected.request.diagnostic_policy.maximum_divergences
-            && self.diagnostics.max_tree_depth_hits
-                <= expected.request.diagnostic_policy.maximum_tree_depth_hits;
+        let diagnostics_pass =
+            diagnostics_pass(&self.diagnostics, &expected.request.diagnostic_policy);
         if self.format != "marklab.bayesian_arbitrary_window_ipp_fit"
             || self.version != 1
             || !self.backend.matches(&expected.request.backend)

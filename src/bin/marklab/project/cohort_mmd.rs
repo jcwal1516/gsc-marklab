@@ -1,3 +1,5 @@
+use crate::codecs::fingerprints::{read_fingerprints, FingerprintInput};
+
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashSet},
@@ -6,8 +8,8 @@ use std::{
 };
 
 use marklab_cohort::{
-    patient_level_blocked_mmd, patient_level_mmd, Fingerprint, MmdEstimator, MmdKernel,
-    MmdPermutationResult, MmdPermutationSpec, PatientExchangeabilityBlock,
+    patient_level_blocked_mmd, patient_level_mmd, MmdEstimator, MmdKernel, MmdPermutationResult,
+    MmdPermutationSpec,
 };
 use marklab_project::ContentDigest;
 use marklab_workflow::NodeError;
@@ -76,7 +78,7 @@ pub(super) fn run(args: CohortMmdProjectArgs) -> Result<(), CliError> {
         .map_err(|error| CliError::Input(format!("input path is not serializable: {error}")))?;
     let input_bytes = read_bounded(&input_path, memory_bytes)?;
     let source = Source::from_bytes(input_path.clone(), INPUT_KIND, &input_bytes)?;
-    let parsed = read_fingerprints(&input_bytes)?;
+    let parsed = read_fingerprints(input_bytes.as_slice())?;
     let requirements = preflight(
         &parsed,
         &group_a,
@@ -142,91 +144,6 @@ fn read_bounded(path: &std::path::Path, memory_bytes: usize) -> Result<Vec<u8>, 
             path.display()
         ),
     )
-}
-
-#[derive(Debug, Deserialize)]
-struct FingerprintCsvRecord {
-    patient_id: String,
-    group: String,
-    feature: String,
-    value: f64,
-    #[serde(default)]
-    block: Option<String>,
-}
-
-#[derive(Clone)]
-struct FingerprintInput {
-    fingerprints: Vec<Fingerprint>,
-    blocks: Option<Vec<PatientExchangeabilityBlock>>,
-}
-
-fn read_fingerprints(bytes: &[u8]) -> Result<FingerprintInput, CliError> {
-    let mut reader = csv::ReaderBuilder::new().flexible(false).from_reader(bytes);
-    let headers = reader.headers()?.clone();
-    let blocked = headers
-        .iter()
-        .eq(["patient_id", "group", "feature", "value", "block"]);
-    if !blocked
-        && !headers
-            .iter()
-            .eq(["patient_id", "group", "feature", "value"])
-    {
-        return Err(CliError::Input(
-            "CSV header must be exactly patient_id,group,feature,value or patient_id,group,feature,value,block"
-                .into(),
-        ));
-    }
-    let mut grouped = BTreeMap::<String, (String, Option<String>, BTreeMap<String, f64>)>::new();
-    for decoded in reader.deserialize::<FingerprintCsvRecord>() {
-        let row = decoded.map_err(|error| CliError::Input(error.to_string()))?;
-        if blocked && row.block.is_none() {
-            return Err(CliError::Input(format!(
-                "patient {} is missing its fingerprint block",
-                row.patient_id
-            )));
-        }
-        let entry = grouped
-            .entry(row.patient_id.clone())
-            .or_insert_with(|| (row.group.clone(), row.block.clone(), BTreeMap::new()));
-        if entry.0 != row.group {
-            return Err(CliError::Input(format!(
-                "patient {} has conflicting group labels",
-                row.patient_id
-            )));
-        }
-        if entry.1 != row.block {
-            return Err(CliError::Input(format!(
-                "patient {} has conflicting fingerprint blocks",
-                row.patient_id
-            )));
-        }
-        if entry.2.insert(row.feature.clone(), row.value).is_some() {
-            return Err(CliError::Input(format!(
-                "patient {} has duplicate feature {:?}",
-                row.patient_id, row.feature
-            )));
-        }
-    }
-    let mut fingerprints = Vec::with_capacity(grouped.len());
-    let mut blocks = blocked.then(|| Vec::with_capacity(grouped.len()));
-    for (patient_id, (group, block, features)) in grouped {
-        if let Some(assignments) = &mut blocks {
-            assignments.push(
-                PatientExchangeabilityBlock::new(patient_id.clone(), block.unwrap_or_default())
-                    .map_err(|error| CliError::Input(error.to_string()))?,
-            );
-        }
-        fingerprints.push(Fingerprint {
-            patient_id,
-            group,
-            values: features.values().copied().collect(),
-            features: features.into_keys().collect(),
-        });
-    }
-    Ok(FingerprintInput {
-        fingerprints,
-        blocks,
-    })
 }
 
 #[derive(Clone)]

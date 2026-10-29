@@ -1,10 +1,10 @@
 use marklab_core::backend::is_worker_timeout;
-use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
 
-use crate::fused_gromov::{
-    approximately_equal, same_plan, squared_feature_cost, structural_objective,
+use crate::fgw_common::{
+    approximately_equal, audit_plan, same_plan, same_values, structural_objective, valid_structure,
+    valid_support,
 };
 use crate::{FgwPlanEntry, FgwSupport};
 use marklab_core::backend::versions::POT_VERSION;
@@ -30,7 +30,6 @@ pub struct PartialFusedGromovWassersteinSpec {
     pub maximum_iterations: u32,
     pub timeout_seconds: u64,
 }
-
 #[derive(Clone, Debug, Serialize)]
 pub struct PartialFusedGromovWassersteinWorkerRequest {
     pub format: &'static str,
@@ -128,8 +127,8 @@ fn validate_spec(spec: &PartialFusedGromovWassersteinSpec) -> Result<(), WorkerE
         && spec.tolerance <= 1.0
         && (1..=10_000).contains(&spec.maximum_iterations)
         && is_worker_timeout(spec.timeout_seconds)
-        && validate_support(&spec.source, feature_dimension)
-        && validate_support(&spec.target, feature_dimension))
+        && valid_support(&spec.source, feature_dimension, |_| true)
+        && valid_support(&spec.target, feature_dimension, |_| true))
     {
         return Err(WorkerError::InvalidSpec(
             "partial FGW dimensions, supports, or controls are invalid".into(),
@@ -142,45 +141,22 @@ fn validate_spec(spec: &PartialFusedGromovWassersteinSpec) -> Result<(), WorkerE
             "partial FGW masses must each sum to one".into(),
         ));
     }
-    validate_structure(&spec.source_structure_row_major, rows, "source")?;
-    validate_structure(&spec.target_structure_row_major, columns, "target")?;
+    for (matrix, size, label) in [
+        (&spec.source_structure_row_major, rows, "source"),
+        (&spec.target_structure_row_major, columns, "target"),
+    ] {
+        if !valid_structure(matrix, size) {
+            return Err(WorkerError::InvalidSpec(format!(
+                "partial FGW {label} structure is invalid"
+            )));
+        }
+    }
     let solver_work = rows as u64 * columns as u64 * u64::from(spec.maximum_iterations) * 9;
     let replay_work = (rows * rows * columns * columns) as u64 * 9;
     if solver_work > 50_000_000 || replay_work > 50_000_000 {
         return Err(WorkerError::InvalidSpec(
             "partial FGW work exceeds its bound".into(),
         ));
-    }
-    Ok(())
-}
-
-fn validate_support(rows: &[FgwSupport], dimension: usize) -> bool {
-    let mut ids = HashSet::new();
-    rows.iter().all(|row| {
-        !row.id.trim().is_empty()
-            && row.id.trim() == row.id
-            && ids.insert(row.id.as_str())
-            && row.mass.is_finite()
-            && row.mass > 0.0
-            && row.features.len() == dimension
-            && row.features.iter().all(|value| value.is_finite())
-    })
-}
-
-fn validate_structure(matrix: &[f64], size: usize, label: &str) -> Result<(), WorkerError> {
-    for row in 0..size {
-        for column in 0..size {
-            let value = matrix[row * size + column];
-            if !value.is_finite()
-                || value < 0.0
-                || (row == column && value.abs() > 1e-12)
-                || !approximately_equal(value, matrix[column * size + row])
-            {
-                return Err(WorkerError::InvalidSpec(format!(
-                    "partial FGW {label} structure is invalid"
-                )));
-            }
-        }
     }
     Ok(())
 }
@@ -332,36 +308,23 @@ fn validate_fit(
             "partial FGW fit controls or dimensions differ".into(),
         ));
     }
-    let mut source_marginals = vec![0.0; rows];
-    let mut target_marginals = vec![0.0; columns];
     let mut feature_objective = 0.0;
     let mut entropy = 0.0;
-    for (row, source_marginal) in source_marginals.iter_mut().enumerate() {
-        for (column, target_marginal) in target_marginals.iter_mut().enumerate() {
-            let entry = &fit.plan[row * columns + column];
-            let feature_cost = squared_feature_cost(
-                &request.source[row].features,
-                &request.target[column].features,
-                request.feature_scale,
-            );
-            if entry.source_id != request.source[row].id
-                || entry.target_id != request.target[column].id
-                || !approximately_equal(entry.feature_cost, feature_cost)
-                || !entry.mass.is_finite()
-                || entry.mass < 0.0
-            {
-                return Err(WorkerError::WorkerContract(
-                    "partial FGW plan entry differs".into(),
-                ));
-            }
-            *source_marginal += entry.mass;
-            *target_marginal += entry.mass;
+    let marginals = audit_plan(
+        &fit.plan,
+        &request.source,
+        &request.target,
+        request.feature_scale,
+        |entry, feature_cost| {
             feature_objective += entry.mass * feature_cost;
             if entry.mass > 0.0 {
                 entropy -= entry.mass * entry.mass.ln();
             }
-        }
-    }
+        },
+    )
+    .ok_or_else(|| WorkerError::WorkerContract("partial FGW plan entry differs".into()))?;
+    let source_marginals = marginals.source;
+    let target_marginals = marginals.target;
     let transported_mass = source_marginals.iter().sum::<f64>();
     let unmatched_source = request
         .source
@@ -452,12 +415,4 @@ fn expected_controls(
         }
     };
     Ok(controls)
-}
-
-fn same_values(left: &[f64], right: &[f64]) -> bool {
-    left.len() == right.len()
-        && left
-            .iter()
-            .zip(right)
-            .all(|(left, right)| approximately_equal(*left, *right))
 }

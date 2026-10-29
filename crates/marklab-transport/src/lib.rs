@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod fgw_common;
 mod fused_gromov;
 mod partial_fused_gromov;
 mod partial_transport;

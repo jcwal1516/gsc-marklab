@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::{
-    classical::native_runtime_provenance,
-    inhomogeneous_project::{prepare, write_output, PrepareRequest, PreparedInhomogeneousProject},
+    project_runtime::native_runtime_provenance,
+    spatial_project::{prepare, write_output, PrepareRequest, PreparedSpatialProject},
 };
 
 #[derive(clap::Args, Debug)]
@@ -82,7 +82,7 @@ pub struct Request {
 pub(super) fn run_project(request: Request) -> Result<()> {
     let integration_grid = [request.grid_x, request.grid_y];
 
-    let PreparedInhomogeneousProject {
+    let PreparedSpatialProject {
         mut durable,
         mut project,
         store,

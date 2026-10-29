@@ -11,8 +11,11 @@ use thiserror::Error;
 pub mod protocol;
 
 mod graph;
+mod metric;
 mod voxel_window;
 mod weighted;
+
+use metric::{distance, metric_ball_scale, metric_is_identity, validate_spd};
 
 pub use graph::{
     build_spatial_graph3d, DistanceBasis3D, Graph3dEdge, Graph3dPoint, GraphRule3D, GraphWeight3D,
@@ -259,28 +262,15 @@ pub fn homogeneous_k3d(spec: HomogeneousK3dSpec) -> Result<HomogeneousK3dResult,
                 points[right].coordinates_um[1] - points[left].coordinates_um[1],
                 points[right].coordinates_um[2] - points[left].coordinates_um[2],
             ];
-            let transformed = (0..3)
-                .map(|row| {
-                    (0..3)
-                        .map(|col| metric[row][col] * displacement[col])
-                        .sum::<f64>()
-                })
-                .collect::<Vec<_>>();
-            let squared = displacement
-                .iter()
-                .zip(transformed)
-                .map(|(left, right)| left * right)
-                .sum::<f64>();
-            if !squared.is_finite() || squared < 0.0 {
-                return Err(Spatial3dError::Numerical(
-                    "anisotropic squared distance is negative or non-finite".into(),
-                ));
-            }
             pairs.push(Pair {
                 left,
                 right,
                 displacement,
-                distance: squared.sqrt(),
+                distance: distance(
+                    displacement,
+                    metric,
+                    "anisotropic squared distance is negative or non-finite",
+                )?,
             });
         }
     }
@@ -509,65 +499,6 @@ fn validate_and_normalize(
         pair_count,
         work,
     ))
-}
-
-fn validate_spd(matrix: [[f64; 3]; 3]) -> Result<(), Spatial3dError> {
-    if matrix.iter().flatten().any(|value| !value.is_finite()) {
-        return Err(Spatial3dError::Invalid(
-            "anisotropy matrix must be finite".into(),
-        ));
-    }
-    for (row_index, row) in matrix.iter().enumerate() {
-        for (column_index, value) in row.iter().take(row_index).enumerate() {
-            if (*value - matrix[column_index][row_index]).abs() > 1.0e-10 {
-                return Err(Spatial3dError::Invalid(
-                    "anisotropy matrix must be symmetric".into(),
-                ));
-            }
-        }
-    }
-    let l00 = matrix[0][0].sqrt();
-    if !l00.is_finite() || l00 <= 0.0 {
-        return Err(Spatial3dError::Invalid(
-            "anisotropy matrix must be positive definite".into(),
-        ));
-    }
-    let l10 = matrix[1][0] / l00;
-    let l20 = matrix[2][0] / l00;
-    let l11 = (matrix[1][1] - l10 * l10).sqrt();
-    if !l11.is_finite() || l11 <= 0.0 {
-        return Err(Spatial3dError::Invalid(
-            "anisotropy matrix must be positive definite".into(),
-        ));
-    }
-    let l21 = (matrix[2][1] - l20 * l10) / l11;
-    let l22 = (matrix[2][2] - l20 * l20 - l21 * l21).sqrt();
-    if !l22.is_finite() || l22 <= 0.0 {
-        return Err(Spatial3dError::Invalid(
-            "anisotropy matrix must be positive definite".into(),
-        ));
-    }
-    Ok(())
-}
-
-fn metric_ball_scale(matrix: [[f64; 3]; 3]) -> Result<f64, Spatial3dError> {
-    let l00 = matrix[0][0].sqrt();
-    let l10 = matrix[1][0] / l00;
-    let l20 = matrix[2][0] / l00;
-    let l11 = (matrix[1][1] - l10 * l10).sqrt();
-    let l21 = (matrix[2][1] - l20 * l10) / l11;
-    let l22 = (matrix[2][2] - l20 * l20 - l21 * l21).sqrt();
-    let scale = l00 * l11 * l22;
-    if !scale.is_finite() || scale <= 0.0 {
-        return Err(Spatial3dError::Numerical(
-            "anisotropy determinant is nonpositive or non-finite".into(),
-        ));
-    }
-    Ok(scale)
-}
-
-fn metric_is_identity(matrix: [[f64; 3]; 3]) -> bool {
-    matrix == [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 }
 
 fn boundary_distance(point: [f64; 3], window: &CompiledCuboid3D) -> f64 {

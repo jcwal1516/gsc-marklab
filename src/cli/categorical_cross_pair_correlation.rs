@@ -22,7 +22,7 @@ use crate::{
 
 use super::{
     categorical_mark_project::{prepare, write_output, PrepareRequest},
-    classical::native_runtime_provenance,
+    project_runtime::native_runtime_provenance,
 };
 
 #[derive(clap::Args, Debug)]

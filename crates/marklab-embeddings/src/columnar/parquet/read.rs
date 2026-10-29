@@ -30,11 +30,8 @@ use crate::{CellPatchAssignmentMode, EmbeddingStatus};
 
 use super::{
     compact::{is_canonical_compact, BoundedCompactProtocol, CompactLimits},
-    multiscale::{
-        self, cell_patch, matrix, patch_region,
-        physical::{validate_footer_length, validate_row_group_tree, validated_stock_group_range},
-        profile::SpatialParquetProfile,
-    },
+    multiscale::{self, cell_patch, matrix, patch_region, profile::SpatialParquetProfile},
+    physical::{validate_footer_length, validate_row_group_tree, validated_stock_group_range},
     preflight::{estimate_raw_preflight_bytes, footer_compact_limits_with_metadata, read_exact_at},
     profile::{
         CREATED_BY, MAXIMUM_APPLICATION_METADATA_BYTES, MAXIMUM_FOOTER_BYTES, MAXIMUM_ROWS,
@@ -618,61 +615,6 @@ fn collection_budget(
         .and_then(|n| n.checked_add(64 * 1024))
         .ok_or(ColumnarError::SizeOverflow)?;
     enforce_retained_budget(required.max(prepared.retained_preflight_bytes), budgets)
-}
-
-pub(super) fn validate_strings(bytes: &[u8], rows: usize) -> Result<(), ColumnarError> {
-    let mut cursor = 0_usize;
-    for _ in 0..rows {
-        let prefix_end = cursor.checked_add(4).ok_or(ColumnarError::SizeOverflow)?;
-        let length = u32::from_le_bytes(
-            bytes
-                .get(cursor..prefix_end)
-                .ok_or_else(|| failure(ParquetFailure::InvalidPage))?
-                .try_into()
-                .map_err(|_| failure(ParquetFailure::InvalidPage))?,
-        ) as usize;
-        let end = prefix_end
-            .checked_add(length)
-            .ok_or(ColumnarError::SizeOverflow)?;
-        std::str::from_utf8(
-            bytes
-                .get(prefix_end..end)
-                .ok_or_else(|| failure(ParquetFailure::InvalidPage))?,
-        )
-        .map_err(|_| failure(ParquetFailure::InvalidCanonicalRows))?;
-        cursor = end;
-    }
-    if cursor != bytes.len() {
-        return Err(failure(ParquetFailure::InvalidPage));
-    }
-    Ok(())
-}
-
-pub(super) fn validate_fixed_width(
-    bytes: &[u8],
-    count: usize,
-    width: usize,
-) -> Result<(), ColumnarError> {
-    if bytes.len()
-        != count
-            .checked_mul(width)
-            .ok_or(ColumnarError::SizeOverflow)?
-    {
-        return Err(failure(ParquetFailure::InvalidPage));
-    }
-    Ok(())
-}
-
-pub(super) fn validate_f32(bytes: &[u8], count: usize) -> Result<(), ColumnarError> {
-    validate_fixed_width(bytes, count, 4)?;
-    for chunk in bytes.as_chunks::<4>().0 {
-        let bits = u32::from_le_bytes(*chunk);
-        let value = f32::from_bits(bits);
-        if !value.is_finite() || (value == 0.0 && bits != 0) {
-            return Err(failure(ParquetFailure::InvalidCanonicalRows));
-        }
-    }
-    Ok(())
 }
 
 fn allocate_bytes(length: usize) -> Result<Vec<u8>, ColumnarError> {

@@ -1,7 +1,6 @@
 pub(crate) mod cell_patch;
 pub(crate) mod matrix;
 pub(crate) mod patch_region;
-pub(crate) mod physical;
 pub(crate) mod preflight;
 pub(crate) mod profile;
 mod publication;

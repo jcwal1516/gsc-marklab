@@ -1,6 +1,6 @@
 //! Typed messages and scientific checks for replicated arbitrary window lgcp inferred kernel agreement.
 
-use super::posterior_validation::summary_valid;
+use super::posterior_validation::{diagnostics_pass, summary_valid};
 use super::replicated_arbitrary_window_lgcp_agreement::compare_scalar;
 use super::replicated_arbitrary_window_lgcp_agreement::compare_vector;
 use super::replicated_arbitrary_window_lgcp_agreement::ScalarAgreement;
@@ -96,16 +96,7 @@ pub fn validate_numpyro(
         &result.posterior.field_amplitude,
         &result.posterior.field_length_scale_um,
     ];
-    let complete = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && result.diagnostics.divergences == 0
-        && result.diagnostics.max_tree_depth_hits == 0;
+    let complete = diagnostics_pass(&result.diagnostics, policy);
     if result.format != "marklab.numpyro_replicated_arbitrary_window_lgcp_inferred_kernel_result"
         || result.version != 1
         || !result.backend.matches(backend)

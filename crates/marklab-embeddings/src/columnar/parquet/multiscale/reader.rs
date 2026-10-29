@@ -20,7 +20,7 @@ use crate::{
 };
 
 use super::{
-    physical::validated_stock_group_range,
+    super::physical::validated_stock_group_range,
     preflight::{
         parquet_failure, prepare_reader, CommonParquetPreflight, PatchFootprintParquetPreflight,
         PatchOverlapParquetPreflight,

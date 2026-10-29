@@ -2,21 +2,16 @@
 
 use std::io::{Read, Seek, SeekFrom};
 
-use arrow_ipc::{
-    root_as_footer_with_opts, root_as_message_with_opts, MessageHeader, MetadataVersion,
-};
 use marklab_project::{ArtifactRecord, TableColumnType, TableScalarType};
 
-use super::multiscale::physical::{
-    align, nonnegative_i32, nonnegative_i64, read_exact_at, read_footer, read_record_batch_block,
-    validate_footer_features, validate_record_batch_features,
+use super::physical::{
+    align, decode_footer, decode_record_batch_message, nonnegative_i64, read_footer,
+    read_record_batch_block, schema_message_end, validate_footer_features,
+    validate_record_batch_features,
 };
 use super::{
     multiscale,
-    profile::{
-        arrow_failure, footer_verifier_options, message_verifier_options, ALIGNMENT,
-        CONTINUATION_MARKER, EOS_BYTES, HEADER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
-    },
+    profile::{arrow_failure, EOS_BYTES, RECORD_BATCH_ROWS},
 };
 use crate::columnar::{
     driver::*, multiscale::enforce_retained_budget, read_context::*, ArrowIpcFailure,
@@ -148,11 +143,7 @@ fn collect<R: Read + Seek + ?Sized>(
         let length = usize::try_from(encoded).map_err(|_| ColumnarError::SizeOverflow)?;
         let count = row_count(record)?;
         let (footer_start, footer_len, bytes) = read_footer(source, length, remaining)?;
-        let footer = root_as_footer_with_opts(&footer_verifier_options(), &bytes)
-            .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidFooter))?;
-        if footer.version() != MetadataVersion::V5 {
-            return Err(arrow_failure(ArrowIpcFailure::UnsupportedVersion));
-        }
+        let footer = decode_footer(&bytes)?;
         validate_footer_features(footer)?;
         let blocks = footer
             .recordBatches()
@@ -160,32 +151,7 @@ fn collect<R: Read + Seek + ?Sized>(
         if blocks.len() != count.div_ceil(RECORD_BATCH_ROWS) {
             return invalid();
         }
-        let mut prefix = [0; 8];
-        read_exact_at(
-            source,
-            length,
-            HEADER_BYTES,
-            &mut prefix,
-            ArrowIpcFailure::InvalidMessage,
-        )?;
-        if &prefix[..4] != CONTINUATION_MARKER {
-            return invalid();
-        }
-        let declared = nonnegative_i32(
-            i32::from_le_bytes(
-                prefix[4..]
-                    .try_into()
-                    .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?,
-            ),
-            ArrowIpcFailure::InvalidMessage,
-        )?;
-        let metadata_len = declared.checked_add(8).ok_or(ColumnarError::SizeOverflow)?;
-        if declared == 0 || metadata_len > MAXIMUM_MESSAGE_BYTES || metadata_len % ALIGNMENT != 0 {
-            return invalid();
-        }
-        let mut next = HEADER_BYTES
-            .checked_add(metadata_len)
-            .ok_or(ColumnarError::SizeOverflow)?;
+        let mut next = schema_message_end(source, length, footer_start)?;
         let mut decoded = 0_u64;
         for (index, block) in blocks.iter().enumerate() {
             let physical = read_record_batch_block(
@@ -200,34 +166,7 @@ fn collect<R: Read + Seek + ?Sized>(
                 remaining,
             )?;
             let (message, body) = physical.message_and_body();
-            if message.len() < 8 || &message[..4] != CONTINUATION_MARKER {
-                return invalid();
-            }
-            let declared = nonnegative_i32(
-                i32::from_le_bytes(
-                    message[4..8]
-                        .try_into()
-                        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?,
-                ),
-                ArrowIpcFailure::InvalidMessage,
-            )?;
-            if declared.checked_add(8) != Some(message.len()) {
-                return invalid();
-            }
-            let message = root_as_message_with_opts(&message_verifier_options(), &message[8..])
-                .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
-            if message.version() != MetadataVersion::V5
-                || message.header_type() != MessageHeader::RecordBatch
-                || usize::try_from(message.bodyLength()).ok() != Some(body.len())
-                || message
-                    .custom_metadata()
-                    .is_some_and(|values| !values.is_empty())
-            {
-                return invalid();
-            }
-            let batch = message
-                .header_as_record_batch()
-                .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
+            let batch = decode_record_batch_message(message, body, block.bodyLength())?;
             validate_record_batch_features(batch)?;
             let start = index
                 .checked_mul(RECORD_BATCH_ROWS)

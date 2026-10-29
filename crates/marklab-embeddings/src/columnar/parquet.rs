@@ -1,6 +1,7 @@
 mod compact;
 mod levels;
 mod multiscale;
+pub(in crate::columnar::parquet) mod physical;
 mod preflight;
 mod profile;
 mod publication;

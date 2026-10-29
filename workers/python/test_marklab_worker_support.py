@@ -376,6 +376,49 @@ class FitSummaryTests(unittest.TestCase):
         )
 
 
+class ReplicatedLgcpWorkerRegressionTests(unittest.TestCase):
+    @staticmethod
+    def inferred_worker():
+        import marklab_numpyro_replicated_arbitrary_window_lgcp_inferred_kernel_worker as worker
+
+        return worker
+
+    def test_inferred_kernel_envelope_rejects_non_hex_source_digest(self):
+        worker = self.inferred_worker()
+        request = {
+            "format": worker.REQUEST_FORMAT,
+            "version": 1,
+            "backend": protocol.backend_identity("numpyro", versions.NUMPYRO, "1" * 64, "2" * 64),
+            "jax_version": versions.JAX,
+            "source_request_sha256": "g" * 64,
+            "source_request": {},
+            "maximum_tree_depth": 10,
+        }
+        with mock.patch.object(worker, "validate_inferred_kernel_request", return_value={}):
+            with self.assertRaisesRegex(ContractError, "lowercase SHA-256 digest"):
+                worker.validate(request, "1" * 64, "2" * 64, "3" * 64, "4" * 64)
+
+    def test_inferred_kernel_completion_honors_allowed_sampler_events(self):
+        worker = self.inferred_worker()
+        policy = {
+            "maximum_r_hat": 1.01,
+            "minimum_bulk_ess": 400.0,
+            "minimum_tail_ess": 400.0,
+            "minimum_ebfmi": 0.3,
+            "maximum_divergences": 1,
+            "maximum_tree_depth_hits": 2,
+        }
+        diagnostics = {
+            "r_hat": 1.0,
+            "ess_bulk": 500.0,
+            "ess_tail": 500.0,
+            "minimum_ebfmi": 0.8,
+            "divergences": 1,
+            "max_tree_depth_hits": 2,
+        }
+        self.assertTrue(worker._fit_is_complete(True, True, policy, diagnostics))
+
+
 class ReplicateHarnessTests(unittest.TestCase):
     def test_failures_keep_their_replicate_index_and_reason(self):
         from marklab_worker_support.numpyro_sbc import run_replicates

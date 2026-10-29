@@ -1,11 +1,13 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use marklab_project::ContentDigest;
+#[cfg(test)]
+use parquet::format::PageHeader;
 use parquet::{
     file::metadata::{ParquetMetaData, ParquetMetaDataReader},
     format::{
-        ColumnOrder, CompressionCodec, Encoding, FieldRepetitionType, FileMetaData, PageHeader,
-        PageType, SchemaElement, Type,
+        ColumnOrder, CompressionCodec, Encoding, FieldRepetitionType, FileMetaData, PageType,
+        SchemaElement, Type,
     },
     thrift::TSerializable,
 };
@@ -21,15 +23,14 @@ use super::super::super::{
 };
 use super::{
     super::{
-        compact::{is_canonical_compact, BoundedCompactProtocol, CompactLimits},
+        compact::{is_canonical_compact, BoundedCompactProtocol},
         preflight::{
             estimate_raw_preflight_bytes, estimate_stock_metadata_bytes,
             footer_compact_limits_with_metadata,
         },
         profile::{
-            CREATED_BY, MAXIMUM_APPLICATION_METADATA_BYTES, MAXIMUM_FOOTER_BYTES,
-            MAXIMUM_PAGE_BYTES, MAXIMUM_PAGE_HEADER_BYTES, MAXIMUM_ROWS, PARQUET_MAGIC,
-            ROW_GROUP_ROWS, TRAILER_BYTES,
+            CREATED_BY, MAXIMUM_APPLICATION_METADATA_BYTES, MAXIMUM_FOOTER_BYTES, MAXIMUM_ROWS,
+            PARQUET_MAGIC, ROW_GROUP_ROWS, TRAILER_BYTES,
         },
     },
     profile::{metadata_values, METADATA_KEYS, ROOT_NAME},
@@ -42,12 +43,12 @@ mod levels;
 pub(in crate::columnar::parquet) mod pages;
 pub(in crate::columnar::parquet) mod schema;
 
+#[cfg(test)]
+use crate::columnar::parquet::physical::page_limits;
 pub(super) use footer::{
     preflight_cell_embedding_row_link_parquet_reader,
     prepare_cell_embedding_row_link_parquet_reader,
 };
-#[cfg(test)]
-use pages::page_limits;
 
 /// Validated structural declaration for one canonical row-link Parquet file.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

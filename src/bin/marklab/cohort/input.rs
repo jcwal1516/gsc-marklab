@@ -1,8 +1,10 @@
+use crate::codecs::fingerprints::FingerprintInput;
+
 use std::{collections::BTreeMap, fs, path::Path};
 
 use marklab_cohort::{
-    Fingerprint, FunctionalCurve, PairedPatientEndpoint, PairedPatientEndpointVector,
-    PatientEndpoint, PatientEndpointVector, PatientExchangeabilityBlock,
+    FunctionalCurve, PairedPatientEndpoint, PairedPatientEndpointVector, PatientEndpoint,
+    PatientEndpointVector, PatientExchangeabilityBlock,
 };
 use serde::Deserialize;
 
@@ -61,21 +63,6 @@ struct MaxTCsvRecord {
 
 pub(super) struct MaxTInput {
     pub(super) patients: Vec<PatientEndpointVector>,
-    pub(super) blocks: Option<Vec<PatientExchangeabilityBlock>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct FingerprintCsvRecord {
-    patient_id: String,
-    group: String,
-    feature: String,
-    value: f64,
-    #[serde(default)]
-    block: Option<String>,
-}
-
-pub(super) struct FingerprintInput {
-    pub(super) fingerprints: Vec<Fingerprint>,
     pub(super) blocks: Option<Vec<PatientExchangeabilityBlock>>,
 }
 
@@ -339,76 +326,11 @@ pub(super) fn read_max_t_patients(path: &Path) -> Result<MaxTInput, CohortError>
 
 pub(super) fn read_fingerprints(path: &Path) -> Result<FingerprintInput, CohortError> {
     validate_input_file(path)?;
-    let mut reader = csv::ReaderBuilder::new()
-        .flexible(false)
-        .from_path(path)
-        .map_err(|error| CohortError::Input(error.to_string()))?;
-    let headers = reader
-        .headers()
-        .map_err(|error| CohortError::Input(error.to_string()))?
-        .clone();
-    let blocked = headers
-        .iter()
-        .eq(["patient_id", "group", "feature", "value", "block"]);
-    if !blocked
-        && !headers
-            .iter()
-            .eq(["patient_id", "group", "feature", "value"])
-    {
-        return Err(CohortError::Input(
-            "CSV header must be exactly patient_id,group,feature,value or patient_id,group,feature,value,block".into(),
-        ));
-    }
-    let mut grouped = BTreeMap::<String, (String, Option<String>, BTreeMap<String, f64>)>::new();
-    for decoded in reader.deserialize::<FingerprintCsvRecord>() {
-        let row = decoded.map_err(|error| CohortError::Input(error.to_string()))?;
-        if blocked && row.block.is_none() {
-            return Err(CohortError::Input(format!(
-                "patient {} is missing its fingerprint block",
-                row.patient_id
-            )));
-        }
-        let entry = grouped
-            .entry(row.patient_id.clone())
-            .or_insert_with(|| (row.group.clone(), row.block.clone(), BTreeMap::new()));
-        if entry.0 != row.group {
-            return Err(CohortError::Input(format!(
-                "patient {} has conflicting group labels",
-                row.patient_id
-            )));
-        }
-        if entry.1 != row.block {
-            return Err(CohortError::Input(format!(
-                "patient {} has conflicting fingerprint blocks",
-                row.patient_id
-            )));
-        }
-        if entry.2.insert(row.feature.clone(), row.value).is_some() {
-            return Err(CohortError::Input(format!(
-                "patient {} has duplicate feature {:?}",
-                row.patient_id, row.feature
-            )));
-        }
-    }
-    let mut fingerprints = Vec::with_capacity(grouped.len());
-    let mut blocks = blocked.then(|| Vec::with_capacity(grouped.len()));
-    for (patient_id, (group, block, features)) in grouped {
-        if let Some(assignments) = &mut blocks {
-            assignments.push(
-                PatientExchangeabilityBlock::new(patient_id.clone(), block.unwrap_or_default())
-                    .map_err(|error| CohortError::Input(error.to_string()))?,
-            );
-        }
-        fingerprints.push(Fingerprint {
-            patient_id,
-            group,
-            values: features.values().copied().collect(),
-            features: features.into_keys().collect(),
-        });
-    }
-    Ok(FingerprintInput {
-        fingerprints,
-        blocks,
+    let file = fs::File::open(path).map_err(|error| CohortError::Input(error.to_string()))?;
+    crate::codecs::fingerprints::read_fingerprints(file).map_err(|error| match error {
+        crate::cli_error::CliError::Input(message) => CohortError::Input(message),
+        crate::cli_error::CliError::Csv(error) => CohortError::Input(error.to_string()),
+        error => CohortError::Input(error.to_string()),
     })
 }
 

@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
+    freedman_lane,
     inference_design::{
         align_patient_blocks, validate_permutation_count, validate_two_group_labels,
     },
     numeric::stable_mean,
-    ols::OlsContext,
     CohortInferenceError, InferenceAlternative, InferenceDesign, PatientExchangeabilityBlock,
     PermutationAlternative, MAXIMUM_PATIENTS, MAXIMUM_PATIENT_PERMUTATION_EVALUATIONS,
 };
@@ -192,13 +192,6 @@ fn execute_covariate_freedman_lane(
         ),
     };
     let target_index = full[0].len() - 1;
-    let reduced_fit = OlsContext::Covariate.fit(&reduced, &outcomes, None, absorbed)?;
-    let observed = OlsContext::Covariate.fit(&full, &outcomes, Some(target_index), absorbed)?;
-    let residuals = outcomes
-        .iter()
-        .zip(&reduced_fit.fitted)
-        .map(|(outcome, fitted)| outcome - fitted)
-        .collect::<Vec<_>>();
     let design = match &blocks {
         Some(blocks) => InferenceDesign::blocked_covariate_conditional_residual_permutation(
             blocks,
@@ -216,31 +209,16 @@ fn execute_covariate_freedman_lane(
         ),
     }
     .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
-
-    let mut lower_tail = 0usize;
-    let mut upper_tail = 0usize;
-    let mut permuted_outcomes = vec![0.0; rows.len()];
-    for replicate in 0..spec.permutations {
-        let indices = design
-            .permuted_indices(replicate)
-            .map_err(|error| CohortInferenceError::InvalidInput(error.to_string()))?;
-        for index in 0..rows.len() {
-            permuted_outcomes[index] = reduced_fit.fitted[index] + residuals[indices[index]];
-        }
-        let statistic = OlsContext::Covariate
-            .fit(&full, &permuted_outcomes, Some(target_index), absorbed)?
-            .target_statistic;
-        lower_tail += usize::from(statistic <= observed.target_statistic);
-        upper_tail += usize::from(statistic >= observed.target_statistic);
-    }
-    let denominator = (spec.permutations + 1) as f64;
-    let p_value = match spec.alternative {
-        PermutationAlternative::Less => (lower_tail as f64 + 1.0) / denominator,
-        PermutationAlternative::Greater => (upper_tail as f64 + 1.0) / denominator,
-        PermutationAlternative::TwoSided => {
-            (2.0 * ((lower_tail.min(upper_tail) as f64 + 1.0) / denominator)).min(1.0)
-        }
-    };
+    let fit = freedman_lane::fit(
+        &outcomes,
+        &reduced,
+        &full,
+        target_index,
+        absorbed,
+        &design,
+        spec.alternative,
+    )?;
+    let observed = fit.observed;
     let group_a_count = rows.iter().filter(|row| row.group_a).count();
     Ok(CovariatePermutationResult {
         blocked: assignments.is_some(),
@@ -259,7 +237,7 @@ fn execute_covariate_freedman_lane(
         effect_group_a_minus_group_b: observed.target_coefficient,
         target_standard_error: observed.target_standard_error,
         studentized_statistic: observed.target_statistic,
-        p_value,
+        p_value: fit.p_value,
         permutations_requested: spec.permutations,
         seed: spec.seed,
         alternative: spec.alternative,

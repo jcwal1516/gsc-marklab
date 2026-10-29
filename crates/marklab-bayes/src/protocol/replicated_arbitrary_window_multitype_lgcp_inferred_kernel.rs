@@ -10,7 +10,7 @@
 //! jitter. A complete fit (finiteness, centring and the NUTS policy) claims
 //! `experimental_inferred_shared_multitype_kernel`, otherwise `diagnostic_only_nonconverged`.
 
-use super::posterior_validation::summary_valid;
+use super::posterior_validation::{diagnostics_pass, summary_valid};
 use super::replicated_arbitrary_window_multitype_lgcp::hierarchy_effects_valid;
 use super::replicated_arbitrary_window_multitype_lgcp::pair_differences_valid;
 use super::replicated_arbitrary_window_multitype_lgcp::type_posteriors_valid;
@@ -203,16 +203,7 @@ pub fn validate_result(
     let nodes = array(source, "nodes")?;
     let counts = array(source, "node_type_counts")?;
     let policy = DiagnosticPolicy::default();
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && result.diagnostics.divergences <= policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
+    let diagnostics_pass = diagnostics_pass(&result.diagnostics, &policy);
     let nodes_valid = result.node_type_posteriors.len() == counts.len()
         && result
             .node_type_posteriors

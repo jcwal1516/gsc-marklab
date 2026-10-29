@@ -13,11 +13,11 @@ use arrow_ipc::{
 use crate::{ExpectedPatchSet, PatchEmbeddingContext, PatchFootprintSet, PatchOverlapGraph};
 
 use super::{
+    super::physical::enforce_writer_budgets,
     super::{
         profile::{ALIGNMENT, MAXIMUM_FOOTER_BYTES, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS},
         writer::DigestingWriter,
     },
-    physical::enforce_writer_budgets,
     profile::{footprint_schema, overlap_schema},
 };
 use crate::columnar::{

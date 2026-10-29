@@ -28,6 +28,7 @@ pub mod advanced;
 mod agreement_metric;
 mod agreement_status;
 mod anisotropic_gp3d;
+mod areal_contract;
 mod sensitivity_status;
 pub use marklab_core::backend::versions as backend_versions;
 mod berman_turner;

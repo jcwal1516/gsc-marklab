@@ -4,8 +4,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::{
-    metric_ball_scale, metric_is_identity, validate_spd, CoordinateUnit, K3dCorrection,
-    NormalizedPoint3D, Point3DInput, Spatial3dError,
+    metric::{distance, metric_ball_scale, metric_is_identity, validate_spd},
+    CoordinateUnit, K3dCorrection, NormalizedPoint3D, Point3DInput, Spatial3dError,
 };
 use marklab_core::backend::ClaimStatus;
 use marklab_core::vocabulary::NullHypothesis;
@@ -788,7 +788,11 @@ fn build_pairs(
             let displacement = std::array::from_fn(|axis| {
                 points[right].coordinates_um[axis] - points[left].coordinates_um[axis]
             });
-            let distance = metric_distance(displacement, metric)?;
+            let distance = distance(
+                displacement,
+                metric,
+                "anisotropic squared distance is negative or non-finite",
+            )?;
             let translation_overlap_um3 =
                 if correction == K3dCorrection::Translation && distance <= maximum_radius {
                     Some(translation_overlap(window, displacement))
@@ -815,29 +819,16 @@ fn pairs_within_maximum(
             let displacement = std::array::from_fn(|axis| {
                 points[right].coordinates_um[axis] - points[left].coordinates_um[axis]
             });
-            count += u64::from(metric_distance(displacement, metric)? <= maximum_radius);
+            count += u64::from(
+                distance(
+                    displacement,
+                    metric,
+                    "anisotropic squared distance is negative or non-finite",
+                )? <= maximum_radius,
+            );
         }
     }
     Ok(count)
-}
-
-fn metric_distance(displacement: [f64; 3], metric: [[f64; 3]; 3]) -> Result<f64, Spatial3dError> {
-    let transformed: [f64; 3] = std::array::from_fn(|row| {
-        (0..3)
-            .map(|column| metric[row][column] * displacement[column])
-            .sum()
-    });
-    let squared = displacement
-        .iter()
-        .zip(transformed)
-        .map(|(left, right)| left * right)
-        .sum::<f64>();
-    if !squared.is_finite() || squared < 0.0 {
-        return Err(Spatial3dError::Numerical(
-            "anisotropic squared distance is negative or non-finite".into(),
-        ));
-    }
-    Ok(squared.sqrt())
 }
 
 fn translation_overlap(window: &CompiledWindow, displacement: [f64; 3]) -> f64 {

@@ -1,7 +1,6 @@
 pub(in crate::columnar::parquet) mod cell_patch;
 pub(in crate::columnar::parquet) mod matrix;
 pub(in crate::columnar::parquet) mod patch_region;
-pub(in crate::columnar::parquet) mod physical;
 pub(in crate::columnar::parquet) mod preflight;
 pub(in crate::columnar::parquet) mod profile;
 mod publication;

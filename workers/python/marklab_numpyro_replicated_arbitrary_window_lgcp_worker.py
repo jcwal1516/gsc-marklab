@@ -20,7 +20,6 @@ import numpyro
 import numpyro.distributions as dist
 from numpyro.infer import MCMC, NUTS
 
-from marklab_worker_support import versions
 from marklab_worker_support.diagnostics import (
     divergence_count,
     mcse_extremes,
@@ -31,24 +30,21 @@ from marklab_worker_support.diagnostics import (
 from marklab_worker_support.posterior import summary
 from marklab_worker_support.protocol import (
     MIB,
-    ContractError,
     backend_identity,
     derive_seed,
-    exact,
     file_sha256,
-    obj,
     read_request,
     require_versions,
     run_worker,
-    sha256_digest,
     sha256_hex,
-    validate_backend,
     worker_digests,
     write_result,
 )
 from marklab_worker_support.replicated_lgcp import (
     FIXED_KERNEL_WORKER,
     HIERARCHY_PARAMETERS,
+    _fit_is_complete,
+    _validate_numpyro_envelope,
     center_within_groups,
     effect_summaries,
     expected_counts,
@@ -66,41 +62,13 @@ MONITORED = [*HIERARCHY_PARAMETERS, "patient_raw", "pattern_raw", "field_raw"]
 def validate(
     request: Any, lock_digest: str, worker_digest: str, pymc_worker_digest: str
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    request = obj(
+    return _validate_numpyro_envelope(
         request,
-        {
-            "format",
-            "version",
-            "backend",
-            "jax_version",
-            "source_request_sha256",
-            "source_request",
-            "maximum_tree_depth",
-        },
-        "request",
+        REQUEST_FORMAT,
+        lock_digest,
+        worker_digest,
+        lambda source: validate_request(source, lock_digest, pymc_worker_digest),
     )
-    exact(request["format"], REQUEST_FORMAT, "request.format")
-    exact(request["version"], 1, "request.version")
-    validate_backend(
-        request["backend"],
-        "backend",
-        name="numpyro",
-        version=versions.NUMPYRO,
-        lock_sha256=lock_digest,
-        worker_sha256=worker_digest,
-    )
-    exact(request["jax_version"], versions.JAX, "request.jax_version")
-    sha256_digest(request["source_request_sha256"], "source request digest")
-    config = validate_request(request["source_request"], lock_digest, pymc_worker_digest)
-    maximum_tree_depth = request["maximum_tree_depth"]
-    if (
-        isinstance(maximum_tree_depth, bool)
-        or not isinstance(maximum_tree_depth, int)
-        or not 10 <= maximum_tree_depth <= 14
-    ):
-        raise ContractError("maximum_tree_depth is outside [10, 14]")
-    config["numpyro_maximum_tree_depth"] = maximum_tree_depth
-    return request, config
 
 
 def seed_for(seed: int, purpose: str) -> int:
@@ -255,16 +223,15 @@ def fit(
         and np.all(expected > 0.0)
     )
     policy = config["policy"]
-    complete = (
-        prior_finite
-        and posterior_finite
-        and r_hat <= policy["maximum_r_hat"]
-        and bulk >= policy["minimum_bulk_ess"]
-        and tail >= policy["minimum_tail_ess"]
-        and ebfmi >= policy["minimum_ebfmi"]
-        and divergences <= policy["maximum_divergences"]
-        and depth_hits <= policy["maximum_tree_depth_hits"]
-    )
+    convergence = {
+        "r_hat": r_hat,
+        "ess_bulk": bulk,
+        "ess_tail": tail,
+        "minimum_ebfmi": ebfmi,
+        "divergences": divergences,
+        "max_tree_depth_hits": depth_hits,
+    }
+    complete = _fit_is_complete(prior_finite, posterior_finite, policy, convergence)
     flat_expected = expected.reshape(-1, expected.shape[-1])
     predictive_rng = np.random.default_rng(seed_for(config["seed"], "posterior_predictive"))
     replicated = predictive_rng.poisson(flat_expected)
@@ -293,14 +260,9 @@ def fit(
         "diagnostics": {
             "prior_predictive_finite": prior_finite,
             "posterior_finite": posterior_finite,
-            "r_hat": r_hat,
-            "ess_bulk": bulk,
-            "ess_tail": tail,
+            **convergence,
             "mcse_mean": mcse_mean,
             "mcse_sd": mcse_sd,
-            "minimum_ebfmi": ebfmi,
-            "divergences": divergences,
-            "max_tree_depth_hits": depth_hits,
             "constraints_valid": posterior_finite,
             "identifiability_checks_passed": True,
         },

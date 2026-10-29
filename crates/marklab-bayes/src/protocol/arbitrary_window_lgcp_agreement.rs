@@ -4,7 +4,7 @@ use super::arbitrary_window_lgcp_fit;
 use super::arbitrary_window_lgcp_fit::FitResult;
 use super::arbitrary_window_lgcp_fit::InputIdentity;
 use super::arbitrary_window_lgcp_fit::ResultNode;
-use super::posterior_validation::scalar_valid;
+use super::posterior_validation::{diagnostics_pass, scalar_valid};
 use crate::backend_versions::JAX_VERSION;
 use crate::compare_elements;
 use crate::compare_parameter;
@@ -98,16 +98,7 @@ pub fn validate_numpyro(
     pymc: &FitResult,
 ) -> Result<(), BayesError> {
     let policy = &request.source_request.source_request.diagnostic_policy;
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && result.diagnostics.divergences <= policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
+    let diagnostics_pass = diagnostics_pass(&result.diagnostics, policy);
     let nodes_valid = result.nodes.len() == pymc.nodes.len()
         && result
             .nodes

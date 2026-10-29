@@ -44,12 +44,3 @@ pub(super) fn validate_plain_cell_ids(
     }
     Ok(())
 }
-
-pub(super) fn absolute_slice(
-    bytes: &[u8],
-    base_offset: usize,
-    start: usize,
-    end: usize,
-) -> Option<&[u8]> {
-    bytes.get(start.checked_sub(base_offset)?..end.checked_sub(base_offset)?)
-}

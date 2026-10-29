@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    filter::chebyshev_recurrence,
     heat_chebyshev_coefficients, heat_grid_error,
     sparse_radius_graph::{build_sparse_radius_graph, graph_digest, laplacian_product},
     GraphError, GraphNodeInput,
@@ -260,37 +261,12 @@ fn sparse_chebyshev_apply(
     input: &[f64],
     coefficients: &[f64],
 ) -> Result<Vec<f64>, GraphError> {
-    let mut previous = input.to_vec();
-    let mut output = previous
-        .iter()
-        .map(|value| 0.5 * coefficients[0] * value)
-        .collect::<Vec<_>>();
-    if coefficients.len() == 1 {
-        return Ok(output);
-    }
-    let mut current = scaled_laplacian_product(degrees, edges, spectral_upper_bound, input);
-    for (target, value) in output.iter_mut().zip(&current) {
-        *target += coefficients[1] * value;
-    }
-    for &coefficient in coefficients.iter().skip(2) {
-        let product = scaled_laplacian_product(degrees, edges, spectral_upper_bound, &current);
-        let next = product
-            .iter()
-            .zip(&previous)
-            .map(|(product, previous)| 2.0 * product - previous)
-            .collect::<Vec<_>>();
-        for (target, value) in output.iter_mut().zip(&next) {
-            *target += coefficient * value;
-        }
-        previous = current;
-        current = next;
-    }
-    if output.iter().any(|value| !value.is_finite()) {
-        return Err(GraphError::Numerical(
-            "sparse Chebyshev recurrence produced non-finite output".into(),
-        ));
-    }
-    Ok(output)
+    chebyshev_recurrence(
+        input,
+        coefficients,
+        |vector| scaled_laplacian_product(degrees, edges, spectral_upper_bound, vector),
+        "sparse Chebyshev recurrence produced non-finite output",
+    )
 }
 
 fn scaled_laplacian_product(

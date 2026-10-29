@@ -9,7 +9,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 
-use super::super::physical::{enforce_writer_budgets, write_record_batches};
+use super::super::super::physical::{enforce_writer_budgets, write_record_batches};
 use super::profile::{assignment_schema, edge_schema};
 use crate::columnar::arrow::profile::{ALIGNMENT, MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS};
 use crate::columnar::{

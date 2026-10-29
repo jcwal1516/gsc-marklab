@@ -17,8 +17,8 @@ use crate::{
     ReplicationRole, Result, SlideId, SpatialAxis, TumorMask,
 };
 
-use super::classical::{read_bounded_utf8, source_artifact};
 pub(super) use super::project_output::write_output;
+use super::project_runtime::{read_bounded_utf8, source_artifact};
 
 const SOURCE_CELLS_KIND: &str = "application/vnd.marklab.source.categorical-cell-table;version=1";
 const SOURCE_WINDOW_KIND: &str = "application/vnd.marklab.source.observation-window;version=1";

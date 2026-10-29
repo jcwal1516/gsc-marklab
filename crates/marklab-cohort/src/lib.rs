@@ -14,6 +14,7 @@ mod covariate_matrix;
 mod energy;
 mod equivalence;
 mod fingerprint;
+mod freedman_lane;
 mod functional;
 mod functional_equivalence;
 mod hierarchical_bootstrap;

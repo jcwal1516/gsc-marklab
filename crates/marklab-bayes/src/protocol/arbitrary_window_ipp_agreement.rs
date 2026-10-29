@@ -3,6 +3,7 @@ use crate::InhomogeneousPoissonFitWorkerRequest;
 
 use super::arbitrary_window_ipp_fit::ArbitraryWindowIppFitPosterior;
 use super::arbitrary_window_ipp_fit::ArbitraryWindowIppFitResult;
+use super::posterior_validation::diagnostics_pass;
 use crate::backend_versions::JAX_VERSION;
 use crate::BackendContract;
 use crate::BayesError;
@@ -48,17 +49,7 @@ pub fn validate_numpyro(
     source_request: &InhomogeneousPoissonFitWorkerRequest,
     source_request_sha256: &str,
 ) -> Result<(), BayesError> {
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= source_request.diagnostic_policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= source_request.diagnostic_policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= source_request.diagnostic_policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= source_request.diagnostic_policy.minimum_ebfmi
-        && result.diagnostics.divergences <= source_request.diagnostic_policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits
-            <= source_request.diagnostic_policy.maximum_tree_depth_hits;
+    let diagnostics_pass = diagnostics_pass(&result.diagnostics, &source_request.diagnostic_policy);
     let finite = [
         result.posterior.intercept.mean,
         result.posterior.intercept.sd,

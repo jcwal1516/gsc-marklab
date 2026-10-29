@@ -13,7 +13,7 @@
 //! finite, centring holds and the NUTS policy passes; it then claims
 //! `experimental_replicated_multitype_point_process`, otherwise `diagnostic_only_nonconverged`.
 
-use super::posterior_validation::summary_valid;
+use super::posterior_validation::{diagnostics_pass, summary_valid};
 use crate::BackendContract;
 use crate::BayesError;
 use crate::DiagnosticPolicy;
@@ -235,16 +235,7 @@ impl Output {
         request_sha256: &str,
     ) -> Result<(), BayesError> {
         let policy = &request.diagnostic_policy;
-        let diagnostics_pass = self.diagnostics.prior_predictive_finite
-            && self.diagnostics.posterior_finite
-            && self.diagnostics.constraints_valid
-            && self.diagnostics.identifiability_checks_passed
-            && self.diagnostics.r_hat <= policy.maximum_r_hat
-            && self.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-            && self.diagnostics.ess_tail >= policy.minimum_tail_ess
-            && self.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-            && self.diagnostics.divergences <= policy.maximum_divergences
-            && self.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
+        let diagnostics_pass = diagnostics_pass(&self.diagnostics, policy);
         let type_rows_valid = type_posteriors_valid(&self.type_posteriors, &request.type_ids);
         let pairs_valid = pair_differences_valid(&self.group_effect_differences, &request.type_ids);
         let hierarchy_valid = hierarchy_effects_valid(
@@ -325,16 +316,7 @@ pub fn validate_result(
     request_sha256: &str,
 ) -> Result<(), BayesError> {
     let policy = &request.diagnostic_policy;
-    let diagnostics_pass = result.diagnostics.prior_predictive_finite
-        && result.diagnostics.posterior_finite
-        && result.diagnostics.constraints_valid
-        && result.diagnostics.identifiability_checks_passed
-        && result.diagnostics.r_hat <= policy.maximum_r_hat
-        && result.diagnostics.ess_bulk >= policy.minimum_bulk_ess
-        && result.diagnostics.ess_tail >= policy.minimum_tail_ess
-        && result.diagnostics.minimum_ebfmi >= policy.minimum_ebfmi
-        && result.diagnostics.divergences <= policy.maximum_divergences
-        && result.diagnostics.max_tree_depth_hits <= policy.maximum_tree_depth_hits;
+    let diagnostics_pass = diagnostics_pass(&result.diagnostics, policy);
     let types_valid = type_posteriors_valid(&result.type_posteriors, &request.type_ids);
     let pairs_valid = pair_differences_valid(&result.group_effect_differences, &request.type_ids);
     let hierarchy_valid = hierarchy_effects_valid(

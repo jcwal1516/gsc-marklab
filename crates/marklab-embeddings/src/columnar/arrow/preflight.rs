@@ -1,6 +1,5 @@
 use std::io::Cursor;
 
-use arrow_ipc::{root_as_message_with_opts, MessageHeader, MetadataVersion};
 use marklab_project::ContentDigest;
 
 use crate::{EmbeddingStatus, ExpectedCellSet};
@@ -10,13 +9,13 @@ use super::{
         enforce_file_budget, ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, ColumnarError,
         EmbeddingColumnarBudgets,
     },
+    physical::decode_record_batch_message,
     preflight_reader::{
         declared_table_logical_digest_reader, preflight_cell_embedding_table_arrow_reader,
     },
     profile::{
-        align, arrow_failure, message_verifier_options, nonnegative_i32_usize, nonnegative_usize,
-        validate_all_valid_bitmap, validity_bytes, ALIGNMENT, CONTINUATION_MARKER,
-        MAXIMUM_MESSAGE_BYTES, RECORD_BATCH_ROWS,
+        align, arrow_failure, nonnegative_usize, validate_all_valid_bitmap, validity_bytes,
+        ALIGNMENT, RECORD_BATCH_ROWS,
     },
 };
 
@@ -113,38 +112,7 @@ pub(super) fn validate_record_batch_message(
     dimension: u32,
     aggregate_decoded_bytes: &mut u64,
 ) -> Result<(), ColumnarError> {
-    if message_bytes.len() < 8 || &message_bytes[..4] != CONTINUATION_MARKER {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
-    }
-    let declared_metadata = i32::from_le_bytes(
-        message_bytes[4..8]
-            .try_into()
-            .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?,
-    );
-    let declared_metadata =
-        nonnegative_i32_usize(declared_metadata, ArrowIpcFailure::InvalidMessage)?;
-    if declared_metadata == 0
-        || declared_metadata.checked_add(8) != Some(message_bytes.len())
-        || declared_metadata > MAXIMUM_MESSAGE_BYTES - 8
-    {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
-    }
-    let message = root_as_message_with_opts(&message_verifier_options(), &message_bytes[8..])
-        .map_err(|_| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
-    if message.version() != MetadataVersion::V5
-        || message.header_type() != MessageHeader::RecordBatch
-        || message.bodyLength() != declared_body_length
-        || message.bodyLength()
-            != i64::try_from(body_bytes.len()).map_err(|_| ColumnarError::SizeOverflow)?
-        || message
-            .custom_metadata()
-            .is_some_and(|metadata| !metadata.is_empty())
-    {
-        return Err(arrow_failure(ArrowIpcFailure::InvalidMessage));
-    }
-    let batch = message
-        .header_as_record_batch()
-        .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidMessage))?;
+    let batch = decode_record_batch_message(message_bytes, body_bytes, declared_body_length)?;
     if batch.compression().is_some()
         || batch
             .variadicBufferCounts()
@@ -262,6 +230,7 @@ mod tests {
     use marklab_project::{ArtifactId, ContentDigest};
 
     use super::*;
+    use crate::columnar::arrow::profile::CONTINUATION_MARKER;
 
     fn artifact_id(label: &[u8]) -> ArtifactId {
         ArtifactId::from_str(&ContentDigest::from_bytes(label).to_string()).expect("artifact ID")
