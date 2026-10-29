@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{MarklabError, Result};
 
+#[cfg(feature = "parquet")]
 pub(super) const METADATA_KEY: &str = "marklab.feature_table";
 const MAXIMUM_ID_BYTES: usize = 256;
 
