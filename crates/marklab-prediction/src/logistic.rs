@@ -156,37 +156,56 @@ impl LogisticProblem {
 
     /// Fit with inverse penalty strength `c`.
     pub fn fit(&self, c: f64) -> Result<LogisticModel, LogisticError> {
-        if !(c.is_finite() && c > 0.0) {
-            return Err(LogisticError::Invalid(format!(
-                "C must be finite and positive, not {c}"
-            )));
+        Ok(self.fit_path(&[c])?.remove(0))
+    }
+
+    /// Fit each of the strictly increasing `c_values`, starting every fit after the first from
+    /// the previous solution. The minimiser for each `C` is unique, so the result does not
+    /// depend on the starting point beyond the convergence tolerance.
+    pub fn fit_path(&self, c_values: &[f64]) -> Result<Vec<LogisticModel>, LogisticError> {
+        if !c_values.iter().all(|c| c.is_finite() && *c > 0.0)
+            || !c_values.windows(2).all(|pair| pair[0] < pair[1])
+        {
+            return Err(LogisticError::Invalid(
+                "C values must be finite, positive and strictly increasing".to_owned(),
+            ));
         }
-        let (parameters, newton_iterations) = self.newton(c)?;
+        let mut start = vec![0.0; self.dimension + 1];
+        let mut models = Vec::with_capacity(c_values.len());
+        for &c in c_values {
+            let (parameters, newton_iterations) = self.newton(c, start)?;
+            start = parameters.clone();
+            models.push(self.model(parameters, newton_iterations));
+        }
+        Ok(models)
+    }
+
+    fn model(&self, parameters: Vec<f64>, newton_iterations: usize) -> LogisticModel {
         let intercept = parameters[self.dimension];
         let mut coefficients = parameters;
         coefficients.truncate(self.dimension);
         if let Some(reduction) = &self.reduction {
             coefficients = reduction.expand(&coefficients, self.columns);
         }
-        Ok(LogisticModel {
+        LogisticModel {
             mean: self.mean.clone(),
             scale: self.scale.clone(),
             coefficients,
             intercept,
             newton_iterations,
-        })
+        }
     }
 
     fn rows(&self) -> usize {
         self.labels.len()
     }
 
-    /// Damped Newton iterations from zero; returns the coefficients of the design followed by
-    /// the intercept, and the number of iterations.
-    fn newton(&self, c: f64) -> Result<(Vec<f64>, usize), LogisticError> {
+    /// Damped Newton iterations from `start` (the coefficients of the design followed by the
+    /// intercept); returns the minimiser in the same layout and the number of iterations.
+    fn newton(&self, c: f64, start: Vec<f64>) -> Result<(Vec<f64>, usize), LogisticError> {
         let size = self.dimension + 1;
-        let mut parameters = vec![0.0; size];
-        let mut margins = vec![0.0; self.rows()];
+        let mut parameters = start;
+        let mut margins = self.margins(&parameters);
         let mut objective = self.objective(c, &parameters, &margins);
         let mut previous_decrement = f64::INFINITY;
         for iteration in 1..=MAXIMUM_NEWTON_ITERATIONS {

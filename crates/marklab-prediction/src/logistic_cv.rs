@@ -432,17 +432,15 @@ fn fit_ensemble(
             &select(data.labels, &training),
             spec.class_weight,
         )?;
-        let mut fold_models = Vec::with_capacity(spec.c_values.len());
-        let mut fold_margins = Vec::with_capacity(spec.c_values.len());
-        for &c in &spec.c_values {
-            let model = problem.fit(c)?;
-            let heldout = test
-                .iter()
-                .map(|&row| model.margin(data.row(row)))
-                .collect::<Result<Vec<f64>, _>>()?;
-            fold_models.push(model);
-            fold_margins.push(heldout);
-        }
+        let fold_models = problem.fit_path(&spec.c_values)?;
+        let fold_margins = fold_models
+            .iter()
+            .map(|model| {
+                test.iter()
+                    .map(|&row| model.margin(data.row(row)))
+                    .collect::<Result<Vec<f64>, _>>()
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         models.push(fold_models);
         margins.push(fold_margins);
     }
