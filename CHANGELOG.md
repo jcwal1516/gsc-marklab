@@ -151,7 +151,7 @@
 
 ### Public-data validation and interoperability
 
-- Add `marklab microbio preprocess` and the `marklab-microbio` crate: read one Bruker flex
+- Add `marklab spectrum preprocess` and the `marklab-microbio` crate: read one Bruker flex
   MALDI-TOF acquisition (`fid` with `acqu` or `acqus`), convert time of flight to m/z, apply
   declared steps in order (square root, Savitzky–Golay, SNIP baseline, total ion current, trim)
   and optionally sum fixed-edge m/z bins. High-precision calibration, LIFT, PSD and V1.0 CTOF2
@@ -161,15 +161,16 @@
   the spectrum maximum, the 6,000-bin vectors agree with a per-bin R sum within 2.8e-12, and the
   HPC example is rejected. `--text` reads two-column spectra such as DRIAMS `raw` files.
 
-- Add `marklab microbio feature-table`, `fit-ast` and `predict-ast`. A feature table is a Parquet
-  file with an `id` column, numeric feature columns and `marklab.feature_table` metadata (modality,
-  unit, provenance); `feature-table` writes one from binned MALDI-TOF spectra, and other
-  modalities can write it from Python (checked with pyarrow, pandas and polars). `fit-ast` fits an
-  ensemble of L2-penalised logistic regressions (one per inner fold, scikit-learn-equivalent within
-  1e-7), Platt-calibrates it on held-out margins and calibrates class-conditional cross-conformal
-  calls; outer cross-validation of that whole procedure reports AUROC, average precision, Brier
-  score, reliability and very major, major and abstention rates. `predict-ast` applies the saved
-  model and refuses tables made differently.
+- Add `marklab spectrum feature-table`, `marklab classifier fit` and `classifier predict`. A
+  feature table is a Parquet file with an `id` column, numeric feature columns and
+  `marklab.feature_table` metadata (modality, unit, provenance); `spectrum feature-table` writes one
+  from binned spectra, and other modalities can write it from Python (checked with pyarrow, pandas
+  and polars). `classifier fit` fits an ensemble of L2-penalised logistic regressions predicting a
+  binary label (one per inner fold, scikit-learn-equivalent within 1e-7), Platt-calibrates it on
+  held-out margins and calibrates class-conditional cross-conformal calls; outer cross-validation of
+  that whole procedure reports AUROC, average precision, Brier score, reliability and
+  false-negative, false-positive and abstention rates. `classifier predict` applies the saved model
+  and refuses tables made differently.
 
 - Compare `numerics categorical-enrichment` with imcRtools 1.16.0 `testInteractions`
   (classic) and SPIAT 1.12.1 `mixing_score_summary` on three public CODEX spots. Graphs and
@@ -235,6 +236,16 @@
 
 ### Engineering in the unreleased development batch
 
+- Name the spectrum and classifier commands for what they do rather than for MALDI-TOF
+  susceptibility: `microbio preprocess` and `microbio feature-table` are now `spectrum preprocess`
+  and `spectrum feature-table`, which takes `--modality` and `--unit`; `microbio fit-ast` and
+  `predict-ast` are now `classifier fit` and `classifier predict`. Their configuration names a
+  `label_column`, `positive` and `negative` label values and an optional `subset` instead of an
+  antibiotic, resistant and susceptible categories and a species, and their reports give
+  false-negative and false-positive rates instead of very major and major errors. A feature table's
+  unit may be any name. Models are `marklab.classifier` files; `marklab.ast-model` files must be
+  refitted. [Pipelines](examples/README.md) maps the susceptibility terms and shows the command
+  sequences.
 - The `cohort` commands read input tables of up to 512 MiB, raised from 16 MiB, so tests over
   thousands of endpoints or features fit. Each command's work limits are unchanged; `cohort
   max-t`, for example, still allows at most 10^8 patient-endpoint-permutation evaluations. A

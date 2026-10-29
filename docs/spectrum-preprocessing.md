@@ -1,18 +1,21 @@
-# MALDI-TOF spectrum preprocessing
+# Spectrum preprocessing
 
-`marklab microbio preprocess` reads one MALDI-TOF spectrum of a bacterial isolate, either a Bruker
-flex-series acquisition (converting time of flight to m/z) or a two-column text spectrum, applies
-declared preprocessing steps in order, and can sum the result into fixed m/z bins. It is the first
-stage of the microbiology workflow. It does not identify species, detect peaks or predict
-antimicrobial susceptibility, and none of Marklab's spatial nulls apply to spectra.
+`marklab spectrum preprocess` reads one spectrum, either a Bruker flex-series acquisition
+(converting time of flight to m/z) or a two-column text spectrum, applies declared preprocessing
+steps in order, and can sum the result into fixed m/z bins. The steps suit any one-dimensional
+spectrum with an increasing axis; the reader, the example configuration and the evidence below are
+for MALDI-TOF mass spectra of bacterial isolates. It does not identify species, detect peaks or
+predict anything, and none of Marklab's spatial nulls apply to spectra.
+`marklab spectrum feature-table` then collects binned results into a feature table for
+[`classifier fit`](classifier.md); [Pipelines](../examples/README.md) shows the whole chain.
 
 ```sh
-marklab microbio preprocess \
+marklab spectrum preprocess \
   --bruker run/0_A1/1/1SLin \
   --config examples/maldi-preprocess.json \
   --out out/0_A1.json
 
-marklab microbio preprocess \
+marklab spectrum preprocess \
   --text raw/<code>.txt \
   --config examples/maldi-preprocess.json \
   --out out/<code>.json

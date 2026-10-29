@@ -1,15 +1,16 @@
-//! Feature tables: one Parquet row per isolate or specimen, an `id` column and numeric feature
-//! columns, with the modality, unit and provenance in the file's `marklab.feature_table`
-//! metadata. Every modality reaches `fit-ast` and `predict-ast` through this one format.
+//! Feature tables: one Parquet row per unit (an isolate, specimen, patient, slide or anything
+//! else), an `id` column and numeric feature columns, with the modality, unit and provenance in
+//! the file's `marklab.feature_table` metadata. Every modality reaches `classifier fit` and
+//! `classifier predict` through this one format.
 
-use std::path::Path;
+use std::{fs, fs::OpenOptions, io::Write, path::Path};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{MarklabError, Result};
 
 #[cfg(feature = "parquet")]
-pub(super) const METADATA_KEY: &str = "marklab.feature_table";
+const METADATA_KEY: &str = "marklab.feature_table";
 const MAXIMUM_ID_BYTES: usize = 256;
 
 /// What the features describe and how they were made.
@@ -19,17 +20,16 @@ pub(super) struct FeatureTableMeta {
     pub version: u32,
     /// Such as `maldi_tof`.
     pub modality: String,
-    pub unit: Unit,
+    /// What one row is, such as `isolate` or `patient`.
+    pub unit: String,
     /// Whatever determines the features, such as preprocessing steps and bins. A model only
     /// accepts tables whose provenance equals its training table's.
     pub provenance: serde_json::Value,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub(super) enum Unit {
-    Isolate,
-    Specimen,
+/// Whether `name` can be a modality or unit: non-empty, without surrounding spaces.
+pub(super) fn is_name(name: &str) -> bool {
+    !name.is_empty() && name.trim() == name
 }
 
 pub(super) struct FeatureTable {
@@ -67,6 +67,24 @@ pub(super) fn check_id(id: &str, row: usize) -> Result<()> {
     Ok(())
 }
 
+/// Write pretty JSON to `out`, which must not already exist. Shared by the `spectrum` and
+/// `classifier` commands.
+pub(super) fn write_new_json(out: &Path, value: &impl Serialize) -> Result<()> {
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent).map_err(|source| MarklabError::io(parent, source))?;
+    }
+    let bytes = serde_json::to_vec_pretty(value)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(out)
+        .map_err(|source| MarklabError::io(out, source))?;
+    file.write_all(&bytes)
+        .and_then(|()| file.write_all(b"\n"))
+        .and_then(|()| file.sync_all())
+        .map_err(|source| MarklabError::io(out, source))
+}
+
 #[cfg(feature = "parquet")]
 mod parquet_table {
     use std::{
@@ -84,7 +102,7 @@ mod parquet_table {
     use marklab_prediction::MAXIMUM_LOGISTIC_VALUES;
     use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, ArrowWriter};
 
-    use super::{check_id, FeatureTable, FeatureTableMeta, METADATA_KEY};
+    use super::{check_id, is_name, FeatureTable, FeatureTableMeta, METADATA_KEY};
     use crate::{MarklabError, Result};
 
     const MAXIMUM_FILE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
@@ -114,9 +132,11 @@ mod parquet_table {
                 serde_json::from_str(text)
                     .map_err(|error| invalid(format!("`{METADATA_KEY}` metadata: {error}")))
             })?;
-        if meta.version != 1 || meta.modality.trim().is_empty() {
+        if meta.version != 1 || !is_name(&meta.modality) || !is_name(&meta.unit) {
             return Err(invalid(
-                "metadata must have version 1 and a non-empty modality".to_owned(),
+                "metadata must have version 1 and a non-empty modality and unit without \
+                 surrounding spaces"
+                    .to_owned(),
             ));
         }
         let fields = schema.fields();

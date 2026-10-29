@@ -1116,7 +1116,7 @@
         "src/bin/marklab/bayes/cli_schema.rs"
       ]
     },
-    "maldi_spectra": {
+    "spectrum_preprocessing": {
       "does": [
         "Read Bruker flex fid/acqu acquisitions (time of flight to m/z) or two-column text spectra",
         "Ordered square-root, Savitzky-Golay, SNIP baseline, total-ion-current and trim steps",
@@ -1124,7 +1124,7 @@
       ],
       "input": "One Bruker flex spectrum directory (fid with acqu or acqus) or one two-column text spectrum, and a JSON list of preprocessing steps with optional bins.",
       "output": "Acquisition facts, the preprocessed m/z spectrum and optional binned intensities.",
-      "used_by": "marklab microbio preprocess.",
+      "used_by": "marklab spectrum preprocess and spectrum feature-table.",
       "uses": [
         "Prepare MALDI-TOF spectra of bacterial isolates for species and susceptibility models",
         "Reproduce MALDIquant preprocessing outside R"
@@ -1133,33 +1133,33 @@
       "sources": [
         "crates/marklab-microbio/src/bruker.rs",
         "crates/marklab-microbio/src/preprocess.rs",
-        "src/cli/microbio.rs",
-        "docs/maldi-preprocessing.md",
+        "src/cli/spectrum.rs",
+        "docs/spectrum-preprocessing.md",
         "tests/fixtures/maldi/compare_maldiquant.R"
       ]
     },
-    "maldi_ast_prediction": {
+    "binary_classifier": {
       "does": [
-        "Parquet feature tables (id, numeric features, modality/unit/provenance metadata) from binned MALDI-TOF spectra or any writer",
+        "Parquet feature tables (id, numeric features, modality/unit/provenance metadata) from binned spectra or any writer",
         "Cross-fitted ensembles of L2-penalised logistic regression with Platt calibration and class-conditional conformal calls",
-        "Outer cross-validation of the fitting procedure: AUROC, average precision, Brier score, reliability, very major/major/abstention rates",
+        "Outer cross-validation of the fitting procedure: AUROC, average precision, Brier score, reliability, false-negative/false-positive/abstention rates",
         "Saved models that predict only feature tables made the same way"
       ],
-      "input": "A Parquet feature table (one row per isolate or specimen), a CSV label table (ID, antibiotic category, optional species and group), and a JSON configuration of categories and fitting settings.",
-      "output": "A model file (feature schema, settings, ensemble, calibration) and an evaluation report; predict-ast writes each row's calibrated probability, conformal p-values and call.",
-      "used_by": "marklab microbio feature-table, fit-ast and predict-ast; marklab-prediction LogisticProblem, fit_and_evaluate_logistic_ensemble and PlattScaling.",
+      "input": "A Parquet feature table (one row per unit, such as an isolate, specimen or patient), a CSV label table (ID, label, optional subset column and group), and a JSON configuration of the positive and negative label values and fitting settings.",
+      "output": "A model file (feature schema, settings, ensemble, calibration) and an evaluation report; classifier predict writes each row's calibrated probability, conformal p-values and call.",
+      "used_by": "marklab classifier fit and classifier predict; marklab-prediction LogisticProblem, fit_and_evaluate_logistic_ensemble and PlattScaling.",
       "uses": [
-        "Estimate how well MALDI-TOF spectra or other features predict resistance for one antibiotic",
-        "Predict resistance for new isolates with calibrated probabilities and abstaining calls"
+        "Estimate how well any features predict a binary label, such as MALDI-TOF spectra predicting resistance to one antibiotic",
+        "Predict the label of new rows with calibrated probabilities and abstaining calls"
       ],
-      "limits": "One antibiotic per fit; L2 penalty only; categories taken as given (no MIC or breakpoint interpretation); no specimen-to-isolate linking or modality fusion; grouped random folds only. Not a clinical susceptibility test.",
+      "limits": "One binary label per fit; L2 penalty only; labels taken as given (for susceptibility, no MIC or breakpoint interpretation); no specimen-to-isolate linking or modality fusion; grouped random folds only. Not a clinical test.",
       "sources": [
         "crates/marklab-prediction/src/logistic.rs",
         "crates/marklab-prediction/src/logistic_cv.rs",
         "crates/marklab-prediction/src/calibration.rs",
-        "src/cli/microbio/feature_table.rs",
-        "src/cli/microbio/ast.rs",
-        "docs/maldi-ast-prediction.md"
+        "src/cli/feature_table.rs",
+        "src/cli/classifier.rs",
+        "docs/classifier.md"
       ]
     },
     "simulation": {
