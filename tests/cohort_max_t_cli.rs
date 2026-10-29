@@ -235,3 +235,66 @@ b-2,B,weak,4\n",
     ordered.sort_by(|left, right| right.0.total_cmp(&left.0));
     assert!(ordered.windows(2).all(|pair| pair[0].1 <= pair[1].1));
 }
+
+#[test]
+fn max_t_cli_reads_tables_up_to_512_mib() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let run = |input: &std::path::Path| {
+        Command::cargo_bin("marklab")
+            .expect("binary")
+            .args([
+                "cohort",
+                "max-t",
+                "--input",
+                input.to_str().expect("input path"),
+                "--group-a",
+                "A",
+                "--group-b",
+                "B",
+                "--permutations",
+                "9",
+                "--seed",
+                "41",
+                "--alpha",
+                "0.05",
+                "--out",
+                directory
+                    .path()
+                    .join("result.json")
+                    .to_str()
+                    .expect("output path"),
+            ])
+            .assert()
+    };
+
+    // Two endpoints for each of 300,000 patients: over 17 MiB, past the former 16 MiB limit.
+    let patients = 300_000;
+    let mut table = String::from("patient_id,group,endpoint,value\n");
+    for index in 0..patients {
+        let group = if index % 2 == 0 { "A" } else { "B" };
+        for endpoint in 0..2 {
+            table.push_str(&format!(
+                "patient-{index:016},{group},e{endpoint},{}\n",
+                (index * 7 + endpoint) % 11
+            ));
+        }
+    }
+    assert!(table.len() > 17 * 1024 * 1024);
+    let large = directory.path().join("large.csv");
+    fs::write(&large, table).expect("large table");
+    run(&large).success();
+    let result: serde_json::Value =
+        serde_json::from_slice(&fs::read(directory.path().join("result.json")).expect("result"))
+            .expect("JSON");
+    assert_eq!(result["groups"]["group_a_patients"], patients / 2);
+    assert_eq!(result["endpoints"].as_array().expect("endpoints").len(), 2);
+
+    let oversized = directory.path().join("oversized.csv");
+    fs::File::create(&oversized)
+        .expect("oversized table")
+        .set_len(512 * 1024 * 1024 + 1)
+        .expect("sparse length");
+    run(&oversized).failure().stderr(predicates::str::contains(
+        "input exceeds the 536870912-byte limit",
+    ));
+}

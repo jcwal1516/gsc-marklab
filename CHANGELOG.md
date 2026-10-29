@@ -235,6 +235,12 @@
 
 ### Engineering in the unreleased development batch
 
+- The `cohort` commands read input tables of up to 512 MiB, raised from 16 MiB, so tests over
+  thousands of endpoints or features fit. Each command's work limits are unchanged; `cohort
+  max-t`, for example, still allows at most 10^8 patient-endpoint-permutation evaluations. A
+  table is read whole: a 216 MB `max-t` table of 100,000 patients and 60 endpoints peaked at
+  0.70 GB resident memory in a debug build. `cohort max-t-calibration` and the `project
+  cohort-*` commands keep their own input limits.
 - Pull-request CI runs the backend tests in six parallel shards and leaves out the Bayesian
   calibration, prior-sensitivity and PyMC/NumPyro agreement tests (nextest profiles `pr` and
   `calibration` in `.config/nextest.toml`). Those run weekly in the Backend calibration
