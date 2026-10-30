@@ -49,10 +49,10 @@ From the 63,847,265-byte source, OpenSlide independently decoded the fixed
 level-zero region `(7000,8000,256,256)`. The ignored test
 `public_aperio_jp2k_region_matches_openslide_oracle` passed the unchanged limits: every
 channel's maximum absolute difference at most 24, and mean absolute RGBA difference at most
-2.5. The fresh comparison observed maxima of 18, 17, 24 and 0 for R, G, B and A,
-respectively, and a mean absolute difference of 2.414661407470703. The decoder differences
-are permitted by the existing lossy-codec fixture contract; lossless fixtures still require
-exact equality.
+2.5. With `wsi-rs` 0.9.0 (`j2k` 0.13.1) the comparison observed no difference: a maximum of 0 in
+every channel and a mean absolute difference of 0. With `wsi-rs` 0.5.0 it observed maxima of 18,
+17, 24 and 0 for R, G, B and A and a mean absolute difference of 2.414661407470703, which the
+lossy-codec fixture contract permits; lossless fixtures still require exact equality.
 
 ```bash
 python3 examples/public-cohorts/download_wsi.py --out /new/external/aperio-source
