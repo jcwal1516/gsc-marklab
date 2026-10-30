@@ -268,17 +268,17 @@ scientific domains. Import them directly from the corresponding workspace crate:
 provides [discrete two-source Williams–Beer I_min decomposition](partial-information-decomposition.md).
 These methods use separate version-1 research results; existing core result formats are unchanged.
 
-`marklab_microbio::{read_bruker_flex, parse_bruker_flex, read_text_spectrum, parse_text_spectrum,
+`marklab_spectrum::{read_bruker_flex, parse_bruker_flex, read_text_spectrum, parse_text_spectrum,
 preprocess_spectrum, bin_spectrum, PreprocessStep, BinSpec}` read Bruker flex MALDI-TOF
 acquisitions or two-column text spectra and apply ordered spectrum preprocessing and fixed-edge
-binning ([MALDI-TOF preprocessing](maldi-preprocessing.md)).
+binning ([spectrum preprocessing](spectrum-preprocessing.md)).
 
 `marklab_prediction::{LogisticProblem, LogisticModel, ClassWeight, PlattScaling,
 fit_and_evaluate_logistic_ensemble, LogisticEnsembleSpec, LogisticEnsemble,
 LogisticEnsembleEvaluation, area_under_roc, average_precision, brier_score, reliability}` fit
 L2-penalised logistic regression on standardised features, fit and evaluate calibrated
 cross-fitted ensembles with class-conditional conformal p-values, and compute AUROC, average
-precision and calibration summaries ([predicting susceptibility](maldi-ast-prediction.md#method)).
+precision and calibration summaries ([calibrated binary classifier](classifier.md#method)).
 
 The scientific types and functions retain their names. This is a Rust import-path change;
 serialized requests, result fields, and scientific calculations retain their existing

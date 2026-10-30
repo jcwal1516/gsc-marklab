@@ -1,4 +1,5 @@
-use parquet::format::{ColumnOrder, CompressionCodec, Encoding, FileMetaData, PageType, Type};
+use crate::columnar::parquet::format::{CompressionCodec, Encoding, FileMetaData, PageType, Type};
+use crate::columnar::parquet::schema::has_writer_column_orders;
 
 use crate::{
     columnar::{
@@ -40,10 +41,7 @@ where
         || metadata.encryption_algorithm.is_some()
         || metadata.footer_signing_key_metadata.is_some()
         || metadata.column_orders.as_ref().is_none_or(|orders| {
-            orders.len() != 3
-                || orders
-                    .iter()
-                    .any(|order| !matches!(order, ColumnOrder::TYPEORDER(_)))
+            orders.len() != 3 || !has_writer_column_orders(&metadata.schema, orders)
         })
     {
         return Err(parquet_failure(ParquetFailure::InvalidMetadata));

@@ -9,7 +9,7 @@ use super::{
         enforce_file_budget, ArrowIpcFailure, CellEmbeddingTablePhysicalBindings, ColumnarError,
         EmbeddingColumnarBudgets,
     },
-    physical::decode_record_batch_message,
+    physical::{decode_record_batch_message, BufferLength},
     preflight_reader::{
         declared_table_logical_digest_reader, preflight_cell_embedding_table_arrow_reader,
     },
@@ -166,17 +166,16 @@ pub(super) fn validate_record_batch_message(
     let maximum_status_bytes = rows
         .checked_mul(EmbeddingStatus::ExtractionFailed.wire_name().len())
         .ok_or(ColumnarError::SizeOverflow)?;
-    let row_validity_bytes = validity_bytes(rows)?;
-    let value_validity_bytes = validity_bytes(element_count)?;
+    let row_validity = BufferLength::Validity(validity_bytes(rows)?);
     let exact_lengths = [
-        Some(row_validity_bytes),
-        Some(offset_bytes),
-        Some(cell_bytes),
-        Some(row_validity_bytes),
-        Some(value_validity_bytes),
-        Some(value_bytes),
-        Some(row_validity_bytes),
-        Some(offset_bytes),
+        Some(row_validity),
+        Some(BufferLength::Exact(offset_bytes)),
+        Some(BufferLength::Exact(cell_bytes)),
+        Some(row_validity),
+        Some(BufferLength::Validity(validity_bytes(element_count)?)),
+        Some(BufferLength::Exact(value_bytes)),
+        Some(row_validity),
+        Some(BufferLength::Exact(offset_bytes)),
         None,
     ];
     let mut next_offset = 0_usize;
@@ -187,7 +186,7 @@ pub(super) fn validate_record_batch_message(
         if offset != align(next_offset)? || offset % ALIGNMENT != 0 {
             return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
         }
-        if exact_length.is_some_and(|expected_length| length != expected_length)
+        if exact_length.is_some_and(|expected| !expected.accepts(length))
             || (index == 8 && !(minimum_status_bytes..=maximum_status_bytes).contains(&length))
         {
             return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
@@ -204,7 +203,10 @@ pub(super) fn validate_record_batch_message(
         }
         next_offset = end;
         decoded_bytes = decoded_bytes
-            .checked_add(u64::try_from(length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .checked_add(
+                u64::try_from(exact_length.map_or(length, BufferLength::decoded_bytes))
+                    .map_err(|_| ColumnarError::SizeOverflow)?,
+            )
             .ok_or(ColumnarError::SizeOverflow)?;
     }
     if align(next_offset)? != body_bytes.len() {

@@ -9,7 +9,8 @@ mod support;
 use std::{collections::BTreeMap, io::Cursor};
 
 use adversarial_support::{
-    arrow_buffer_location, arrow_node_location, first_arrow_block_descriptor,
+    arrow_buffer_location, arrow_node_location, first_arrow_block_descriptor, one_byte_validity,
+    parquet_format::{CompressionCodec, Encoding, Statistics},
     rewrite_parquet_footer, swapped_arrow_columns, trusted_parquet_metadata,
 };
 use arrow::ipc::reader::FileReader;
@@ -22,7 +23,6 @@ use marklab::embeddings::{
     CellPatchAssignmentMode, CellPatchLink, ColumnarError, EmbeddingColumnarBudgets,
     ParquetFailure,
 };
-use parquet::format::{CompressionCodec, Encoding, Statistics};
 use support::{cell_patch_fixture, CellPatchFixtureMode};
 
 fn budgets() -> EmbeddingColumnarBudgets {
@@ -247,9 +247,7 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
             })
         ));
 
-        let mut wrong_assignment_validity = assignments.clone();
-        let (_, validity) = arrow_buffer_location(&wrong_assignment_validity, 0);
-        wrong_assignment_validity[validity.start] = 0x07;
+        let wrong_assignment_validity = one_byte_validity(&assignments, 0);
         assert!(matches!(
             preflight_cell_patch_assignment_table_arrow_bytes(
                 &wrong_assignment_validity,
@@ -277,11 +275,16 @@ fn cell_patch_arrow_preflight_rejects_nodes_buffers_validity_fillers_and_rows() 
             ));
         }
         for buffer_index in [5, 7] {
-            let mut wrong_weight_validity = edges.clone();
-            let (_, validity) = arrow_buffer_location(&wrong_weight_validity, buffer_index);
-            wrong_weight_validity[validity.start] = match mode {
-                CellPatchFixtureMode::Contained => 0xff,
-                CellPatchFixtureMode::Interpolation => 0x07,
+            // Contained weights are all null, so their bitmap is written; interpolated weights
+            // have no nulls, so Arrow 60 leaves their validity buffer empty.
+            let wrong_weight_validity = match mode {
+                CellPatchFixtureMode::Contained => {
+                    let mut hostile = edges.clone();
+                    let (_, validity) = arrow_buffer_location(&hostile, buffer_index);
+                    hostile[validity.start] = 0xff;
+                    hostile
+                }
+                CellPatchFixtureMode::Interpolation => one_byte_validity(&edges, buffer_index),
             };
             assert!(matches!(
                 preflight_cell_patch_edge_table_arrow_bytes(

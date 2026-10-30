@@ -9,12 +9,16 @@ use arrow::{
     },
     record_batch::RecordBatch,
 };
-use parquet::{
-    file::metadata::{ParquetMetaData, ParquetMetaDataReader},
-    format::{ColumnOrder, FileMetaData, TypeDefinedOrder},
-    schema::types,
-    thrift::{TCompactOutputProtocol, TSerializable},
-};
+use parquet::file::metadata::{ParquetMetaData, ParquetMetaDataReader};
+use thrift::protocol::{TCompactInputProtocol, TCompactOutputProtocol};
+
+/// Parquet's Thrift footer types, shared with marklab-embeddings' bounded preflight.
+#[allow(clippy::all)]
+#[rustfmt::skip]
+#[path = "../../crates/marklab-embeddings/src/columnar/parquet/format.rs"]
+pub mod parquet_format;
+
+use parquet_format::{FileMetaData, TSerializable};
 
 pub fn arrow_footer_bounds(bytes: &[u8]) -> (usize, usize) {
     let length_offset = bytes.len() - 10;
@@ -70,6 +74,19 @@ pub fn arrow_buffer_location(bytes: &[u8], index: usize) -> (usize, std::ops::Ra
     (descriptor, start..end)
 }
 
+/// Declare one byte for the first record batch's validity buffer `index`, which Arrow 60 leaves
+/// empty for a column without nulls.
+pub fn one_byte_validity(bytes: &[u8], index: usize) -> Vec<u8> {
+    let (descriptor, validity) = arrow_buffer_location(bytes, index);
+    assert!(
+        validity.is_empty(),
+        "validity buffer {index} holds a bitmap"
+    );
+    let mut hostile = bytes.to_vec();
+    hostile[descriptor + 8..descriptor + 16].copy_from_slice(&1_i64.to_le_bytes());
+    hostile
+}
+
 pub fn first_arrow_block_descriptor(bytes: &[u8]) -> usize {
     let (footer_start, footer_length) = arrow_footer_bounds(bytes);
     let footer_bytes = &bytes[footer_start..footer_start + footer_length];
@@ -107,14 +124,6 @@ pub fn swapped_arrow_columns(bytes: &[u8], left: usize, right: usize) -> Vec<u8>
 }
 
 pub fn rewrite_parquet_footer(bytes: &[u8], mutate: impl FnOnce(&mut FileMetaData)) -> Vec<u8> {
-    let mut raw = raw_parquet_metadata(&trusted_parquet_metadata(bytes));
-    mutate(&mut raw);
-    let mut footer = Vec::new();
-    {
-        let mut protocol = TCompactOutputProtocol::new(&mut footer);
-        raw.write_to_out_protocol(&mut protocol)
-            .expect("rewrite footer");
-    }
     let original_footer_start = bytes.len()
         - 8
         - u32::from_le_bytes(
@@ -122,6 +131,17 @@ pub fn rewrite_parquet_footer(bytes: &[u8], mutate: impl FnOnce(&mut FileMetaDat
                 .try_into()
                 .expect("footer length"),
         ) as usize;
+    let mut raw = FileMetaData::read_from_in_protocol(&mut TCompactInputProtocol::new(
+        &bytes[original_footer_start..bytes.len() - 8],
+    ))
+    .expect("trusted footer");
+    mutate(&mut raw);
+    let mut footer = Vec::new();
+    {
+        let mut protocol = TCompactOutputProtocol::new(&mut footer);
+        raw.write_to_out_protocol(&mut protocol)
+            .expect("rewrite footer");
+    }
     let mut output = bytes[..original_footer_start].to_vec();
     output.extend_from_slice(&footer);
     output.extend_from_slice(
@@ -139,28 +159,4 @@ pub fn trusted_parquet_metadata(bytes: &[u8]) -> ParquetMetaData {
     ParquetMetaDataReader::new()
         .parse_and_finish(&file)
         .expect("trusted Parquet metadata")
-}
-
-fn raw_parquet_metadata(metadata: &ParquetMetaData) -> FileMetaData {
-    let file = metadata.file_metadata();
-    let columns = file.schema_descr().num_columns();
-    FileMetaData {
-        version: file.version(),
-        schema: types::to_thrift(file.schema()).expect("Thrift schema"),
-        num_rows: file.num_rows(),
-        row_groups: metadata
-            .row_groups()
-            .iter()
-            .map(|group| group.to_thrift())
-            .collect(),
-        key_value_metadata: file.key_value_metadata().cloned(),
-        created_by: file.created_by().map(str::to_owned),
-        column_orders: Some(
-            (0..columns)
-                .map(|_| ColumnOrder::TYPEORDER(TypeDefinedOrder {}))
-                .collect(),
-        ),
-        encryption_algorithm: None,
-        footer_signing_key_metadata: None,
-    }
 }

@@ -34,11 +34,13 @@ pub(crate) fn run(command: Commands) -> Result<()> {
                 simulate::summary_matching::run(input, out)
             }
         },
-        Commands::Microbio { command } => match command {
-            MicrobioCommands::Preprocess(args) => microbio::run_preprocess(args),
-            MicrobioCommands::FeatureTable(args) => microbio::run_feature_table(args),
-            MicrobioCommands::FitAst(args) => microbio::run_fit_ast(args),
-            MicrobioCommands::PredictAst(args) => microbio::run_predict_ast(args),
+        Commands::Spectrum { command } => match command {
+            SpectrumCommands::Preprocess(args) => spectrum::run_preprocess(args),
+            SpectrumCommands::FeatureTable(args) => spectrum::run_feature_table(args),
+        },
+        Commands::Classifier { command } => match command {
+            ClassifierCommands::Fit(args) => classifier::run_fit(args),
+            ClassifierCommands::Predict(args) => classifier::run_predict(args),
         },
 
         Commands::Smoke {

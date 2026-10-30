@@ -5,7 +5,7 @@ use std::{
 
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_ipc::{
-    convert::fb_to_schema,
+    convert::try_fb_to_schema,
     root_as_footer_with_opts, root_as_message_with_opts,
     writer::{FileWriter, IpcWriteOptions},
     MessageHeader, MetadataVersion, Type,
@@ -144,7 +144,9 @@ where
         .header_as_schema()
         .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     validate_schema(schema)?;
-    if fb_to_schema(schema) != *expected_schema {
+    if try_fb_to_schema(schema).map_err(|_| arrow_failure(ArrowIpcFailure::InvalidSchema))?
+        != *expected_schema
+    {
         return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     validate_padding(&bytes)?;
@@ -568,6 +570,33 @@ pub(crate) fn validity_bytes(rows: usize) -> Result<usize, ColumnarError> {
     rows.checked_add(7)
         .map(|value| value / 8)
         .ok_or(ColumnarError::SizeOverflow)
+}
+
+/// Expected length of one buffer in an IPC record batch body.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum BufferLength {
+    /// A data buffer of exactly this many bytes.
+    Exact(usize),
+    /// A validity bitmap of this many bytes. Arrow 60 writes an empty buffer for a column without
+    /// nulls where Arrow 56 wrote an all-valid bitmap, so both lengths are accepted; callers check
+    /// the bitmap's contents.
+    Validity(usize),
+}
+
+impl BufferLength {
+    pub(crate) fn accepts(self, length: usize) -> bool {
+        match self {
+            Self::Exact(bytes) => length == bytes,
+            Self::Validity(bytes) => length == bytes || length == 0,
+        }
+    }
+
+    /// Bytes charged to the decoded budget; a validity bitmap counts whether or not it was written.
+    pub(crate) fn decoded_bytes(self) -> usize {
+        match self {
+            Self::Exact(bytes) | Self::Validity(bytes) => bytes,
+        }
+    }
 }
 
 pub(crate) fn align(value: usize) -> Result<usize, ColumnarError> {

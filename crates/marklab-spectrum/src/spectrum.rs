@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use crate::MicrobioError;
+use crate::SpectrumError;
 
 /// A mass spectrum with strictly increasing, positive m/z values and finite, non-negative
 /// intensities of equal length.
@@ -12,8 +12,8 @@ pub struct MassSpectrum {
 
 impl MassSpectrum {
     /// Validate and build a spectrum.
-    pub fn new(mz: Vec<f64>, intensity: Vec<f64>) -> Result<Self, MicrobioError> {
-        let invalid = |message: String| Err(MicrobioError::Spectrum(message));
+    pub fn new(mz: Vec<f64>, intensity: Vec<f64>) -> Result<Self, SpectrumError> {
+        let invalid = |message: String| Err(SpectrumError::Spectrum(message));
         if mz.len() != intensity.len() {
             return invalid(format!(
                 "{} m/z values but {} intensities",

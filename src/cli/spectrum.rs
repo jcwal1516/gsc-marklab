@@ -1,27 +1,23 @@
-//! `marklab microbio`: MALDI-TOF mass spectra of bacterial isolates, feature tables, and
-//! susceptibility models fitted to them.
-
-mod ast;
-mod feature_table;
+//! `marklab spectrum`: read and preprocess one-dimensional spectra, such as MALDI-TOF mass
+//! spectra, and collect binned spectra into feature tables.
 
 use std::{
-    fs::{self, File, OpenOptions},
-    io::{BufReader, Read, Write},
+    fs::{self, File},
+    io::{BufReader, Read},
     path::{Path, PathBuf},
 };
 
-use marklab_microbio::{
-    bin_spectrum, preprocess_spectrum, read_bruker_flex, read_text_spectrum, BinSpec,
-    BinnedSpectrum, BrukerByteOrder, BrukerTofMode, MassSpectrum, MicrobioError, PreprocessStep,
-};
 use marklab_prediction::MAXIMUM_LOGISTIC_VALUES;
+use marklab_spectrum::{
+    bin_spectrum, preprocess_spectrum, read_bruker_flex, read_text_spectrum, BinSpec,
+    BinnedSpectrum, BrukerByteOrder, BrukerTofMode, MassSpectrum, PreprocessStep, SpectrumError,
+};
 use serde::{Deserialize, Serialize};
 
+use super::feature_table::{
+    check_id, is_name, write_feature_table, write_new_json, FeatureTable, FeatureTableMeta,
+};
 use crate::{MarklabError, Result};
-use feature_table::{check_id, write_feature_table, FeatureTable, FeatureTableMeta, Unit};
-
-pub(super) use ast::{run_fit_ast, run_predict_ast};
-pub use ast::{FitAstArgs, PredictAstArgs};
 
 const MAXIMUM_PREPROCESS_RESULT_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -32,14 +28,14 @@ struct PreprocessConfig {
     binning: Option<BinSpec>,
 }
 
-/// Arguments of `marklab microbio preprocess`.
+/// Arguments of `marklab spectrum preprocess`.
 #[derive(clap::Args, Debug)]
 pub struct PreprocessArgs {
     /// Bruker flex spectrum directory holding `fid` and `acqu` (or `acqus`), such as
     /// `0_A1/1/1SLin`.
     #[arg(long, required_unless_present = "text", conflicts_with = "text")]
     bruker: Option<PathBuf>,
-    /// Two-column text spectrum of m/z and intensity, such as a DRIAMS `raw` file.
+    /// Two-column text spectrum: strictly increasing m/z and non-negative intensity.
     #[arg(long)]
     text: Option<PathBuf>,
     /// JSON configuration with the ordered preprocessing `steps` and optional `binning`.
@@ -80,7 +76,7 @@ pub(super) fn run_preprocess(args: PreprocessArgs) -> Result<()> {
         config,
         out,
     } = args;
-    let bytes = super::simulate::read_input(&config, "microbio preprocess configuration")?;
+    let bytes = super::simulate::read_input(&config, "spectrum preprocess configuration")?;
     let config: PreprocessConfig = serde_json::from_slice(&bytes)?;
     let (source, input) = match (bruker, text) {
         (Some(bruker), None) => {
@@ -119,13 +115,20 @@ pub(super) fn run_preprocess(args: PreprocessArgs) -> Result<()> {
     write_new_json(&out, &output)
 }
 
-/// Arguments of `marklab microbio feature-table`.
+/// Arguments of `marklab spectrum feature-table`.
 #[derive(clap::Args, Debug)]
 pub struct FeatureTableArgs {
-    /// Directory of `marklab microbio preprocess` results with `binning`. Every `*.json` file in
-    /// it is one isolate, whose ID is the file name without `.json`.
+    /// Directory of `marklab spectrum preprocess` results with `binning`. Every `*.json` file in
+    /// it is one row, whose ID is the file name without `.json`.
     #[arg(long)]
     spectra: PathBuf,
+    /// What the spectra are, such as `maldi_tof`. Recorded in the table; a model only accepts
+    /// tables of its training modality.
+    #[arg(long)]
+    modality: String,
+    /// What one spectrum (row) stands for, such as `isolate`. Recorded like the modality.
+    #[arg(long)]
+    unit: String,
     /// Feature table (Parquet) to write; it must not already exist.
     #[arg(long)]
     out: PathBuf,
@@ -145,9 +148,12 @@ struct BinnedIntensities {
     intensity: Vec<f64>,
 }
 
-/// Collect binned spectra into a `maldi_tof` feature table with columns `bin_0`, `bin_1`, ….
-/// All spectra must share the preprocessing steps and bins, which become the provenance.
+/// Collect binned spectra into a feature table with columns `bin_0`, `bin_1`, …. All spectra
+/// must share the preprocessing steps and bins, which become the provenance.
 pub(super) fn run_feature_table(args: FeatureTableArgs) -> Result<()> {
+    if !is_name(&args.modality) || !is_name(&args.unit) {
+        bail!("--modality and --unit must be non-empty and without surrounding spaces");
+    }
     let directory = &args.spectra;
     let io_error = |source| MarklabError::io(directory, source);
     let mut paths = Vec::new();
@@ -218,8 +224,8 @@ pub(super) fn run_feature_table(args: FeatureTableArgs) -> Result<()> {
     let table = FeatureTable {
         meta: FeatureTableMeta {
             version: 1,
-            modality: "maldi_tof".to_owned(),
-            unit: Unit::Isolate,
+            modality: args.modality,
+            unit: args.unit,
             provenance: provenance.expect("at least one spectrum was read"),
         },
         columns: (0..bins).map(|bin| format!("bin_{bin}")).collect(),
@@ -250,26 +256,9 @@ fn read_binned_result(path: &Path) -> Result<BinnedResult> {
         .map_err(|error| MarklabError::Validation(format!("{}: {error}", path.display())))
 }
 
-/// Write pretty JSON to `out`, which must not already exist.
-fn write_new_json(out: &Path, value: &impl Serialize) -> Result<()> {
-    if let Some(parent) = out.parent() {
-        fs::create_dir_all(parent).map_err(|source| MarklabError::io(parent, source))?;
-    }
-    let bytes = serde_json::to_vec_pretty(value)?;
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(out)
-        .map_err(|source| MarklabError::io(out, source))?;
-    file.write_all(&bytes)
-        .and_then(|()| file.write_all(b"\n"))
-        .and_then(|()| file.sync_all())
-        .map_err(|source| MarklabError::io(out, source))
-}
-
-fn into_marklab(error: MicrobioError) -> MarklabError {
+fn into_marklab(error: SpectrumError) -> MarklabError {
     match error {
-        MicrobioError::Io { path, source } => MarklabError::io(path, source),
+        SpectrumError::Io { path, source } => MarklabError::io(path, source),
         other => MarklabError::Validation(other.to_string()),
     }
 }

@@ -32,7 +32,7 @@ fn run_input(flag: &str, input: &Path, config: &Path, out: &Path) -> assert_cmd:
     Command::cargo_bin("marklab")
         .expect("binary")
         .args([
-            "microbio",
+            "spectrum",
             "preprocess",
             flag,
             input.to_str().unwrap(),
@@ -152,7 +152,7 @@ fn preprocesses_a_text_spectrum_and_requires_exactly_one_input() {
     Command::cargo_bin("marklab")
         .expect("binary")
         .args([
-            "microbio",
+            "spectrum",
             "preprocess",
             "--text",
             spectrum.to_str().unwrap(),

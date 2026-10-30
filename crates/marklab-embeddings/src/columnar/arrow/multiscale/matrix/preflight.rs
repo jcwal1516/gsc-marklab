@@ -1,7 +1,7 @@
 use std::{io::Cursor, mem::size_of};
 
 use arrow_ipc::{
-    convert::fb_to_schema,
+    convert::try_fb_to_schema,
     writer::{DictionaryTracker, IpcDataGenerator, IpcWriteOptions},
     Buffer, FieldNode, MessageBuilder, MessageHeader, MetadataVersion, RecordBatchBuilder,
 };
@@ -23,7 +23,7 @@ use crate::{
 use super::super::super::physical::{
     align, decode_footer, decode_record_batch_message, nonnegative_i64, read_exact_at,
     read_footer_deferred_eos, traverse_record_batches, validate_footer_features,
-    validate_record_batch_features, validity_bytes,
+    validate_record_batch_features, validity_bytes, BufferLength,
 };
 use super::profile::{
     arrow_failure, entity_kind, schema, validate_flatbuffer_schema, BUFFER_COUNT, NODE_COUNT,
@@ -137,7 +137,9 @@ pub(super) fn preflight_reader<R: std::io::Read + std::io::Seek + ?Sized>(
         .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     validate_flatbuffer_schema(footer_schema, table)?;
     let expected_schema = schema(table)?;
-    if fb_to_schema(footer_schema) != expected_schema {
+    if try_fb_to_schema(footer_schema).map_err(|_| arrow_failure(ArrowIpcFailure::InvalidSchema))?
+        != expected_schema
+    {
         return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let schema_end = super::super::super::physical::validate_schema_message(
@@ -257,18 +259,21 @@ fn validate_record_batch(
     {
         return Err(arrow_failure(ArrowIpcFailure::InvalidFieldNodes));
     }
+    let row_validity = BufferLength::Validity(validity_bytes(rows)?);
     let expected_lengths = [
-        validity_bytes(rows)?,
-        offsets_bytes(rows)?,
-        id_bytes(table, start, rows)?,
-        validity_bytes(rows)?,
-        validity_bytes(components)?,
-        components
-            .checked_mul(size_of::<f32>())
-            .ok_or(ColumnarError::SizeOverflow)?,
-        validity_bytes(rows)?,
-        offsets_bytes(rows)?,
-        status_bytes(table, start, rows)?,
+        row_validity,
+        BufferLength::Exact(offsets_bytes(rows)?),
+        BufferLength::Exact(id_bytes(table, start, rows)?),
+        row_validity,
+        BufferLength::Validity(validity_bytes(components)?),
+        BufferLength::Exact(
+            components
+                .checked_mul(size_of::<f32>())
+                .ok_or(ColumnarError::SizeOverflow)?,
+        ),
+        row_validity,
+        BufferLength::Exact(offsets_bytes(rows)?),
+        BufferLength::Exact(status_bytes(table, start, rows)?),
     ];
     let mut ranges = [(0_usize, 0_usize); BUFFER_COUNT];
     let mut next = 0_usize;
@@ -278,7 +283,7 @@ fn validate_record_batch(
         let length = nonnegative_i64(buffer.length(), ArrowIpcFailure::InvalidBuffers)?;
         if offset != align(next)?
             || offset % ALIGNMENT != 0
-            || length != expected
+            || !expected.accepts(length)
             || body
                 .get(next..offset)
                 .is_none_or(|padding| padding.iter().any(|byte| *byte != 0))
@@ -294,7 +299,9 @@ fn validate_record_batch(
         ranges[index] = (offset, end);
         next = end;
         decoded = decoded
-            .checked_add(u64::try_from(length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .checked_add(
+                u64::try_from(expected.decoded_bytes()).map_err(|_| ColumnarError::SizeOverflow)?,
+            )
             .ok_or(ColumnarError::SizeOverflow)?;
     }
     if align(next)? != body.len() || body[next..].iter().any(|byte| *byte != 0) {

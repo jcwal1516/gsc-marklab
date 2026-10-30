@@ -1,5 +1,5 @@
-//! `marklab microbio fit-ast` and `predict-ast`: a calibrated logistic regression ensemble
-//! predicting one antibiotic's resistance from a feature table of any modality.
+//! `marklab classifier fit` and `predict`: a calibrated logistic regression ensemble with
+//! conformal calls, predicting a binary label from a feature table of any modality.
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -14,23 +14,23 @@ use marklab_prediction::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::feature_table::{read_feature_table, FeatureTable, Unit};
+use super::feature_table::{read_feature_table, write_new_json, FeatureTable};
 use crate::{MarklabError, Result};
 
-const MODEL_FORMAT: &str = "marklab.ast-model";
+const MODEL_FORMAT: &str = "marklab.classifier";
 const MAXIMUM_MODEL_BYTES: u64 = 1024 * 1024 * 1024;
 
-/// Arguments of `marklab microbio fit-ast`.
+/// Arguments of `marklab classifier fit`.
 #[derive(clap::Args, Debug)]
-pub struct FitAstArgs {
-    /// Feature table (Parquet) with one row per isolate or specimen.
+pub struct FitArgs {
+    /// Feature table (Parquet) with one row per unit.
     #[arg(long)]
     features: PathBuf,
-    /// CSV table with a header row holding each row's ID, susceptibility category and
-    /// optionally species and group.
+    /// CSV table with a header row holding each row's ID and label, and optionally a subset
+    /// column and a group.
     #[arg(long)]
     labels: PathBuf,
-    /// JSON configuration naming the columns, categories and fitting settings.
+    /// JSON configuration naming the columns, label values and fitting settings.
     #[arg(long)]
     config: PathBuf,
     /// File to write the fitted model to; it must not already exist.
@@ -41,10 +41,10 @@ pub struct FitAstArgs {
     report: PathBuf,
 }
 
-/// Arguments of `marklab microbio predict-ast`.
+/// Arguments of `marklab classifier predict`.
 #[derive(clap::Args, Debug)]
-pub struct PredictAstArgs {
-    /// Model written by `marklab microbio fit-ast`.
+pub struct PredictArgs {
+    /// Model written by `marklab classifier fit`.
     #[arg(long)]
     model: PathBuf,
     /// Feature table (Parquet) made the same way as the model's training table.
@@ -55,7 +55,7 @@ pub struct PredictAstArgs {
     out: PathBuf,
 }
 
-/// Which rows are modelled and how their categories become classes.
+/// Which rows are modelled and how their labels become classes.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Target {
@@ -65,14 +65,21 @@ struct Target {
     /// when absent.
     #[serde(default)]
     group_column: Option<String>,
-    /// Restrict to rows whose `species_column` equals `species`; both or neither.
+    /// Model only rows whose `column` equals `value`, such as one species.
     #[serde(default)]
-    species_column: Option<String>,
-    #[serde(default)]
-    species: Option<String>,
-    antibiotic_column: String,
-    resistant: Vec<String>,
-    susceptible: Vec<String>,
+    subset: Option<Subset>,
+    label_column: String,
+    /// Label values of the positive class, such as `["R", "I"]`.
+    positive: Vec<String>,
+    /// Label values of the negative class, such as `["S"]`.
+    negative: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct Subset {
+    column: String,
+    value: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -87,14 +94,14 @@ struct FitConfig {
 #[serde(deny_unknown_fields)]
 struct FeatureSchema {
     modality: String,
-    unit: Unit,
+    unit: String,
     provenance: serde_json::Value,
     columns: Vec<String>,
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct AstModel {
+struct ClassifierModel {
     format: String,
     version: u32,
     features: FeatureSchema,
@@ -107,39 +114,39 @@ struct AstModel {
 struct Labelled {
     id: String,
     group: Option<String>,
-    resistant: bool,
+    positive: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct LabelSummary {
     rows: usize,
-    other_species: usize,
-    missing_category: usize,
+    outside_subset: usize,
+    missing_label: usize,
     labelled: usize,
-    resistant: usize,
-    susceptible: usize,
+    positive: usize,
+    negative: usize,
     groups: usize,
     unlabelled_feature_rows: usize,
 }
 
-/// A conformal prediction in AST terms.
+/// A conformal prediction.
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 enum Call {
-    Resistant,
-    Susceptible,
-    /// Both categories remain plausible: confirm with conventional AST.
+    Positive,
+    Negative,
+    /// Both classes remain plausible: abstain and decide another way.
     Uncertain,
-    /// Neither category is plausible: the spectrum is unlike the training isolates.
+    /// Neither class is plausible: the row is unlike the training rows.
     Neither,
 }
 
 impl From<ConformalCall> for Call {
     fn from(call: ConformalCall) -> Self {
         match call {
-            ConformalCall::Positive => Self::Resistant,
-            ConformalCall::Negative => Self::Susceptible,
+            ConformalCall::Positive => Self::Positive,
+            ConformalCall::Negative => Self::Negative,
             ConformalCall::Both => Self::Uncertain,
             ConformalCall::Neither => Self::Neither,
         }
@@ -148,8 +155,8 @@ impl From<ConformalCall> for Call {
 
 #[derive(Serialize)]
 struct CallsOfClass {
-    called_resistant: usize,
-    called_susceptible: usize,
+    called_positive: usize,
+    called_negative: usize,
     uncertain: usize,
     neither: usize,
 }
@@ -157,8 +164,8 @@ struct CallsOfClass {
 impl From<&CallCounts> for CallsOfClass {
     fn from(counts: &CallCounts) -> Self {
         Self {
-            called_resistant: counts.positive,
-            called_susceptible: counts.negative,
+            called_positive: counts.positive,
+            called_negative: counts.negative,
             uncertain: counts.both,
             neither: counts.neither,
         }
@@ -167,31 +174,31 @@ impl From<&CallCounts> for CallsOfClass {
 
 #[derive(Serialize)]
 struct ErrorRates {
-    categorical_agreement: Option<f64>,
-    very_major_errors: usize,
-    very_major_error_rate: f64,
-    major_errors: usize,
-    major_error_rate: f64,
+    accuracy: Option<f64>,
+    false_negatives: usize,
+    false_negative_rate: f64,
+    false_positives: usize,
+    false_positive_rate: f64,
 }
 
 #[derive(Serialize)]
 struct ConformalSummary {
     significance: f64,
-    resistant_isolates: CallsOfClass,
-    susceptible_isolates: CallsOfClass,
+    positive_rows: CallsOfClass,
+    negative_rows: CallsOfClass,
     #[serde(flatten)]
     errors: ErrorRates,
     abstention_rate: f64,
-    resistant_coverage: f64,
-    susceptible_coverage: f64,
+    positive_coverage: f64,
+    negative_coverage: f64,
 }
 
 #[derive(Serialize)]
 struct RowPrediction<'a> {
     id: &'a str,
-    probability_resistant: f64,
-    p_value_resistant: f64,
-    p_value_susceptible: f64,
+    probability_positive: f64,
+    p_value_positive: f64,
+    p_value_negative: f64,
     call: Call,
 }
 
@@ -201,7 +208,7 @@ struct EvaluatedPrediction<'a> {
     prediction: RowPrediction<'a>,
     group: Option<&'a str>,
     fold: usize,
-    resistant: bool,
+    positive: bool,
 }
 
 #[derive(Serialize)]
@@ -238,19 +245,19 @@ struct FitReport<'a> {
 #[derive(Serialize)]
 struct PredictOutput<'a> {
     modality: &'a str,
-    unit: Unit,
-    antibiotic_column: &'a str,
-    species: Option<&'a str>,
+    unit: &'a str,
+    label_column: &'a str,
+    subset: Option<&'a Subset>,
     significance: f64,
     predictions: Vec<RowPrediction<'a>>,
 }
 
-pub(in crate::cli) fn run_fit_ast(args: FitAstArgs) -> Result<()> {
-    let bytes = super::super::simulate::read_input(&args.config, "AST configuration")?;
+pub(super) fn run_fit(args: FitArgs) -> Result<()> {
+    let bytes = super::simulate::read_input(&args.config, "classifier configuration")?;
     let config: FitConfig = serde_json::from_slice(&bytes)?;
     validate_target(&config.target)?;
     let table = read_feature_table(&args.features)?;
-    let labels_bytes = super::super::simulate::read_input(&args.labels, "AST label table")?;
+    let labels_bytes = super::simulate::read_input(&args.labels, "label table")?;
     let (labelled, mut summary) = read_labels(&labels_bytes, &config.target)?;
     let row_of: HashMap<&str, usize> = table
         .ids
@@ -277,7 +284,7 @@ pub(in crate::cli) fn run_fit_ast(args: FitAstArgs) -> Result<()> {
         features.extend_from_slice(&table.values[start..start + width]);
     }
     summary.unlabelled_feature_rows = table.ids.len() - labelled.len();
-    let classes: Vec<bool> = labelled.iter().map(|row| row.resistant).collect();
+    let classes: Vec<bool> = labelled.iter().map(|row| row.positive).collect();
     let mut group_index = BTreeMap::new();
     let groups: Vec<usize> = labelled
         .iter()
@@ -293,7 +300,7 @@ pub(in crate::cli) fn run_fit_ast(args: FitAstArgs) -> Result<()> {
             .map_err(logistic_error)?;
 
     let schema = schema_of(&table);
-    let model = AstModel {
+    let model = ClassifierModel {
         format: MODEL_FORMAT.to_owned(),
         version: 1,
         features: schema.clone(),
@@ -302,10 +309,10 @@ pub(in crate::cli) fn run_fit_ast(args: FitAstArgs) -> Result<()> {
         settings: config.model.clone(),
         ensemble: final_fit.ensemble,
     };
-    let resistant = summary.resistant;
-    let susceptible = summary.susceptible;
-    let conformal_resistant = &evaluation.conformal_positive_rows;
-    let conformal_susceptible = &evaluation.conformal_negative_rows;
+    let positive = summary.positive;
+    let negative = summary.negative;
+    let conformal_positive = &evaluation.conformal_positive_rows;
+    let conformal_negative = &evaluation.conformal_negative_rows;
     let threshold = &evaluation.threshold;
     let report = FitReport {
         config: &config,
@@ -322,31 +329,29 @@ pub(in crate::cli) fn run_fit_ast(args: FitAstArgs) -> Result<()> {
                 Some(threshold.true_positive + threshold.true_negative),
                 threshold.false_negative,
                 threshold.false_positive,
-                resistant,
-                susceptible,
+                positive,
+                negative,
             ),
             conformal: ConformalSummary {
                 significance: config.model.significance,
-                resistant_isolates: conformal_resistant.into(),
-                susceptible_isolates: conformal_susceptible.into(),
+                positive_rows: conformal_positive.into(),
+                negative_rows: conformal_negative.into(),
                 errors: error_rates(
                     None,
-                    conformal_resistant.negative,
-                    conformal_susceptible.positive,
-                    resistant,
-                    susceptible,
+                    conformal_positive.negative,
+                    conformal_negative.positive,
+                    positive,
+                    negative,
                 ),
-                abstention_rate: (conformal_resistant.both
-                    + conformal_resistant.neither
-                    + conformal_susceptible.both
-                    + conformal_susceptible.neither) as f64
+                abstention_rate: (conformal_positive.both
+                    + conformal_positive.neither
+                    + conformal_negative.both
+                    + conformal_negative.neither) as f64
                     / labelled.len() as f64,
-                resistant_coverage: (conformal_resistant.positive + conformal_resistant.both)
-                    as f64
-                    / resistant as f64,
-                susceptible_coverage: (conformal_susceptible.negative + conformal_susceptible.both)
-                    as f64
-                    / susceptible as f64,
+                positive_coverage: (conformal_positive.positive + conformal_positive.both) as f64
+                    / positive as f64,
+                negative_coverage: (conformal_negative.negative + conformal_negative.both) as f64
+                    / negative as f64,
             },
             predictions: evaluation
                 .predictions
@@ -357,7 +362,7 @@ pub(in crate::cli) fn run_fit_ast(args: FitAstArgs) -> Result<()> {
                         prediction: row_prediction(&row.id, &prediction.prediction),
                         group: row.group.as_deref(),
                         fold: prediction.fold,
-                        resistant: row.resistant,
+                        positive: row.positive,
                     }
                 })
                 .collect(),
@@ -369,11 +374,11 @@ pub(in crate::cli) fn run_fit_ast(args: FitAstArgs) -> Result<()> {
             members: model.ensemble.members(),
         },
     };
-    super::write_new_json(&args.model, &model)?;
-    super::write_new_json(&args.report, &report)
+    write_new_json(&args.model, &model)?;
+    write_new_json(&args.report, &report)
 }
 
-pub(in crate::cli) fn run_predict_ast(args: PredictAstArgs) -> Result<()> {
+pub(super) fn run_predict(args: PredictArgs) -> Result<()> {
     let model = read_model(&args.model)?;
     let table = read_feature_table(&args.features)?;
     let schema = schema_of(&table);
@@ -405,13 +410,13 @@ pub(in crate::cli) fn run_predict_ast(args: PredictAstArgs) -> Result<()> {
         .collect::<Result<Vec<_>>>()?;
     let output = PredictOutput {
         modality: &expected.modality,
-        unit: expected.unit,
-        antibiotic_column: &model.target.antibiotic_column,
-        species: model.target.species.as_deref(),
+        unit: &expected.unit,
+        label_column: &model.target.label_column,
+        subset: model.target.subset.as_ref(),
         significance: model.ensemble.significance(),
         predictions,
     };
-    super::write_new_json(&args.out, &output)
+    write_new_json(&args.out, &output)
 }
 
 fn row_prediction<'a>(
@@ -420,42 +425,41 @@ fn row_prediction<'a>(
 ) -> RowPrediction<'a> {
     RowPrediction {
         id,
-        probability_resistant: prediction.probability,
-        p_value_resistant: prediction.p_value_positive,
-        p_value_susceptible: prediction.p_value_negative,
+        probability_positive: prediction.probability,
+        p_value_positive: prediction.p_value_positive,
+        p_value_negative: prediction.p_value_negative,
         call: prediction.call.into(),
     }
 }
 
-/// Very major errors call a resistant isolate susceptible; major errors call a susceptible
-/// isolate resistant. Rates are per resistant and per susceptible isolate.
+/// False negatives call a positive row negative; false positives call a negative row positive.
+/// Rates are per positive and per negative row.
 fn error_rates(
     agreeing: Option<usize>,
-    very_major_errors: usize,
-    major_errors: usize,
-    resistant: usize,
-    susceptible: usize,
+    false_negatives: usize,
+    false_positives: usize,
+    positive: usize,
+    negative: usize,
 ) -> ErrorRates {
     ErrorRates {
-        categorical_agreement: agreeing
-            .map(|count| count as f64 / (resistant + susceptible) as f64),
-        very_major_errors,
-        very_major_error_rate: very_major_errors as f64 / resistant as f64,
-        major_errors,
-        major_error_rate: major_errors as f64 / susceptible as f64,
+        accuracy: agreeing.map(|count| count as f64 / (positive + negative) as f64),
+        false_negatives,
+        false_negative_rate: false_negatives as f64 / positive as f64,
+        false_positives,
+        false_positive_rate: false_positives as f64 / negative as f64,
     }
 }
 
 fn schema_of(table: &FeatureTable) -> FeatureSchema {
     FeatureSchema {
         modality: table.meta.modality.clone(),
-        unit: table.meta.unit,
+        unit: table.meta.unit.clone(),
         provenance: table.meta.provenance.clone(),
         columns: table.columns.clone(),
     }
 }
 
-fn read_model(path: &Path) -> Result<AstModel> {
+fn read_model(path: &Path) -> Result<ClassifierModel> {
     let io_error = |source| MarklabError::io(path, source);
     if !fs::metadata(path).map_err(io_error)?.is_file() {
         bail!("{}: a model must be a regular file", path.display());
@@ -465,7 +469,7 @@ fn read_model(path: &Path) -> Result<AstModel> {
         bail!("{}: a model may be at most 1 GiB", path.display());
     }
     let reader = BufReader::new(file.take(MAXIMUM_MODEL_BYTES));
-    let model: AstModel = serde_json::from_reader(reader)
+    let model: ClassifierModel = serde_json::from_reader(reader)
         .map_err(|error| MarklabError::Validation(format!("{}: {error}", path.display())))?;
     if model.format != MODEL_FORMAT || model.version != 1 {
         bail!("{}: not a version 1 `{MODEL_FORMAT}` file", path.display());
@@ -484,59 +488,58 @@ fn logistic_error(error: LogisticError) -> MarklabError {
 }
 
 fn validate_target(target: &Target) -> Result<()> {
-    if target.species_column.is_some() != target.species.is_some() {
-        bail!("AST configuration: give both species_column and species, or neither");
-    }
     if target
-        .species
-        .as_deref()
-        .is_some_and(|species| species.trim().is_empty())
+        .subset
+        .as_ref()
+        .is_some_and(|subset| subset.value.trim().is_empty())
     {
-        bail!("AST configuration: species must not be empty");
+        bail!("classifier configuration: the subset value must not be empty");
     }
-    let mut categories = target.resistant.iter().chain(&target.susceptible);
-    if target.resistant.is_empty()
-        || target.susceptible.is_empty()
-        || categories.any(|value| value.trim().is_empty() || value.trim() != value)
+    let mut values = target.positive.iter().chain(&target.negative);
+    if target.positive.is_empty()
+        || target.negative.is_empty()
+        || values.any(|value| value.trim().is_empty() || value.trim() != value)
     {
         bail!(
-            "AST configuration: resistant and susceptible must each list at least one category \
-             without surrounding spaces"
+            "classifier configuration: positive and negative must each list at least one label \
+             value without surrounding spaces"
         );
     }
     if target
-        .resistant
+        .positive
         .iter()
-        .any(|value| target.susceptible.contains(value))
+        .any(|value| target.negative.contains(value))
     {
-        bail!("AST configuration: a category cannot be both resistant and susceptible");
+        bail!("classifier configuration: a label value cannot be both positive and negative");
     }
     Ok(())
 }
 
 fn read_labels(table: &[u8], target: &Target) -> Result<(Vec<Labelled>, LabelSummary)> {
-    let failed = |error: csv::Error| MarklabError::Validation(format!("AST label table: {error}"));
+    let failed = |error: csv::Error| MarklabError::Validation(format!("label table: {error}"));
     let mut reader = csv::ReaderBuilder::new().from_reader(table);
     let headers = reader.headers().map_err(failed)?.clone();
     let column = |name: &str| {
         headers
             .iter()
             .position(|header| header == name)
-            .ok_or_else(|| {
-                MarklabError::Validation(format!("AST label table has no column `{name}`"))
-            })
+            .ok_or_else(|| MarklabError::Validation(format!("label table has no column `{name}`")))
     };
     let id_column = column(&target.id_column)?;
-    let antibiotic_column = column(&target.antibiotic_column)?;
-    let species_column = target.species_column.as_deref().map(column).transpose()?;
+    let label_column = column(&target.label_column)?;
+    let subset_column = target
+        .subset
+        .as_ref()
+        .map(|subset| column(&subset.column))
+        .transpose()?;
     let group_column = target.group_column.as_deref().map(column).transpose()?;
     let mut summary = LabelSummary {
         rows: 0,
-        other_species: 0,
-        missing_category: 0,
+        outside_subset: 0,
+        missing_label: 0,
         labelled: 0,
-        resistant: 0,
-        susceptible: 0,
+        positive: 0,
+        negative: 0,
         groups: 0,
         unlabelled_feature_rows: 0,
     };
@@ -546,56 +549,56 @@ fn read_labels(table: &[u8], target: &Target) -> Result<(Vec<Labelled>, LabelSum
         let record = record.map_err(failed)?;
         summary.rows += 1;
         let line = record.position().map_or(0, |position| position.line());
-        if let (Some(index), Some(species)) = (species_column, target.species.as_deref()) {
-            if record[index].trim() != species {
-                summary.other_species += 1;
+        if let (Some(index), Some(subset)) = (subset_column, target.subset.as_ref()) {
+            if record[index].trim() != subset.value {
+                summary.outside_subset += 1;
                 continue;
             }
         }
-        let category = record[antibiotic_column].trim();
-        if category.is_empty() {
-            summary.missing_category += 1;
+        let label = record[label_column].trim();
+        if label.is_empty() {
+            summary.missing_label += 1;
             continue;
         }
-        let resistant = if target.resistant.iter().any(|value| value == category) {
+        let positive = if target.positive.iter().any(|value| value == label) {
             true
-        } else if target.susceptible.iter().any(|value| value == category) {
+        } else if target.negative.iter().any(|value| value == label) {
             false
         } else {
             bail!(
-                "AST label table line {line}: `{}` value `{category}` is listed as neither \
-                 resistant nor susceptible",
-                target.antibiotic_column
+                "label table line {line}: `{}` value `{label}` is listed as neither positive \
+                 nor negative",
+                target.label_column
             );
         };
         let id = record[id_column].trim();
         if id.is_empty() {
-            bail!("AST label table line {line}: the ID is empty");
+            bail!("label table line {line}: the ID is empty");
         }
         if !seen.insert(id.to_owned()) {
-            bail!("AST label table line {line}: ID `{id}` appears more than once");
+            bail!("label table line {line}: ID `{id}` appears more than once");
         }
         let group = match group_column {
             Some(index) if record[index].trim().is_empty() => {
-                bail!("AST label table line {line}: ID `{id}` has no group");
+                bail!("label table line {line}: ID `{id}` has no group");
             }
             Some(index) => Some(record[index].trim().to_owned()),
             None => None,
         };
-        if resistant {
-            summary.resistant += 1;
+        if positive {
+            summary.positive += 1;
         } else {
-            summary.susceptible += 1;
+            summary.negative += 1;
         }
         labelled.push(Labelled {
             id: id.to_owned(),
             group,
-            resistant,
+            positive,
         });
     }
     summary.labelled = labelled.len();
     if labelled.is_empty() {
-        bail!("AST label table: no row has a listed category");
+        bail!("label table: no row has a listed label value");
     }
     Ok((labelled, summary))
 }

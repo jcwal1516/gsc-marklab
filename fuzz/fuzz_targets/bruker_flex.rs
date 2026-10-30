@@ -1,7 +1,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use marklab_microbio::parse_bruker_flex;
+use marklab_spectrum::parse_bruker_flex;
 
 // The first byte sets where the remaining bytes split into the acqu text and the fid payload.
 fuzz_target!(|bytes: &[u8]| {

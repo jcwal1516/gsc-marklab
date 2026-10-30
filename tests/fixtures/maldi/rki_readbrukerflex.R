@@ -31,7 +31,7 @@ for (k in seq_along(sample_fids)) {
   fid <- sample_fids[[k]]
   dir <- dirname(fid)
   out <- tempfile(tmpdir = out_dir, fileext = ".json")
-  msg <- suppressWarnings(system2(marklab, c("microbio", "preprocess", "--bruker", shQuote(dir),
+  msg <- suppressWarnings(system2(marklab, c("spectrum", "preprocess", "--bruker", shQuote(dir),
     "--config", shQuote(config), "--out", shQuote(out)), stdout = TRUE, stderr = TRUE))
   ours <- if (is.null(attr(msg, "status"))) fromJSON(out) else NULL
   unlink(out)

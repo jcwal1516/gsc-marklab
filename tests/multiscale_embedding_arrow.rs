@@ -40,22 +40,6 @@ fn arrow_footer_bounds(bytes: &[u8]) -> (usize, usize) {
     (bytes.len() - 10 - length as usize, length as usize)
 }
 
-fn first_arrow_validity_byte(bytes: &[u8]) -> usize {
-    let (footer_start, footer_length) = arrow_footer_bounds(bytes);
-    let footer = arrow::ipc::root_as_footer(&bytes[footer_start..footer_start + footer_length])
-        .expect("Arrow footer");
-    let block = footer.recordBatches().expect("record batches").get(0);
-    let block_offset = usize::try_from(block.offset()).expect("block offset");
-    let metadata_length = usize::try_from(block.metaDataLength()).expect("metadata length");
-    let message =
-        arrow::ipc::root_as_message(&bytes[block_offset + 8..block_offset + metadata_length])
-            .expect("record message");
-    let batch = message.header_as_record_batch().expect("record batch");
-    let validity_offset = usize::try_from(batch.buffers().expect("buffers").get(0).offset())
-        .expect("validity offset");
-    block_offset + metadata_length + validity_offset
-}
-
 fn first_arrow_block_bytes(bytes: &[u8]) -> (usize, usize) {
     let (footer_start, footer_length) = arrow_footer_bounds(bytes);
     let footer = arrow::ipc::root_as_footer(&bytes[footer_start..footer_start + footer_length])
@@ -90,7 +74,15 @@ fn arrow_reader_requirements(bytes: &[u8]) -> (usize, usize, u64) {
             .expect("buffers")
             .iter()
             .map(|buffer| usize::try_from(buffer.length()).expect("buffer length"))
-            .sum::<usize>();
+            .sum::<usize>()
+            // Arrow 60 omits the validity bitmap of a column without nulls; readers still charge it.
+            + batch
+                .nodes()
+                .expect("nodes")
+                .iter()
+                .filter(|node| node.null_count() == 0)
+                .map(|node| usize::try_from(node.length()).expect("node length").div_ceil(8))
+                .sum::<usize>();
         maximum_batch_decoded = maximum_batch_decoded.max(decoded);
         aggregate_decoded += u64::try_from(decoded).expect("decoded bytes");
     }
@@ -184,7 +176,7 @@ fn canonical_spatial_arrow_writers_are_deterministic_and_preflight_exact_rows() 
     );
     assert_eq!(
         footprint_summary.content_digest().to_string(),
-        "ab4e2b3599066f7b3fedabc8033ce64a4dbccb3f53ff6112ff6204adf47775de"
+        "383c4c836d0e0d251b2870a584ee420c26fe43e8491923be4976ddf6d75efce4"
     );
     let footprint_preflight = preflight_patch_footprint_set_arrow_bytes(
         &footprint_first,
@@ -225,7 +217,7 @@ fn canonical_spatial_arrow_writers_are_deterministic_and_preflight_exact_rows() 
     );
     assert_eq!(
         overlap_summary.content_digest().to_string(),
-        "cf05c10ba0c280c98009935b49eefb573aee5b81dc20817affa8b86745cd3b16"
+        "f2e0e250ceac30b3d29b79a30aed3bfe1f98e0ba8503b6e0b5e2ff00c214baed"
     );
     let overlap_preflight = preflight_patch_overlap_graph_arrow_bytes(
         &overlap_first,
@@ -607,9 +599,11 @@ fn spatial_arrow_raw_preflight_rejects_header_and_canonical_row_drift() {
         })
     ));
 
+    // Arrow 60 leaves the validity buffer of a column without nulls empty; declare one byte.
     let mut wrong_validity = canonical.clone();
-    let validity = first_arrow_validity_byte(&wrong_validity);
-    wrong_validity[validity] = 0x7f;
+    let (_, _, buffer_at, buffer_raw) = first_arrow_node_and_buffer(&canonical);
+    assert_eq!(buffer_raw[8..], 0_i64.to_le_bytes());
+    wrong_validity[buffer_at + 8..buffer_at + 16].copy_from_slice(&1_i64.to_le_bytes());
     assert!(matches!(
         preflight_patch_footprint_set_arrow_bytes(
             &wrong_validity,

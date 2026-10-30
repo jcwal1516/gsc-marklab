@@ -233,7 +233,7 @@ fn canonical_arrow_writer_is_deterministic_and_preflights_exact_schema_and_batch
     );
     assert_eq!(
         first_summary.content_digest().to_string(),
-        "44e1326b36546c793bb768f67afae9d6f5a6728ed13d47caece7514294b63570"
+        "b7117391e688268f35a46501e1886a9d6e1e393bec647cb9f8e1adc93c9787a9"
     );
 
     let preflight = preflight_cell_embedding_table_arrow_bytes(&first, &expected, bindings, limits)
@@ -764,7 +764,7 @@ fn canonical_arrow_writer_is_deterministic_across_fresh_processes() {
     assert_eq!(first, second);
     assert_eq!(
         ContentDigest::from_bytes(&first).to_string(),
-        "44e1326b36546c793bb768f67afae9d6f5a6728ed13d47caece7514294b63570"
+        "b7117391e688268f35a46501e1886a9d6e1e393bec647cb9f8e1adc93c9787a9"
     );
 }
 

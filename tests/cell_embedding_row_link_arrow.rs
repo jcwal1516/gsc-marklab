@@ -445,7 +445,7 @@ fn canonical_row_link_arrow_writer_preflight_and_publication_are_exact() {
     );
     assert_eq!(
         first_summary.content_digest().to_string(),
-        "0edeab689aa350263d3057098648a17c72bbf56066af2ed7e4a3bcab031f58a5"
+        "e04797dfe41af262c146afc041145ac2d5bdfb067172cc6e699dbc5bb26bf6a6"
     );
     assert_eq!(first_summary.row_count(), 4);
 
@@ -537,6 +537,13 @@ fn canonical_row_link_writer_preserves_mixed_validity_across_batch_boundary() {
                 if entry.source_embedding_row().is_some() {
                     expected_bitmap[local_row / 8] |= 1 << (local_row % 8);
                 }
+            }
+            // Arrow 60 writes no bitmap for a batch without nulls.
+            if row_link.entries()[start..end]
+                .iter()
+                .all(|entry| entry.source_embedding_row().is_some())
+            {
+                expected_bitmap.clear();
             }
             let range = body_buffer_range(&bytes, batch_index, 5);
             assert_eq!(
@@ -801,16 +808,9 @@ fn row_link_arrow_preflight_enforces_exact_nullable_bitmap_and_private_fillers()
         let mut bytes = Vec::new();
         write_cell_embedding_row_link_arrow(&mut bytes, &row_link, budgets())
             .expect("write all-present link");
+        // Arrow 60 writes no bitmap for a batch without nulls.
         let bitmap = body_buffer_range(&bytes, 0, 5);
-        let mut expected_bitmap = vec![u8::MAX; rows.div_ceil(8)];
-        if rows % 8 != 0 {
-            *expected_bitmap.last_mut().expect("tail bitmap") = u8::MAX >> (8 - rows % 8);
-        }
-        assert_eq!(
-            &bytes[bitmap.clone()],
-            expected_bitmap.as_slice(),
-            "{rows} rows"
-        );
+        assert!(bitmap.is_empty(), "{rows} rows");
         let (_, message) = record_message(&bytes, 0);
         assert_eq!(
             message
@@ -1522,7 +1522,7 @@ fn canonical_row_link_writer_is_deterministic_across_fresh_processes() {
     assert_eq!(first, second);
     assert_eq!(
         ContentDigest::from_bytes(&first).to_string(),
-        "0edeab689aa350263d3057098648a17c72bbf56066af2ed7e4a3bcab031f58a5"
+        "e04797dfe41af262c146afc041145ac2d5bdfb067172cc6e699dbc5bb26bf6a6"
     );
 }
 

@@ -18,7 +18,7 @@ members = [
     "crates/marklab-graph",
     "crates/marklab-topology",
     "crates/marklab-workflow",
-    "crates/marklab-microbio",
+    "crates/marklab-spectrum",
 ]
 exclude = ["fuzz"]
 resolver = "2"
@@ -41,7 +41,7 @@ marklab-data = { version = "0.1.0", path = "crates/marklab-data" }
 marklab-embeddings = { version = "0.1.0", path = "crates/marklab-embeddings", default-features = false }
 marklab-graph = { version = "0.1.0", path = "crates/marklab-graph" }
 marklab-longitudinal = { version = "0.1.0", path = "crates/marklab-longitudinal" }
-marklab-microbio = { version = "0.1.0", path = "crates/marklab-microbio" }
+marklab-spectrum = { version = "0.1.0", path = "crates/marklab-spectrum" }
 marklab-numerics = { version = "0.1.0", path = "crates/marklab-numerics" }
 marklab-policy = { version = "0.1.0", path = "crates/marklab-policy" }
 marklab-project = { version = "0.1.0", path = "crates/marklab-project" }
@@ -121,7 +121,7 @@ marklab-prediction.workspace = true
 marklab-simulation.workspace = true
 marklab-sbi.workspace = true
 marklab-longitudinal.workspace = true
-marklab-microbio.workspace = true
+marklab-spectrum.workspace = true
 marklab-spatial3d.workspace = true
 marklab-causal.workspace = true
 marklab-numerics.workspace = true
@@ -138,10 +138,10 @@ geojson = { version = "0.24", default-features = false }
 geo = { version = "0.33.1", default-features = false }
 rstar = { version = "0.13.0", default-features = false }
 
-arrow = { version = "56", optional = true }
-parquet = { version = "56", optional = true }
+arrow = { version = "60", optional = true }
+parquet = { version = "60", optional = true }
 csv = { workspace = true, optional = true }
-wsi-rs = { version = "=0.5.0", optional = true }
+wsi-rs = { version = "=0.9.0", optional = true }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 
 mimalloc = { version = "0.1", optional = true }
@@ -157,6 +157,7 @@ predicates = "3"
 tempfile.workspace = true
 dicom-core = "0.9.1"
 dicom-object = "0.9.1"
+thrift = { version = "=0.17.0", default-features = false }
 
 [[example]]
 name = "generate_dicom_wsi_fixture"

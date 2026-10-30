@@ -15,13 +15,14 @@ engine works with any label. Single-section results describe one tissue section.
 cells between sections, detect gain or loss of expression, or determine treatment response
 or molecular MMR status.
 
-The microbiology workflow (`marklab microbio`) is not spatial. It reads MALDI-TOF mass spectra
-of bacterial isolates and preprocesses them into calibrated spectra and m/z bins, as defined in
-[MALDI-TOF preprocessing](docs/maldi-preprocessing.md). From a feature table of any modality it
-evaluates and fits a calibrated logistic regression ensemble predicting one antibiotic's
-resistance category, and applies it to new rows, as defined in
-[predicting susceptibility](docs/maldi-ast-prediction.md). It does not identify species, read MICs
-or apply breakpoints, and its calls are not a clinical susceptibility test.
+The spectrum and classifier commands are not spatial. `marklab spectrum` reads one-dimensional
+spectra, such as MALDI-TOF mass spectra of bacterial isolates, and preprocesses them into
+calibrated spectra and m/z bins, as defined in [spectrum preprocessing](docs/spectrum-preprocessing.md).
+From a feature table of any modality, `marklab classifier` evaluates and fits a calibrated logistic
+regression ensemble predicting a binary label, such as one antibiotic's resistance category, and
+applies it to new rows, as defined in [calibrated binary classifier](docs/classifier.md).
+[Pipelines](examples/README.md) shows how they chain. They do not identify species, read MICs or
+apply breakpoints, and their calls are not a clinical test.
 
 ## Rust API
 

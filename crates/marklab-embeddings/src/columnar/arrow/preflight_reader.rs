@@ -3,7 +3,7 @@ use std::{
     str::FromStr,
 };
 
-use arrow_ipc::convert::fb_to_schema;
+use arrow_ipc::convert::try_fb_to_schema;
 use marklab_project::ContentDigest;
 
 use crate::ExpectedCellSet;
@@ -53,7 +53,9 @@ pub(super) fn preflight_cell_embedding_table_arrow_reader<R: Read + Seek + ?Size
         .schema()
         .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     let dimension = validate_flatbuffer_schema(footer_schema, bindings)?;
-    if fb_to_schema(footer_schema) != embedding_schema(dimension, bindings)? {
+    if try_fb_to_schema(footer_schema).map_err(|_| arrow_failure(ArrowIpcFailure::InvalidSchema))?
+        != embedding_schema(dimension, bindings)?
+    {
         return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     validate_shape(expected.cells().len(), dimension)?;

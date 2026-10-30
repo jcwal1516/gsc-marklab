@@ -1,11 +1,10 @@
 {
   "target": {
     "id_column": "code",
-    "species_column": "species",
-    "species": "Escherichia coli",
-    "antibiotic_column": "Ceftriaxone",
-    "resistant": ["R", "I"],
-    "susceptible": ["S"]
+    "subset": {"column": "species", "value": "Escherichia coli"},
+    "label_column": "Ceftriaxone",
+    "positive": ["R", "I"],
+    "negative": ["S"]
   },
   "model": {
     "c_values": [0.001, 0.01, 0.1, 1, 10, 100, 1000],

@@ -1,11 +1,10 @@
 use std::str::FromStr;
 
+use crate::columnar::parquet::format::{
+    ColumnOrder, FileMetaData, IEEE754TotalOrder, PageHeader, TSerializable, TypeDefinedOrder,
+};
 use marklab_data::CellId;
 use marklab_project::{ArtifactId, ContentDigest};
-use parquet::{
-    format::{FileMetaData, PageHeader},
-    thrift::TSerializable,
-};
 use thrift::protocol::TCompactOutputProtocol;
 
 use crate::{CellEmbeddingRow, CellEmbeddingTable, EmbeddingStatus};
@@ -309,6 +308,38 @@ fn preflight_rejects_hostile_plain_lengths_and_page_declarations() {
         ),
         Err(ColumnarError::Parquet {
             reason: ParquetFailure::InvalidPage,
+        })
+    ));
+}
+
+#[test]
+fn preflight_accepts_the_float_column_order_of_either_parquet_writer() {
+    let (expected, table, bindings, budgets, canonical) = fixture();
+    let preflight = |bytes: &[u8]| {
+        preflight_cell_embedding_table_parquet_bytes(
+            bytes,
+            &expected,
+            table.dimension(),
+            bindings,
+            budgets,
+        )
+    };
+    assert!(preflight(&canonical).is_ok());
+
+    // Parquet 56 wrote the type-defined order for the FLOAT embedding column.
+    let (_, mut parquet_56) = raw_footer(&canonical);
+    let orders = parquet_56.column_orders.as_mut().expect("column orders");
+    assert!(matches!(orders[1], ColumnOrder::IEEE754TOTALORDER(_)));
+    orders[1] = ColumnOrder::TYPEORDER(TypeDefinedOrder::new());
+    assert!(preflight(&replace_footer(&canonical, &parquet_56)).is_ok());
+
+    let (_, mut misplaced) = raw_footer(&canonical);
+    misplaced.column_orders.as_mut().expect("column orders")[0] =
+        ColumnOrder::IEEE754TOTALORDER(IEEE754TotalOrder::new());
+    assert!(matches!(
+        preflight(&replace_footer(&canonical, &misplaced)),
+        Err(ColumnarError::Parquet {
+            reason: ParquetFailure::InvalidMetadata,
         })
     ));
 }

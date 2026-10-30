@@ -67,11 +67,17 @@ pub enum Commands {
         #[command(subcommand)]
         command: SimulateCommands,
     },
-    /// Read and preprocess MALDI-TOF mass spectra of bacterial isolates and predict
-    /// susceptibility from them.
-    Microbio {
+    /// Read and preprocess one-dimensional spectra, such as MALDI-TOF mass spectra, and collect
+    /// them into feature tables.
+    Spectrum {
         #[command(subcommand)]
-        command: MicrobioCommands,
+        command: SpectrumCommands,
+    },
+    /// Fit and apply a calibrated binary classifier with conformal calls to a feature table of
+    /// any modality.
+    Classifier {
+        #[command(subcommand)]
+        command: ClassifierCommands,
     },
     /// Run the synthetic or multimodal smoke checks.
     Smoke {
@@ -88,16 +94,22 @@ pub enum Commands {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum MicrobioCommands {
-    /// Convert one Bruker flex acquisition to m/z, apply ordered preprocessing steps and bin it.
-    Preprocess(microbio::PreprocessArgs),
-    /// Collect binned `preprocess` results into a feature table for `fit-ast` and `predict-ast`.
-    FeatureTable(microbio::FeatureTableArgs),
-    /// Evaluate and fit a calibrated logistic regression ensemble predicting one antibiotic's
-    /// resistance from a feature table.
-    FitAst(microbio::FitAstArgs),
-    /// Predict resistance for every row of a feature table with a model from `fit-ast`.
-    PredictAst(microbio::PredictAstArgs),
+pub enum SpectrumCommands {
+    /// Read one spectrum (a Bruker flex acquisition or a two-column text file), apply ordered
+    /// preprocessing steps and bin it.
+    Preprocess(spectrum::PreprocessArgs),
+    /// Collect binned `preprocess` results into a feature table for `classifier fit` and
+    /// `classifier predict`.
+    FeatureTable(spectrum::FeatureTableArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ClassifierCommands {
+    /// Evaluate by cross-validation and fit a calibrated logistic regression ensemble that
+    /// predicts a binary label from a feature table.
+    Fit(classifier::FitArgs),
+    /// Predict the label of every row of a feature table with a model from `classifier fit`.
+    Predict(classifier::PredictArgs),
 }
 
 #[derive(Debug, Subcommand)]

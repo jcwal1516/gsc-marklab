@@ -151,7 +151,7 @@
 
 ### Public-data validation and interoperability
 
-- Add `marklab microbio preprocess` and the `marklab-microbio` crate: read one Bruker flex
+- Add `marklab spectrum preprocess` and the `marklab-spectrum` crate: read one Bruker flex
   MALDI-TOF acquisition (`fid` with `acqu` or `acqus`), convert time of flight to m/z, apply
   declared steps in order (square root, Savitzky–Golay, SNIP baseline, total ion current, trim)
   and optionally sum fixed-edge m/z bins. High-precision calibration, LIFT, PSD and V1.0 CTOF2
@@ -161,15 +161,16 @@
   the spectrum maximum, the 6,000-bin vectors agree with a per-bin R sum within 2.8e-12, and the
   HPC example is rejected. `--text` reads two-column spectra such as DRIAMS `raw` files.
 
-- Add `marklab microbio feature-table`, `fit-ast` and `predict-ast`. A feature table is a Parquet
-  file with an `id` column, numeric feature columns and `marklab.feature_table` metadata (modality,
-  unit, provenance); `feature-table` writes one from binned MALDI-TOF spectra, and other
-  modalities can write it from Python (checked with pyarrow, pandas and polars). `fit-ast` fits an
-  ensemble of L2-penalised logistic regressions (one per inner fold, scikit-learn-equivalent within
-  1e-7), Platt-calibrates it on held-out margins and calibrates class-conditional cross-conformal
-  calls; outer cross-validation of that whole procedure reports AUROC, average precision, Brier
-  score, reliability and very major, major and abstention rates. `predict-ast` applies the saved
-  model and refuses tables made differently.
+- Add `marklab spectrum feature-table`, `marklab classifier fit` and `classifier predict`. A
+  feature table is a Parquet file with an `id` column, numeric feature columns and
+  `marklab.feature_table` metadata (modality, unit, provenance); `spectrum feature-table` writes one
+  from binned spectra, and other modalities can write it from Python (checked with pyarrow, pandas
+  and polars). `classifier fit` fits an ensemble of L2-penalised logistic regressions predicting a
+  binary label (one per inner fold, scikit-learn-equivalent within 1e-7), Platt-calibrates it on
+  held-out margins and calibrates class-conditional cross-conformal calls; outer cross-validation of
+  that whole procedure reports AUROC, average precision, Brier score, reliability and
+  false-negative, false-positive and abstention rates. `classifier predict` applies the saved model
+  and refuses tables made differently.
 
 - Compare `numerics categorical-enrichment` with imcRtools 1.16.0 `testInteractions`
   (classic) and SPIAT 1.12.1 `mixing_score_summary` on three public CODEX spots. Graphs and
@@ -235,6 +236,43 @@
 
 ### Engineering in the unreleased development batch
 
+- Update Arrow and Parquet from 56 to 60. Parquet 60 keeps its Thrift footer types private, so
+  the bounded Parquet preflight carries parquet 56.2.1's generated types (Apache License 2.0) with
+  a local generic serialization trait and the IEEE 754 column order added. Newly written embedding
+  tables differ from earlier ones in two ways that no writer option restores: Parquet files record
+  IEEE 754 total order instead of the type-defined order for the float embedding column (one byte),
+  and Arrow IPC files carry an empty validity buffer instead of an all-valid bitmap for each column
+  without nulls, so they are smaller. Content digests of new tables therefore change. Preflight
+  and readers accept both forms, so tables written with Arrow and Parquet 56 remain readable, and
+  decoded-byte budgets still count every validity bitmap, so they are the same for both. The
+  row-link Arrow writer no longer patches its validity bitmap. Parquet 60 also moves Parquet off
+  `zstd` 0.13.
+- Update `wsi-rs` from 0.5.0 to 0.9.0 and the transitive `libz-sys` from 1.1.29 to 1.1.31, which
+  resolves RUSTSEC-2026-0391, -0398, -0403 and -0418. `wsi-rs` 0.9 reads `zstd` 0.14.3 and `j2k`
+  0.13.1 and no longer depends on `czi-rs`, so `zstd` 0.13 and `zstd-safe` 7 leave the graph. No
+  marklab source changed. The public Aperio JPEG 2000 region now decodes identically to OpenSlide
+  (maximum and mean absolute RGBA difference 0, from 24 and 2.41 with 0.5.0).
+- Raise the limit on hashing the marklab executable for project provenance from 1 GiB to 4 GiB.
+  With `wsi-rs` 0.9 a Linux debug build with all features and full debug info is larger than
+  1 GiB, so a native study run from it stopped with "input exceeds its provenance hashing limit".
+  Hashing streams the file, so memory use is unchanged.
+- Name the spectrum and classifier commands for what they do rather than for MALDI-TOF
+  susceptibility: `microbio preprocess` and `microbio feature-table` are now `spectrum preprocess`
+  and `spectrum feature-table`, which takes `--modality` and `--unit`; `microbio fit-ast` and
+  `predict-ast` are now `classifier fit` and `classifier predict`. Their configuration names a
+  `label_column`, `positive` and `negative` label values and an optional `subset` instead of an
+  antibiotic, resistant and susceptible categories and a species, and their reports give
+  false-negative and false-positive rates instead of very major and major errors. A feature table's
+  unit may be any name. Models are `marklab.classifier` files; `marklab.ast-model` files must be
+  refitted. [Pipelines](examples/README.md) maps the susceptibility terms and shows the command
+  sequences. The library crate `marklab-microbio` is now `marklab-spectrum`, and its
+  `MicrobioError` is `SpectrumError`.
+- The `cohort` commands read input tables of up to 512 MiB, raised from 16 MiB, so tests over
+  thousands of endpoints or features fit. Each command's work limits are unchanged; `cohort
+  max-t`, for example, still allows at most 10^8 patient-endpoint-permutation evaluations. A
+  table is read whole: a 216 MB `max-t` table of 100,000 patients and 60 endpoints peaked at
+  0.70 GB resident memory in a debug build. `cohort max-t-calibration` and the `project
+  cohort-*` commands keep their own input limits.
 - Pull-request CI runs the backend tests in six parallel shards and leaves out the Bayesian
   calibration, prior-sensitivity and PyMC/NumPyro agreement tests (nextest profiles `pr` and
   `calibration` in `.config/nextest.toml`). Those run weekly in the Backend calibration

@@ -1,4 +1,7 @@
 mod compact;
+#[allow(clippy::all)]
+#[rustfmt::skip]
+mod format;
 mod levels;
 mod multiscale;
 pub(in crate::columnar::parquet) mod physical;

@@ -1,4 +1,4 @@
-"""Validate `marklab microbio preprocess` on the RKI MALDI-TOF database v4.2 (Zenodo 14562231).
+"""Validate `marklab spectrum preprocess` on the RKI MALDI-TOF database v4.2 (Zenodo 14562231).
 
 Usage, from the repository root:
 
@@ -60,7 +60,7 @@ def run(acquisition, config):
     with tempfile.TemporaryDirectory(dir=OUT) as scratch:
         out = os.path.join(scratch, "result.json")
         done = subprocess.run(
-            [MARKLAB, "microbio", "preprocess", "--bruker", acquisition, "--config", config,
+            [MARKLAB, "spectrum", "preprocess", "--bruker", acquisition, "--config", config,
              "--out", out],
             capture_output=True, text=True,
         )

@@ -199,7 +199,7 @@ fn canonical_embedding_parquet_writer_is_deterministic_and_preflights() {
     );
     assert_eq!(
         first_summary.content_digest().to_string(),
-        "7a54901c82e241e467c04cc6bd58a4c1ae88f27171656d7db01aeb0a499e9b88"
+        "740ef800539b70ce9df8f263cd1989400190b04836d1a8790a54f7cb34e1ec5d"
     );
     assert_eq!(first_summary.row_count(), 2);
     assert_eq!(first_summary.dimension(), 3);
@@ -239,7 +239,7 @@ fn canonical_embedding_parquet_writer_is_deterministic_across_fresh_processes() 
     assert_eq!(first, second);
     assert_eq!(
         ContentDigest::from_bytes(&first).to_string(),
-        "7a54901c82e241e467c04cc6bd58a4c1ae88f27171656d7db01aeb0a499e9b88"
+        "740ef800539b70ce9df8f263cd1989400190b04836d1a8790a54f7cb34e1ec5d"
     );
 }
 
@@ -418,7 +418,7 @@ fn canonical_parquet_writer_uses_exact_empty_and_8192_row_group_boundaries() {
         if row_count == 8_192 {
             assert_eq!(
                 summary.content_digest().to_string(),
-                "1a8c42b5d65d70fdbc40b0d44ca748a982e929b90956347d17fd0c25a5ea6a27"
+                "7da6c2842f126d830646594d79ca3d8193f1e933284494c8c265119babc3f91f"
             );
         }
     }

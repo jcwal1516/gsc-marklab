@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
-//! MALDI-TOF mass spectrum reading and preprocessing for Marklab microbiology workflows.
+//! Spectrum reading and preprocessing for Marklab, such as MALDI-TOF mass spectra of bacterial
+//! isolates.
 //!
 //! Bruker flex-series acquisitions are read from their `fid` and `acqu` files and converted from
 //! time of flight to m/z; spectra already in m/z are read from two-column text. Spectra are
@@ -18,7 +19,7 @@ pub use bruker::{
     parse_bruker_flex, read_bruker_flex, BrukerAcquisition, BrukerByteOrder, BrukerTofMode,
     MAXIMUM_BRUKER_TIME_POINTS,
 };
-pub use error::MicrobioError;
+pub use error::SpectrumError;
 pub use preprocess::{bin_spectrum, preprocess_spectrum, BinSpec, BinnedSpectrum, PreprocessStep};
 pub use spectrum::MassSpectrum;
 pub use text::{parse_text_spectrum, read_text_spectrum};

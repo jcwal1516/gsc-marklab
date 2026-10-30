@@ -5,7 +5,10 @@ use marklab_project::{ContentDigest, ContentDigestWriter};
 use parquet::{
     arrow::arrow_writer::{ArrowWriter, ArrowWriterOptions},
     file::metadata::{ColumnChunkMetaData, ParquetMetaData, RowGroupMetaData},
-    format::{ColumnChunk, ColumnMetaData, Encoding, FileMetaData, PageEncodingStats, RowGroup},
+};
+
+use crate::columnar::parquet::format::{
+    ColumnChunk, ColumnMetaData, Encoding, FileMetaData, PageEncodingStats, RowGroup,
 };
 
 use crate::{CellEmbeddingTable, EmbeddingStatus};
@@ -17,11 +20,10 @@ use super::{
         CellEmbeddingTablePhysicalBindings, ColumnarError, ColumnarWriteSummary,
         EmbeddingColumnarBudgets,
     },
-    compact::canonical_compact_len,
     profile::{
         embedding_decoded_bytes, embedding_schema, writer_properties,
         MAXIMUM_APPLICATION_METADATA_BYTES, MAXIMUM_DIMENSION, MAXIMUM_FOOTER_BYTES, MAXIMUM_ROWS,
-        PUBLIC_BATCH_ROWS, ROOT_NAME, ROW_GROUP_ROWS,
+        PARQUET_MAGIC, PUBLIC_BATCH_ROWS, ROOT_NAME, ROW_GROUP_ROWS, TRAILER_BYTES,
     },
 };
 
@@ -81,10 +83,8 @@ pub fn write_cell_embedding_table_parquet(
                 .map_err(|_| ColumnarError::ParquetWriter)?;
             start = end;
         }
-        let metadata = writer.close().map_err(|_| ColumnarError::ParquetWriter)?;
-        canonical_compact_len(&metadata, MAXIMUM_FOOTER_BYTES)
-            .map_err(|_| ColumnarError::ParquetWriter)?;
-        Ok(())
+        writer.close().map_err(|_| ColumnarError::ParquetWriter)?;
+        sink.require_footer_within(MAXIMUM_FOOTER_BYTES)
     })();
     if let Some(observed) = sink.budget_exceeded() {
         return Err(ColumnarError::FileByteBudgetExceeded {
@@ -319,6 +319,7 @@ pub(super) struct ParquetDigestingWriter<'a> {
     byte_len: u64,
     maximum_file_bytes: u64,
     budget_exceeded: Option<u64>,
+    trailer: [u8; TRAILER_BYTES],
 }
 
 impl<'a> ParquetDigestingWriter<'a> {
@@ -329,6 +330,7 @@ impl<'a> ParquetDigestingWriter<'a> {
             byte_len: 0,
             maximum_file_bytes,
             budget_exceeded: None,
+            trailer: [0; TRAILER_BYTES],
         }
     }
 
@@ -338,6 +340,21 @@ impl<'a> ParquetDigestingWriter<'a> {
 
     pub(super) fn finish(self) -> (ContentDigest, u64) {
         self.digest.finish()
+    }
+
+    /// Require the trailer written last to declare a footer of at most `maximum_bytes`, so that
+    /// preflight accepts the file.
+    pub(super) fn require_footer_within(&self, maximum_bytes: usize) -> Result<(), ColumnarError> {
+        let (length, magic) = self.trailer.split_at(TRAILER_BYTES - PARQUET_MAGIC.len());
+        let complete = self.byte_len >= TRAILER_BYTES as u64 && magic == PARQUET_MAGIC;
+        let footer_bytes = length
+            .try_into()
+            .map(u32::from_le_bytes)
+            .map_err(|_| ColumnarError::ParquetWriter)?;
+        match usize::try_from(footer_bytes) {
+            Ok(bytes) if complete && bytes <= maximum_bytes => Ok(()),
+            _ => Err(ColumnarError::ParquetWriter),
+        }
     }
 }
 
@@ -355,6 +372,9 @@ impl Write for ParquetDigestingWriter<'_> {
         }
         let written = self.output.write(buffer)?;
         self.digest.write_all(&buffer[..written])?;
+        let kept = written.min(TRAILER_BYTES);
+        self.trailer.copy_within(kept.., 0);
+        self.trailer[TRAILER_BYTES - kept..].copy_from_slice(&buffer[written - kept..written]);
         self.byte_len = self
             .byte_len
             .checked_add(
@@ -366,5 +386,28 @@ impl Write for ParquetDigestingWriter<'_> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.output.flush()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use super::ParquetDigestingWriter;
+
+    #[test]
+    fn footer_check_reads_the_trailer_across_split_writes() {
+        let mut output = Vec::new();
+        let mut sink = ParquetDigestingWriter::new(&mut output, 1024);
+        sink.write_all(b"PAR1footer").expect("body");
+        sink.write_all(&6_u32.to_le_bytes()[..3])
+            .expect("split length");
+        assert!(sink.require_footer_within(6).is_err(), "no trailer yet");
+        sink.write_all(&6_u32.to_le_bytes()[3..])
+            .expect("split length");
+        sink.write_all(b"PA").expect("split magic");
+        sink.write_all(b"R1").expect("split magic");
+        assert!(sink.require_footer_within(6).is_ok());
+        assert!(sink.require_footer_within(5).is_err());
     }
 }

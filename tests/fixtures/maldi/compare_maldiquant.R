@@ -1,4 +1,4 @@
-# Compare `marklab microbio preprocess` with readBrukerFlexData 1.9.3 and MALDIquant 1.22.3.
+# Compare `marklab spectrum preprocess` with readBrukerFlexData 1.9.3 and MALDIquant 1.22.3.
 #
 # Run from the repository root with the reference packages installed in an isolated library:
 #
@@ -106,7 +106,7 @@ run_marklab <- function(acquisition_dir, steps, name, with_binning = FALSE) {
   writeLines(toJSON(body, auto_unbox = TRUE, digits = NA), config)
   output <- suppressWarnings(system2(
     marklab,
-    c("microbio", "preprocess", "--bruker", shQuote(acquisition_dir),
+    c("spectrum", "preprocess", "--bruker", shQuote(acquisition_dir),
       "--config", shQuote(config), "--out", shQuote(out)),
     stdout = TRUE, stderr = TRUE
   ))

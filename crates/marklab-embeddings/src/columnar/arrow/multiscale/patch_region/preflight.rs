@@ -1,6 +1,6 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
-use arrow_ipc::convert::fb_to_schema;
+use arrow_ipc::convert::try_fb_to_schema;
 use marklab_project::ContentDigest;
 
 use crate::PatchRegionLink;
@@ -8,7 +8,7 @@ use crate::PatchRegionLink;
 use super::super::super::physical::{
     align, checked_range, decode_footer, decode_record_batch_message, nonnegative_i64, read_footer,
     traverse_record_batches, validate_footer_features, validate_record_batch_features,
-    validity_bytes,
+    validity_bytes, BufferLength,
 };
 use super::profile::{
     arrow_failure, schema, validate_flatbuffer_schema, BUFFER_COUNT, FIELD_COUNT,
@@ -94,7 +94,9 @@ pub(super) fn preflight_reader<R: Read + Seek + ?Sized>(
         .ok_or_else(|| arrow_failure(ArrowIpcFailure::InvalidSchema))?;
     validate_flatbuffer_schema(footer_schema, link)?;
     let expected_schema = schema(link)?;
-    if fb_to_schema(footer_schema) != expected_schema {
+    if try_fb_to_schema(footer_schema).map_err(|_| arrow_failure(ArrowIpcFailure::InvalidSchema))?
+        != expected_schema
+    {
         return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let schema_end = super::super::super::physical::validate_schema_message(
@@ -180,7 +182,9 @@ fn validate_record_message(
     validate_rows(body, &ranges, link, start, rows)?;
     lengths.iter().try_fold(0_u64, |total, length| {
         total
-            .checked_add(u64::try_from(*length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .checked_add(
+                u64::try_from(length.decoded_bytes()).map_err(|_| ColumnarError::SizeOverflow)?,
+            )
             .ok_or(ColumnarError::SizeOverflow)
     })
 }
@@ -189,12 +193,12 @@ fn expected_lengths(
     link: &PatchRegionLink,
     start: usize,
     rows: usize,
-) -> Result<[usize; BUFFER_COUNT], ColumnarError> {
+) -> Result<[BufferLength; BUFFER_COUNT], ColumnarError> {
     let selected = link
         .nonzero_relations()
         .get(checked_range(start, rows)?)
         .ok_or(ColumnarError::SizeOverflow)?;
-    let validity = validity_bytes(rows)?;
+    let validity = BufferLength::Validity(validity_bytes(rows)?);
     let offsets = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
@@ -221,16 +225,28 @@ fn expected_lengths(
                         .ok_or(ColumnarError::SizeOverflow)?,
                 ))
             })?;
+    let (offsets, values) = (BufferLength::Exact(offsets), BufferLength::Exact(values));
     Ok([
-        validity, offsets, patches, validity, offsets, regions, validity, offsets, relations,
-        validity, values, validity, values,
+        validity,
+        offsets,
+        BufferLength::Exact(patches),
+        validity,
+        offsets,
+        BufferLength::Exact(regions),
+        validity,
+        offsets,
+        BufferLength::Exact(relations),
+        validity,
+        values,
+        validity,
+        values,
     ])
 }
 
 fn validate_ranges(
     buffers: flatbuffers::Vector<'_, arrow_ipc::Buffer>,
     body: &[u8],
-    lengths: &[usize],
+    lengths: &[BufferLength],
 ) -> Result<Vec<std::ops::Range<usize>>, ColumnarError> {
     let mut ranges = Vec::new();
     ranges
@@ -245,7 +261,7 @@ fn validate_ranges(
         let offset = nonnegative_i64(buffer.offset(), ArrowIpcFailure::InvalidBuffers)?;
         let length = nonnegative_i64(buffer.length(), ArrowIpcFailure::InvalidBuffers)?;
         let aligned = align(next)?;
-        if offset != aligned || offset % ALIGNMENT != 0 || length != *expected {
+        if offset != aligned || offset % ALIGNMENT != 0 || !expected.accepts(length) {
             return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
         }
         if offset > body.len() || body[next..offset].iter().any(|byte| *byte != 0) {

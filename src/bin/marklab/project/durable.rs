@@ -24,7 +24,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use super::{bayes, CliError, MAXIMUM_INPUT_BYTES, MAXIMUM_RESULT_BYTES};
 
-const MAXIMUM_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
+const MAXIMUM_EXECUTABLE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 const MAXIMUM_PYTHON_SUPPORT_ENTRIES: usize = 1024;
 const MAXIMUM_PYTHON_SUPPORT_FILES: usize = 256;
 const PYTHON_SUPPORT_KIND: &str = "application/vnd.marklab.python-worker-support+source;version=1";

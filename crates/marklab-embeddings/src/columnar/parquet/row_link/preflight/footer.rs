@@ -170,8 +170,7 @@ pub(in crate::columnar::parquet::row_link) fn prepare_cell_embedding_row_link_pa
         || usize::try_from(stock.file_metadata().num_rows()).ok() != Some(row_link.entries().len())
         || stock.num_row_groups() != expected_groups
         || stock.file_metadata().created_by() != Some(CREATED_BY)
-        || stock.column_index().is_some()
-        || stock.offset_index().is_some()
+        || stock.page_index().is_some()
     {
         return Err(parquet_failure(ParquetFailure::StockDecode));
     }

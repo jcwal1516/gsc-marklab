@@ -1,19 +1,18 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
-use marklab_project::ContentDigest;
 #[cfg(test)]
-use parquet::format::PageHeader;
-use parquet::{
-    file::metadata::{ParquetMetaData, ParquetMetaDataReader},
-    format::{
-        ColumnOrder, CompressionCodec, Encoding, FieldRepetitionType, FileMetaData, PageType,
-        SchemaElement, Type,
-    },
-    thrift::TSerializable,
+use crate::columnar::parquet::format::PageHeader;
+use marklab_project::ContentDigest;
+use parquet::file::metadata::{ParquetMetaData, ParquetMetaDataReader};
+
+use crate::columnar::parquet::format::{
+    CompressionCodec, Encoding, FieldRepetitionType, FileMetaData, PageType, SchemaElement,
+    TSerializable, Type,
 };
 
 use crate::columnar::parquet::schema::{
-    is_flat_group as is_group, is_required_utf8 as is_utf8, is_unsigned_u64 as is_u64,
+    has_writer_column_orders, is_flat_group as is_group, is_required_utf8 as is_utf8,
+    is_unsigned_u64 as is_u64,
 };
 use crate::{CellEmbeddingRowLink, ExpectedCellSet};
 

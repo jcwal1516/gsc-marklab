@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use super::CohortError;
 
-const MAXIMUM_INPUT_BYTES: u64 = 16 * 1024 * 1024;
+const MAXIMUM_INPUT_BYTES: u64 = 512 * 1024 * 1024;
 
 #[derive(Debug, Deserialize)]
 struct CsvRecord {

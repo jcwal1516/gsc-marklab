@@ -6,9 +6,10 @@ use std::io::{Cursor, Read, Seek};
 use std::mem::size_of;
 
 use marklab_project::ContentDigest;
-use parquet::{
-    file::metadata::ParquetMetaData,
-    format::{ConvertedType, FieldRepetitionType, FileMetaData, LogicalType, SchemaElement, Type},
+use parquet::file::metadata::ParquetMetaData;
+
+use crate::columnar::parquet::format::{
+    ConvertedType, FieldRepetitionType, FileMetaData, LogicalType, SchemaElement, Type,
 };
 
 use crate::columnar::parquet::schema::is_required_utf8 as is_utf8;

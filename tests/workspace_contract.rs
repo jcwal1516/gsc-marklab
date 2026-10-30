@@ -75,7 +75,7 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
             "crates/marklab-graph",
             "crates/marklab-topology",
             "crates/marklab-workflow",
-            "crates/marklab-microbio",
+            "crates/marklab-spectrum",
         ],
         "the root remains implicit and only packages with immediate callers are listed"
     );
@@ -255,7 +255,7 @@ fn workspace_dependencies_descend_layers_and_core_packages_have_no_cli_feature()
         ("marklab-project", 2_u8),
         ("marklab-embeddings", 3_u8),
         ("marklab-workflow", 3_u8),
-        ("marklab-microbio", 0_u8),
+        ("marklab-spectrum", 0_u8),
         ("marklab", 4_u8),
     ]);
 

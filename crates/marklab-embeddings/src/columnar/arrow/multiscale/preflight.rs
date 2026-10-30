@@ -1,6 +1,6 @@
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
-use arrow_ipc::convert::fb_to_schema;
+use arrow_ipc::convert::try_fb_to_schema;
 use marklab_project::ContentDigest;
 
 use crate::{ExpectedPatchSet, PatchEmbeddingContext, PatchFootprintSet, PatchOverlapGraph};
@@ -8,7 +8,7 @@ use crate::{ExpectedPatchSet, PatchEmbeddingContext, PatchFootprintSet, PatchOve
 use super::super::physical::{
     align, checked_range, decode_footer, decode_record_batch_message, nonnegative_i32,
     nonnegative_i64, read_footer, traverse_record_batches, validate_footer_features,
-    validate_record_batch_features, validity_bytes,
+    validate_record_batch_features, validity_bytes, BufferLength,
 };
 use super::{
     super::profile::{ALIGNMENT, EOS_BYTES, RECORD_BATCH_ROWS},
@@ -166,7 +166,9 @@ pub(super) fn preflight_reader<R: Read + Seek + ?Sized>(
         overlap,
     )?;
     let schema = expected_schema(profile, expected, context, footprints, overlap)?;
-    if fb_to_schema(footer_schema) != schema {
+    if try_fb_to_schema(footer_schema).map_err(|_| arrow_failure(ArrowIpcFailure::InvalidSchema))?
+        != schema
+    {
         return Err(arrow_failure(ArrowIpcFailure::InvalidSchema));
     }
     let row_count = match profile {
@@ -270,7 +272,7 @@ fn validate_record_message(
     if buffers.len() != profile.buffer_count() {
         return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
     }
-    let validity = validity_bytes(rows)?;
+    let validity = BufferLength::Validity(validity_bytes(rows)?);
     let offsets = rows
         .checked_add(1)
         .and_then(|value| value.checked_mul(size_of::<i32>()))
@@ -281,18 +283,25 @@ fn validate_record_message(
             let value_bytes = rows.checked_mul(8).ok_or(ColumnarError::SizeOverflow)?;
             vec![
                 validity,
-                offsets,
-                patch_bytes,
+                BufferLength::Exact(offsets),
+                BufferLength::Exact(patch_bytes),
                 validity,
-                value_bytes,
+                BufferLength::Exact(value_bytes),
                 validity,
-                value_bytes,
+                BufferLength::Exact(value_bytes),
             ]
         }
         SpatialArrowProfile::Overlap => {
             let overlap = overlap.ok_or(ColumnarError::ArtifactBindingMismatch)?;
             let (left, right) = overlap_text_bytes(overlap, start, rows)?;
-            vec![validity, offsets, left, validity, offsets, right]
+            vec![
+                validity,
+                BufferLength::Exact(offsets),
+                BufferLength::Exact(left),
+                validity,
+                BufferLength::Exact(offsets),
+                BufferLength::Exact(right),
+            ]
         }
     };
     let mut ranges = Vec::new();
@@ -311,7 +320,7 @@ fn validate_record_message(
         let offset = nonnegative_i64(buffer.offset(), ArrowIpcFailure::InvalidBuffers)?;
         let length = nonnegative_i64(buffer.length(), ArrowIpcFailure::InvalidBuffers)?;
         let aligned = align(next)?;
-        if offset != aligned || offset % ALIGNMENT != 0 || length != expected_len {
+        if offset != aligned || offset % ALIGNMENT != 0 || !expected_len.accepts(length) {
             return Err(arrow_failure(ArrowIpcFailure::InvalidBuffers));
         }
         if offset > body.len() || body[next..offset].iter().any(|byte| *byte != 0) {
@@ -326,7 +335,10 @@ fn validate_record_message(
         ranges.push(offset..end);
         next = end;
         decoded = decoded
-            .checked_add(u64::try_from(length).map_err(|_| ColumnarError::SizeOverflow)?)
+            .checked_add(
+                u64::try_from(expected_len.decoded_bytes())
+                    .map_err(|_| ColumnarError::SizeOverflow)?,
+            )
             .ok_or(ColumnarError::SizeOverflow)?;
     }
     let aligned_end = align(next)?;

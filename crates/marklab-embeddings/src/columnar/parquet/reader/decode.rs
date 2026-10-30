@@ -311,8 +311,7 @@ where
         if status != link.status() {
             return Err(parquet_failure(ParquetFailure::InvalidStatus));
         }
-        let start = usize::try_from(embeddings.value_offset(local_row))
-            .map_err(|_| parquet_failure(ParquetFailure::StockDecode))?;
+        let start = embeddings.value_offset_at(local_row);
         let end = start
             .checked_add(dimension)
             .ok_or(ColumnarError::SizeOverflow)?;

@@ -11,6 +11,8 @@ use std::{collections::BTreeMap, io::Cursor};
 
 use adversarial_support::{
     arrow_buffer_location, arrow_footer_bounds, arrow_node_location, first_arrow_block_descriptor,
+    one_byte_validity,
+    parquet_format::{CompressionCodec, Encoding, Statistics},
     rewrite_parquet_footer, swapped_arrow_columns, trusted_parquet_metadata,
 };
 use arrow::ipc::reader::FileReader;
@@ -23,7 +25,6 @@ use marklab::{
     },
     workflow::ContentDigest,
 };
-use parquet::format::{CompressionCodec, Encoding, Statistics};
 
 fn budgets() -> EmbeddingColumnarBudgets {
     EmbeddingColumnarBudgets::new(
@@ -246,9 +247,7 @@ fn patch_region_arrow_preflight_rejects_nodes_buffers_rows_schema_and_bounds() {
     ));
 
     for buffer_index in [0, 3, 6, 9, 11] {
-        let mut wrong_validity = canonical.clone();
-        let (_, validity) = arrow_buffer_location(&wrong_validity, buffer_index);
-        wrong_validity[validity.start] = 0x07;
+        let wrong_validity = one_byte_validity(&canonical, buffer_index);
         assert!(matches!(
             preflight_patch_region_link_arrow_bytes(&wrong_validity, &link, budgets()),
             Err(ColumnarError::Arrow {
@@ -299,10 +298,10 @@ fn patch_region_arrow_preflight_rejects_nodes_buffers_rows_schema_and_bounds() {
     }
 
     let mut wrong_padding = canonical.clone();
-    let (_, validity) = arrow_buffer_location(&wrong_padding, 0);
     let (_, offsets) = arrow_buffer_location(&wrong_padding, 1);
-    assert!(validity.end < offsets.start);
-    wrong_padding[validity.end] = 1;
+    let (_, patches) = arrow_buffer_location(&wrong_padding, 2);
+    assert!(offsets.end < patches.start);
+    wrong_padding[offsets.end] = 1;
     assert!(matches!(
         preflight_patch_region_link_arrow_bytes(&wrong_padding, &link, budgets()),
         Err(ColumnarError::Arrow {
