@@ -252,6 +252,10 @@
   0.13.1 and no longer depends on `czi-rs`, so `zstd` 0.13 and `zstd-safe` 7 leave the graph. No
   marklab source changed. The public Aperio JPEG 2000 region now decodes identically to OpenSlide
   (maximum and mean absolute RGBA difference 0, from 24 and 2.41 with 0.5.0).
+- Raise the limit on hashing the marklab executable for project provenance from 1 GiB to 4 GiB.
+  With `wsi-rs` 0.9 a Linux debug build with all features and full debug info is larger than
+  1 GiB, so a native study run from it stopped with "input exceeds its provenance hashing limit".
+  Hashing streams the file, so memory use is unchanged.
 - Name the spectrum and classifier commands for what they do rather than for MALDI-TOF
   susceptibility: `microbio preprocess` and `microbio feature-table` are now `spectrum preprocess`
   and `spectrum feature-table`, which takes `--modality` and `--unit`; `microbio fit-ast` and

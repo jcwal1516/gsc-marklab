@@ -12,7 +12,7 @@ use crate::{
     MarklabError, Result,
 };
 
-const MAXIMUM_EXECUTABLE_BYTES: u64 = 1024 * 1024 * 1024;
+const MAXIMUM_EXECUTABLE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 pub(super) fn source_artifact(path: &std::path::Path, kind: &str) -> Result<ArtifactRef> {
     let mut file = File::open(path).map_err(|source| MarklabError::io(path, source))?;
@@ -77,7 +77,7 @@ fn io_copy_bounded(
     if copied > maximum {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "Marklab executable exceeds the one-GiB provenance hashing limit",
+            "Marklab executable exceeds the four-GiB provenance hashing limit",
         ));
     }
     Ok(copied)
