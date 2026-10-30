@@ -74,6 +74,8 @@ Methods: [spectrum preprocessing](../docs/spectrum-preprocessing.md) and
    ```
 
    Use `--bruker <acquisition directory>` instead of `--text` for Bruker flex `fid`/`acqu` data.
+   For spectra from instruments that sample m/z at different spacings, add `"aggregate": "area"`
+   to `binning` ([bin values](../docs/spectrum-preprocessing.md#configuration)).
 2. **Collect the binned spectra** into a feature table, one row per isolate:
 
    ```sh

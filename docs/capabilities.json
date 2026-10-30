@@ -1120,7 +1120,7 @@
       "does": [
         "Read Bruker flex fid/acqu acquisitions (time of flight to m/z) or two-column text spectra",
         "Ordered square-root, Savitzky-Golay, SNIP baseline, total-ion-current and trim steps",
-        "Fixed-edge m/z binning with in-order summation"
+        "Fixed-edge m/z binning by in-order summation or by area under the piecewise-linear spectrum"
       ],
       "input": "One Bruker flex spectrum directory (fid with acqu or acqus) or one two-column text spectrum, and a JSON list of preprocessing steps with optional bins.",
       "output": "Acquisition facts, the preprocessed m/z spectrum and optional binned intensities.",

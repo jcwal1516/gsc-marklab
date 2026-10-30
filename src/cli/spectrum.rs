@@ -9,7 +9,7 @@ use std::{
 
 use marklab_prediction::MAXIMUM_LOGISTIC_VALUES;
 use marklab_spectrum::{
-    bin_spectrum, preprocess_spectrum, read_bruker_flex, read_text_spectrum, BinSpec,
+    bin_spectrum, preprocess_spectrum, read_bruker_flex, read_text_spectrum, BinAggregate, BinSpec,
     BinnedSpectrum, BrukerByteOrder, BrukerTofMode, MassSpectrum, PreprocessStep, SpectrumError,
 };
 use serde::{Deserialize, Serialize};
@@ -145,11 +145,14 @@ struct BinnedIntensities {
     min_mz: f64,
     max_mz: f64,
     bins: usize,
+    /// Absent from summed results.
+    #[serde(default)]
+    aggregate: BinAggregate,
     intensity: Vec<f64>,
 }
 
 /// Collect binned spectra into a feature table with columns `bin_0`, `bin_1`, …. All spectra
-/// must share the preprocessing steps and bins, which become the provenance.
+/// must share the preprocessing steps and binning, which become the provenance.
 pub(super) fn run_feature_table(args: FeatureTableArgs) -> Result<()> {
     if !is_name(&args.modality) || !is_name(&args.unit) {
         bail!("--modality and --unit must be non-empty and without surrounding spaces");
@@ -194,10 +197,14 @@ pub(super) fn run_feature_table(args: FeatureTableArgs) -> Result<()> {
                 binned.bins
             );
         }
-        let this = serde_json::json!({
-            "steps": result.steps,
-            "binning": {"min_mz": binned.min_mz, "max_mz": binned.max_mz, "bins": binned.bins},
-        });
+        // Serialized as configured: summed bins record no `aggregate`.
+        let binning = BinSpec {
+            min_mz: binned.min_mz,
+            max_mz: binned.max_mz,
+            bins: binned.bins,
+            aggregate: binned.aggregate,
+        };
+        let this = serde_json::json!({"steps": result.steps, "binning": binning});
         match &provenance {
             None => {
                 if paths.len().saturating_mul(binned.bins) > MAXIMUM_LOGISTIC_VALUES {
@@ -212,7 +219,7 @@ pub(super) fn run_feature_table(args: FeatureTableArgs) -> Result<()> {
                 provenance = Some(this);
             }
             Some(first) if *first != this => bail!(
-                "{}: preprocessing steps or bins differ from {}",
+                "{}: preprocessing steps or binning differ from {}",
                 path.display(),
                 first_path.display()
             ),

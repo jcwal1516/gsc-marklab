@@ -20,6 +20,8 @@ pub use bruker::{
     MAXIMUM_BRUKER_TIME_POINTS,
 };
 pub use error::SpectrumError;
-pub use preprocess::{bin_spectrum, preprocess_spectrum, BinSpec, BinnedSpectrum, PreprocessStep};
+pub use preprocess::{
+    bin_spectrum, preprocess_spectrum, BinAggregate, BinSpec, BinnedSpectrum, PreprocessStep,
+};
 pub use spectrum::MassSpectrum;
 pub use text::{parse_text_spectrum, read_text_spectrum};

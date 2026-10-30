@@ -366,7 +366,7 @@ where an individual model still lacks a complete public demonstration; a command
 | `topology` | Research | GUDHI/scikit-image and known topology/stability tests; tissue biomarker interpretation unvalidated. |
 | `spatial3d` | Research | Cuboid/voxel/registration and known 3-D answers; real serial-section patient claims unvalidated. |
 | `simulate` | Research | Solver/conservation/bound/seeded-process tests; no fitted mechanistic tissue validation. |
-| `spectrum preprocess` | Experimental for linear-mode Bruker flex reading and the five steps and binning; Research for reflector mode | [Agreement with readBrukerFlexData, MALDIquant and flexAnalysis](spectrum-preprocessing.md#evidence) on public example spectra and 11,055 RKI acquisitions. Not checked on a current Biotyper software version. |
+| `spectrum preprocess` | Experimental for linear-mode Bruker flex reading, the five steps and summed binning; Research for reflector mode and area binning | [Agreement with readBrukerFlexData, MALDIquant and flexAnalysis](spectrum-preprocessing.md#evidence) on public example spectra and 11,055 RKI acquisitions. Not checked on a current Biotyper software version. |
 | `spectrum feature-table`, `classifier fit`, `classifier predict` | Research | [scikit-learn and high-precision agreement and writer interoperability](classifier.md#evidence). No patient-grouped, temporal, external-site or clinical validation. |
 | `neural` | Research | Synthetic point-process/generator/SBI checks; no image-model training or real-cohort performance claim. |
 | `causal` | Research | Analytic/synthetic identification and sensitivity controls; observational tissue association is not causation. |

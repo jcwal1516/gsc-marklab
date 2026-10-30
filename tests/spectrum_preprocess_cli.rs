@@ -50,19 +50,15 @@ fn preprocesses_a_bruker_acquisition_into_bins() {
     let acquisition = dir.path().join("0_A1/1/1SLin");
     write_acquisition(&acquisition, "", &[4, 9, 16, -1, 25, 36]);
     let config = dir.path().join("config.json");
-    fs::write(
-        &config,
-        json!({
-            "steps": [
-                {"step": "sqrt"},
-                {"step": "total_ion_current"},
-                {"step": "trim", "min_mz": 441.0, "max_mz": 441.3}
-            ],
-            "binning": {"min_mz": 441.0, "max_mz": 441.3, "bins": 3}
-        })
-        .to_string(),
-    )
-    .unwrap();
+    let mut settings = json!({
+        "steps": [
+            {"step": "sqrt"},
+            {"step": "total_ion_current"},
+            {"step": "trim", "min_mz": 441.0, "max_mz": 441.3}
+        ],
+        "binning": {"min_mz": 441.0, "max_mz": 441.3, "bins": 3}
+    });
+    fs::write(&config, settings.to_string()).unwrap();
     let out = dir.path().join("result.json");
     run(&acquisition, &config, &out).success();
 
@@ -100,6 +96,43 @@ fn preprocesses_a_bruker_acquisition_into_bins() {
         .collect();
     assert_eq!(binned, [intensity[0] + intensity[1], intensity[2], 0.0]);
     assert_eq!(result["binned"]["points_outside"], 0);
+    // Summed bins are written without `aggregate`, as before it existed.
+    let keys: Vec<&String> = result["binned"].as_object().unwrap().keys().collect();
+    assert_eq!(
+        keys,
+        ["bins", "intensity", "max_mz", "min_mz", "points_outside"]
+    );
+
+    // Area bins: the kept spectrum starts at the first edge and ends inside the last bin, so the
+    // bins together hold its whole trapezoidal area.
+    settings["binning"]["aggregate"] = json!("area");
+    fs::write(&config, settings.to_string()).unwrap();
+    let out = dir.path().join("area.json");
+    run(&acquisition, &config, &out).success();
+    let area: Value = serde_json::from_slice(&fs::read(&out).unwrap()).unwrap();
+    assert_eq!(area["spectrum"], result["spectrum"]);
+    assert_eq!(area["binned"]["aggregate"], "area");
+    assert_eq!(area["binned"]["points_outside"], 0);
+    let total: f64 = area["binned"]["intensity"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_f64().unwrap())
+        .sum();
+    let trapezoids: f64 = mz
+        .windows(2)
+        .zip(intensity.windows(2))
+        .map(|(m, y)| (y[0] + y[1]) / 2.0 * (m[1] - m[0]))
+        .sum();
+    assert!((total - trapezoids).abs() <= 1e-12 * trapezoids);
+
+    settings["binning"]["aggregate"] = json!("mean");
+    fs::write(&config, settings.to_string()).unwrap();
+    let out = dir.path().join("mean.json");
+    run(&acquisition, &config, &out)
+        .failure()
+        .stderr(predicate::str::contains("unknown variant `mean`"));
+    assert!(!out.exists());
 }
 
 #[test]
