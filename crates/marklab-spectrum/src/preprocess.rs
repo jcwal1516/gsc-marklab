@@ -46,9 +46,31 @@ pub struct BinSpec {
     pub max_mz: f64,
     /// Number of bins.
     pub bins: usize,
+    /// How each bin's value is formed; `sum` when absent. Not serialized when `sum`.
+    #[serde(default, skip_serializing_if = "BinAggregate::is_sum")]
+    pub aggregate: BinAggregate,
 }
 
-/// Summed intensity per bin.
+/// How a bin's value is formed from the spectrum.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BinAggregate {
+    /// The sum of the intensities of the points in the bin. It grows with the number of points
+    /// per bin, so with how densely the instrument samples m/z.
+    #[default]
+    Sum,
+    /// The integral over the bin of the spectrum's piecewise-linear interpolant, the curve whose
+    /// area `total_ion_current` divides by. It does not depend on how densely m/z is sampled.
+    Area,
+}
+
+impl BinAggregate {
+    fn is_sum(&self) -> bool {
+        *self == Self::Sum
+    }
+}
+
+/// One value per bin.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct BinnedSpectrum {
     /// Lower edge of the first bin.
@@ -57,9 +79,12 @@ pub struct BinnedSpectrum {
     pub max_mz: f64,
     /// Number of bins.
     pub bins: usize,
+    /// How each bin's value was formed. Not serialized when `sum`.
+    #[serde(skip_serializing_if = "BinAggregate::is_sum")]
+    pub aggregate: BinAggregate,
     /// Spectrum points below `min_mz` or above `max_mz`, which no bin received.
     pub points_outside: usize,
-    /// Summed intensity of each bin, in m/z order.
+    /// Summed intensity or area of each bin, in m/z order.
     pub intensity: Vec<f64>,
 }
 
@@ -269,10 +294,18 @@ fn snip_baseline(values: &[f64], iterations: usize, decreasing: bool) -> Vec<f64
     baseline
 }
 
-/// Sum intensities into the bins of `spec`. Bin `i` covers `[e_i, e_{i+1})` with
-/// `e_i = min_mz + i (max_mz - min_mz) / bins` and the last bin also includes `max_mz`, the
-/// boundaries of `numpy.histogram` over `numpy.linspace` edges. Each bin sums its own points
-/// in m/z order.
+/// Bin `spectrum` between the edges `e_i = min_mz + i (max_mz - min_mz) / bins`, the last edge
+/// exactly `max_mz`, as `spec.aggregate` declares.
+///
+/// [`BinAggregate::Sum`]: bin `i` covers `[e_i, e_{i+1})` and the last bin also includes
+/// `max_mz`, the boundaries of `numpy.histogram` over `numpy.linspace` edges. Each bin sums its
+/// own points in m/z order.
+///
+/// [`BinAggregate::Area`]: bin `i` is the integral from `e_i` to `e_{i+1}` of the straight lines
+/// between consecutive points, which is zero beyond the first and last point. An edge between two
+/// points splits their trapezoid at the interpolated intensity.
+///
+/// Either way, points outside `[min_mz, max_mz]` are counted in `points_outside`.
 pub fn bin_spectrum(
     spectrum: &MassSpectrum,
     spec: &BinSpec,
@@ -281,6 +314,7 @@ pub fn bin_spectrum(
         min_mz,
         max_mz,
         bins,
+        aggregate,
     } = spec;
     if !(min_mz.is_finite() && max_mz.is_finite() && min_mz < max_mz) {
         return Err(SpectrumError::Binning(format!(
@@ -302,28 +336,69 @@ pub fn bin_spectrum(
             "the bin edges cannot be represented in floating point".to_owned(),
         ));
     }
-    let mut intensity = vec![0.0; bins];
-    let mut points_outside = 0;
-    for (&mz, &value) in spectrum.mz.iter().zip(&spectrum.intensity) {
-        if !(min_mz..=max_mz).contains(&mz) {
-            points_outside += 1;
-            continue;
-        }
-        let bin = (edges.partition_point(|edge| *edge <= mz) - 1).min(bins - 1);
-        intensity[bin] += value;
-    }
+    let points_outside = spectrum
+        .mz
+        .iter()
+        .filter(|mz| !(min_mz..=max_mz).contains(*mz))
+        .count();
+    let (intensity, kind) = match aggregate {
+        BinAggregate::Sum => (sum_bins(spectrum, &edges), "sum"),
+        BinAggregate::Area => (area_bins(spectrum, &edges), "area"),
+    };
     if intensity.iter().any(|value| !value.is_finite()) {
-        return Err(SpectrumError::Binning(
-            "a bin sum overflows to infinity".to_owned(),
-        ));
+        return Err(SpectrumError::Binning(format!(
+            "a bin {kind} overflows to infinity"
+        )));
     }
     Ok(BinnedSpectrum {
         min_mz,
         max_mz,
         bins,
+        aggregate,
         points_outside,
         intensity,
     })
+}
+
+/// Add each point between the first and last edge to its bin, in m/z order.
+fn sum_bins(spectrum: &MassSpectrum, edges: &[f64]) -> Vec<f64> {
+    let bins = edges.len() - 1;
+    let mut intensity = vec![0.0; bins];
+    for (&mz, &value) in spectrum.mz.iter().zip(&spectrum.intensity) {
+        if (edges[0]..=edges[bins]).contains(&mz) {
+            let bin = (edges.partition_point(|edge| *edge <= mz) - 1).min(bins - 1);
+            intensity[bin] += value;
+        }
+    }
+    intensity
+}
+
+/// Integrate the line through each pair of consecutive points over the part of each bin it
+/// spans. The line is exact at its ends, so a segment inside one bin adds the same trapezoid
+/// `total_ion_current` does. Segments and bins are both in m/z order, so one pass visits each
+/// overlapping segment and bin once.
+fn area_bins(spectrum: &MassSpectrum, edges: &[f64]) -> Vec<f64> {
+    let bins = edges.len() - 1;
+    let mut area = vec![0.0; bins];
+    let mut first_bin = 0;
+    for (mz, values) in spectrum.mz.windows(2).zip(spectrum.intensity.windows(2)) {
+        let (start, end, at_start, at_end) = (mz[0], mz[1], values[0], values[1]);
+        while first_bin < bins && edges[first_bin + 1] <= start {
+            first_bin += 1;
+        }
+        let line = |mz: f64| {
+            let fraction = (mz - start) / (end - start);
+            at_start * (1.0 - fraction) + at_end * fraction
+        };
+        for bin in first_bin..bins {
+            if edges[bin] >= end {
+                break;
+            }
+            let (low, high) = (start.max(edges[bin]), end.min(edges[bin + 1]));
+            area[bin] += (line(low) + line(high)) / 2.0 * (high - low);
+        }
+    }
+    area
 }
 
 #[cfg(test)]
@@ -437,6 +512,15 @@ mod tests {
         assert!(error.contains("step 1 (trim)"), "{error}");
     }
 
+    fn bin_spec(min_mz: f64, max_mz: f64, bins: usize, aggregate: BinAggregate) -> BinSpec {
+        BinSpec {
+            min_mz,
+            max_mz,
+            bins,
+            aggregate,
+        }
+    }
+
     #[test]
     fn binning_uses_half_open_bins_with_a_closed_last_bin() {
         let spectrum = MassSpectrum::new(
@@ -444,33 +528,75 @@ mod tests {
             vec![100.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0],
         )
         .unwrap();
-        let binned = bin_spectrum(
-            &spectrum,
-            &BinSpec {
-                min_mz: 1.0,
-                max_mz: 7.0,
-                bins: 3,
-            },
-        )
-        .unwrap();
+        let binned = bin_spectrum(&spectrum, &bin_spec(1.0, 7.0, 3, BinAggregate::Sum)).unwrap();
         // Bins [1, 3), [3, 5), [5, 7]; 0.5 and 7.5 fall outside.
         assert_eq!(binned.intensity, [3.0, 4.0, 24.0]);
         assert_eq!(binned.points_outside, 2);
+        // Summed bins serialize as they did before `aggregate` existed.
+        assert_eq!(
+            serde_json::to_string(&binned).unwrap(),
+            r#"{"min_mz":1.0,"max_mz":7.0,"bins":3,"points_outside":2,"intensity":[3.0,4.0,24.0]}"#
+        );
 
-        // Finite inputs whose bin width or bin sum overflows are rejected.
-        let overflowing_width = BinSpec {
-            min_mz: -1e308,
-            max_mz: 1e308,
-            bins: 1,
-        };
-        assert!(bin_spectrum(&spectrum, &overflowing_width).is_err());
+        // Area bins integrate the interpolant: the edge at 5 splits the segment from (3, 4) to
+        // (5.9, 8), where it is 4 + 4 · 2 / 2.9 = 196 / 29. The segments beyond 1 and 7 add
+        // nothing, however large their points.
+        let area = bin_spectrum(&spectrum, &bin_spec(1.0, 7.0, 3, BinAggregate::Area)).unwrap();
+        let expected = [
+            (1.0 + 2.0) / 2.0 * 1.9 + (2.0 + 4.0) / 2.0 * 0.1,
+            (4.0 + 196.0 / 29.0) / 2.0 * 2.0,
+            (196.0 / 29.0 + 8.0) / 2.0 * 0.9 + (8.0 + 16.0) / 2.0 * 1.1,
+        ];
+        for (actual, expected) in area.intensity.iter().zip(expected) {
+            assert!(
+                (actual - expected).abs() <= 1e-14 * expected,
+                "{actual} != {expected}"
+            );
+        }
+        assert_eq!(area.points_outside, 2);
+        assert_eq!(serde_json::to_value(&area).unwrap()["aggregate"], "area");
+        // Bins beyond the spectrum's first and last points are zero.
+        let short = MassSpectrum::new(vec![2.0, 3.0], vec![1.0, 1.0]).unwrap();
+        let area = bin_spectrum(&short, &bin_spec(0.0, 6.0, 3, BinAggregate::Area)).unwrap();
+        assert_eq!(area.intensity, [0.0, 1.0, 0.0]);
+
+        // Finite inputs whose bin width or bin value overflows are rejected.
         let huge = MassSpectrum::new(vec![1.0, 2.0], vec![1e308, 1e308]).unwrap();
-        let one_bin = BinSpec {
-            min_mz: 1.0,
-            max_mz: 2.0,
-            bins: 1,
+        for aggregate in [BinAggregate::Sum, BinAggregate::Area] {
+            assert!(bin_spectrum(&spectrum, &bin_spec(-1e308, 1e308, 1, aggregate)).is_err());
+            assert!(bin_spectrum(&huge, &bin_spec(1.0, 2.0, 1, aggregate)).is_err());
+            assert!(bin_spectrum(&spectrum, &bin_spec(1.0, 7.0, 0, aggregate)).is_err());
+        }
+    }
+
+    #[test]
+    fn area_bins_do_not_depend_on_point_spacing() {
+        // One piecewise-linear spectrum, a triangle from 20 up to 40 and back, sampled every
+        // 1 Da and every 0.25 Da. All values and bin edges are exact in binary.
+        let height = |mz: f64| 40.0 - (mz - 2020.0).abs();
+        let sampled = |spacing: f64, points: usize| {
+            let mz: Vec<f64> = (0..points)
+                .map(|index| 2000.0 + spacing * index as f64)
+                .collect();
+            let intensity = mz.iter().map(|&mz| height(mz)).collect();
+            MassSpectrum::new(mz, intensity).unwrap()
         };
-        assert!(bin_spectrum(&huge, &one_bin).is_err());
+        let (coarse, fine) = (sampled(1.0, 45), sampled(0.25, 177));
+        let area = bin_spec(2000.0, 2040.0, 10, BinAggregate::Area);
+        assert_eq!(
+            bin_spectrum(&coarse, &area).unwrap().intensity,
+            bin_spectrum(&fine, &area).unwrap().intensity
+        );
+
+        // Summed bins hold four times as many points at the finer spacing. The closed last bin
+        // holds one point more in each, so it is left out.
+        let sum = bin_spec(2000.0, 2040.0, 10, BinAggregate::Sum);
+        let coarse = bin_spectrum(&coarse, &sum).unwrap().intensity;
+        let fine = bin_spectrum(&fine, &sum).unwrap().intensity;
+        for (bin, (coarse, fine)) in coarse.iter().zip(&fine).take(9).enumerate() {
+            let ratio = fine / coarse;
+            assert!((ratio - 4.0).abs() < 0.1, "bin {bin}: ratio {ratio}");
+        }
     }
 
     /// 600 points every 30 Da from 2,000 Da: decaying background, three peaks and a ripple.
@@ -563,20 +689,49 @@ mod tests {
     #[test]
     fn binning_conserves_intensity_between_inclusive_edges() {
         let spectrum = synthetic_spectrum(1.0);
-        // Both edges fall exactly on points (indices 10 and 400).
+        // Both edges fall exactly on points (indices 10 and 400); the 3.25 Da bins inside fall
+        // between points 30 Da apart.
         let binned = bin_spectrum(
             &spectrum,
-            &BinSpec {
-                min_mz: 2300.0,
-                max_mz: 14000.0,
-                bins: 3600,
-            },
+            &bin_spec(2300.0, 14000.0, 3600, BinAggregate::Sum),
         )
         .unwrap();
         let inside: f64 = spectrum.intensity()[10..=400].iter().sum();
         let binned_total: f64 = binned.intensity.iter().sum();
         assert_eq!(binned.points_outside, 600 - 391);
         assert!((binned_total - inside).abs() <= 1e-12 * inside);
+
+        // Area bins add up to the trapezoidal area between the edges.
+        let area = bin_spec(2300.0, 14000.0, 3600, BinAggregate::Area);
+        let binned = bin_spectrum(&spectrum, &area).unwrap();
+        let (mz, intensity) = (&spectrum.mz()[10..=400], &spectrum.intensity()[10..=400]);
+        let trapezoids: f64 = mz
+            .windows(2)
+            .zip(intensity.windows(2))
+            .map(|(m, y)| (y[0] + y[1]) / 2.0 * (m[1] - m[0]))
+            .sum();
+        let binned_total: f64 = binned.intensity.iter().sum();
+        assert_eq!(binned.points_outside, 600 - 391);
+        assert!((binned_total - trapezoids).abs() <= 1e-12 * trapezoids);
+
+        // So after trimming to the edges and dividing by the total ion current, they add up to 1.
+        let normalized = preprocess_spectrum(
+            &spectrum,
+            &[
+                PreprocessStep::Trim {
+                    min_mz: 2300.0,
+                    max_mz: 14000.0,
+                },
+                PreprocessStep::TotalIonCurrent,
+            ],
+        )
+        .unwrap();
+        let total: f64 = bin_spectrum(&normalized, &area)
+            .unwrap()
+            .intensity
+            .iter()
+            .sum();
+        assert!((total - 1.0).abs() <= 1e-12, "{total}");
     }
 
     #[test]
@@ -596,5 +751,24 @@ mod tests {
                 "{text}"
             );
         }
+
+        // Without `aggregate`, bins are sums and serialize unchanged; `area` is written out.
+        for (text, aggregate) in [
+            (r#"{"min_mz":1.0,"max_mz":7.0,"bins":3}"#, BinAggregate::Sum),
+            (
+                r#"{"min_mz":1.0,"max_mz":7.0,"bins":3,"aggregate":"area"}"#,
+                BinAggregate::Area,
+            ),
+        ] {
+            let spec: BinSpec = serde_json::from_str(text).unwrap();
+            assert_eq!(spec, bin_spec(1.0, 7.0, 3, aggregate));
+            assert_eq!(serde_json::to_string(&spec).unwrap(), text);
+        }
+        let error = serde_json::from_str::<BinSpec>(
+            r#"{"min_mz":1,"max_mz":7,"bins":3,"aggregate":"mean"}"#,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("unknown variant `mean`"), "{error}");
     }
 }

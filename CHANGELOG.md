@@ -4,6 +4,18 @@
 
 ### Scientific and serialized contracts
 
+- `spectrum preprocess` can bin by area: with `"aggregate": "area"` in `binning`, each bin is the
+  integral over the bin of the straight lines joining consecutive points, the curve
+  `total_ion_current` integrates, instead of the sum of the bin's points. A summed bin grows with
+  the number of points in it, so spectra from instruments that sample m/z at different spacings
+  give summed bins on different scales even after `total_ion_current`; area bins do not. `"sum"`
+  stays the default, and summed results and feature-table provenance are written exactly as
+  before. Area results record `"aggregate": "area"` in `binned` and in the feature-table
+  `binning` provenance, so a model fitted on one kind of bins refuses tables of the other and
+  `spectrum feature-table` refuses a directory that mixes them. `marklab-spectrum` adds
+  `BinAggregate` and an `aggregate` field to `BinSpec` and `BinnedSpectrum`; struct literals of
+  either must set it.
+
 - Blocked `cohort covariate-permutation` and `cohort covariate-matrix-permutation` now remove block means
   before the residual permutation, which puts block fixed effects in the model. Before, residuals moved only
   within blocks but the model had no block terms. The p-value then tested the within-block contrast, while the

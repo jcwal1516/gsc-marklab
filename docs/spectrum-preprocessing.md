@@ -2,10 +2,11 @@
 
 `marklab spectrum preprocess` reads one spectrum, either a Bruker flex-series acquisition
 (converting time of flight to m/z) or a two-column text spectrum, applies declared preprocessing
-steps in order, and can sum the result into fixed m/z bins. The steps suit any one-dimensional
-spectrum with an increasing axis; the reader, the example configuration and the evidence below are
-for MALDI-TOF mass spectra of bacterial isolates. It does not identify species, detect peaks or
-predict anything, and none of Marklab's spatial nulls apply to spectra.
+steps in order, and can bin the result into fixed m/z bins, by summing points or by area. The
+steps suit any one-dimensional spectrum with an increasing axis; the reader, the example
+configuration and the evidence below are for MALDI-TOF mass spectra of bacterial isolates. It does
+not identify species, detect peaks or predict anything, and none of Marklab's spatial nulls apply
+to spectra.
 `marklab spectrum feature-table` then collects binned results into a feature table for
 [`classifier fit`](classifier.md); [Pipelines](../examples/README.md) shows the whole chain.
 
@@ -95,15 +96,40 @@ Order matters. Total ion current before `trim` divides by the area of the whole 
 `trim`, by the area inside the range.
 
 Bins have edges `e_i = min_mz + i (max_mz − min_mz) / bins`, with the last edge exactly
-`max_mz`. Bin `i` covers `[e_i, e_{i+1})` and the last bin also includes `max_mz`. These are the
-boundaries of `numpy.histogram` over `numpy.linspace` edges, which maldi-learn's
+`max_mz`. `aggregate` sets how each bin's value is formed: `"sum"`, the default, or `"area"`.
+Any other value is rejected.
+
+With `"sum"`, bin `i` covers `[e_i, e_{i+1})` and the last bin also includes `max_mz`. These are
+the boundaries of `numpy.histogram` over `numpy.linspace` edges, which maldi-learn's
 `BinningVectorizer` used to produce the DRIAMS `binned_6000` files (2,000–20,000 Da, 6,000 bins of
-3 Da). Each bin sums its own points in m/z order, and points outside `[min_mz, max_mz]` are counted
-in `points_outside`. Given explicit edges, NumPy instead differences cumulative sums, so a bin
-beside much larger intensities can differ from Marklab's by rounding relative to the running total.
-Unlike maldi-learn, Marklab keeps a point exactly at `min_mz` and never moves the edges;
-maldi-learn recomputes edges for a spectrum that extends beyond 2,000–20,000 Da. At most 1,000,000
-bins are allowed, and a non-finite bin width or bin sum is rejected.
+3 Da). Each bin sums its own points in m/z order. Given explicit edges, NumPy instead differences
+cumulative sums, so a bin beside much larger intensities can differ from Marklab's by rounding
+relative to the running total. Unlike maldi-learn, Marklab keeps a point exactly at `min_mz` and
+never moves the edges; maldi-learn recomputes edges for a spectrum that extends beyond
+2,000–20,000 Da.
+
+With `"area"`, bin `i` is the integral from `e_i` to `e_{i+1}` of the straight lines joining
+consecutive points, the curve whose trapezoidal area `total_ion_current` divides by. An edge
+between two points splits their trapezoid at the interpolated intensity, and the curve is zero
+beyond the first and last point, so a bin outside the spectrum is zero. Bins inside the spectrum
+add up to its trapezoidal area between `min_mz` and `max_mz`: 1 after `trim` to the bin range
+followed by `total_ion_current`. Linearly interpolating the cumulative trapezoidal area at each
+edge, as `numpy.diff(numpy.interp(edges, mz, cumulative_area))` does, is close to this integral
+but not equal to it at edges between points.
+
+A summed bin grows with the number of points in it, so spectra sampled at different m/z spacings,
+such as spectra from two instrument makers, give summed bins on different scales even after
+`total_ion_current`. Area bins do not depend on the spacing. On one instrument, area bins are
+roughly summed bins multiplied by the local point spacing, but the ratio changes with m/z and from
+spectrum to spectrum, so a model fitted on summed bins is refitted on area bins rather than
+rescaled.
+
+```json
+"binning": {"min_mz": 2000, "max_mz": 20000, "bins": 6000, "aggregate": "area"}
+```
+
+In both modes, points outside `[min_mz, max_mz]` are counted in `points_outside`. At most
+1,000,000 bins are allowed, and a non-finite bin width or bin value is rejected.
 
 The example configuration uses MALDIquant's smoothing defaults, 20 SNIP iterations, total ion
 current before trimming, and the DRIAMS bin layout.
@@ -117,18 +143,25 @@ The result JSON contains:
   and `points`;
 - `steps`: the steps as run;
 - `spectrum`: the preprocessed `mz` and `intensity` arrays;
-- `binned`: `min_mz`, `max_mz`, `bins`, `points_outside` and `intensity`, or `null` without
-  `binning`.
+- `binned`: `min_mz`, `max_mz`, `bins`, `aggregate` (only when `"area"`), `points_outside` and
+  `intensity`, or `null` without `binning`.
 
-The output file must not already exist.
+Summed results are written exactly as before `aggregate` existed. `spectrum feature-table` records
+`aggregate` in the provenance's `binning` the same way, so summed and area results cannot share a
+table, and a model fitted on one kind refuses tables of the other. The output file must not
+already exist.
 
 ## Evidence
 
 Unit tests cover known calibrations (the linear case exactly and the quadratic case by inverting
 the calibration equation), the classic five-point quadratic Savitzky–Golay filter, exact
 preservation of cubics, SNIP's previous-pass update, the trapezoidal total ion current, the
-inclusive trim, bin edges, and each rejection above. A CLI test runs a synthetic acquisition end to
-end. The fuzz target `bruker_flex` exercises the parser.
+inclusive trim, bin edges, and each rejection above. Area-bin tests cover a hand-computed edge
+between two points, bins beyond the spectrum, conservation of the trapezoidal area (1 after `trim`
+and `total_ion_current`), and one piecewise-linear spectrum sampled every 1 Da and every 0.25 Da,
+whose area bins are equal and whose summed bins differ about fourfold. A CLI test runs a synthetic
+acquisition end to end in both modes. The fuzz target `bruker_flex` exercises the parser. Area bins
+have not been compared with another implementation.
 
 [`tests/fixtures/maldi/compare_maldiquant.R`](../tests/fixtures/maldi/compare_maldiquant.R)
 compares the command with readBrukerFlexData 1.9.3 and MALDIquant 1.22.3 (R 4.5.2) on the two

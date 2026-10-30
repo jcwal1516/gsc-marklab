@@ -21,9 +21,29 @@ fn read_json(path: &Path) -> Value {
     serde_json::from_slice(&fs::read(path).unwrap()).unwrap()
 }
 
+/// The `provenance` in a feature table's `marklab.feature_table` metadata.
+fn provenance(table: &Path) -> Value {
+    use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+    let builder = ParquetRecordBatchReaderBuilder::try_new(fs::File::open(table).unwrap()).unwrap();
+    let meta = &builder.schema().metadata()["marklab.feature_table"];
+    serde_json::from_str::<Value>(meta).unwrap()["provenance"].clone()
+}
+
 /// Preprocess a text spectrum of 2,000–2,009 Da into `bins` bins of `spectra`, with a peak at
 /// 2,006 Da when `peak` is set and row-specific noise in the first two points.
 fn write_spectrum(dir: &Path, spectra: &str, id: &str, index: usize, peak: bool, bins: usize) {
+    let binning = json!({"min_mz": 2000, "max_mz": 2010, "bins": bins});
+    write_binned_spectrum(dir, spectra, id, index, peak, binning);
+}
+
+fn write_binned_spectrum(
+    dir: &Path,
+    spectra: &str,
+    id: &str,
+    index: usize,
+    peak: bool,
+    binning: Value,
+) {
     let text = dir.join(format!("{id}.txt"));
     let lines: String = (0..10)
         .map(|offset| {
@@ -37,9 +57,12 @@ fn write_spectrum(dir: &Path, spectra: &str, id: &str, index: usize, peak: bool,
         })
         .collect();
     fs::write(&text, lines).unwrap();
-    let config = dir.join(format!("preprocess-{bins}.json"));
-    let binning = json!({"steps": [], "binning": {"min_mz": 2000, "max_mz": 2010, "bins": bins}});
-    fs::write(&config, binning.to_string()).unwrap();
+    let config = dir.join("preprocess.json");
+    fs::write(
+        &config,
+        json!({"steps": [], "binning": binning}).to_string(),
+    )
+    .unwrap();
     let out = dir.join(spectra).join(format!("{id}.json"));
     marklab(&[
         "spectrum",
@@ -179,6 +202,10 @@ fn fits_a_calibrated_classifier_and_predicts_new_rows_from_preprocessed_spectra(
     assert_eq!(report["features"]["modality"], json!("maldi_tof"));
     assert_eq!(report["features"]["unit"], json!("isolate"));
     assert_eq!(report["features"]["columns"].as_array().unwrap().len(), 5);
+    // Summed bins record no `aggregate`, as before it existed.
+    let provenance =
+        json!({"steps": [], "binning": {"min_mz": 2000.0, "max_mz": 2010.0, "bins": 5}});
+    assert_eq!(report["features"]["provenance"], provenance);
     let evaluation = &report["evaluation"];
     assert_eq!(evaluation["mean_fold_auroc"], json!(1.0));
     assert_eq!(evaluation["predictions"].as_array().unwrap().len(), 24);
@@ -233,6 +260,32 @@ fn rejects_unusable_labels_tables_and_spectra_without_writing() {
         .failure()
         .stderr(predicate::str::contains("provenance"));
     assert!(!dir.path().join("predictions.json").exists());
+
+    // Area bins are recorded in the provenance, so a model fitted on summed bins refuses them
+    // and one table cannot mix the two.
+    let area = json!({"min_mz": 2000, "max_mz": 2010, "bins": 5, "aggregate": "area"});
+    write_binned_spectrum(dir.path(), "area-bins", "ec-00", 0, false, area);
+    feature_table(dir.path(), "area-bins", "area-bins.parquet").success();
+    assert_eq!(
+        provenance(&dir.path().join("area-bins.parquet"))["binning"],
+        json!({"min_mz": 2000.0, "max_mz": 2010.0, "bins": 5, "aggregate": "area"})
+    );
+    predict(dir.path(), "area-bins.parquet")
+        .failure()
+        .stderr(predicate::str::contains("provenance"));
+    assert!(!dir.path().join("predictions.json").exists());
+    let spectra = dir.path().join("spectra");
+    fs::copy(
+        spectra.join("ec-01.json"),
+        dir.path().join("area-bins/ec-01.json"),
+    )
+    .unwrap();
+    feature_table(dir.path(), "area-bins", "mixed.parquet")
+        .failure()
+        .stderr(predicate::str::contains(
+            "ec-01.json: preprocessing steps or binning differ",
+        ));
+    assert!(!dir.path().join("mixed.parquet").exists());
 
     // Any modality and unit names are accepted, but a model refuses tables of others.
     feature_table_as(

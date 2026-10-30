@@ -51,7 +51,8 @@ hold at most 100,000,000 values and 4 GiB.
 `marklab spectrum feature-table --spectra <dir> --modality <name> --unit <name> --out <file>` reads
 every `*.json` file in the directory, each a `marklab spectrum preprocess` result with `binning`, and
 uses the file name without `.json` as the ID. All results must share the preprocessing steps and
-bins, which become the provenance; the columns are `bin_0`, `bin_1`, … in m/z order.
+binning (`min_mz`, `max_mz`, `bins` and, for area bins, `aggregate`), which become the provenance;
+the columns are `bin_0`, `bin_1`, … in m/z order.
 
 From Python, with pyarrow:
 

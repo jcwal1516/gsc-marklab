@@ -269,9 +269,12 @@ provides [discrete two-source Williams–Beer I_min decomposition](partial-infor
 These methods use separate version-1 research results; existing core result formats are unchanged.
 
 `marklab_spectrum::{read_bruker_flex, parse_bruker_flex, read_text_spectrum, parse_text_spectrum,
-preprocess_spectrum, bin_spectrum, PreprocessStep, BinSpec}` read Bruker flex MALDI-TOF
-acquisitions or two-column text spectra and apply ordered spectrum preprocessing and fixed-edge
-binning ([spectrum preprocessing](spectrum-preprocessing.md)).
+preprocess_spectrum, bin_spectrum, PreprocessStep, BinSpec, BinAggregate, BinnedSpectrum}` read
+Bruker flex MALDI-TOF acquisitions or two-column text spectra and apply ordered spectrum
+preprocessing and fixed-edge binning by summed points or by area
+([spectrum preprocessing](spectrum-preprocessing.md)). `BinSpec::aggregate` and
+`BinnedSpectrum::aggregate` hold the `BinAggregate`; code that builds either struct with a struct
+literal sets it, `BinAggregate::Sum` for the earlier behaviour.
 
 `marklab_prediction::{LogisticProblem, LogisticModel, ClassWeight, PlattScaling,
 fit_and_evaluate_logistic_ensemble, LogisticEnsembleSpec, LogisticEnsemble,
