@@ -246,8 +246,12 @@
   and readers accept both forms, so tables written with Arrow and Parquet 56 remain readable, and
   decoded-byte budgets still count every validity bitmap, so they are the same for both. The
   row-link Arrow writer no longer patches its validity bitmap. Parquet 60 also moves Parquet off
-  `zstd` 0.13; the WSI stack (`wsi-rs` 0.5.0) still resolves `zstd` 0.13.3 and `zstd-safe` 7.2.4,
-  which RUSTSEC-2026-0391, -0398 and -0403 affect.
+  `zstd` 0.13.
+- Update `wsi-rs` from 0.5.0 to 0.9.0 and the transitive `libz-sys` from 1.1.29 to 1.1.31, which
+  resolves RUSTSEC-2026-0391, -0398, -0403 and -0418. `wsi-rs` 0.9 reads `zstd` 0.14.3 and `j2k`
+  0.13.1 and no longer depends on `czi-rs`, so `zstd` 0.13 and `zstd-safe` 7 leave the graph. No
+  marklab source changed. The public Aperio JPEG 2000 region now decodes identically to OpenSlide
+  (maximum and mean absolute RGBA difference 0, from 24 and 2.41 with 0.5.0).
 - Name the spectrum and classifier commands for what they do rather than for MALDI-TOF
   susceptibility: `microbio preprocess` and `microbio feature-table` are now `spectrum preprocess`
   and `spectrum feature-table`, which takes `--modality` and `--unit`; `microbio fit-ast` and
