@@ -3,11 +3,11 @@
 //! the file's `marklab.feature_table` metadata. Every modality reaches `classifier fit` and
 //! `classifier predict` through this one format.
 
-use std::{fs, fs::OpenOptions, io::Write, path::Path};
+use std::{io::Write, path::Path};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{MarklabError, Result};
+use crate::{output::publish_exclusive_file, MarklabError, Result};
 
 #[cfg(feature = "parquet")]
 const METADATA_KEY: &str = "marklab.feature_table";
@@ -70,26 +70,19 @@ pub(super) fn check_id(id: &str, row: usize) -> Result<()> {
 /// Write pretty JSON to `out`, which must not already exist. Shared by the `spectrum` and
 /// `classifier` commands.
 pub(super) fn write_new_json(out: &Path, value: &impl Serialize) -> Result<()> {
-    if let Some(parent) = out.parent() {
-        fs::create_dir_all(parent).map_err(|source| MarklabError::io(parent, source))?;
-    }
-    let bytes = serde_json::to_vec_pretty(value)?;
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(out)
-        .map_err(|source| MarklabError::io(out, source))?;
-    file.write_all(&bytes)
-        .and_then(|()| file.write_all(b"\n"))
-        .and_then(|()| file.sync_all())
-        .map_err(|source| MarklabError::io(out, source))
+    let mut bytes = serde_json::to_vec_pretty(value)?;
+    bytes.push(b'\n');
+    publish_exclusive_file(out, "json-output", true, |file| {
+        file.write_all(&bytes)
+            .map_err(|source| MarklabError::io(out, source))
+    })
 }
 
 #[cfg(feature = "parquet")]
 mod parquet_table {
     use std::{
         collections::{HashMap, HashSet},
-        fs::{self, File, OpenOptions},
+        fs::{self, File},
         path::Path,
         sync::Arc,
     };
@@ -103,7 +96,7 @@ mod parquet_table {
     use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, ArrowWriter};
 
     use super::{check_id, is_name, FeatureTable, FeatureTableMeta, METADATA_KEY};
-    use crate::{MarklabError, Result};
+    use crate::{output::publish_exclusive_file, MarklabError, Result};
 
     const MAXIMUM_FILE_BYTES: u64 = 4 * 1024 * 1024 * 1024;
     const BATCH_ROWS: usize = 1024;
@@ -267,19 +260,31 @@ mod parquet_table {
         let schema_error =
             |error: arrow::error::ArrowError| MarklabError::Schema(error.to_string());
         let batch = RecordBatch::try_new(schema.clone(), arrays).map_err(schema_error)?;
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|source| MarklabError::io(parent, source))?;
-        }
-        let file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(path)
-            .map_err(|source| MarklabError::io(path, source))?;
         let parquet_error =
             |error: parquet::errors::ParquetError| MarklabError::Schema(error.to_string());
-        let mut writer = ArrowWriter::try_new(file, schema, None).map_err(parquet_error)?;
-        writer.write(&batch).map_err(parquet_error)?;
-        writer.close().map_err(parquet_error)?;
-        Ok(())
+        publish_exclusive_file(path, "feature-table", true, |file| {
+            let mut writer = ArrowWriter::try_new(file, schema, None).map_err(parquet_error)?;
+            writer.write(&batch).map_err(parquet_error)?;
+            writer.close().map_err(parquet_error)?;
+            Ok(())
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::write_new_json;
+
+    #[test]
+    fn pretty_json_keeps_its_existing_byte_contract() {
+        let directory = tempfile::tempdir().expect("temporary directory");
+        let output = directory.path().join("nested/result.json");
+
+        write_new_json(&output, &serde_json::json!({"value": [1, 2]})).expect("published JSON");
+
+        assert_eq!(
+            std::fs::read(output).expect("JSON bytes"),
+            b"{\n  \"value\": [\n    1,\n    2\n  ]\n}\n"
+        );
     }
 }

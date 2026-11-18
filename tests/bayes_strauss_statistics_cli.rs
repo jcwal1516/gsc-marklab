@@ -53,3 +53,43 @@ fn strauss_pair_statistic_and_papangelou_match_hand_oracle() {
         "experimental_fixed_pattern_mechanics"
     );
 }
+
+#[test]
+fn strauss_rejects_oversized_input_before_parsing() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let input = directory.path().join("oversized.csv");
+    let output = directory.path().join("strauss.json");
+    let file = fs::File::create(&input).expect("oversized fixture");
+    file.set_len(16 * 1_048_576 + 1)
+        .expect("sparse oversized fixture");
+
+    Command::cargo_bin("marklab")
+        .expect("binary")
+        .args([
+            "bayes",
+            "strauss-statistics",
+            "--input",
+            input.to_str().unwrap(),
+            "--interaction-radius-um",
+            "5",
+            "--proposal-x-um",
+            "4",
+            "--proposal-y-um",
+            "0",
+            "--beta-per-um2",
+            "2",
+            "--gamma",
+            "0.5",
+            "--maximum-pair-visits",
+            "100",
+            "--out",
+            output.to_str().unwrap(),
+        ])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "Strauss point input exceeds 16 MiB",
+        ));
+
+    assert!(!output.exists());
+}

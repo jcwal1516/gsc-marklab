@@ -1,11 +1,11 @@
 use std::{
-    ffi::OsString,
-    fs::{self, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
 };
 
 use serde::Serialize;
+
+use super::exclusive_file_output::{self, ExclusiveFileError};
 
 #[derive(Debug)]
 pub(crate) enum ExclusiveJsonOutputError {
@@ -23,74 +23,31 @@ pub(crate) fn publish_pretty_json(
     result: &impl Serialize,
     staging_namespace: &str,
 ) -> Result<(), ExclusiveJsonOutputError> {
-    match fs::symlink_metadata(path) {
-        Ok(_) => return Err(ExclusiveJsonOutputError::OutputExists),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(source) => {
-            return Err(ExclusiveJsonOutputError::Io {
-                path: path.to_owned(),
-                source,
-            });
-        }
-    }
-
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent).map_err(|source| ExclusiveJsonOutputError::Io {
-        path: parent.to_owned(),
-        source,
-    })?;
-    let file_name = path
-        .file_name()
-        .ok_or(ExclusiveJsonOutputError::OutputMustNameFile)?;
-    let mut staging_name = OsString::from(".");
-    staging_name.push(file_name);
-    staging_name.push(format!(
-        ".marklab-{staging_namespace}-{}.tmp",
-        std::process::id()
-    ));
-    let staging = parent.join(staging_name);
-    let bytes = serde_json::to_vec_pretty(result).map_err(ExclusiveJsonOutputError::Json)?;
-
-    // Only clean up a staging file after this invocation has created it.
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&staging)
-        .map_err(|source| ExclusiveJsonOutputError::Io {
-            path: staging.clone(),
-            source,
-        })?;
-    let publication = (|| -> Result<(), ExclusiveJsonOutputError> {
+    exclusive_file_output::publish_exclusive_file(path, staging_namespace, true, |file| {
+        let bytes = serde_json::to_vec_pretty(result).map_err(ExclusiveJsonOutputError::Json)?;
         file.write_all(&bytes)
             .and_then(|()| file.write_all(b"\n"))
-            .and_then(|()| file.sync_all())
             .map_err(|source| ExclusiveJsonOutputError::Io {
-                path: staging.clone(),
+                path: path.to_owned(),
                 source,
-            })?;
-        // Linking the complete file claims the destination atomically without overwriting it.
-        fs::hard_link(&staging, path).map_err(|source| {
-            if source.kind() == std::io::ErrorKind::AlreadyExists {
-                ExclusiveJsonOutputError::OutputExists
-            } else {
-                ExclusiveJsonOutputError::Io {
-                    path: path.to_owned(),
-                    source,
-                }
-            }
-        })
-    })();
-    drop(file);
-    let _ = fs::remove_file(&staging);
-    publication
+            })
+    })
+    .map_err(|error| match error {
+        ExclusiveFileError::OutputExists => ExclusiveJsonOutputError::OutputExists,
+        ExclusiveFileError::OutputMustNameFile => ExclusiveJsonOutputError::OutputMustNameFile,
+        ExclusiveFileError::Io { path, source } => ExclusiveJsonOutputError::Io { path, source },
+        ExclusiveFileError::Write(error) => error,
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{io::Write as _, path::Path};
 
     use serde::{Serialize, Serializer};
     use tempfile::tempdir;
+
+    use crate::exclusive_file_output::{self, ExclusiveFileError};
 
     use super::{publish_pretty_json, ExclusiveJsonOutputError};
 
@@ -119,7 +76,7 @@ mod tests {
         impl Serialize for PublishFirst<'_> {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 // Publish after the existence check, without a timing-dependent thread race.
-                std::fs::write(self.0, b"first result").unwrap();
+                publish_pretty_json(self.0, &"first result", "test").unwrap();
                 42.serialize(serializer)
             }
         }
@@ -134,22 +91,35 @@ mod tests {
                 publish_pretty_json(&output, &result, "test").is_err()
             };
             assert!(rejected, "a concurrent publication must be rejected");
-            assert_eq!(std::fs::read(&output).unwrap(), b"first result");
+            assert_eq!(std::fs::read(&output).unwrap(), b"\"first result\"\n");
         }
     }
 
     #[test]
-    fn failed_staging_creation_preserves_another_writers_file() {
+    fn failed_writer_does_not_publish_partial_bytes_and_can_retry() {
         let directory = tempdir().unwrap();
         let output = directory.path().join("result.json");
-        let staging = directory.path().join(format!(
-            ".result.json.marklab-test-{}.tmp",
-            std::process::id()
-        ));
-        std::fs::write(&staging, b"active writer").unwrap();
 
-        assert!(publish_pretty_json(&output, &42, "test").is_err());
-        assert_eq!(std::fs::read(&staging).unwrap(), b"active writer");
+        assert!(matches!(
+            exclusive_file_output::publish_exclusive_file(
+                &output,
+                "test",
+                true,
+                |file| -> Result<(), std::io::Error> {
+                    file.write_all(b"partial")?;
+                    Err(std::io::Error::other("injected writer failure"))
+                }
+            ),
+            Err(ExclusiveFileError::Write(_))
+        ));
         assert!(!output.exists());
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
+
+        publish_pretty_json(&output, &serde_json::json!({"complete": true}), "test")
+            .expect("retry after failed writer");
+        assert_eq!(
+            std::fs::read(output).unwrap(),
+            b"{\n  \"complete\": true\n}\n"
+        );
     }
 }

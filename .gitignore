@@ -16,3 +16,10 @@ __pycache__/
 /outputs/
 /runs/
 /gsc-marklab_results/
+
+# Keep local working notes, agent state, and unpublished validation runs private.
+/AGENTS.md
+/.claude/
+/docs/architecture-review.md
+/docs/implementation/
+/validation-runs/

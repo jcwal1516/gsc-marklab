@@ -39,12 +39,11 @@ impl<'a> SoftClassCompositionAnalysisNode<'a> {
         mark_id: &'a ScalarMarkId,
         limits: &'a SoftClassCompositionLimits,
     ) -> Result<Self, NodeError> {
-        input
+        let declared = input
             .revalidate_project(project)
             .map_err(NodeError::input)?;
         let pattern = pattern_artifact(input.pattern())?;
-        let declared = input.declared_artifact_ref().map_err(NodeError::input)?;
-        let config = config_artifact(input, mark_id, limits)?;
+        let config = config_artifact(declared.digest(), mark_id, limits)?;
         let inputs = [pattern, declared, config.clone()];
         for artifact in &inputs {
             project
@@ -87,13 +86,12 @@ impl NodeAnalysis for SoftClassCompositionAnalysis<'_> {
     }
 
     fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
-        let current = [
-            pattern_artifact(self.input.pattern())?,
-            self.input
-                .declared_artifact_ref()
-                .map_err(NodeError::input)?,
-            config_artifact(self.input, self.mark_id, self.limits)?,
-        ];
+        let declared = self
+            .input
+            .declared_artifact_ref()
+            .map_err(NodeError::input)?;
+        let config = config_artifact(declared.digest(), self.mark_id, self.limits)?;
+        let current = [pattern_artifact(self.input.pattern())?, declared, config];
         crate::workflow_node::verify_inputs(inputs, current)
     }
 
@@ -130,11 +128,11 @@ struct ConfigArtifact<'a> {
 }
 
 fn config_artifact(
-    input: &DeclaredScalarPatternInput<'_>,
+    declared_digest: marklab_project::ContentDigest,
     mark_id: &ScalarMarkId,
     limits: &SoftClassCompositionLimits,
 ) -> Result<ArtifactRef, NodeError> {
-    let digest = configuration_digest(input, mark_id, limits).map_err(NodeError::input)?;
+    let digest = configuration_digest(declared_digest, mark_id, limits);
     let bytes = serde_json::to_vec(&ConfigArtifact {
         mark_id: mark_id.as_str(),
         limits: *limits,
@@ -159,7 +157,8 @@ fn validate(
     let values = table
         .probability_simplex_values(mark_id)
         .ok_or_else(|| invalid("typed probability simplex values are absent"))?;
-    let expected_digest = configuration_digest(input, mark_id, limits).map_err(invalid_owned)?;
+    let declared_digest = input.declared_artifact_digest().map_err(invalid_owned)?;
+    let expected_digest = configuration_digest(declared_digest, mark_id, limits);
     let expected_value_count = result
         .row_count
         .checked_mul(result.class_count)
@@ -169,6 +168,14 @@ fn validate(
         .iter()
         .map(|class| class.mean_probability)
         .sum::<f64>();
+    let class_count = result.class_count as f64;
+    let entropy = result.aggregate_composition_entropy_nats;
+    let mut expected_effective_count = entropy.exp();
+    if entropy <= class_count.ln() {
+        // Even exp(ln(K)) can round just above K. Preserve the original exp
+        // relation for older artifacts with entropy slightly above ln(K).
+        expected_effective_count = expected_effective_count.min(class_count);
+    }
     if result.case_id != input.pattern().meta.case_id
         || result.timepoint != input.pattern().meta.timepoint
         || result.mark_id != mark_id.as_str()
@@ -194,8 +201,7 @@ fn validate(
         || result.mean_row_entropy_nats < 0.0
         || !result.aggregate_composition_entropy_nats.is_finite()
         || result.aggregate_composition_entropy_nats < 0.0
-        || result.effective_class_count.to_bits()
-            != result.aggregate_composition_entropy_nats.exp().to_bits()
+        || result.effective_class_count.to_bits() != expected_effective_count.to_bits()
         || !result.effective_class_count.is_finite()
         || result.effective_class_count < 1.0
         || result.effective_class_count > result.class_count as f64

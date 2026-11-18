@@ -496,6 +496,13 @@ fn complete_simplex_rows_flow_across_one_fixed_physical_radius() {
     let mut corrupted = multiscale.clone();
     corrupted.scales[0].rows[0].neighbor_count = 2;
     assert!(multiscale_node.encode_output(&corrupted).is_err());
+    let mut extra_row = multiscale.clone();
+    let mut duplicate_row = extra_row.scales[0].rows[0].clone();
+    duplicate_row.row = input.pattern().len();
+    extra_row.scales[0].rows.push(duplicate_row);
+    assert!(multiscale_node.encode_output(&extra_row).is_err());
+    let extra_row_bytes = serde_json::to_vec(&extra_row).expect("malformed cached result encodes");
+    assert!(multiscale_node.decode_output(&extra_row_bytes).is_err());
     assert!(matches!(
         soft_neighborhood_composition(
             &input,

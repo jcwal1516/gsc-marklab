@@ -56,6 +56,8 @@ mod edge_corrected;
 mod errors;
 #[doc(hidden)]
 pub mod exact_float_json;
+#[cfg(feature = "cli")]
+mod exclusive_file_output;
 mod geom;
 mod inference;
 mod inhomogeneous_spatial;

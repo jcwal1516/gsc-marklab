@@ -210,10 +210,7 @@ impl GroupedConformalWorkerResult {
         let dimension = request.feature_names.len();
         if self.format != "marklab.scipy_grouped_conformal_worker_result"
             || self.version != 1
-            || self.backend.name != "scipy"
-            || self.backend.version != SCIPY_VERSION
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.model.training_mean.len() != dimension
             || self.model.training_population_sd.len() != dimension

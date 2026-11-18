@@ -14,7 +14,7 @@ use marklab::{
     workflow::{
         execute_algorithm_with_store, ArtifactRef, ArtifactSchema, CacheStatus, DurableProject,
         DurableProjectLimits, LocalScheduler, NativeRuntimeProvenance, NodeId, SchedulerLimits,
-        WorkflowGraph,
+        WorkflowGraph, WorkflowNode,
     },
     MeasurementStatus,
 };
@@ -46,6 +46,23 @@ fn limits(bytes: usize) -> SoftClassCompositionLimits {
 }
 
 fn table(fixture: &mut support::Fixture) -> (MarkTable, ScalarMarkId) {
+    table_with_rows(
+        fixture,
+        &["neoplastic", "inflammatory", "connective"],
+        vec![
+            vec![1.0, 0.0, 0.0],
+            vec![0.5, 0.5, 0.0],
+            vec![0.0, 0.25, 0.75],
+            vec![0.0, 0.0, 1.0],
+        ],
+    )
+}
+
+fn table_with_rows(
+    fixture: &mut support::Fixture,
+    levels: &[&str],
+    simplex_rows: Vec<Vec<f32>>,
+) -> (MarkTable, ScalarMarkId) {
     let binary_provenance = publish_record(
         fixture,
         b"simplex-binary-provenance",
@@ -67,7 +84,7 @@ fn table(fixture: &mut support::Fixture) -> (MarkTable, ScalarMarkId) {
         1,
         None,
         Vec::new(),
-        simplex_metadata(&["neoplastic", "inflammatory", "connective"]),
+        simplex_metadata(levels),
     );
     let simplex_id =
         ScalarMarkId::new("cellvit_annotation_probabilities").expect("simplex mark ID");
@@ -92,11 +109,7 @@ fn table(fixture: &mut support::Fixture) -> (MarkTable, ScalarMarkId) {
                 ProbabilitySimplexMarkDeclaration::new(
                     simplex_id.clone(),
                     "CellViT annotation probabilities",
-                    vec![
-                        "neoplastic".into(),
-                        "inflammatory".into(),
-                        "connective".into(),
-                    ],
+                    levels.iter().map(|level| (*level).into()).collect(),
                     MeasurementStatus::MorphologyPrediction,
                     simplex_provenance,
                 )
@@ -104,12 +117,7 @@ fn table(fixture: &mut support::Fixture) -> (MarkTable, ScalarMarkId) {
                 ScalarMarkModality::Morphology,
                 ScalarMarkUnit::ProbabilitySimplex,
                 MissingnessPolicy::NotPermitted,
-                vec![
-                    vec![1.0, 0.0, 0.0],
-                    vec![0.5, 0.5, 0.0],
-                    vec![0.0, 0.25, 0.75],
-                    vec![0.0, 0.0, 1.0],
-                ],
+                simplex_rows,
             )
             .expect("simplex column"),
         ],
@@ -118,6 +126,82 @@ fn table(fixture: &mut support::Fixture) -> (MarkTable, ScalarMarkId) {
     )
     .expect("mark table");
     (table, simplex_id)
+}
+
+#[test]
+fn uniform_f32_simplex_rows_preserve_raw_means_and_saturate_entropy_roundoff() {
+    for class_count in [2_usize, 3, 5] {
+        let mut fixture = fixture();
+        let levels = (0..class_count)
+            .map(|index| format!("class-{index}"))
+            .collect::<Vec<_>>();
+        let level_refs = levels.iter().map(String::as_str).collect::<Vec<_>>();
+        let uniform = 1.0_f32 / class_count as f32;
+        let (table, simplex_id) = table_with_rows(
+            &mut fixture,
+            &level_refs,
+            vec![vec![uniform; class_count]; 4],
+        );
+        let input = DeclaredScalarPatternInput::from_mark_table(
+            &fixture.project,
+            &fixture.pattern,
+            &table,
+            fixture.slide_id.clone(),
+            fixture.frame_id.clone(),
+        )
+        .expect("declared input");
+        let limits = SoftClassCompositionLimits::new(4, class_count, 4 * class_count, 1 << 20)
+            .expect("uniform limits");
+        let result =
+            soft_class_composition(&input, &simplex_id, &limits).expect("uniform soft composition");
+        let node = SoftClassCompositionAnalysisNode::new(
+            &mut fixture.project,
+            NodeId::new("uniform-soft-class-composition").expect("node ID"),
+            &input,
+            &simplex_id,
+            &limits,
+        )
+        .expect("node");
+
+        let encoded = node
+            .encode_output(&result)
+            .expect("uniform composition encodes");
+        assert_eq!(
+            node.decode_output(&encoded)
+                .expect("uniform composition decodes"),
+            result
+        );
+        let raw_probability = f64::from(uniform);
+        assert!(result
+            .classes
+            .iter()
+            .all(|class| class.mean_probability.to_bits() == raw_probability.to_bits()));
+        assert_eq!(
+            result.maximum_row_sum_absolute_error.to_bits(),
+            (raw_probability * class_count as f64 - 1.0).abs().to_bits()
+        );
+        let maximum_entropy = (class_count as f64).ln();
+        assert!(result.mean_row_entropy_nats <= maximum_entropy);
+        assert!((result.mean_row_entropy_nats - maximum_entropy).abs() <= 1e-6);
+        assert!(result.aggregate_composition_entropy_nats <= maximum_entropy);
+        assert!((result.aggregate_composition_entropy_nats - maximum_entropy).abs() <= 1e-6);
+        assert!(result.effective_class_count <= class_count as f64);
+        assert!((result.effective_class_count - class_count as f64).abs() <= 1e-6);
+        let mut impossible_entropy = result.clone();
+        impossible_entropy.aggregate_composition_entropy_nats = (class_count as f64).ln() + 1.0;
+        impossible_entropy.effective_class_count = class_count as f64;
+        assert!(node.encode_output(&impossible_entropy).is_err());
+        if class_count == 2 {
+            let legacy_entropy = maximum_entropy.next_up();
+            let legacy_effective_count = legacy_entropy.exp();
+            if legacy_effective_count <= class_count as f64 {
+                let mut legacy_rounding = result.clone();
+                legacy_rounding.aggregate_composition_entropy_nats = legacy_entropy;
+                legacy_rounding.effective_class_count = legacy_effective_count;
+                assert!(node.encode_output(&legacy_rounding).is_ok());
+            }
+        }
+    }
 }
 
 fn runtime() -> NativeRuntimeProvenance {

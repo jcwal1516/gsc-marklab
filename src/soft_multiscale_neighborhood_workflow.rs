@@ -45,13 +45,12 @@ impl<'a> SoftMultiscaleNeighborhoodAnalysisNode<'a> {
         mark_id: &'a ScalarMarkId,
         config: &'a SoftMultiscaleNeighborhoodConfig,
     ) -> Result<Self, NodeError> {
-        input
+        let declared = input
             .revalidate_project(project)
             .map_err(NodeError::input)?;
         let pattern = pattern_artifact(input.pattern())?;
-        let declared = input.declared_artifact_ref().map_err(NodeError::input)?;
         let window_ref = window_artifact(window)?;
-        let config_ref = config_artifact(input, window, mark_id, config)?;
+        let config_ref = config_artifact(declared.digest(), window, mark_id, config)?;
         let inputs = [pattern, declared, window_ref, config_ref.clone()];
         for artifact in &inputs {
             project
@@ -96,13 +95,16 @@ impl NodeAnalysis for SoftMultiscaleNeighborhoodAnalysis<'_> {
     }
 
     fn verify_input_content(&self, inputs: &[ArtifactRef]) -> Result<(), NodeError> {
+        let declared = self
+            .input
+            .declared_artifact_ref()
+            .map_err(NodeError::input)?;
+        let config = config_artifact(declared.digest(), self.window, self.mark_id, self.config)?;
         let current = [
             pattern_artifact(self.input.pattern())?,
-            self.input
-                .declared_artifact_ref()
-                .map_err(NodeError::input)?,
+            declared,
             window_artifact(self.window)?,
-            config_artifact(self.input, self.window, self.mark_id, self.config)?,
+            config,
         ];
         crate::workflow_node::verify_inputs(inputs, current)
     }
@@ -148,12 +150,12 @@ struct ConfigArtifact<'a> {
 }
 
 fn config_artifact(
-    input: &DeclaredScalarPatternInput<'_>,
+    declared_digest: marklab_project::ContentDigest,
     window: &ObservationWindow2D,
     mark_id: &ScalarMarkId,
     config: &SoftMultiscaleNeighborhoodConfig,
 ) -> Result<ArtifactRef, NodeError> {
-    let digest = configuration_digest(input, window, mark_id, config).map_err(NodeError::input)?;
+    let digest = configuration_digest(declared_digest, window, mark_id, config);
     let bytes = serde_json::to_vec(&ConfigArtifact {
         mark_id: mark_id.as_str(),
         radii_um: config.radii_um(),
@@ -177,8 +179,8 @@ fn validate(
     let levels = table
         .probability_simplex_levels(mark_id)
         .ok_or_else(|| invalid("typed probability simplex is absent"))?;
-    let expected_digest =
-        configuration_digest(input, window, mark_id, config).map_err(invalid_owned)?;
+    let declared_digest = input.declared_artifact_digest().map_err(invalid_owned)?;
+    let expected_digest = configuration_digest(declared_digest, window, mark_id, config);
     if result.case_id != input.pattern().meta.case_id
         || result.timepoint != input.pattern().meta.timepoint
         || result.mark_id != mark_id.as_str()
@@ -200,6 +202,9 @@ fn validate(
     }
     let mut total_visits = 0_usize;
     for (scale, radius) in result.scales.iter().zip(config.radii_um()) {
+        if scale.rows.len() != input.pattern().len() {
+            return Err(invalid("soft multiscale scale row count differs"));
+        }
         let mut scale_visits = 0_usize;
         let mut scale_zeros = 0_usize;
         for (row, value) in scale.rows.iter().enumerate() {
@@ -226,7 +231,6 @@ fn validate(
             .checked_add(scale.directed_pair_visits)
             .ok_or_else(|| invalid("soft multiscale visit count overflow"))?;
         if scale.radius_um.to_bits() != radius.to_bits()
-            || scale.rows.len() != input.pattern().len()
             || scale.graph_digest.len() != 64
             || scale.directed_pair_visits != scale_visits
             || scale.zero_neighbor_cell_count != scale_zeros

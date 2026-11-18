@@ -5,7 +5,7 @@ use marklab_data::{
     SpatialDimension,
 };
 use marklab_embeddings::CellEmbeddingArtifact;
-use marklab_project::{ArtifactId, ArtifactRef, MarklabProject};
+use marklab_project::{ArtifactId, ArtifactRef, ContentDigest, MarklabProject};
 
 use crate::data::Pattern;
 
@@ -174,10 +174,12 @@ impl<'a> DeclaredScalarPatternInput<'a> {
         &self.scalar_identity
     }
 
-    /// Versioned reference-only declared-input identity used as a workflow input.
-    pub(crate) fn declared_artifact_ref(&self) -> Result<ArtifactRef, DeclaredScalarInputError> {
-        self.verify_identity()?;
-        Ok(self.declared_artifact_ref.clone())
+    /// Recompute and return the exact declared-input digest without retaining another reference.
+    pub(crate) fn declared_artifact_digest(
+        &self,
+    ) -> Result<ContentDigest, DeclaredScalarInputError> {
+        self.declared_artifact_ref()
+            .map(|artifact| artifact.digest())
     }
 
     /// Exact semantic artifact roles in binary, probability, threshold order.
@@ -185,8 +187,8 @@ impl<'a> DeclaredScalarPatternInput<'a> {
         &self.semantic_artifact_ids
     }
 
-    /// Recompute the borrowed declared identity before scheduler cache lookup.
-    fn verify_identity(&self) -> Result<(), DeclaredScalarInputError> {
+    /// Verify the borrowed input against its stored identity and return the recomputed reference.
+    pub(crate) fn declared_artifact_ref(&self) -> Result<ArtifactRef, DeclaredScalarInputError> {
         let (digest, byte_len) = declared_identity(
             self.cell_ids,
             &self.owning_slide_id,
@@ -209,14 +211,14 @@ impl<'a> DeclaredScalarPatternInput<'a> {
         {
             return Err(DeclaredScalarInputError::DeclaredIdentityMismatch);
         }
-        Ok(())
+        Ok(expected)
     }
 
     /// Revalidate project-owned frame, hierarchy, and provenance before node input cataloging.
     pub(crate) fn revalidate_project(
         &self,
         project: &MarklabProject,
-    ) -> Result<(), DeclaredScalarInputError> {
+    ) -> Result<ArtifactRef, DeclaredScalarInputError> {
         validate_frame(project, &self.coordinate_frame_id)?;
         validate_hierarchy(project, self.cell_ids, &self.owning_slide_id, self.pattern)?;
         let semantic_artifact_ids = match self.mark_table {
@@ -233,7 +235,7 @@ impl<'a> DeclaredScalarPatternInput<'a> {
         if self.mark_table.is_none() {
             validate_provenance(project, &self.binary_mark, self.probability_mark.as_ref())?;
         }
-        self.verify_identity()
+        self.declared_artifact_ref()
     }
 
     /// Validate config 0.2 label/value routing and return the runtime-only summary.

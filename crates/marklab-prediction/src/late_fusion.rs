@@ -209,10 +209,7 @@ impl LateFusionWorkerResult {
             .collect::<Vec<_>>();
         if self.format != "marklab.scipy_late_fusion_worker_result"
             || self.version != 1
-            || self.backend.name != "scipy"
-            || self.backend.version != SCIPY_VERSION
-            || self.backend.environment_lock_sha256 != request.backend.environment_lock_sha256
-            || self.backend.worker_sha256 != request.backend.worker_sha256
+            || !self.backend.matches(&request.backend)
             || self.request_sha256 != request_sha256
             || self.model.feature_names != expected_features
             || self.model.coefficients.len() != expected_features.len()

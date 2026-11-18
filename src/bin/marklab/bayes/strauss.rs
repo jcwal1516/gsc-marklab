@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use marklab_bayes::{
     sha256_hex, strauss_papangelou, strauss_statistics, StraussError, StraussPapangelou,
@@ -7,7 +7,7 @@ use marklab_bayes::{
 use serde::Serialize;
 
 use super::cli_schema::StraussStatisticsArgs;
-use super::{publish_json, CliError};
+use super::{publish_json, read_regular_file, CliError};
 
 pub(super) fn run(args: StraussStatisticsArgs) -> Result<(), CliError> {
     let StraussStatisticsArgs {
@@ -22,13 +22,11 @@ pub(super) fn run(args: StraussStatisticsArgs) -> Result<(), CliError> {
     } = args;
     let input_path = input;
     let output_path = out;
-    let bytes = fs::read(&input_path).map_err(|source| CliError::Io {
-        path: input_path.clone(),
-        source,
-    })?;
-    if bytes.len() > 16 * 1_048_576 {
-        return Err(CliError::Input("Strauss point input exceeds 16 MiB".into()));
-    }
+    let bytes = read_regular_file(
+        &input_path,
+        16 * 1_048_576,
+        "Strauss point input exceeds 16 MiB",
+    )?;
     let points = read_points(&bytes)?;
     let statistics = strauss_statistics(&points, interaction_radius_um, maximum_pair_visits)
         .map_err(map_error)?;
