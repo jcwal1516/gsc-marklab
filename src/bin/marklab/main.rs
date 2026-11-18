@@ -17,6 +17,8 @@ mod co_occurrence;
 mod codecs;
 mod cohort;
 mod command_tree;
+#[path = "../../exclusive_file_output.rs"]
+mod exclusive_file_output;
 mod exclusive_json_output;
 mod graph;
 mod input_file;

@@ -5,7 +5,11 @@ mod classical;
 #[cfg(feature = "parquet")]
 mod curve_parquet;
 mod document;
+#[cfg(feature = "cli")]
+mod exclusive_file;
 mod figures;
+#[cfg(feature = "cli")]
+pub(crate) use exclusive_file::publish_exclusive_file;
 pub(crate) use figures::xml_text;
 mod manifest;
 mod marked_artifacts;

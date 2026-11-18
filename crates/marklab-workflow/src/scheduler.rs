@@ -183,6 +183,7 @@ impl LocalScheduler {
                 node_id: spec.id().clone(),
                 source,
             })?;
+        drop(output);
         self.validate_inline_output_size(spec.id(), encoded.len())?;
         let canonical_output =
             node.decode_output(&encoded)
@@ -197,6 +198,7 @@ impl LocalScheduler {
                     node_id: spec.id().clone(),
                     source,
                 })?;
+        drop(canonical_output);
         self.validate_inline_output_size(spec.id(), canonical_encoded.len())?;
         let committed_output =
             node.decode_output(&canonical_encoded)

@@ -152,7 +152,17 @@ pub fn soft_class_composition(
         .into_iter()
         .map(|sum| sum.total() / rows as f64)
         .collect::<Vec<_>>();
-    let aggregate_entropy = entropy(&means);
+    let mut mean_row_entropy = row_entropy_sum.total() / rows as f64;
+    let mut aggregate_entropy = entropy(&means);
+    let mut effective_class_count = aggregate_entropy.exp();
+    if effective_class_count > classes as f64 {
+        // Admitted f32 rows can sum slightly above one. Correct an impossible count
+        // without changing the class means or the bits of previously publishable results.
+        let maximum_entropy = (classes as f64).ln();
+        mean_row_entropy = mean_row_entropy.min(maximum_entropy);
+        aggregate_entropy = aggregate_entropy.min(maximum_entropy);
+        effective_class_count = aggregate_entropy.exp().min(classes as f64);
+    }
     let classes = levels
         .iter()
         .zip(means)
@@ -161,7 +171,12 @@ pub fn soft_class_composition(
             mean_probability,
         })
         .collect();
-    let configuration_digest = configuration_digest(input, mark_id, limits)?;
+    let declared_digest = input.declared_artifact_digest().map_err(|error| {
+        SoftClassCompositionError::InvalidDeclaredInput {
+            reason: error.to_string(),
+        }
+    })?;
+    let configuration_digest = configuration_digest(declared_digest, mark_id, limits);
     Ok(SoftClassCompositionResult {
         case_id: input.pattern().meta.case_id.clone(),
         timepoint: input.pattern().meta.timepoint.clone(),
@@ -170,9 +185,9 @@ pub fn soft_class_composition(
         row_count: rows,
         class_count: levels.len(),
         classes,
-        mean_row_entropy_nats: row_entropy_sum.total() / rows as f64,
+        mean_row_entropy_nats: mean_row_entropy,
         aggregate_composition_entropy_nats: aggregate_entropy,
-        effective_class_count: aggregate_entropy.exp(),
+        effective_class_count,
         maximum_row_sum_absolute_error,
         configuration_digest: configuration_digest.to_string(),
         estimated_storage_bytes,
@@ -189,24 +204,19 @@ fn entropy(values: &[f64]) -> f64 {
 }
 
 pub(crate) fn configuration_digest(
-    input: &DeclaredScalarPatternInput<'_>,
+    declared_digest: ContentDigest,
     mark_id: &ScalarMarkId,
     limits: &SoftClassCompositionLimits,
-) -> Result<ContentDigest, SoftClassCompositionError> {
-    let declared = input.declared_artifact_ref().map_err(|error| {
-        SoftClassCompositionError::InvalidDeclaredInput {
-            reason: error.to_string(),
-        }
-    })?;
-    Ok(ContentDigest::from_framed([
+) -> ContentDigest {
+    ContentDigest::from_framed([
         b"marklab-soft-class-composition-v1".as_slice(),
-        declared.digest().as_bytes(),
+        declared_digest.as_bytes(),
         mark_id.as_str().as_bytes(),
         &(limits.maximum_points as u128).to_be_bytes(),
         &(limits.maximum_classes as u128).to_be_bytes(),
         &(limits.maximum_values as u128).to_be_bytes(),
         &(limits.maximum_retained_bytes as u128).to_be_bytes(),
-    ]))
+    ])
 }
 
 #[derive(Clone, Debug, Error, PartialEq)]

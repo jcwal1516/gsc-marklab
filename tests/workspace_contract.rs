@@ -47,37 +47,14 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
         Some("2")
     );
 
-    let members = workspace
-        .get("members")
-        .and_then(toml::Value::as_array)
-        .expect("workspace.members must list only immediate non-root packages")
-        .iter()
-        .map(|value| value.as_str().expect("workspace path must be a string"))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        members,
-        [
-            "crates/marklab-core",
-            "crates/marklab-data",
-            "crates/marklab-project",
-            "crates/marklab-embeddings",
-            "crates/marklab-cohort",
-            "crates/marklab-bayes",
-            "crates/marklab-transport",
-            "crates/marklab-prediction",
-            "crates/marklab-simulation",
-            "crates/marklab-sbi",
-            "crates/marklab-longitudinal",
-            "crates/marklab-spatial3d",
-            "crates/marklab-causal",
-            "crates/marklab-numerics",
-            "crates/marklab-policy",
-            "crates/marklab-graph",
-            "crates/marklab-topology",
-            "crates/marklab-workflow",
-            "crates/marklab-spectrum",
-        ],
-        "the root remains implicit and only packages with immediate callers are listed"
+    let members = workspace["members"]
+        .as_array()
+        .expect("explicit workspace members");
+    assert!(
+        members.iter().all(|member| member
+            .as_str()
+            .is_some_and(|path| path.starts_with("crates/"))),
+        "the root remains implicit and explicit member paths belong under crates/"
     );
     assert!(
         workspace.get("default-members").is_none(),
@@ -112,37 +89,6 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
         root_bins[0].get("name").and_then(toml::Value::as_str),
         Some("marklab")
     );
-    for manifest_path in [
-        "Cargo.toml",
-        "crates/marklab-core/Cargo.toml",
-        "crates/marklab-data/Cargo.toml",
-        "crates/marklab-project/Cargo.toml",
-        "crates/marklab-embeddings/Cargo.toml",
-        "crates/marklab-cohort/Cargo.toml",
-        "crates/marklab-bayes/Cargo.toml",
-        "crates/marklab-transport/Cargo.toml",
-        "crates/marklab-prediction/Cargo.toml",
-        "crates/marklab-simulation/Cargo.toml",
-        "crates/marklab-sbi/Cargo.toml",
-        "crates/marklab-longitudinal/Cargo.toml",
-        "crates/marklab-spatial3d/Cargo.toml",
-        "crates/marklab-causal/Cargo.toml",
-        "crates/marklab-numerics/Cargo.toml",
-        "crates/marklab-policy/Cargo.toml",
-        "crates/marklab-graph/Cargo.toml",
-        "crates/marklab-topology/Cargo.toml",
-        "crates/marklab-workflow/Cargo.toml",
-    ] {
-        let manifest = parse_manifest(manifest_path);
-        assert_eq!(
-            table(&manifest, "lib", manifest_path)
-                .get("bench")
-                .and_then(toml::Value::as_bool),
-            Some(false),
-            "{manifest_path} must disable the default library benchmark harness so workspace Criterion flags are not forwarded to it"
-        );
-    }
-
     let workspace_package = workspace
         .get("package")
         .and_then(toml::Value::as_table)
@@ -160,18 +106,13 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
     }
 
     let metadata = cargo_metadata();
-    let workspace_members = metadata["workspace_members"]
-        .as_array()
-        .expect("metadata workspace_members");
     let default_members = metadata["workspace_default_members"]
         .as_array()
         .expect("metadata workspace_default_members");
-    assert_eq!(workspace_members.len(), 20);
     assert_eq!(default_members.len(), 1);
 
     let root_manifest = fs::canonicalize("Cargo.toml").expect("canonical root manifest");
     let packages = metadata["packages"].as_array().expect("metadata packages");
-    assert_eq!(packages.len(), 20);
     let package = packages
         .iter()
         .find(|package| package["name"] == "marklab")
@@ -217,7 +158,7 @@ fn workspace_preserves_root_compatibility_and_standalone_fuzz_boundary() {
 }
 
 #[test]
-fn workspace_dependencies_descend_layers_and_core_packages_have_no_cli_feature() {
+fn workspace_packages_enforce_layers_features_and_benchmark_harness_policy() {
     let metadata = cargo_metadata();
     let workspace_ids = metadata["workspace_members"]
         .as_array()
@@ -259,11 +200,25 @@ fn workspace_dependencies_descend_layers_and_core_packages_have_no_cli_feature()
         ("marklab", 4_u8),
     ]);
 
+    assert_eq!(
+        workspace_names,
+        layers.keys().copied().collect(),
+        "every workspace package must have exactly one policy layer"
+    );
+
     for package in workspace_packages {
+        let manifest_path = package["manifest_path"].as_str().expect("manifest path");
+        let manifest = parse_manifest(manifest_path);
+        assert_eq!(
+            table(&manifest, "lib", manifest_path)
+                .get("bench")
+                .and_then(toml::Value::as_bool),
+            Some(false),
+            "{manifest_path} must disable the default library benchmark harness so workspace Criterion flags are not forwarded to it"
+        );
+
         let name = package["name"].as_str().expect("workspace package name");
-        let layer = layers
-            .get(name)
-            .unwrap_or_else(|| panic!("workspace package {name} needs an explicit policy layer"));
+        let layer = layers[name];
 
         for dependency in package["dependencies"]
             .as_array()
@@ -273,9 +228,7 @@ fn workspace_dependencies_descend_layers_and_core_packages_have_no_cli_feature()
             if dependency["path"].is_null() || !workspace_names.contains(dependency_name) {
                 continue;
             }
-            let dependency_layer = layers.get(dependency_name).unwrap_or_else(|| {
-                panic!("workspace dependency {dependency_name} needs an explicit policy layer")
-            });
+            let dependency_layer = layers[dependency_name];
             assert!(
                 dependency_layer < layer,
                 "{name} layer {layer} must not depend upward on {dependency_name} layer {dependency_layer}"

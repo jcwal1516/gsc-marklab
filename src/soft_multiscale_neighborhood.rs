@@ -274,7 +274,12 @@ pub fn soft_multiscale_neighborhood_composition(
             maximum: config.limits.maximum_retained_bytes,
         });
     }
-    let configuration_digest = configuration_digest(input, window, mark_id, config)?;
+    let declared_digest = input.declared_artifact_digest().map_err(|error| {
+        SoftMultiscaleNeighborhoodError::InvalidDeclaredInput {
+            reason: error.to_string(),
+        }
+    })?;
+    let configuration_digest = configuration_digest(declared_digest, window, mark_id, config);
     let mut scales = Vec::new();
     scales
         .try_reserve_exact(config.radii_um.len())
@@ -416,19 +421,14 @@ fn evaluate_scale(
 }
 
 pub(crate) fn configuration_digest(
-    input: &DeclaredScalarPatternInput<'_>,
+    declared_digest: ContentDigest,
     window: &ObservationWindow2D,
     mark_id: &ScalarMarkId,
     config: &SoftMultiscaleNeighborhoodConfig,
-) -> Result<ContentDigest, SoftMultiscaleNeighborhoodError> {
-    let declared = input.declared_artifact_ref().map_err(|error| {
-        SoftMultiscaleNeighborhoodError::InvalidDeclaredInput {
-            reason: error.to_string(),
-        }
-    })?;
+) -> ContentDigest {
     let mut fields = vec![
         b"marklab-soft-multiscale-neighborhood-v1".to_vec(),
-        declared.digest().as_bytes().to_vec(),
+        declared_digest.as_bytes().to_vec(),
         window.descriptor().logical_digest.as_bytes().to_vec(),
         mark_id.as_str().as_bytes().to_vec(),
     ];
@@ -453,7 +453,7 @@ pub(crate) fn configuration_digest(
             .to_be_bytes()
             .to_vec(),
     ]);
-    Ok(ContentDigest::from_framed(fields.iter().map(Vec::as_slice)))
+    ContentDigest::from_framed(fields.iter().map(Vec::as_slice))
 }
 
 fn geometry(error: impl std::fmt::Display) -> SoftMultiscaleNeighborhoodError {

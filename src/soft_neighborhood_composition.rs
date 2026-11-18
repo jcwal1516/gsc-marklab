@@ -214,7 +214,12 @@ pub fn soft_neighborhood_composition(
         config.radius_um,
         config.limits.maximum_pair_visits,
     )?;
-    let configuration_digest = configuration_digest(input, window, mark_id, config)?;
+    let declared_digest = input.declared_artifact_digest().map_err(|error| {
+        SoftNeighborhoodCompositionError::InvalidDeclaredInput {
+            reason: error.to_string(),
+        }
+    })?;
+    let configuration_digest = configuration_digest(declared_digest, window, mark_id, config);
     let graph_digest = ContentDigest::from_framed([
         b"marklab-soft-neighborhood-radius-graph-v1".as_slice(),
         plan.logical_digest().as_bytes(),
@@ -322,19 +327,14 @@ pub(crate) fn composition_rows(
 }
 
 pub(crate) fn configuration_digest(
-    input: &DeclaredScalarPatternInput<'_>,
+    declared_digest: ContentDigest,
     window: &ObservationWindow2D,
     mark_id: &ScalarMarkId,
     config: &SoftNeighborhoodCompositionConfig,
-) -> Result<ContentDigest, SoftNeighborhoodCompositionError> {
-    let declared = input.declared_artifact_ref().map_err(|error| {
-        SoftNeighborhoodCompositionError::InvalidDeclaredInput {
-            reason: error.to_string(),
-        }
-    })?;
-    Ok(ContentDigest::from_framed([
+) -> ContentDigest {
+    ContentDigest::from_framed([
         b"marklab-soft-neighborhood-composition-v1".as_slice(),
-        declared.digest().as_bytes(),
+        declared_digest.as_bytes(),
         window.descriptor().logical_digest.as_bytes(),
         mark_id.as_str().as_bytes(),
         &config.radius_um.to_bits().to_be_bytes(),
@@ -343,7 +343,7 @@ pub(crate) fn configuration_digest(
         &(config.limits.maximum_values as u128).to_be_bytes(),
         &(config.limits.maximum_pair_visits as u128).to_be_bytes(),
         &(config.limits.maximum_retained_bytes as u128).to_be_bytes(),
-    ]))
+    ])
 }
 
 fn geometry(error: impl std::fmt::Display) -> SoftNeighborhoodCompositionError {
